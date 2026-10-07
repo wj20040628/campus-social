@@ -4,7 +4,7 @@
       <template #header>
         <div class="auth-title">
           <el-icon class="auth-logo"><ChatDotRound /></el-icon>
-          <span>校园社交</span>
+          <span>友声</span>
         </div>
       </template>
       <el-form :model="form" :rules="rules" ref="formRef" @submit.prevent="onSubmit">

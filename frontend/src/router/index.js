@@ -64,7 +64,7 @@ router.beforeEach((to, from, next) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta?.title ? `${to.meta.title} · 校园社交` : '校园社交'
+  document.title = to.meta?.title ? `${to.meta.title} · 友声` : '友声 · 校园生活'
 })
 
 export default router

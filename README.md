@@ -1,4 +1,10 @@
-# 校园社交网站(Campus Social)
+# 友声 · 校园生活社区
+
+> 嘤其鸣矣，求其友声。 ——《诗经·小雅·伐木》
+
+让校园里的每一次发声,都能得到回应。
+
+工程代号:campus-social
 
 技术栈:**Vue3 (Vite) + SpringBoot 3.2 + MySQL 8 + Redis + JWT 双 token + Spring 原生 WebSocket + Element Plus + Pinia**
 

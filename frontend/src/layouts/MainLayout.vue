@@ -2,7 +2,7 @@
   <div class="main-layout">
     <el-container class="shell">
       <el-aside width="220px" class="side">
-        <div class="brand">校园社交</div>
+        <div class="brand">友声</div>
         <el-menu :default-active="activeMenu" router>
           <el-menu-item index="/">
             <el-icon><House /></el-icon>
