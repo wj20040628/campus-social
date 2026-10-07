@@ -1,0 +1,16 @@
+package com.campus.social.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+@Data
+public class LoginDTO {
+
+    @NotBlank
+    @Size(max = 64)
+    private String username;
+
+    @NotBlank
+    private String password;
+}

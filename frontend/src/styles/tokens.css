@@ -1,0 +1,46 @@
+/* ============================================================
+ * 全局设计 token(现代清爽 · 大圆角宽松)
+ * 引入顺序:element-plus CSS → 本文件(覆盖 EP 变量)→ 各组件
+ * 改一处,全站 el-card/el-button/el-avatar 等自动跟随
+ * ============================================================ */
+
+:root {
+  /* 圆角族(大圆角):卡片 12 / 按钮 8 / 小元素 6 / 全圆 16 */
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 16px;
+  --el-card-border-radius: 12px;
+
+  /* 自有间距 token(4px 步进) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 卡片标准圆角(供自定义卡片/媒体复用) */
+  --card-radius: 12px;
+
+  /* 全局文字/背景基调:白卡片浮在浅灰底上 */
+  --app-bg: #f7f8fa;
+}
+
+html, body {
+  margin: 0;
+  background: var(--app-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--el-text-color-primary);
+}
+
+/* 卡片默认圆角 + 更轻的阴影,统一观感 */
+.el-card {
+  border-radius: var(--card-radius);
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.el-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}

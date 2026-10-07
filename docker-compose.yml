@@ -1,0 +1,95 @@
+# ============================================================
+# 校园社交 生产编排:MySQL + Redis + 后端 + 前端(Nginx)
+# 用法:docker compose --env-file .env up -d --build
+#
+# 安全约定(生产与本地的关键差异):
+#   1. 所有密钥走 .env,不写在本文件里,也不进仓库
+#   2. MySQL / Redis 不映射宿主机端口 —— 只在容器网络内互通,
+#      云安全组同样只放行 22 / 80 / 443,绝不放行 3306 / 6379
+#   3. 后端 8080 也不对外暴露,统一由前端 Nginx 反代进入
+# ============================================================
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: cs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: campus_social_v2
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./sql/seed_data.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: cs-redis
+    restart: unless-stopped
+    # 容器内持久化,避免重启丢掉验证码与会话
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cs-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      # 学生机通常只有 2G 内存,限制 JVM 堆,避免把 MySQL / Redis 挤爆
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"
+      # prod 走真实 SMTP;留空或 dev 则控制台打印验证码(仅本地用)
+      APP_MESSAGE_GATEWAY: ${APP_MESSAGE_GATEWAY:-prod}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: cs-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  mysql-data:
+  redis-data:
+  uploads-data:

@@ -1,0 +1,124 @@
+spring:
+  application:
+    name: campus-social
+
+  # ------------------------------------------------------------
+  # 数据源(生产环境用环境变量覆盖)
+  # ------------------------------------------------------------
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/campus_social_v2?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: ${MYSQL_USER:root}
+    # 密码不设默认值,本地开发用 application-local.yml,生产用 MYSQL_PASSWORD 环境变量
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  # ------------------------------------------------------------
+  # Redis
+  # ------------------------------------------------------------
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 3s
+  # ------------------------------------------------------------
+  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 50MB)
+  # ------------------------------------------------------------
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
+  # 禁用默认静态资源映射(避免 /uploads/** 被拦截)
+  web:
+    resources:
+      add-mappings: false
+  # ------------------------------------------------------------
+  # SMTP(QQ 邮箱)发验证码邮件
+  # 授权码:QQ 邮箱 → 设置 → 账户 → 开启 POP3/SMTP 服务 → 生成 16 位授权码(非 QQ 密码)
+  # 生产建议用环境变量覆盖:MAIL_USERNAME / MAIL_PASSWORD
+  # ------------------------------------------------------------
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    # 授权码不设默认值,本地开发用 application-local.yml,生产用 MAIL_USERNAME / MAIL_PASSWORD 环境变量
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    # SQL 日志:生产关闭 stdout 全量打印(本地开发用 application-local.yml 打开)
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      id-type: auto
+
+
+jwt:
+  # HS512 要求密钥 ≥ 64 字节。不设默认值:
+  # 本地开发用 application-local.yml,生产必须用强随机的 JWT_ACCESS_SECRET / JWT_REFRESH_SECRET 环境变量。
+  access-secret: ${JWT_ACCESS_SECRET:}
+  refresh-secret: ${JWT_REFRESH_SECRET:}
+  # access 15min,refresh 7d
+  access-ttl-millis: 900000
+  refresh-ttl-millis: 604800000
+
+upload:
+  # 上传目录:相对路径,容器内可挂载
+  dir: ${UPLOAD_DIR:./uploads}
+  max-image-bytes: 7864320        # 7.5 MB
+  max-video-bytes: 52428800      # 50 MB
+
+server:
+  port: 8080
+  tomcat:
+    max-http-form-post-size: 200MB
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+# ------------------------------------------------------------
+# SMTP(QQ 邮箱)发验证码邮件
+# 生成授权码:QQ 邮箱 → 设置 → 账户 → 开启 POP3/SMTP 服务 → 生成 16 位授权码
+# 注意:password 填的是授权码,不是 QQ 密码
+# 生产建议用环境变量覆盖:MAIL_USERNAME / MAIL_PASSWORD
+# ------------------------------------------------------------
+# app.campus.message-gateway: dev=控制台打印验证码(本地默认) / prod=走下方 SMTP 真实发信
+app:
+  campus:
+    message-gateway: ${APP_MESSAGE_GATEWAY:dev}
+
+# ------------------------------------------------------------
+# AI 内容机审(LLM):直接接真实 LLM API
+# enabled=false(缺省)→ 不真调 LLM,机审走 manual 转人工兜底,本地无 key 也不崩
+# 真实调用:本地开发用 application-local.yml 填 LLM_API_KEY,生产用环境变量
+# provider=claude → 走 {base-url}/v1/messages;x-api-key + anthropic-version
+# provider=openai → 走 {base-url}/chat/completions;Bearer key(可指本地/代理/兼容端点)
+# ------------------------------------------------------------
+llm:
+  enabled: ${LLM_ENABLED:false}
+  provider: ${LLM_PROVIDER:claude}
+  api-key: ${LLM_API_KEY:}
+  base-url: ${LLM_BASE_URL:}            # 空=用 provider 默认(claude→api.anthropic.com / openai→api.openai.com/v1)
+  model: ${LLM_MODEL:claude-sonnet-5}
+  timeout-sec: ${LLM_TIMEOUT_SEC:30}
+
+logging:
+  level:
+    root: INFO
+    # 本地调试用 application-local.yml 打开 DEBUG;生产保持 INFO
+    com.campus.social: INFO
+    org.springframework.web: INFO

@@ -1,0 +1,343 @@
+package com.campus.social.service.impl;
+
+import com.campus.social.dto.LoginByCodeDTO;
+import com.campus.social.dto.LoginDTO;
+import com.campus.social.dto.RefreshDTO;
+import com.campus.social.dto.RegisterDTO;
+import com.campus.social.dto.SendCodeDTO;
+import com.campus.social.entity.User;
+import com.campus.social.exception.BusinessException;
+import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.AuthService;
+import com.campus.social.service.VerifyCodeService;
+import com.campus.social.util.JwtUtil;
+import com.campus.social.vo.TokenPairVO;
+import com.campus.social.vo.UserVO;
+import io.jsonwebtoken.Claims;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+
+import static com.campus.social.common.ResultCode.*;
+
+/**
+ * 账号鉴权实现
+ *
+ * refresh token 吊销设计:
+ * - 每次签 refresh 时,Redis key=refresh:{userId} 存 jti 指纹,TTL = refreshTtl
+ * - /auth/refresh:比对 jti,不一致 → 防重用攻击(REFRESH_TOKEN_REUSED)
+ * - 刷新成功后立刻删除旧 key,写新 key(滚动)
+ * - /auth/logout:删 key,refresh 立刻失效
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AuthServiceImpl implements AuthService {
+
+    private final UserMapper userMapper;
+    private final StringRedisTemplate redis;
+    private final VerifyCodeService verifyCodeService;
+    private final com.campus.social.service.AuditService auditService;
+
+    /** refresh:{userId} = jti */
+    private static final String REFRESH_KEY = "refresh:";
+
+    /** 与 JwtConfig 的 access-ttl-millis(900000ms=15min)保持一致 */
+    private static final long ACCESS_TTL_SECONDS = 15 * 60;
+
+    /** 与 JwtConfig 的 refresh-ttl-millis(7d)保持一致 */
+    private static final Duration REFRESH_TTL = Duration.ofDays(7);
+
+    /**
+     * 原子 CAS:读 refresh:{uid} 的旧 jti,与新 jti 比对。
+     * - 匹配:写新 jti + 刷新 TTL,返回 1(滚动成功)
+     * - 不匹配(重用攻击):删 key,返回 0(全吊销)
+     * - 无记录:返回 -1(需重新登录)
+     * 用 Lua 保证读-判-写在一个原子步骤内,杜绝并发同 jti 双花绕过 rotation。
+     */
+    private static final RedisScript<Long> REFRESH_CAS_SCRIPT;
+
+    static {
+        String lua =
+                "local cur = redis.call('GET', KEYS[1])\n" +
+                "if cur == false then return -1 end\n" +
+                "if cur ~= ARGV[1] then\n" +
+                "  redis.call('DEL', KEYS[1])\n" +
+                "  return 0\n" +
+                "end\n" +
+                "redis.call('SET', KEYS[1], ARGV[2], 'EX', tonumber(ARGV[3]))\n" +
+                "return 1";
+        REFRESH_CAS_SCRIPT = new DefaultRedisScript<>(lua, Long.class);
+    }
+
+    /** 校验旧 jti,匹配则滚动写入 newJti,返回 true;重用以吊销,返回 false */
+    private boolean rotateRefreshJti(long userId, String oldJti, String newJti) {
+        Long result = redis.execute(
+                REFRESH_CAS_SCRIPT,
+                List.of(REFRESH_KEY + userId),
+                oldJti, newJti, String.valueOf(REFRESH_TTL.toSeconds()));
+        return result != null && result == 1L;
+    }
+
+    @Override
+    @Transactional
+    public TokenPairVO register(RegisterDTO dto) {
+        // 1. 先校验验证码(防暴力试密码/防未验证就注册)
+        verifyCodeService.verify(dto.getUsername(), dto.getVerifyCode(), "register");
+
+        // 用户名已存在?
+        User existing = userMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
+                        .eq(User::getUsername, dto.getUsername()));
+        if (existing != null) {
+            throw new BusinessException(USERNAME_EXISTS, "该邮箱/手机号已注册");
+        }
+        // 学号已存在?
+        if (dto.getStudentNo() != null && !dto.getStudentNo().isBlank()) {
+            User bySno = userMapper.selectOne(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
+                            .eq(User::getStudentNo, dto.getStudentNo()));
+            if (bySno != null) {
+                throw new BusinessException(STUDENT_NO_EXISTS, "该学号已被其他账号绑定");
+            }
+        }
+
+        User user = new User();
+        user.setUsername(dto.getUsername());
+        user.setPasswordHash(JwtUtil.hashPassword(dto.getPassword()));
+        user.setNickname(dto.getNickname());
+        user.setStudentNo(dto.getStudentNo());
+        user.setStatus(0); // 正常
+        userMapper.insert(user);
+
+        // 审计:注册
+        auditService.record(user.getId(), "register", "user", user.getId(),
+                "username=" + dto.getUsername(), null);
+
+        log.info("register: uid={}, username={}", user.getId(), dto.getUsername());
+        return issueTokens(user);
+    }
+
+    @Override
+    public TokenPairVO login(LoginDTO dto) {
+        User user = userMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
+                        .eq(User::getUsername, dto.getUsername()));
+        if (user == null) {
+            throw new BusinessException(WRONG_PASSWORD);
+        }
+        // 冻结/注销账号拒登录
+        if (user.getStatus() == 1) {
+            throw new BusinessException(USER_FROZEN);
+        }
+        if (user.getStatus() == 2) {
+            throw new BusinessException(USER_CANCELLED);
+        }
+        if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
+            throw new BusinessException(WRONG_PASSWORD);
+        }
+        // 审计:登录
+        auditService.record(user.getId(), "login", "user", user.getId(),
+                "username=" + user.getUsername(), null);
+        return issueTokens(user);
+    }
+
+    @Override
+    public TokenPairVO loginByCode(LoginByCodeDTO dto) {
+        // 校验邮箱验证码(登录用途,一次性消费)
+        verifyCodeService.verify(dto.getEmail(), dto.getCode(), "login");
+
+        User user = userMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
+                        .eq(User::getUsername, dto.getEmail()));
+        if (user == null) {
+            throw new BusinessException(EMAIL_NOT_REGISTERED, "该邮箱尚未注册");
+        }
+        if (user.getStatus() == 1) {
+            throw new BusinessException(USER_FROZEN);
+        }
+        if (user.getStatus() == 2) {
+            throw new BusinessException(USER_CANCELLED);
+        }
+        log.info("loginByCode: email={}", dto.getEmail());
+        return issueTokens(user);
+    }
+
+    @Override
+    public String sendCode(SendCodeDTO dto) {
+        return verifyCodeService.send(dto.getTarget(), dto.getType() == null ? "register" : dto.getType());
+    }
+
+    @Override
+    public TokenPairVO refresh(RefreshDTO dto) {
+        Claims claims = JwtUtil.parseRefresh(dto.getRefreshToken());
+        if (claims == null) {
+            throw new BusinessException(REFRESH_TOKEN_INVALID);
+        }
+        Long userId;
+        try {
+            userId = Long.parseLong(claims.getSubject());
+        } catch (NumberFormatException e) {
+            throw new BusinessException(REFRESH_TOKEN_INVALID);
+        }
+        String oldJti = claims.getId();
+        // 签新 refresh(新 jti),先不写 Redis
+        String newJti = UUID.randomUUID().toString().replace("-", "");
+        String newRefresh = JwtUtil.issueRefresh(userId, newJti);
+
+        // 原子 CAS:旧 jti 匹配才滚动写入新 jti(杜绝并发同 jti 双花绕过 rotation)
+        if (!rotateRefreshJti(userId, oldJti, newJti)) {
+            // 重用(-1 无记录 / 0 不匹配,已被 DEL)→ 全吊销
+            throw new BusinessException(REFRESH_TOKEN_REUSED, "refresh token 已被吊销,请重新登录");
+        }
+
+        // CAS 通过后校验账号状态
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            redis.delete(REFRESH_KEY + userId);
+            throw new BusinessException(REFRESH_TOKEN_INVALID, "用户不存在");
+        }
+        if (user.getStatus() == 1) {
+            redis.delete(REFRESH_KEY + userId);
+            throw new BusinessException(USER_FROZEN);
+        }
+        String newAccess = JwtUtil.issueAccess(userId, user.getUsername());
+        long accessExpireAt = System.currentTimeMillis() / 1000 + ACCESS_TTL_SECONDS;
+        return TokenPairVO.builder()
+                .accessToken(newAccess)
+                .refreshToken(newRefresh)
+                .accessExpireAt(accessExpireAt)
+                .build();
+    }
+
+    @Override
+    public void logout(long userId) {
+        redis.delete(REFRESH_KEY + userId);
+        log.info("logout: uid={}", userId);
+        // 审计:登出
+        auditService.record(userId, "logout", "user", userId, "退出登录", null);
+    }
+
+    @Override
+    public UserVO me(long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_CANCELLED);
+        }
+        return toVo(user);
+    }
+
+    @Override
+    @Transactional
+    public UserVO updateProfile(long userId, String nickname, String grade, String dept, String avatarUrl,
+            String studentNo) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_CANCELLED);
+        }
+        // 先捕获旧值,updateById 之后 user 字段就变新值了,审计 diff 需要旧值做"→"左边
+        String oldNickname = user.getNickname();
+        String oldGrade = user.getGrade();
+        String oldDept = user.getDept();
+        String oldStudentNo = user.getStudentNo();
+        String oldAvatar = user.getAvatarUrl();
+        // 学号变更需唯一校验
+        if (studentNo != null && !studentNo.isBlank() && !studentNo.equals(user.getStudentNo())) {
+            Long dup = userMapper.selectCount(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
+                            .eq(User::getStudentNo, studentNo));
+            if (dup > 0) {
+                throw new BusinessException(STUDENT_NO_EXISTS, "该学号已被其他账号绑定");
+            }
+            user.setStudentNo(studentNo);
+        }
+        if (nickname != null)
+            user.setNickname(nickname);
+        if (grade != null)
+            user.setGrade(grade);
+        if (dept != null)
+            user.setDept(dept);
+        if (avatarUrl != null)
+            user.setAvatarUrl(avatarUrl);
+        userMapper.updateById(user);
+        // 审计:改资料,记 "字段: 旧值 → 新值" 的 diff(只记有实际变化的字段,避免噪声)
+        StringBuilder diff = new StringBuilder();
+        if (nickname != null && !nickname.equals(oldNickname))
+            diff.append("昵称:").append(nullSafe(oldNickname)).append("→").append(nickname).append("; ");
+        if (grade != null && !grade.equals(oldGrade))
+            diff.append("年级:").append(nullSafe(oldGrade)).append("→").append(grade).append("; ");
+        if (dept != null && !dept.equals(oldDept))
+            diff.append("院系:").append(nullSafe(oldDept)).append("→").append(dept).append("; ");
+        if (studentNo != null && !studentNo.isBlank() && !studentNo.equals(oldStudentNo))
+            diff.append("学号:").append(nullSafe(oldStudentNo)).append("→").append(studentNo).append("; ");
+        if (avatarUrl != null && !avatarUrl.equals(oldAvatar))
+            diff.append("头像:已更换; ");
+        if (diff.length() > 0) {
+            auditService.record(userId, "update_profile", "user", userId, "改资料: " + diff.toString().trim(), null);
+        }
+        return toVo(user);
+    }
+
+    // ----------------------------------------------------------------
+
+    /** null 安全展示:值 null 时显示「空」,避免 detail 里出现 "null" */
+    private String nullSafe(String v) {
+        return v == null ? "空" : v;
+    }
+
+    /** 签发 access + refresh,refresh jti 写入 Redis(注册/登录首次签发,无旧 jti 需比对) */
+    private TokenPairVO issueTokens(User user) {
+        String jti = UUID.randomUUID().toString().replace("-", "");
+        String access = JwtUtil.issueAccess(user.getId(), user.getUsername());
+        String refresh = JwtUtil.issueRefresh(user.getId(), jti);
+        redis.opsForValue().set(REFRESH_KEY + user.getId(), jti, REFRESH_TTL);
+
+        long accessExpireAt = System.currentTimeMillis() / 1000 + ACCESS_TTL_SECONDS;
+        return TokenPairVO.builder()
+                .accessToken(access)
+                .refreshToken(refresh)
+                .accessExpireAt(accessExpireAt)
+                .build();
+    }
+
+    private UserVO toVo(User user) {
+        return UserVO.builder()
+                .id(user.getId())
+                .username(maskUsername(user.getUsername()))
+                .nickname(user.getNickname() != null ? user.getNickname() : user.getUsername())
+                .avatarUrl(user.getAvatarUrl())
+                .grade(user.getGrade())
+                .dept(user.getDept())
+                .followerCount(user.getFollowerCount())
+                .followingCount(user.getFollowingCount())
+                .unreadNotifyCount(user.getUnreadNotifyCount())
+                .role(user.getRole() == null ? 0 : user.getRole())
+                .createTime(user.getCreateTime())
+                .build();
+    }
+
+    /** 邮箱显示 user***@domain.com,手机号显示 138****1234 */
+    private String maskUsername(String raw) {
+        if (raw == null)
+            return null;
+        if (raw.contains("@")) {
+            int at = raw.indexOf('@');
+            String local = raw.substring(0, at);
+            String domain = raw.substring(at + 1);
+            return local.length() <= 2 ? local + "***@" + domain
+                    : local.substring(0, 2) + "***" + local.substring(local.length() - 1) + "@" + domain;
+        }
+        if (raw.length() == 11) {
+            return raw.substring(0, 3) + "****" + raw.substring(7);
+        }
+        return raw;
+    }
+}
