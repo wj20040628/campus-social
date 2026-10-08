@@ -19,6 +19,46 @@
   transition: transform var(--ys-motion-base) var(--ys-ease-out);
 }
 
+.cc__replying {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+  background: var(--ys-surface-2);
+  border-bottom: 1px solid var(--ys-border-soft);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+}
+
+/* 昵称是这里唯一的重点,给强调色;「回复」二字保持中性 */
+.cc__replying-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc__replying-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  /* 44px 热区但视觉只有 14px 图标:负 margin 收紧视觉间距,不改热区 */
+  margin: calc(var(--ys-touch-min) / -2) calc(var(--ys-touch-min) / -2) calc(var(--ys-touch-min) / -2) 0;
+  border: 0;
+  background: none;
+  color: var(--ys-muted);
+  cursor: pointer;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cc__replying-x:hover {
+  color: var(--ys-fg);
+}
+
 .cc__mention {
   /* grid 0fr→1fr 展开,不用 max-height 魔法值(魔法值要么留白要么裁内容) */
   display: grid;
@@ -164,7 +204,8 @@
   .cc,
   .cc__at,
   .cc__send,
-  .cc__mention-cell {
+  .cc__mention-cell,
+  .cc__replying-x {
     transition: none;
   }
 }

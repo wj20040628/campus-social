@@ -92,8 +92,15 @@
         <GreetButton v-else :peer-id="authorId" @need-verify="verifyOpen = true" />
       </div>
 
-      <!-- 行 8:评论区 -->
-      <PostComments :comments="comments" @ask="askComment" @go-user="goUser" />
+      <!-- 行 8:评论区。树在 PostComments 内部建,页面只传扁平列表 -->
+      <PostComments
+        :comments="comments"
+        :total="post.commentCount"
+        :my-id="myId"
+        @ask="askComment"
+        @go-user="goUser"
+        @reply="startReply"
+      />
 
       <!--
         评论列表底部留白:保证最后一条不被吸底输入区盖住。
@@ -102,8 +109,14 @@
       -->
       <div class="detail__tail" aria-hidden="true" />
 
-      <!-- 行 9:吸底评论输入区 -->
-      <CommentComposer ref="composerRef" :my-id="myId" :submit="postComment" />
+      <!-- 行 9:吸底评论输入区。replyTo 承接评论区的「回复」 -->
+      <CommentComposer
+        ref="composerRef"
+        :my-id="myId"
+        :reply-to="replyTo"
+        :submit="postComment"
+        @cancel-reply="replyTo = null"
+      />
     </template>
 
     <!--
@@ -135,7 +148,7 @@
  *   CommentComposer   @ 提及输入状态机 + 键盘让位
  *   usePostDetail.js  媒体解析、计数封顶、评论切片等纯计算
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { capCount as cap, usePostMedia } from '@/composables/usePostDetail'
@@ -162,6 +175,8 @@ const moreOpen = ref(false)
 const reportOpen = ref(false)
 const verifyOpen = ref(false)
 const composerRef = ref(null)
+/** 正在回复的评论节点。由评论区 emit 上来,原样传给 CommentComposer 显示「回复 @xxx」 */
+const replyTo = ref(null)
 
 const myId = computed(() => userStore.userInfo?.id)
 const isAuthor = computed(() => !!post.value && post.value.author?.id === myId.value)
@@ -182,11 +197,25 @@ function goTopic(name) {
   router.push(`/topic/${encodeURIComponent(name)}`)
 }
 
+/**
+ * 开始回复。层级不在这里算 —— 算它要回溯整棵树,
+ * 由 postComment 在提交时用最新列表算(见 usePostDetailActions)。
+ * 这里只做两件事:记住目标、把输入框叫醒。
+ */
+function startReply(node) {
+  replyTo.value = node
+  composerRef.value?.focus()
+}
+
 /** 空态的「说一句」:光标送进吸底输入框,并把最后一条评论滚进视野 */
 function askComment() {
+  replyTo.value = null
   composerRef.value?.focus()
   document.querySelector('.detail__tail')?.scrollIntoView({ behavior: 'smooth' })
 }
+
+// 帖子换页(路由复用同一个组件实例)时清掉回复态,否则会拿着上一篇的节点去回复
+watch(() => route.params.id, () => { replyTo.value = null })
 
 onMounted(load)
 </script>

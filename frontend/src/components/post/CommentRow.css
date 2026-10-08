@@ -1,0 +1,166 @@
+/* ==========================================================================
+ * CommentRow · 单条评论节点(递归)
+ * 从 PostComments.css 抽出。抽出原因不是行数,是一条评论现在要管三件事:
+ * 缩进层级、6 行截断、子楼折叠 —— 每一件都有自己的 class,
+ * 挤在 PostComments.css 里和「评论区容器」的规则混在一起会互相干扰。
+ *
+ * 断点纪律:字面量 px,值取自 design-tokens.json 的 breakpoint 段
+ * ========================================================================== */
+
+.c-item {
+  display: flex;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  /* 通知跳转高亮:一次性提示,不加缓动(它不是状态迁移) */
+  scroll-margin-top: var(--ys-topbar-h);
+}
+
+.c-item + .c-item {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.c-item.is-highlight {
+  background: var(--ys-accent-soft);
+}
+
+/*
+  层级缩进。二级缩进 --ys-space-4,三级与二级同缩进 ——
+  设计 §4「禁止评论区楼层缩进超过 2 层」,三级再缩进去正文只剩 200px 宽,
+  长评论会折成五六行。三级靠 .c-reply 前缀和头像缩小来区分,不靠缩进。
+*/
+.c-item--d1,
+.c-item--d2 {
+  padding-left: calc(var(--ys-gutter-phone) + var(--ys-space-4));
+}
+
+/* 子楼:左侧一条发丝线代替再缩进,视觉上挂得住又不吃宽度 */
+.c-subs {
+  margin: var(--ys-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  border-left: 2px solid var(--ys-border-soft);
+}
+
+.c-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.c-nick {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.c-reply {
+  margin-left: var(--ys-space-1);
+  font-weight: var(--ys-weight-regular);
+  color: var(--ys-muted);
+}
+
+.c-text {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  color: var(--ys-fg);
+  /* anywhere 而非 break-word:长 URL 不能把行撑破(AC-15) */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 6 行封顶(设计 §3「内容超长」)。超不超由 CommentRow 的 DOM 实测决定 */
+.c-text--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.c-mention {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.c-mention:hover {
+  text-decoration: underline;
+}
+
+/*
+  「展开 / 收起」内联在正文末尾而不是另起一行 ——
+  另起一行会让 6 行截断的内容下方多出一条空白,读者误以为那就是全文。
+*/
+.c-more {
+  display: inline;
+  margin-left: var(--ys-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--ys-text-base);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+/* 时间 + 回复按钮同一行。回复入口 12px 文字但热区补到 44px(设计 §5) */
+.c-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  margin: var(--ys-space-1) 0 0;
+}
+
+.c-time {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.c-reply-btn {
+  /* 视觉 12px,热区 44px:padding 撑开不撑字号,免得小字难点 */
+  margin: calc(var(--ys-touch-min) / -2 + 6px) 0;
+  padding: calc(var(--ys-touch-min) / 2 - 6px) var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  cursor: pointer;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.c-reply-btn:hover {
+  color: var(--ys-accent);
+}
+
+.c-toggle {
+  margin-top: var(--ys-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+/* ---------------- ≥768px:留白放大 + 限宽居中 ---------------- */
+
+@media (min-width: 768px) {
+  .c-item {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  /* 二三级在桌面端仍然缩进,但用桌面 gutter 起算 */
+  .c-item--d1,
+  .c-item--d2 {
+    padding-left: calc(var(--ys-gutter-desktop) + var(--ys-space-4));
+    padding-right: var(--ys-gutter-desktop);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c-reply-btn {
+    transition: none;
+  }
+}

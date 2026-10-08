@@ -54,99 +54,6 @@
   padding: var(--ys-space-8) var(--ys-gutter-phone);
 }
 
-/* ---------------- 作者行 ---------------- */
-.author {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  padding: var(--ys-space-4) var(--ys-gutter-phone) var(--ys-space-3);
-}
-
-.author__main {
-  flex: 1;
-  min-width: 0;
-}
-
-.author__nick {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg);
-}
-
-/* tabular-nums:时间戳列不会因 :00 / :30 宽度不同而抖动 */
-.author__time {
-  margin: 0;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-  font-variant-numeric: tabular-nums;
-}
-
-.author__status {
-  flex: none;
-  padding: 0 var(--ys-space-2);
-  border-radius: var(--ys-radius-sm);
-  font-size: var(--ys-text-xs);
-  line-height: var(--ys-lh-xs);
-}
-
-.author__status--pending {
-  background: var(--ys-warning-soft);
-  color: var(--ys-warning);
-}
-
-.author__status--rejected {
-  background: var(--ys-danger-soft);
-  color: var(--ys-danger);
-}
-
-/* ---------------- 正文 ---------------- */
-.content {
-  margin: 0;
-  padding: 0 var(--ys-space-4);
-  white-space: pre-wrap;
-  /* 正文不截断:长 URL 必须靠 overflow-wrap 折行,不能横向滚动(AC-15) */
-  overflow-wrap: anywhere;
-  font-size: var(--ys-text-md);
-  line-height: var(--ys-lh-md);
-  color: var(--ys-fg);
-}
-
-/* ---------------- 媒体区 ---------------- */
-.media-grid {
-  display: grid;
-  gap: var(--ys-space-1);
-  padding: var(--ys-space-3) var(--ys-gutter-phone) 0;
-}
-
-.media-grid--one {
-  grid-template-columns: 1fr;
-}
-
-.media-grid--two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.media-grid--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.media-img,
-.media-video {
-  width: 100%;
-  border-radius: var(--ys-radius-lg);
-  object-fit: cover;
-  display: block;
-}
-
-/* 单图给足高度但不超过半屏:9:16 的竖图按宽度铺开会高到要滚两屏 */
-.media-grid--one .media-img,
-.media-grid--one .media-video {
-  max-height: 60vh;
-}
 
 /* ---------------- 操作条 ---------------- */
 .ops {
@@ -203,123 +110,6 @@
   margin-left: auto;
 }
 
-/* ---------------- 未认证说明(搭话时) ---------------- */
-.vfy {
-  padding: var(--ys-space-4);
-}
-
-.vfy__why {
-  margin: 0 0 var(--ys-space-2);
-  font-size: var(--ys-text-lg);
-  line-height: var(--ys-lh-lg);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
-
-.vfy__how {
-  margin: 0 0 var(--ys-space-4);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  color: var(--ys-muted);
-}
-
-.vfy__btn {
-  width: 100%;
-  min-height: var(--ys-touch-min);
-  border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.vfy__btn:hover {
-  background: var(--ys-accent-hover);
-}
-
-/* ---------------- 评论区 ---------------- */
-.comments {
-  border-top: 1px solid var(--ys-border);
-}
-
-.comments__head {
-  margin: 0;
-  padding: var(--ys-space-4) var(--ys-gutter-phone) var(--ys-space-2);
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
-
-.comments__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.c-item {
-  display: flex;
-  gap: var(--ys-space-3);
-  padding: var(--ys-space-4) var(--ys-gutter-phone);
-  /* 通知跳转高亮:一次性,不加缓动(它是一次性提示不是状态迁移) */
-  scroll-margin-top: var(--ys-topbar-h);
-}
-
-.c-item + .c-item {
-  border-top: 1px solid var(--ys-border-soft);
-}
-
-.c-item.is-highlight {
-  background: var(--ys-accent-soft);
-}
-
-.c-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.c-nick {
-  margin: 0;
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg);
-}
-
-.c-reply {
-  margin-left: var(--ys-space-1);
-  font-weight: var(--ys-weight-regular);
-  color: var(--ys-muted);
-}
-
-.c-text {
-  margin: var(--ys-space-1) 0 0;
-  font-size: var(--ys-text-base);
-  line-height: var(--ys-lh-base);
-  color: var(--ys-fg);
-  overflow-wrap: anywhere;
-}
-
-.c-mention {
-  color: var(--ys-accent);
-  font-weight: var(--ys-weight-medium);
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.c-mention:hover {
-  text-decoration: underline;
-}
-
-.c-time {
-  margin: var(--ys-space-1) 0 0;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-  font-variant-numeric: tabular-nums;
-}
-
 /*
   吸底输入区的高度垫片。
   设计 §1.1 给的是 calc(56px + --ys-space-4 + --ys-safe-bottom) ——
@@ -334,14 +124,14 @@
   height: calc(56px + var(--ys-space-4) + var(--ys-safe-bottom));
 }
 
-/* ---------------- ≥768px:留白放大 ---------------- */
+/* ---------------- ≥768px:留白放大 ----------------
+   只管**留在本页**的块(顶栏 / 操作条 / 状态区 / 尾部垫片)。
+   作者行、正文、媒体在 PostBody.css;评论区在 PostComments.css / CommentRow.css。
+   它们的 768px 规则跟着各自组件走 —— 留在本页的 scoped 选择器
+   命中不了子组件内部,写了也白写。 */
 @media (min-width: 768px) {
   .detail__bar,
-  .author,
-  .content,
-  .ops,
-  .comments__head,
-  .c-item {
+  .ops {
     padding-left: var(--ys-gutter-desktop);
     padding-right: var(--ys-gutter-desktop);
   }
@@ -352,11 +142,7 @@
     padding-right: var(--ys-gutter-desktop);
   }
 
-  .content,
-  .author,
-  .media-grid,
   .ops,
-  .comments,
   .detail__tail,
   .detail__loading {
     max-width: var(--ys-content-col);
@@ -364,23 +150,10 @@
     margin-right: auto;
     width: 100%;
   }
-
-  .media-grid--one .media-img,
-  .media-grid--one .media-video {
-    max-height: 70vh;
-  }
-}
-
-/* 桌面端媒体:2 图并排、3 图三列、≥4 图两列(设计 §2) */
-@media (min-width: 1024px) {
-  .media-grid--three {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ops__btn,
-  .vfy__btn,
   .detail__tail {
     transition: none;
   }

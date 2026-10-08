@@ -1,6 +1,7 @@
 import { ref, computed, nextTick } from 'vue'
 import dayjs from 'dayjs'
 import { ElMessage } from '@/utils/feedback'
+import { buildCommentForest, replySpecFor } from '@/composables/useCommentTree'
 import {
   detail, like, unlike, deletePost,
   comments as commentsApi, comment as commentApi,
@@ -43,12 +44,17 @@ export function usePostDetailActions(route, router) {
     }
   }
 
+  /**
+   * 拉评论。**这里只存扁平列表,不建树** ——
+   * 树在 buildCommentForest(渲染时 computed)里建,存两份会让「刷新后顺序变了」这类问题
+   * 变成两份数据不一致,排查时看不出是哪一份错了。
+   *
+   * size 50 是契约上限(cursor page maximum: 50),取满一页而不是 20:
+   * 绝大多数帖子评论不过 50,一次拉够就不用做「加载更多」的交互。
+   */
   async function loadComments() {
     const data = await commentsApi(route.params.id, null, 50)
-    comments.value = (data.list || []).map((c) => ({
-      ...c,
-      createTime: dayjs(c.createTime).format('MM-DD HH:mm'),
-    }))
+    comments.value = data.list || []
     // 从通知跳来带 ?comment={id}:滚动并高亮到那条评论
     const cid = route.query.comment
     if (cid) nextTick(() => scrollToComment(cid))
@@ -83,11 +89,30 @@ export function usePostDetailActions(route, router) {
   /**
    * 发评论。**reject 时把 message 挂到 error.userMessage** ——
    * CommentComposer 靠它给出具体提示,而不是笼统的「没发出去」。
+   *
+   * ## 层级与被回复者怎么填(契约 CreateCommentDTO)
+   *
+   * 关键点:`replyToUserId` 取**被回复那条评论的作者 id**,不是当前用户、不是路人。
+   * 服务端会校验「此人是否参与过本帖讨论」,不通过则降级通知帖子作者且接口照样 200。
+   * 取对了就必然通过 —— 回复对象刚在这条评论里说过话,他是参与者。
+   * 降级是给伪造/误传兜底的,不该是常态路径。
+   *
+   * @param {{content:string, mentionUserIds?:number[], replyTo?:object|null}} payload
    */
-  async function postComment({ content, mentionUserIds }) {
+  async function postComment({ content, mentionUserIds, replyTo }) {
     try {
+      // replyTo 是 CommentRow 传上来的**节点引用**,层级要用整棵树的索引回溯,
+      // 所以这里重新建一次森林而不是在组件里算 —— 组件里没有全量列表。
+      const { index } = buildCommentForest(comments.value)
+      const spec = replySpecFor(replyTo || null, index)
       // 被 @ 绑定的是选中时的唯一 id,后端按 id 精准发通知(昵称可能重名,不靠正文反查)
-      await commentApi(route.params.id, { content, level: 1, mentionUserIds })
+      await commentApi(route.params.id, {
+        content,
+        level: spec.level,
+        parentId: spec.parentId,
+        replyToUserId: spec.replyToUserId,
+        mentionUserIds,
+      })
       post.value.commentCount = (post.value.commentCount || 0) + 1
       await loadComments()
     } catch (e) {

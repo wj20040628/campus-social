@@ -1,43 +1,35 @@
 <template>
   <!--
     评论区(PostDetail.vue.md 行 8)
-
+    ------------------------------------------------------------------
     抽成组件的理由不是行数,是**这块有独立的空态语义**:
     评论区为空时主句用 lg 不用 2xl —— 它不该抢正文的视觉重量,
     而页面级的空态(帖子没了 / 加载中)是要抢的。两种空态放在同一个文件里,
     改样式时很容易把权重改串。
 
-    组件自持 @ 提及的**渲染**(splitComment),但**输入**在 CommentComposer:
-    发评论时要把 @ 提及写进正文,渲染和输入是同一套状态机的两端,
-    两端必须共用同一个 splitComment,否则会出现「显示了 @某人 但发出去是纯文本」。
+    组件自持 @ 提及的**渲染**(splitComment 在 CommentRow 里),
+    但**输入**在 CommentComposer:发评论时要把 @ 提及写进正文,
+    渲染和输入是同一套状态机的两端,两端必须共用同一个 splitComment,
+    否则会出现「显示了 @某人 但发出去是纯文本」。
+
+    ## 树还是平
+    契约写明列表端点只返回一级,二三级由前端按 parentId 嵌套。
+    真实后端目前也只返回一级(CommentServiceImpl:103 硬编码 level=1),
+    所以 children 现在恒为空 —— 但**归一化与递归渲染已经写好**,
+    后端放开二三级时前端零改动。不先写好等于把同一件事做两遍。
   -->
   <section class="comments">
     <h2 class="comments__head">评论 {{ countText }}</h2>
 
-    <ul v-if="comments.length" class="comments__list">
-      <li
-        v-for="c in comments"
-        :id="`comment-${c.id}`"
-        :key="c.id"
-        class="c-item"
-      >
-        <el-avatar :size="32" :src="resolveUrl(c.user?.avatarUrl)" />
-        <div class="c-body">
-          <p class="c-nick">
-            {{ c.user ? displayName(c.user) : '匿名' }}
-            <span v-if="c.replyToNickname" class="c-reply">回复 {{ c.replyToNickname }}</span>
-          </p>
-          <p class="c-text">
-            <template v-for="(seg, si) in segmentsOf(c)" :key="si">
-              <a v-if="seg.link" class="c-mention" @click.stop="emit('go-user', seg.link)">
-                @{{ seg.text }}
-              </a>
-              <span v-else>{{ seg.text }}</span>
-            </template>
-          </p>
-          <p class="c-time">{{ c.createTime }}</p>
-        </div>
-      </li>
+    <ul v-if="roots.length" class="comments__list">
+      <CommentRow
+        v-for="n in roots"
+        :key="n.id"
+        :node="n"
+        :my-id="myId"
+        @reply="emit('reply', $event)"
+        @go-user="emit('go-user', $event)"
+      />
     </ul>
 
     <!--
@@ -59,29 +51,34 @@
 <script setup>
 import { computed } from 'vue'
 import { ChatLineSquare } from '@element-plus/icons-vue'
-import { capCount, splitComment } from '@/composables/usePostDetail'
-import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { capCount } from '@/composables/usePostDetail'
+import { buildCommentForest } from '@/composables/useCommentTree'
 import StateBlock from '@/components/common/StateBlock.vue'
+import CommentRow from '@/components/post/CommentRow.vue'
 
 const props = defineProps({
+  /** 接口返回的**扁平**评论列表,树在内部建 */
   comments: { type: Array, default: () => [] },
+  /**
+   * 评论总数。标题用帖子级 commentCount 而不是列表长度 ——
+   * 后端分页只给一页,用列表长度会显示「评论 3」而实际有 300 条。
+   */
+  total: { type: [Number, String], default: null },
+  myId: { type: [Number, String], default: null },
 })
 
-const emit = defineEmits(['ask', 'go-user'])
+const emit = defineEmits(['ask', 'go-user', 'reply'])
 
-/** 999 封顶。与页面其他计数同一口径,避免「1.2k 评论」这种读不出来的数 */
-const countText = computed(() => capCount(props.comments.length))
+const forest = computed(() => buildCommentForest(props.comments))
+const roots = computed(() => forest.value.roots)
 
-/**
- * 逐条渲染成「文本 / @提及链接」片段序列。
- *
- * 提成函数而不是在模板里 map:模板里写 .map() 加 v-for 需要额外的
- * computed 或方法调用,两种写法行数一样但后者可读性差一截。
- */
-function segmentsOf(c) {
-  return splitComment(c)
-}
+/** 优先用后端给的总数;没有(未登录/字段缺)才退回可见条数 */
+const countText = computed(() => {
+  const t = Number(props.total)
+  return capCount(Number.isFinite(t) && t >= 0 ? t : props.comments.length)
+})
+
+defineExpose({ index: computed(() => forest.value.index) })
 </script>
 
 <style scoped src="./PostComments.css"></style>

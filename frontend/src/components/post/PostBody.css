@@ -1,0 +1,139 @@
+/* ==========================================================================
+ * PostBody · 作者行 + 正文 + 话题 + 媒体
+ * 从 PostDetail.css 抽出。抽出的原因是**样式必须跟着组件走**:
+ * PostDetail 的 style 是 scoped 的,scoped CSS 不作用于子组件内部 ——
+ * 规则留在 PostDetail.css 里,PostBody 里的 .author/.content/.media-grid
+ * 一条都不会生效(表现为作者行不换行、正文不折行、媒体不排网格)。
+ *
+ * 断点纪律:字面量 px,值取自 design-tokens.json 的 breakpoint 段
+ * ========================================================================== */
+
+/* ---------------- 作者行 ---------------- */
+.author {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4) var(--ys-gutter-phone) var(--ys-space-3);
+}
+
+.author__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.author__nick {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+/* tabular-nums:时间戳列不会因 :00 / :30 宽度不同而抖动 */
+.author__time {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 审核中 / 已驳回。状态标签只在 status ≠ 1 时出现,所以不占位 */
+.author__status {
+  flex: none;
+  padding: 0 var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+}
+
+.author__status--pending {
+  background: var(--ys-warning-soft);
+  color: var(--ys-warning);
+}
+
+.author__status--rejected {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+/* ---------------- 正文 ---------------- */
+.content {
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  white-space: pre-wrap;
+  /* 正文不截断:长 URL 必须靠 overflow-wrap 折行,不能横向滚动(AC-15) */
+  overflow-wrap: anywhere;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  color: var(--ys-fg);
+}
+
+/* ---------------- 媒体区 ---------------- */
+.media-grid {
+  display: grid;
+  gap: var(--ys-space-1);
+  padding: var(--ys-space-3) var(--ys-gutter-phone) 0;
+}
+
+.media-grid--one {
+  grid-template-columns: 1fr;
+}
+
+.media-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.media-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.media-img,
+.media-video {
+  width: 100%;
+  border-radius: var(--ys-radius-lg);
+  object-fit: cover;
+  display: block;
+}
+
+/*
+  单图给足高度但不超过半屏:9:16 的竖图按宽度铺开会高到要滚两屏。
+  纯色占位而非 LQIP 模糊 —— 设计 §4 明确禁止,模糊与 2 秒加载预算冲突。
+*/
+.media-grid--one .media-img,
+.media-grid--one .media-video {
+  max-height: 60vh;
+}
+
+/* ---------------- ≥768px:留白放大 + 限宽居中 ---------------- */
+
+@media (min-width: 768px) {
+  .author,
+  .content,
+  .media-grid {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  .author,
+  .content,
+  .media-grid {
+    max-width: var(--ys-content-col);
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+
+  .media-grid--one .media-img,
+  .media-grid--one .media-video {
+    max-height: 70vh;
+  }
+}
+
+/* 桌面端媒体:2 图并排、3 图三列、≥4 图两列(设计 §2) */
+@media (min-width: 1024px) {
+  .media-grid--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

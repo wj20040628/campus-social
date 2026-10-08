@@ -13,7 +13,19 @@
     用户写了一百多字,点发送,网络断了,草稿被清空 —— 这是评论区最伤人的一种失败。
   -->
   <div class="cc">
-    <!-- @ 提及浮层:横排头像条,移动端 40px(设计 §1.2) -->
+    <!--
+      回复态提示条(契约 CreateCommentDTO 的 parentId / level / replyToUserId)
+      「回复 @李四」+ 一个可点的 ×。不发 @ 提及 —— 回复某人 ≠ @ 某人:
+      @ 走 mentionUserIds 发 type=9 通知,回复走层级通知,两套通道。
+    -->
+    <p v-if="replyTo" class="cc__replying">
+      <span class="cc__replying-text">回复 {{ replyName }}</span>
+      <button type="button" class="cc__replying-x" aria-label="取消回复" @click="emit('cancel-reply')">
+        <el-icon :size="14"><Close /></el-icon>
+      </button>
+    </p>
+
+    <!-- @ 提及浮层：横排头像条，移动端 40px（设计 §1.2） -->
     <div v-if="mentionOpen" class="cc__mention">
       <ul v-if="list.length" class="cc__mention-strip">
         <li v-for="u in list" :key="u.id">
@@ -39,7 +51,7 @@
         :rows="2"
         :maxlength="MAX_LEN"
         class="cc__box"
-        :placeholder="mentionOpen && !keyword ? '@ 输入搜索' : '写下你的评论，点 @ 提及同学'"
+        :placeholder="placeholder"
         @input="onInput"
         @blur="onBlur"
       />
@@ -76,6 +88,7 @@
  * 恰恰要求组件知道结果。所以这里收一个返回 Promise 的函数 prop。
  */
 import { ref, computed, watch } from 'vue'
+import { Close } from '@element-plus/icons-vue'
 import { useMention } from '@/composables/useMention'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { displayName } from '@/utils/mask'
@@ -88,12 +101,20 @@ const props = defineProps({
   myId: { type: [Number, String], default: null },
   /**
    * 提交函数,返回 Promise。resolve = 成功(清草稿),reject = 失败(保留草稿)。
-   * @param {{content:string, mentionUserIds:number[]}} payload
+   * @param {{content:string, mentionUserIds:number[], replyTo:object|null}} payload
    */
   submit: { type: Function, required: true },
   /** 外部触发聚焦(评论区空态的「说一句」按钮会自增它) */
   focusSignal: { type: Number, default: 0 },
+  /**
+   * 正在回复的评论节点(CommentRow 递归 emit 上来的那个)。
+   * **只用来显示「回复 @xxx」与算层级**,不参与 mentionUserIds ——
+   * 回复与 @ 是两套通知通道,混在一起会给同一个人发两条红点。
+   */
+  replyTo: { type: Object, default: null },
 })
+
+const emit = defineEmits(['cancel-reply'])
 
 const text = ref('')
 const error = ref('')
@@ -109,6 +130,32 @@ const {
 useKeyboardViewport()
 
 const canSend = computed(() => text.value.trim().length > 0 && !sending.value)
+
+const replyName = computed(() => {
+  const u = props.replyTo?.user
+  return u ? displayName(u) : '该评论'
+})
+
+/**
+ * placeholder 三态。回复态优先于 @ 态 —— 两个都成立时(正在回复且打开了 @ 面板),
+ * 「回复 @李四」才是用户此刻真正要回答的问题。
+ */
+const placeholder = computed(() => {
+  if (props.replyTo) return `回复 ${replyName.value}`
+  if (mentionOpen.value && !keyword.value) return '@ 输入搜索'
+  return '写下你的评论，点 @ 提及同学'
+})
+
+/**
+ * 进入回复态时聚焦。
+ * 不聚焦等于用户点了「回复」还要再点一次输入框 —— 那一下会让他以为按钮没生效。
+ */
+watch(
+  () => props.replyTo,
+  (v) => {
+    if (v) inputRef.value?.focus()
+  },
+)
 
 // 空态的「说一句」按钮:自增 focusSignal 就能聚焦,不用父组件直接摸 DOM
 watch(
@@ -128,7 +175,13 @@ async function send() {
   sending.value = true
   error.value = ''
   try {
-    await props.submit({ content: text.value.trim(), mentionUserIds: mentionIds.value })
+    // replyTo 整个传上去,层级与 replyToUserId 由父组件用 useCommentTree 算。
+    // 这里不自己算 —— 算层级需要整棵树的索引,组件里没有,硬算只能靠 parentId 猜。
+    await props.submit({
+      content: text.value.trim(),
+      mentionUserIds: mentionIds.value,
+      replyTo: props.replyTo,
+    })
     text.value = ''
     error.value = ''
     reset()
