@@ -8,10 +8,26 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
+
+    /**
+     * 批量取用户，键为 user id。
+     *
+     * <p>用于评论列表这类「一页N 条、每条都要作者信息」的场景：
+     * 逐条 selectById 会把一次分页放大成 N 次查询。
+     * MyBatis-Plus 的 {@code selectBatchIds} 直接可用，
+     * 但这里显式声明是为了让调用方一眼看出「这个方法是为了消 N+1 而存在的」。
+     */
+    @Select("<script>"
+            + "SELECT id, username, nickname, avatar_url, verify_status, status FROM user WHERE is_deleted = 0 "
+            + "AND id IN "
+            + "<foreach collection='ids' item='i' open='(' separator=',' close=')'>#{i}</foreach>"
+            + "</script>")
+    List<User> selectByIds(@Param("ids") Collection<Long> ids);
 
     /** 原子自增/自减计数,防并发丢失 */
     @Update("UPDATE user SET follower_count = follower_count + #{delta}, update_time = NOW() WHERE id = #{userId}")

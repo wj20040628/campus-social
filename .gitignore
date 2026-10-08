@@ -39,3 +39,10 @@ bak/
 backend/smoke_tok.txt
 backend/smoke_*.txt
 backend/*_tok.txt
+
+# 冒烟脚本的运行产物(脚本本身在 backend/scripts/ 入库,产物不入库)
+backend/scripts/*_tok.txt
+backend/scripts/*.log
+
+# 本机端口探测产物:SERVER__PORT 之类的环境变量快照
+backend/scripts/env_*.txt

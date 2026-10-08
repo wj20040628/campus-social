@@ -10,6 +10,7 @@ import com.campus.social.service.CircleService;
 import com.campus.social.vo.CircleVO;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -139,13 +140,7 @@ public class CircleServiceImpl implements CircleService {
         List<Post> page = rows.stream().limit(size).toList();
 
         List<PostVO> vos = page.stream().map(p -> {
-            User author = userMapper.selectById(p.getAuthorId());
-            UserVO avo = author == null ? null : UserVO.builder()
-                    .id(author.getId())
-                    .username(author.getUsername())
-                    .nickname(author.getNickname() != null ? author.getNickname() : author.getUsername())
-                    .avatarUrl(author.getAvatarUrl())
-                    .build();
+            UserVO avo = UserVoAssembler.of(userMapper.selectById(p.getAuthorId()));
             return PostVO.builder()
                     .id(p.getId())
                     .authorId(p.getAuthorId())
@@ -166,13 +161,7 @@ public class CircleServiceImpl implements CircleService {
     }
 
     private CircleVO toVo(Circle c, long viewerId) {
-        User owner = userMapper.selectById(c.getOwnerId());
-        UserVO ovo = owner == null ? null : UserVO.builder()
-                .id(owner.getId())
-                .username(owner.getUsername())
-                .nickname(owner.getNickname() != null ? owner.getNickname() : owner.getUsername())
-                .avatarUrl(owner.getAvatarUrl())
-                .build();
+        UserVO ovo = UserVoAssembler.of(userMapper.selectById(c.getOwnerId()));
 
         boolean joined = false;
         if (viewerId > 0) {

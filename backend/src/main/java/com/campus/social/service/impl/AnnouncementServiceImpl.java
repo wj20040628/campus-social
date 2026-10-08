@@ -15,6 +15,7 @@ import com.campus.social.vo.AnnouncementRow;
 import com.campus.social.vo.UnreadCountVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -140,25 +141,41 @@ public class AnnouncementServiceImpl implements AnnouncementService {
             throw new BusinessException(ANNOUNCEMENT_NOT_FOUND, "公告不存在或已下架");
         }
 
-        // 幂等：唯一键 uk_ann_user(announcement_id, user_id) 兜底。
-        // 返回 0 表示此前已读过——此时绝不能再给 read_count 加 1，
-        // 否则触达率会虚高，而触达率正是管理员判断公告效果的主要依据。
-        int affected = readMapper.insertIdempotent(announcementId, userId);
-        if (affected == 0) {
-            AnnouncementRead mine = readMapper.selectOne(announcementId, userId);
-            return AnnouncementReadVO.builder()
-                    .announcementId(announcementId)
-                    .readTime(mine == null ? null : mine.getReadTime())
-                    .duplicated(true)
-                    .build();
+        // 幂等三件套（AC-09）：先查 → 插一行（撞唯一键即重复）→ 只有真插入才 +1。
+        //
+        // 这里刻意用「捕获 DuplicateKeyException」而不是「看 insert 的返回值」：
+        // mysql-connector-j 默认携带 CLIENT_FOUND_ROWS，
+        // ON DUPLICATE KEY UPDATE 的返回值区分不出「新插入」与「冲突赋回原值」，
+        // 靠返回值判断会让重复提交把 read_count 反复 +1，触达率虚高到超过 100%。
+        AnnouncementRead existing = readMapper.selectOne(announcementId, userId);
+        if (existing != null) {
+            return readResult(announcementId, existing.getReadTime(), true);
         }
+
+        try {
+            readMapper.insertRead(announcementId, userId);
+        } catch (DuplicateKeyException e) {
+            // 并发窗口内另一个请求刚插完，唯一键挡住了重复行。
+            // MySQL 只回滚这条失败语句、不回滚整个事务，所以这里继续查是安全的。
+            // 按「已读」返回而不是报错：用户的意图（我读了）已经达成，
+            // 为此回 500 只会让他以为自己没点上，刷新后又变成一条新记录。
+            AnnouncementRead mine = readMapper.selectOne(announcementId, userId);
+            return readResult(announcementId, mine == null ? null : mine.getReadTime(), true);
+        }
+
+        // 只有真正新增回执时才 +1，否则触达率会高于 100%
         announcementMapper.incrReadCount(announcementId);
         AnnouncementRead created = readMapper.selectOne(announcementId, userId);
         log.debug("announcement read: ann={}, user={}", announcementId, userId);
+        return readResult(announcementId, created == null ? null : created.getReadTime(), false);
+    }
+
+    private AnnouncementReadVO readResult(Long announcementId, java.time.LocalDateTime readTime,
+            boolean duplicated) {
         return AnnouncementReadVO.builder()
                 .announcementId(announcementId)
-                .readTime(created == null ? null : created.getReadTime())
-                .duplicated(false)
+                .readTime(readTime)
+                .duplicated(duplicated)
                 .build();
     }
 

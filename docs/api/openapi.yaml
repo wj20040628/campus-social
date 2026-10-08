@@ -16,7 +16,10 @@ info:
   description: |
     ## 0. 范围声明（本轮实现 / 不实现）
 
-    - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，共 **41 个方法 / 37 条路径**。
+    - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，共 **48 个方法 / 44 条路径**。
+      （2026-10-08 补录 `/auth/*` 6 端点，此前的「41 方法 / 37 路径」把整个认证域漏在计数外。）
+      计数由 `scripts/verify-openapi.py` 实测产出，不靠人工数——
+      那份旧计数与实际差 6 条路径却没人发现，正说明手数不可信。
     - **帖子域与评论域（13 个端点 / 10 条路径）系Phase 2 补录**（SPEC §5.0）。
       原契约 27 个方法全是本轮新建的（举报 / 聊天 / 标签 / 公告 / 字典 / 认证 / 引导），
       帖子域被整体遗漏。但契约号称前后端唯一准绳，漏一整个域就等于契约失效——
@@ -197,6 +200,152 @@ tags:
     description: 评论域（挂在 `PostController` 上，非独立控制器；`Comment` 无自己的 Controller）
 
 paths:
+
+  # ===========================================================================
+  # §5.0 F1 认证与令牌（AuthController）
+  #
+  # ★ 这6 个端点是Phase 2 补录的，2026-10-08 之前整块缺失。
+  #   缺它们的后果不是「少写了点文档」：登录注册是整个产品的入口，
+  #   契约里搜不到任何 /auth/* 路径，前端要对接登录只能去读后端 Controller 源码。
+  #   一份自洽但不含入口的契约，比明显残缺的契约更难发现——
+  #   它所有其他部分都正确，不会触发任何「这里不对」的直觉。
+  #   计数口径也随之修正：38 路径 / 42 方法 → 44 路径 / 48 方法。
+  #
+  # 字段口径全部取自 dto/*.java 的实际校验注解，不按自然语言猜：
+  #   RegisterDTO.username  ^[^\s]+@...|^1[3-9]\d{9}$  （邮箱或手机号二选一）
+  #   LoginByCodeDTO       email + code（**不是 target**，与 SendCodeDTO.target 不同名）
+  # ===========================================================================
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: 注册并直接返回双 token
+      description: |
+        邮箱或手机号 + 密码 + 6 位验证码。`username` 接受两种形态：
+        邮箱 `^[^@\s]+@[^@\s]+\.[^@\s]+$` 或大陆手机号 `^1[3-9]\d{9}$`。
+        注册成功即登录，**不需再调一次 login**。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '200':
+          description: 注册成功，返回 access/refresh 双 token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: 账密登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/login-code:
+    post:
+      operationId: loginByCode
+      tags: [auth]
+      summary: 邮箱验证码登录（免密码）
+      description: |
+        复用 `/auth/send-code` 发出的 `type=login` 验证码。
+        **注意字段名是 `email` 而非 `target`**——`SendCodeDTO` 用 `target`
+        （它要同时支持手机号），`LoginByCodeDTO` 只收邮箱。
+        两处命名不一致是后端既有实现，改动会波及已上线的前端调用，
+        故在此显式标注而不是统一改名。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginByCodeRequest' }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairEnvelope' }
+        '400':
+          description: 400 `CODE_INVALID(1020)` 验证码错误或已过期
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/send-code:
+    post:
+      operationId: sendCode
+      tags: [auth]
+      summary: 发送验证码（注册 / 登录 / 绑定）
+      description: |
+        `type` 决定用途：`register` / `login` / `bind`，默认 `register`。
+        6 位数字码、5 分钟 TTL、60 秒限频、每日 10 次上限；
+        取出走 Redis Lua 原子读删（**禁用 `opsForValue().getAndDelete()`**——
+        Redis 5.0 会抛 `ERR unknown command GETDEL`，已踩过一次坑，见 SPEC §11）。
+
+        本地 profile 下 `message-gateway: dev`，码打到控制台并存 Redis，不真发信。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendCodeRequest' }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429':
+          description: 429 `CODE_TOO_FREQUENT(1021)` / `CODE_LIMIT_REACHED(1022)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      summary: 用 refreshToken 换新的双 token
+      description: |
+        签发新refreshToken 并作废旧的（旋转式刷新）。
+        `accessToken` 默认 15 分钟（900000ms），`refreshToken` 7 天。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: 登出（当前 accessToken 立即失效）
+      requestBody:
+        required: false
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ===========================================================================
   # §5.1 F3 免好友搭话 + F4 举报闭环
@@ -3370,6 +3519,115 @@ components:
                   example: 圈子还在建，你可以先关注几个同学
 
     # ---- 仅 message 的简单响应 ----------------------------------------------
+
+    TokenPairData:
+      type: object
+      required: [accessToken, refreshToken, accessExpireAt]
+      properties:
+        accessToken:
+          type: string
+          # 用块标量而非单行：值里有 "Authorization: Bearer" 这个冒号+空格，
+          # 单行写法会让 YAML 把 bearer 当成嵌套映射的键，直接解析失败。
+          description: |
+            业务访问令牌。放在请求头
+            `Authorization: Bearer <accessToken>`
+        refreshToken:
+          type: string
+          description: 刷新令牌，**只能发给 /auth/refresh**，不可当 accessToken 用
+        accessExpireAt:
+          type: integer
+          format: int64
+          description: accessToken 过期时刻（epoch 毫秒）。由 JwtUtil 签发时算出
+          example: 1791450320000
+
+    TokenPairEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/TokenPairData' }
+
+    RegisterRequest:
+      type: object
+      required: [username, password, verifyCode]
+      properties:
+        username:
+          type: string
+          minLength: 5
+          maxLength: 64
+          pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$|^1[3-9]\d{9}$'
+          description: 邮箱**或**大陆手机号，二选一。取自 RegisterDTO 的 @Pattern
+          example: alice@campus.test
+        password:
+          type: string
+          minLength: 6
+          maxLength: 64
+          description: 明文传输依赖 HTTPS；存库为 BCrypt
+        verifyCode:
+          type: string
+          pattern: '^\d{6}$'
+          description: 6 位数字，取自 `/auth/send-code` 的 `type=register` 验证码
+        studentNo:
+          type: string
+          maxLength: 32
+          nullable: true
+          description: 学号，可选但**唯一**（库级 UNIQUE 约束，重复会 409）
+        nickname:
+          type: string
+          maxLength: 64
+          nullable: true
+          description: 昵称，可选。为空时各卡片会退化显示脱敏后的 username
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          maxLength: 64
+          description: 邮箱或手机号
+        password: { type: string }
+
+    LoginByCodeRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+          description: |
+            **这里是 `email` 不是 `target`**。`SendCodeDTO` 用 `target`
+            因为它要同时支持手机号；本 DTO 只收邮箱。两者命名不一致是既有实现，
+            前端按本字段名传。
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          # 行首不能是反引号：YAML 会把 ` 当作非法 token 起始字符直接报错
+          description: |
+            `/auth/send-code` 发出的 `type=login` 验证码
+
+    SendCodeRequest:
+      type: object
+      required: [target]
+      properties:
+        target:
+          type: string
+          maxLength: 64
+          pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$|^1[3-9]\d{9}$'
+          description: 收码目标，邮箱或手机号
+        type:
+          type: string
+          enum: [register, login, bind]
+          default: register
+          description: |
+            用途。不传按 `register` 处理（DTO 字段自带默认值）。
+            不同 type 是不同的 Redis 键，拿 login 的码去调注册会返回 1020。
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
 
     MessageResponse:
       allOf:

@@ -70,6 +70,11 @@ public final class BusinessHttpStatus {
         // 字段已下线:400 而非 422。请求体里出现了不该存在的 key,
         // 属于「请求本身写错了」,和「取值在业务上不可用」是两类问题
         MAPPING.put(ResultCode.PROFILE_FIELD_RETIRED, HttpStatus.BAD_REQUEST);
+
+        // 评论不存在:404。且不与 POST_NOT_FOUND 共用——调用方要能区分
+        // 「整帖没了(退页)」与「这条回复没了(置灰)」,两种前端处理方式不同
+        MAPPING.put(ResultCode.COMMENT_NOT_FOUND, HttpStatus.NOT_FOUND);
+        MAPPING.put(ResultCode.POST_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     private BusinessHttpStatus() {

@@ -21,10 +21,14 @@ public interface InterestTagMapper extends BaseMapper<InterestTag> {
 
     /**
      * 批量增减,用于标签全量覆盖时一次性对齐计数。
-     * 单条 SQL 内的多个 VALUES 共享一条执行计划,比循环单条快一个数量级。
+     *
+     * <p>单条 UPDATE 带 IN 列表,比循环单条快一个数量级。
+     *
+     * <p>{@code #{delta}} 必须带井号:漏写成 {@code + delta} 会被 MySQL
+     * 当成列名,运行期才报 Unknown column,编译与启动都发现不了。
      */
     @Update("<script>"
-            + "UPDATE interest_tag SET use_count = GREATEST(0, use_count + delta), update_time = NOW() "
+            + "UPDATE interest_tag SET use_count = GREATEST(0, use_count + #{delta}), update_time = NOW() "
             + "WHERE id IN "
             + "<foreach collection='tagIds' item='t' open='(' separator=',' close=')'>#{t}</foreach>"
             + "</script>")

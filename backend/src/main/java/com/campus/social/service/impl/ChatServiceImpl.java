@@ -17,6 +17,7 @@ import com.campus.social.vo.ChatSendVO;
 import com.campus.social.vo.ConversationVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.websocket.WsPushService;
+import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -211,14 +212,7 @@ public class ChatServiceImpl implements ChatService {
 
     private ConversationVO toConvVo(ChatConversation c, long me) {
         long peerId = c.getMemberA().equals(me) ? c.getMemberB() : c.getMemberA();
-        User peer = userMapper.selectById(peerId);
-        UserVO pvo = peer == null ? null
-                : UserVO.builder()
-                        .id(peer.getId())
-                        .username(peer.getUsername())
-                        .nickname(peer.getNickname() != null ? peer.getNickname() : peer.getUsername())
-                        .avatarUrl(peer.getAvatarUrl())
-                        .build();
+        UserVO pvo = UserVoAssembler.of(userMapper.selectById(peerId));
 
         int unread = c.getMemberA().equals(me) ? c.getUnreadA() : c.getUnreadB();
 

@@ -13,6 +13,7 @@ import com.campus.social.service.VerifyCodeService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -304,40 +305,14 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    /**
+     * 「我的资料」装配：全项目唯一允许带 role 的路径。
+     *
+     * <p>调用点只有 {@link #me} 与 {@link #updateProfile} 两个——判断标准是
+     * 「这个响应里出现的是我吗」。其他任何位置（Feed、评论区、私聊、通知、
+     * 他人主页）都必须走 {@code UserVoAssembler.of}。
+     */
     private UserVO toVo(User user) {
-        return UserVO.builder()
-                .id(user.getId())
-                .username(maskUsername(user.getUsername()))
-                .nickname(user.getNickname() != null ? user.getNickname() : user.getUsername())
-                .avatarUrl(user.getAvatarUrl())
-                .grade(user.getGrade())
-                .dept(user.getDept())
-                // 字典 id 随名称一起下发：前端要靠它区分「字典里的正式项」与
-                // 「字典化之前填的老数据」。只给名称的话前端无法判断该不该推进引导页
-                .deptId(user.getDeptId())
-                .gradeId(user.getGradeId())
-                .followerCount(user.getFollowerCount())
-                .followingCount(user.getFollowingCount())
-                .unreadNotifyCount(user.getUnreadNotifyCount())
-                .role(user.getRole() == null ? 0 : user.getRole())
-                .createTime(user.getCreateTime())
-                .build();
-    }
-
-    /** 邮箱显示 user***@domain.com,手机号显示 138****1234 */
-    private String maskUsername(String raw) {
-        if (raw == null)
-            return null;
-        if (raw.contains("@")) {
-            int at = raw.indexOf('@');
-            String local = raw.substring(0, at);
-            String domain = raw.substring(at + 1);
-            return local.length() <= 2 ? local + "***@" + domain
-                    : local.substring(0, 2) + "***" + local.substring(local.length() - 1) + "@" + domain;
-        }
-        if (raw.length() == 11) {
-            return raw.substring(0, 3) + "****" + raw.substring(7);
-        }
-        return raw;
+        return UserVoAssembler.ofPrivate(user);
     }
 }

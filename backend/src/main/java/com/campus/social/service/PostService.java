@@ -3,6 +3,7 @@ package com.campus.social.service;
 import com.campus.social.common.CursorPage;
 import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.dto.CreatePostDTO;
+import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
 import com.campus.social.vo.PostVO;
 
@@ -56,6 +57,14 @@ public interface PostService {
     long comment(long postId, CreateCommentDTO dto, long userId);
 
     CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId);
+
+    /**
+     * 某条评论的直接子回复（分页），children 溢出时由前端调它补齐。
+     *
+     * <p>只查直接子回复、不递归：二级的孩子是三级、三级没有孩子。
+     * 存在的理由是 children 有 20 条上限，而不是为了「一次性拿全部评论」。
+     */
+    CommentChildrenPageVO commentChildren(long postId, long commentId, Long lastId, int size, long viewerId);
 
     /** 某用户发的帖子 */
     CursorPage<PostVO> myPosts(long authorId, Long lastId, int size);

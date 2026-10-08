@@ -10,6 +10,7 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.*;
 import com.campus.social.service.PostService;
 import com.campus.social.util.SensitiveWordFilter;
+import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
@@ -243,6 +244,18 @@ public class PostServiceImpl implements PostService {
     @Override
     public CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId) {
         return commentService.comments(postId, lastId, size, viewerId);
+    }
+
+    /**
+     * 评论子回复溢出补齐（read 侧，真实逻辑在 CommentServiceImpl）。
+     *
+     * <p>同样跨类调用而非本地转调：与 comment/comments 保持一致的处理链路，
+     * 避免「同一件事在两个类里各有一份实现」这种最难的漂移来源。
+     */
+    @Override
+    public CommentChildrenPageVO commentChildren(long postId, long commentId,
+            Long lastId, int size, long viewerId) {
+        return commentService.commentChildren(postId, commentId, lastId, size, viewerId);
     }
 
     @Override

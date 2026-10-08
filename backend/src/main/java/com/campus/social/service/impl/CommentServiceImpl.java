@@ -12,7 +12,9 @@ import com.campus.social.mapper.CommentMapper;
 import com.campus.social.mapper.LikeMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.support.CommentTreeAssembler;
 import com.campus.social.util.SensitiveWordFilter;
+import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
 import com.campus.social.vo.UserVO;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static com.campus.social.common.ResultCode.COMMENT_NOT_FOUND;
 import static com.campus.social.common.ResultCode.POST_NOT_FOUND;
 
 /**
@@ -58,6 +61,8 @@ public class CommentServiceImpl {
     private final com.campus.social.websocket.WsPushService wsPush;
     /** 通知下发复用写路径的横切能力,保证「未读数 + WS 推送」口径一致 */
     private final PostNotifySupport notifySupport;
+    /** 读侧树组装：作者/被回复人/点赞态全部批量取，避免逐条查 */
+    private final CommentTreeAssembler treeAssembler;
 
     @Transactional
     public long comment(long postId, CreateCommentDTO dto, long userId) {
@@ -96,6 +101,16 @@ public class CommentServiceImpl {
         return c.getId();
     }
 
+    /**
+     * 评论列表：一级评论 + 各条的children 树。
+     *
+     * <p><b>分页只作用于一级评论</b>：子树不参与分页，
+     * 否则同一条一级评论会在第 1 页出现、第 2 页又出现。
+     *
+     * <p><b>查询次数固定为 3次</b>：一级评论、子树评论、然后是assembler 里的
+     * 用户与点赞批量取。不用「先取一级再逐条查子评论」是因为那样
+     * 一页 20 条就是 41 次查询，且条数随数据波动。
+     */
     public CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId) {
         LambdaQueryWrapper<Comment> qw = new LambdaQueryWrapper<Comment>()
                 .eq(Comment::getPostId, postId)
@@ -108,9 +123,56 @@ public class CommentServiceImpl {
         boolean hasMore = rows.size() > size;
         List<Comment> page = rows.stream().limit(size).toList();
 
-        List<CommentVO> vos = page.stream().map(c -> toCommentVo(c, viewerId)).toList();
-        Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
+        // 子树只在有数据时才查：空列表省掉一次往返
+        List<Comment> replies = page.isEmpty()
+                ? List.of()
+                : commentMapper.selectRepliesOfPost(postId);
+
+        List<CommentVO> vos = treeAssembler.assemble(page, replies, viewerId);
+        Long nextCursor = hasMore && !page.isEmpty() ? page.get(size - 1).getId() : null;
         return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    /**
+     * 某条评论的全部直接子回复（分页）。
+     *
+     * <p><b>存在的理由是 children 有 20 条上限，不是为了「一次性拿全部评论」</b>。
+     * 溢出时前端用本端点补齐，否则用户会以为回复被系统吞了。
+     *
+     * <p><b>只查直接子回复、不递归</b>：二级的孩子是三级，三级没有孩子，
+     * 递归最多一层就该停。再往下前端拿本页返回的 id 再调一次即可。
+     *
+     * <p><b>游标方向与一级列表相反</b>：这里取 id 升序返回最新一页
+     * （契约原文「取 id 升序、返回用 id 降序，故首页返回的是最新 20 条」）。
+     * 原因是 children 溢出时被丢的是「最老的那批」，
+     * 补齐时应当优先补最新的，而不是把用户已经看过的再给一遍。
+     */
+    public CommentChildrenPageVO commentChildren(long postId, long commentId,
+            Long lastId, int size, long viewerId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null || post.getStatus() != 1) {
+            throw new BusinessException(POST_NOT_FOUND, "帖子不存在");
+        }
+        Comment parent = commentMapper.selectById(commentId);
+        if (parent == null || !Integer.valueOf(1).equals(parent.getStatus())
+                || parent.getPostId() != postId) {
+            throw new BusinessException(COMMENT_NOT_FOUND, "评论不存在");
+        }
+
+        int total = commentMapper.countChildren(commentId);
+        // id 升序取(size + 1) 条：多出的那一条就是 hasMore 的判据
+        List<Comment> children = commentMapper.selectChildrenForPage(commentId, lastId, size + 1);
+        boolean hasMore = children.size() > size;
+        List<Comment> page = children.stream().limit(size).toList();
+
+        List<CommentVO> list = treeAssembler.assembleAsLeaves(page, viewerId);
+        Long nextCursor = hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null;
+        return CommentChildrenPageVO.builder()
+                .list(list)
+                .nextCursor(nextCursor)
+                .hasMore(hasMore)
+                .totalForParent(total)
+                .build();
     }
 
     /**
@@ -227,47 +289,5 @@ public class CommentServiceImpl {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private CommentVO toCommentVo(Comment c, long viewerId) {
-        User u = userMapper.selectById(c.getUserId());
-        UserVO userVo = u == null ? null
-                : UserVO.builder()
-                        .id(u.getId())
-                        .username(u.getUsername())
-                        .nickname(u.getNickname() != null ? u.getNickname() : u.getUsername())
-                        .avatarUrl(u.getAvatarUrl())
-                        .build();
-
-        boolean liked = false;
-        if (viewerId > 0) {
-            Long cnt = likeMapper.selectCount(new LambdaQueryWrapper<Like>()
-                    .eq(Like::getUserId, viewerId)
-                    .eq(Like::getTargetType, TARGET_TYPE_COMMENT)
-                    .eq(Like::getTargetId, c.getId()));
-            liked = cnt > 0;
-        }
-        String replyNick = null;
-        if (c.getReplyToUserId() != null) {
-            User rep = userMapper.selectById(c.getReplyToUserId());
-            if (rep != null) {
-                replyNick = rep.getNickname() != null ? rep.getNickname() : rep.getUsername();
-            }
-        }
-        return CommentVO.builder()
-                .id(c.getId())
-                .postId(c.getPostId())
-                .userId(c.getUserId())
-                .user(userVo)
-                .parentId(c.getParentId())
-                .level(c.getLevel())
-                .replyToUserId(c.getReplyToUserId())
-                .replyToNickname(replyNick)
-                .content(c.getContent())
-                .mentioned(parseMentioned(c.getMentioned()))
-                .likeCount(0)
-                .liked(liked)
-                .createTime(c.getCreateTime())
-                .build();
     }
 }

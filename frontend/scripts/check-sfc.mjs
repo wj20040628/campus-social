@@ -71,9 +71,14 @@ for (const file of files) {
   }
 
   // script:含 <script setup> 的会走 compileScript 的绑定分析
+  //
+  // onWarn 是必须的:compileScript 默认把 warning 打到 console 后**丢弃**,
+  // 不接它这个脚本就报不出「模板引用了 script 未声明的变量」这类问题 ——
+  // 而那正是编译通过、运行时才炸的一类。不接 onWarn 时本脚本报「全部通过」
+  // 会给人已经查过这个维度的错觉。
   try {
     if (sfc.script || sfc.scriptSetup) {
-      compileScript(sfc.descriptor, { id: rel })
+      compileScript(sfc.descriptor, { id: rel, onWarn: (w) => collectWarn(rel, w) })
     }
   } catch (e) {
     problems.push(`${rel}: script 编译失败 ${e.message}`)
@@ -84,6 +89,7 @@ for (const file of files) {
       source: sfc.template.content,
       filename: file,
       id: rel,
+      onWarn: (w) => collectWarn(rel, w),
     })
     for (const e of r.errors || []) {
       problems.push(`${rel}: 模板编译失败 ${typeof e === 'string' ? e : e.message}`)
@@ -92,7 +98,31 @@ for (const file of files) {
   checked++
 }
 
+// --------------------------------------------------------------------------
+// warning 收集
+//
+// 分开计数而不是混进 problems:warning 不是错误,混进去会让「全部通过」
+// 这句话变得不精确(团队验证时要区分「没错」和「没错但有提醒」)。
+// 但绝不能丢弃 —— 丢弃等于没查。
+// --------------------------------------------------------------------------
+const warns = []
+
+/** warning 可能带 loc(行/列),带上才定位得到问题 */
+function collectWarn(rel, w) {
+  const msg = typeof w === 'string' ? w : w?.message || String(w)
+  const line = w?.loc?.start?.line
+  warns.push(line ? `${rel}:${line} 编译器提醒 ${msg}` : `${rel} 编译器提醒 ${msg}`)
+}
+
 console.log(`检查 ${files.length} 个文件(其中 SFC ${checked} 个)`)
+if (warns.length) {
+  // warning 不设 exitCode —— 它不阻断构建,但必须让人看见。
+  // 「零 warning」是团队验证要盯的指标之一,悄悄丢掉就等于没有这项指标。
+  console.log(`\n编译器提醒 ${warns.length} 条:`)
+  for (const w of warns) console.log('  - ' + w)
+} else {
+  console.log('编译器零提醒')
+}
 if (problems.length === 0) {
   console.log('全部通过')
 } else {

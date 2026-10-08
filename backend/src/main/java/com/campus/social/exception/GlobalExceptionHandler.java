@@ -12,6 +12,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
@@ -72,6 +73,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Result<?>> notFound(NoResourceFoundException e) {
         log.info("404: {}", e.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Result.fail(ResultCode.NOT_FOUND));
+    }
+
+    /**
+     * 路径存在但没有匹配的处理器（Spring 6.1 起与 NoResourceFoundException 分开抛）。
+     *
+     * <p>不单独兜的话它会落进最后的兜底分支变成 500：
+     * 前端拿到 5xx 会去查服务端日志，而真实原因是「这个 URL 写错了」，
+     * 排查方向完全跑偏。路由不存在是客户端问题，回 404。
+     */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<Result<?>> noHandler(NoHandlerFoundException e) {
+        log.info("404 no handler: {} {}", e.getHttpMethod(), e.getRequestURL());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Result.fail(ResultCode.NOT_FOUND));
     }
 

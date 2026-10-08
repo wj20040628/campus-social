@@ -7,6 +7,7 @@ import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuthService;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -44,16 +45,7 @@ public class UserController {
         if (u == null || u.getStatus() == 2) {
             return Result.fail(com.campus.social.common.ResultCode.NOT_FOUND, "用户不存在");
         }
-        return Result.ok(com.campus.social.vo.UserVO.builder()
-                .id(u.getId())
-                .username(u.getUsername())
-                .nickname(u.getNickname() != null ? u.getNickname() : u.getUsername())
-                .avatarUrl(u.getAvatarUrl())
-                .grade(u.getGrade())
-                .dept(u.getDept())
-                .followerCount(u.getFollowerCount())
-                .followingCount(u.getFollowingCount())
-                .build());
+        return Result.ok(UserVoAssembler.of(u));
     }
 
     /**
@@ -79,15 +71,7 @@ public class UserController {
         qw.orderByDesc(User::getUpdateTime)
                 .last("LIMIT 20");
         java.util.List<User> rows = userMapper.selectList(qw);
-        java.util.List<UserVO> vos = rows.stream().map(u ->
-                com.campus.social.vo.UserVO.builder()
-                        .id(u.getId())
-                        .username(u.getUsername())
-                        .nickname(u.getNickname() != null ? u.getNickname() : u.getUsername())
-                        .avatarUrl(u.getAvatarUrl())
-                        .grade(u.getGrade())
-                        .dept(u.getDept())
-                        .build()).toList();
+        java.util.List<UserVO> vos = rows.stream().map(UserVoAssembler::of).toList();
         return Result.ok(vos);
     }
 }

@@ -11,6 +11,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.RelationService;
 import com.campus.social.vo.RelationStatusVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -224,18 +225,6 @@ public class RelationServiceImpl implements RelationService {
     private UserVO toUserVoById(Long userId) {
         if (userId == null)
             return null;
-        User u = userMapper.selectById(userId);
-        if (u == null)
-            return null;
-        return UserVO.builder()
-                .id(u.getId())
-                .username(u.getUsername())
-                .nickname(u.getNickname() != null ? u.getNickname() : u.getUsername())
-                .avatarUrl(u.getAvatarUrl())
-                .grade(u.getGrade())
-                .dept(u.getDept())
-                .followerCount(u.getFollowerCount())
-                .followingCount(u.getFollowingCount())
-                .build();
+        return UserVoAssembler.of(userMapper.selectById(userId));
     }
 }

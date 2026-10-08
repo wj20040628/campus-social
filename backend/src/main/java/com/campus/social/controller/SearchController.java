@@ -10,6 +10,7 @@ import com.campus.social.mapper.UserMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -104,16 +105,7 @@ public class SearchController {
     }
 
     private UserVO toUserVo(User u) {
-        return UserVO.builder()
-                .id(u.getId())
-                .username(u.getUsername())
-                .nickname(u.getNickname())
-                .avatarUrl(u.getAvatarUrl())
-                .grade(u.getGrade())
-                .dept(u.getDept())
-                .followerCount(u.getFollowerCount())
-                .followingCount(u.getFollowingCount())
-                .build();
+        return UserVoAssembler.of(u);
     }
 
     private Map<String, Object> toCircleVo(Circle c) {

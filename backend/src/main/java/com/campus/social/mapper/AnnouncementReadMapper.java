@@ -13,16 +13,30 @@ import java.util.List;
 public interface AnnouncementReadMapper extends BaseMapper<AnnouncementRead> {
 
     /**
-     * 幂等写入已读回执（AC-09 的数据库兜底）。
+     * 写入已读回执。<b>刻意不用 {@code ON DUPLICATE KEY UPDATE}</b>——
+     * 唯一索引 {@code uk_ann_user(announcement_id, user_id)} 在这里是靠
+     * <b>抛 DuplicateKeyException</b> 兜底的，不是靠「不报错」。
      *
-     * <p>{@code uk_ann_user(announcement_id, user_id)} 命中时返回 0 且不新增行，
-     * 调用方据此回填 {@code duplicated = true}、message「已记录」，
-     * 并且<b>不</b>给 {@code announcement.read_count} 加 1
-     * ——已读人数只在首次已读时递增。
+     * <p>为什么不能用 {@code ON DUPLICATE KEY UPDATE id = id}：这是本模块踩过的坑。
+     * 那种写法下唯一键冲突被 SQL 自己吞掉，既不抛异常，返回值也不可信——
+     * mysql-connector-j 默认携带 {@code CLIENT_FOUND_ROWS}，
+     * 「冲突且赋回原值」返回的是 1 而不是文档里写的 0，
+     * 于是任何 {@code affected == 0} 分支都是死代码。表现为：
+     * 重复标记已读时 {@code read_count} 被反复 +1，触达率虚高——
+     * 而触达率正是管理员判断公告效果的主要依据。
+     *
+     * <p>换 {@code read_time = read_time} 或 {@code LAST_INSERT_ID(id)} 都不可靠：
+     * 前者在同一秒内重复提交时值相同、退化成 affected=0；
+     * 后者两种分支都返回 &gt;0，仍无法区分。
+     *
+     * <p>也不用 {@code INSERT IGNORE}：它会把截断、超范围、非空约束等
+     * 真实错误一并降级成警告，变成静默的数据丢失。
+     *
+     * <p>结论：是否已读由 service 层前置的 {@link #selectOne} 判定；
+     * 本方法只负责「真插一行，插重了让唯一键把异常抛出来」。
      */
-    @Insert("INSERT INTO announcement_read (announcement_id, user_id) VALUES (#{announcementId}, #{userId}) "
-            + "ON DUPLICATE KEY UPDATE id = id")
-    int insertIdempotent(@Param("announcementId") Long announcementId, @Param("userId") Long userId);
+    @Insert("INSERT INTO announcement_read (announcement_id, user_id) VALUES (#{announcementId}, #{userId})")
+    int insertRead(@Param("announcementId") Long announcementId, @Param("userId") Long userId);
 
     @Select("SELECT * FROM announcement_read WHERE announcement_id = #{announcementId} "
             + "AND user_id = #{userId} AND is_deleted = 0")

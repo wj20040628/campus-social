@@ -13,6 +13,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -142,14 +143,7 @@ public class PostVoAssembler {
     }
 
     private UserVO toUserVo(User u) {
-        return UserVO.builder()
-                .id(u.getId())
-                .username(u.getUsername())
-                .nickname(u.getNickname() != null ? u.getNickname() : u.getUsername())
-                .avatarUrl(u.getAvatarUrl())
-                .grade(u.getGrade())
-                .dept(u.getDept())
-                .build();
+        return UserVoAssembler.of(u);
     }
 
     /**

@@ -60,22 +60,42 @@ public class VerifiedInterceptor implements HandlerInterceptor {
         }
         Long me = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         if (me == null) {
-            // 401 已由 AuthInterceptor 短路,这里不该走到;真走到说明拦截器顺序被改坏了
-            log.error("VerifiedInterceptor reached with null userId: {}", request.getRequestURI());
-            return true;
+            // 走到这里说明拦截器顺序被改坏了（auth 没先跑）或有人绕过了 auth。
+            // 原实现打条 error 然后 return true —— 那是 fail-open：
+            // 端点明明声明了「必须已认证」，我们手上却没有身份信息，
+            // 证明不了这个人是谁，却选择放行。护栏恰好在最该生效的时刻失效，
+            // 而且放行后请求会一路走到业务层，无状态的响应特征让事后排查也失去线索。
+            //
+            // 401 而不是 403：403 的语义是「知道你是谁，但你没这个权限」，
+            // 这里恰恰是「不知道你是谁」——与 AuthInterceptor 保持同一语义，
+            // 前端收到 401 会走重新登录，而不是弹一个「无权限」后卡死。
+            log.error("VerifiedInterceptor reached with null userId, treating as unauthenticated: {}",
+                    request.getRequestURI());
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED,
+                    ResultCode.UNAUTHORIZED.getCode(), ResultCode.UNAUTHORIZED.getMessage());
+            return false;
         }
         User u = userMapper.selectById(me);
         if (u == null || !Integer.valueOf(1).equals(u.getVerifyStatus())) {
             log.warn("verified check failed: user={}, uri={}", me, request.getRequestURI());
-            writeForbidden(response, ResultCode.USER_NOT_VERIFIED.getCode(),
-                    ResultCode.USER_NOT_VERIFIED.getMessage());
+            writeJson(response, HttpStatus.FORBIDDEN.value(),
+                    ResultCode.USER_NOT_VERIFIED.getCode(), ResultCode.USER_NOT_VERIFIED.getMessage());
             return false;
         }
         return true;
     }
 
-    private void writeForbidden(HttpServletResponse response, int code, String msg) throws java.io.IOException {
-        response.setStatus(HttpStatus.FORBIDDEN.value());
+    /**
+     * 统一的短路响应写出。
+     *
+     * <p>status 与 body 里的业务码<b>刻意不同</b>：
+     * 401 时业务码也是 401，403 时业务码是 1029（USER_NOT_VERIFIED）。
+     * 前端 {@code request.js} 依HTTP status 分流，body.code 依业务分流，
+     * 两者各走各的判断，写成一样会让其中一条判断失效。
+     */
+    private void writeJson(HttpServletResponse response, int status, int code, String msg)
+            throws java.io.IOException {
+        response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         response.getWriter().write(om.writeValueAsString(Result.fail(code, msg)));

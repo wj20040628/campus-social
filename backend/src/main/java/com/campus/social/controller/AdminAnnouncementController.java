@@ -5,6 +5,7 @@ import com.campus.social.dto.AnnouncementCreateDTO;
 import com.campus.social.dto.AnnouncementUpdateDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.interceptor.RequireAdmin;
+import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.AnnouncementAdminService;
 import com.campus.social.vo.AdminAnnouncementPageVO;
 import com.campus.social.vo.AnnouncementPublishVO;
@@ -28,8 +29,27 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>类级 {@link RequireAdmin}：{@code /admin/**} 已由 AdminInterceptor 统一拦截，
  * 这里再标一次是让「本类是管理端」在代码里自解释。
  *
- * <p>AC-11：未通过校内认证的用户不能发布公告。该校验在 service 层
- * （{@code create} 前置判断），不靠前端隐藏按钮——按钮可以被绕过。
+ * <p>AC-11：未通过校内认证的用户不能发布公告。
+ * 校验**分两层**，缺一不可：
+ * <ol>
+ *   <li>本类的<b>写入类</b>端点（发布 / 编辑）打 {@link RequireVerified}，
+ *       由 {@code VerifiedInterceptor} 在进Controller 前拦成 403 {@code USER_NOT_VERIFIED}。
+ *       拦截器层的价值是：新端点只要落在本类就自动受管，
+ *       不会像纯 service 校验那样「新增方法忘了调requireVerified」而静默漏掉</li>
+ *   <li>{@code AnnouncementAdminServiceImpl.requireVerified} 保留。
+ *       它是service 层的兜底，防止将来绕过 Controller 直接调 service</li>
+ * </ol>
+ *
+ * <p><b>为什么 {@code update} 也要认证校验</b>：编辑能改 title / content，
+ * 改完立即推给全校在线用户，效果与发布等价。
+ * 只拦 create 不拦 update，等于留了一条「先让未认证者建草稿、
+ * 再由任何管理员编辑上架」的绕行路径——AC-11 会被架空。
+ *
+ * <p><b>为什么只读端点不挂</b>：{@code adminList} / {@code unreadUsers} / {@code remind}
+ * 不产生新的对外内容（remind 只是催已存在的公告），
+ * 且已分别由 {@code @RequireAdmin} 与 service层的
+ * {@code requirePublisherOrAdmin} 把关。给读操作加认证门槛
+ * 只会让「管理员忘了认证就看不到后台」成为运维事故，不产生安全收益。
  */
 @RestController
 @RequestMapping("/admin/announcement")
@@ -44,7 +64,13 @@ public class AdminAnnouncementController {
         this.campus = campus;
     }
 
-    /** 发布公告。publishNow=false 时存草稿且不推送 */
+    /**
+     * 发布公告。publishNow=false 时存草稿且不推送
+     *
+     * <p>即使存草稿也要认证：草稿随时能被上架并推给全校，
+     * 放行未认证者的草稿等于把上架前的最后一道门让出去。
+     */
+    @RequireVerified
     @PostMapping
     public Result<AnnouncementPublishVO> create(@Valid @RequestBody AnnouncementCreateDTO dto,
             HttpServletRequest req) {
@@ -52,7 +78,13 @@ public class AdminAnnouncementController {
         return Result.ok(adminService.create(me, dto));
     }
 
-    /** 编辑公告（PATCH 语义：只改传入的字段）。不允许把已发布公告打回草稿 */
+    /**
+     * 编辑公告（PATCH 语义：只改传入的字段）。不允许把已发布公告打回草稿
+     *
+     * <p>认证要求与 create 同级，理由见类注释：编辑内容并上架
+     * 对全校用户的效果与发布等价。
+     */
+    @RequireVerified
     @PatchMapping("/{id}")
     public Result<AnnouncementPublishVO> update(@PathVariable("id") long id,
             @Valid @RequestBody AnnouncementUpdateDTO dto,

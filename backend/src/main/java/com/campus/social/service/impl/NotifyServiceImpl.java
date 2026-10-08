@@ -9,6 +9,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.NotifyService;
 import com.campus.social.vo.NotifyVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -72,13 +73,7 @@ public class NotifyServiceImpl implements NotifyService {
     }
 
     private NotifyVO toVo(Notify n) {
-        User actor = userMapper.selectById(n.getActorId());
-        UserVO actorVo = actor == null ? null : UserVO.builder()
-                .id(actor.getId())
-                .username(actor.getUsername())
-                .nickname(actor.getNickname() != null ? actor.getNickname() : actor.getUsername())
-                .avatarUrl(actor.getAvatarUrl())
-                .build();
+        UserVO actorVo = UserVoAssembler.of(userMapper.selectById(n.getActorId()));
         return NotifyVO.builder()
                 .id(n.getId())
                 .type(n.getType())

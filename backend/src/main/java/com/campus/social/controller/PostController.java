@@ -6,6 +6,7 @@ import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.dto.CreatePostDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.PostService;
+import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
 import com.campus.social.vo.PostVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -128,7 +129,7 @@ public class PostController {
         return Result.ok(Map.of("commentId", commentId));
     }
 
-    /** 评论列表(一级) */
+    /** 评论列表（一级评论 + 各条的 children 树） */
     @GetMapping("/{id}/comments")
     public Result<CursorPage<CommentVO>> comments(
             @PathVariable("id") long id,
@@ -137,6 +138,23 @@ public class PostController {
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(postService.comments(id, lastId, size, me != null ? me : 0L));
+    }
+
+    /**
+     * 某条评论的全部直接子回复（children 溢出时补齐用）。
+     *
+     * <p>不递归：二级的孩子是三级、三级没有孩子，最多一层就该停。
+     * 再往下前端拿本页返回的 id 再调一次即可。
+     */
+    @GetMapping("/{id}/comment/{commentId}/children")
+    public Result<CommentChildrenPageVO> commentChildren(
+            @PathVariable("id") long id,
+            @PathVariable("commentId") long commentId,
+            @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(postService.commentChildren(id, commentId, lastId, size, me != null ? me : 0L));
     }
 
     /** 某用户发的帖子 */

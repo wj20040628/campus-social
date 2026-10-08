@@ -30,6 +30,23 @@ public class UserVO {
     private Integer followerCount;
     private Integer followingCount;
     private Integer unreadNotifyCount;
+    /**
+     * 是否已通过校内认证（AC-12 徽章判据）。
+     *
+     * <p><b>为什么用 {@code Boolean} 而不是 {@code int verifyStatus}</b>：
+     * AC-12 只要求「已认证 / 未认证」两态，前端徽章只需一个布尔；
+     * 而四态的审核中 / 被拒语义属于「我的认证进度」，由
+     * {@code GET /user/verify/status} 返回的 {@code VerifyStatusVO} 承担。
+     * 在 UserVO 里再塞一份四态字段，两处一旦口径漂移就会让徽章显示错误状态。
+     *
+     * <p><b>为什么必须由服务端给出</b>：前端此前用
+     * 「是否填了院系 / 年级」反推认证状态，而那与认证是两个独立事实——
+     * 用户可以在引导第 1 步填完院系却从未提交邮箱验证码。
+     * 那种情况下前端反推会显示「已认证」，是伪造的身份声明。
+     *
+     * <p>兼容：老数据或组装路径未显式设置时为 null，前端按未认证处理。
+     */
+    private Boolean verified;
     /** 0普通用户 1管理员 */
     private Integer role;
     private LocalDateTime createTime;

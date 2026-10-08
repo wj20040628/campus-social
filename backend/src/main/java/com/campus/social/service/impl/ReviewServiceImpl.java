@@ -22,6 +22,7 @@ import com.campus.social.vo.ReviewTaskVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.mapper.NotifyMapper;
 import com.campus.social.websocket.WsPushService;
+import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -183,13 +184,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     private ReviewTaskVO toVo(ReviewTask task) {
         Post post = postMapper.selectById(task.getPostId());
-        User author = post != null ? userMapper.selectById(post.getAuthorId()) : null;
-        UserVO avo = author == null ? null : UserVO.builder()
-                .id(author.getId())
-                .username(author.getUsername())
-                .nickname(author.getNickname() != null ? author.getNickname() : author.getUsername())
-                .avatarUrl(author.getAvatarUrl())
-                .build();
+        UserVO avo = UserVoAssembler.of(post == null ? null : userMapper.selectById(post.getAuthorId()));
         return ReviewTaskVO.builder()
                 .id(task.getId())
                 .postId(task.getPostId())

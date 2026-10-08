@@ -10,9 +10,8 @@ import com.campus.social.mapper.AnnouncementMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AnnouncementAdminService;
 import com.campus.social.service.AnnouncementReachService;
+import com.campus.social.service.support.AnnouncementAdminListAssembler;
 import com.campus.social.vo.AdminAnnouncementPageVO;
-import com.campus.social.vo.AnnouncementAdminItemVO;
-import com.campus.social.vo.AnnouncementPublisherVO;
 import com.campus.social.vo.AnnouncementPublishVO;
 import com.campus.social.vo.AnnouncementRemindVO;
 import com.campus.social.vo.AnnouncementRow;
@@ -25,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -66,7 +64,7 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     @Override
     @Transactional
     public AnnouncementPublishVO create(long publisherId, AnnouncementCreateDTO dto) {
-     requireVerified(publisherId);
+        requireVerified(publisherId);
         boolean publishNow = !Boolean.FALSE.equals(dto.getPublishNow());
         boolean top = Integer.valueOf(1).equals(dto.getIsTop());
 
@@ -107,6 +105,10 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     @Override
     @Transactional
     public AnnouncementPublishVO update(long adminId, long announcementId, AnnouncementUpdateDTO dto) {
+        // AC-11：编辑与发布同权。改完 title / content 并上架，对全校的效果与发布等价，
+        // 只拦 create 不拦 update 等于留了一条绕行路径。
+        // Controller 上已打了 @RequireVerified，这里是防绕过 Controller 直调 service 的兜底。
+        requireVerified(adminId);
         Announcement a = announcementMapper.selectById(announcementId);
         if (a == null || Integer.valueOf(1).equals(a.getIsDeleted())) {
             throw new BusinessException(ANNOUNCEMENT_NOT_FOUND, "公告不存在或已删除");
@@ -183,36 +185,8 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
         // 逐行查会把一次分页放大成 N 次 count。
         int totalTarget = Math.max(1, userMapper.countSchoolUsers(schoolId));
 
-        List<AnnouncementAdminItemVO> list = new ArrayList<>(page.size());
-        for (AnnouncementRow row : page) {
-            int readCount = row.getReadCount() == null ? 0 : row.getReadCount();
-            list.add(AnnouncementAdminItemVO.builder()
-                    .id(row.getId())
-                    .title(row.getTitle())
-                    .summary(summarize(row.getContent()))
-                    .category(row.getCategory())
-                    .isTop(row.getIsTop())
-                    .topExpireTime(row.getTopExpireTime())
-                    .status(row.getStatus())
-                    .publishTime(row.getPublishTime())
-                    .readCount(readCount)
-                    // 后台列表不判 isRead（列表不是相对某个用户的），固定 false
-                    .isRead(false)
-                    .publisher(AnnouncementPublisherVO.builder()
-                            .id(row.getPublisherId())
-                            .nickname(row.getPublisherNickname())
-                            .avatarUrl(row.getPublisherAvatar())
-                            .verified(Integer.valueOf(1).equals(row.getPublisherVerify()))
-                            .build())
-                    .totalTargetCount(totalTarget)
-                    // 草稿没发布过，触达率恒为 0；不展示 0/1 这种会误导的数字
-                    .reachRate(Integer.valueOf(STATUS_PUBLISHED).equals(row.getStatus())
-                            ? Math.min(1.0, (double) readCount / totalTarget) : 0.0)
-                    .build());
-        }
-
         AdminAnnouncementPageVO vo = new AdminAnnouncementPageVO();
-        vo.setList(list);
+        vo.setList(AnnouncementAdminListAssembler.toItems(page, totalTarget, SUMMARY_LIMIT));
         vo.setHasMore(hasMore);
         vo.setNextCursor(hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null);
         return vo;
@@ -235,10 +209,15 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     // ---------------------------------------------------------------- 私有
 
     /**
-     * AC-11：未通过校内认证的用户不能发布公告。
+     * AC-11：未通过校内认证的用户不能发布 / 编辑公告。
      *
      * <p>放在 service 而非只靠前端隐藏按钮：按钮可以被绕过，
      * 真正的判定必须在服务端。
+     *
+     * <p><b>与 {@code @RequireVerified} 拦截器的分工</b>：拦截器层拦的是
+     * 「HTTP 请求进来时」，本方法是「绕过 Controller 直调 service 时」的兜底。
+     * 两层并存不冲突——重复校验只是多一次主键查询，
+     * 换来「任一层失效，另一层仍然拦得住」。
      */
     private void requireVerified(long publisherId) {
         var publisher = userMapper.selectById(publisherId);
@@ -283,13 +262,5 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
         if (admin == null || !Integer.valueOf(1).equals(admin.getRole())) {
             throw new BusinessException(FORBIDDEN, "只有该公告的发布方或管理员可以查看未读名单");
         }
-    }
-
-    private String summarize(String content) {
-        if (content == null) {
-            return "";
-        }
-        String flat = content.replaceAll("\\s+", " ").trim();
-        return flat.length() <= SUMMARY_LIMIT ? flat : flat.substring(0, SUMMARY_LIMIT) + "…";
     }
 }

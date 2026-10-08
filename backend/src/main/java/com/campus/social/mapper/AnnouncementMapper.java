@@ -46,29 +46,37 @@ public interface AnnouncementMapper extends BaseMapper<Announcement> {
             + " ORDER BY a.publish_time DESC, a.id DESC LIMIT #{limit}")
     List<AnnouncementRow> selectPinnedFront(@Param("schoolId") Long schoolId, @Param("limit") int limit);
 
-    /** 普通（非置顶）公告流首页，严格 id 倒序，与游标口径一致 */
-    @Select(COLUMNS + FRONT_WHERE
-            + " AND NOT (a.is_top = 1 AND a.top_expire_time > NOW()) "
-            + " <if test='category != null'> AND a.category = #{category} </if>"
-            + " ORDER BY a.id DESC LIMIT #{limit}")
+    /**
+     * 普通（非置顶）公告流首页，严格 id 倒序，与游标口径一致。
+     *
+     * <p>三个带 {@code <if>} 的查询都必须整体包在 {@code <script>} 里：
+     * 注解方式下 MyBatis 只在有 script 包裹时才解析动态标签，
+     * 漏了会把 {@code <if test=...>} 当成字面量原样拼进 SQL，
+     * 报 BadSqlGrammar。这类错编译期查不出、启动也不报错，
+     * 只有真实带参调用才炸——所以凡用 {@code <if>} 一律包 script，不靠"记得"。
+     */
+    @Select("<script>" + COLUMNS + FRONT_WHERE
+            + " AND NOT (a.is_top = 1 AND a.top_expire_time &gt; NOW()) "
+            + "<if test='category != null'> AND a.category = #{category} </if>"
+            + " ORDER BY a.id DESC LIMIT #{limit}</script>")
     List<AnnouncementRow> selectNormalFrontFirst(@Param("schoolId") Long schoolId,
             @Param("category") Integer category, @Param("limit") int limit);
 
     /** 普通流下一页：id 游标 + 可选分类过滤 */
-    @Select(COLUMNS + FRONT_WHERE
-            + " AND NOT (a.is_top = 1 AND a.top_expire_time > NOW()) "
-            + " <if test='category != null'> AND a.category = #{category} </if>"
-            + " <if test='cursor != null'> AND a.id &lt; #{cursor} </if>"
-            + " ORDER BY a.id DESC LIMIT #{limit}")
+    @Select("<script>" + COLUMNS + FRONT_WHERE
+            + " AND NOT (a.is_top = 1 AND a.top_expire_time &gt; NOW()) "
+            + "<if test='category != null'> AND a.category = #{category} </if>"
+            + "<if test='cursor != null'> AND a.id &lt; #{cursor} </if>"
+            + " ORDER BY a.id DESC LIMIT #{limit}</script>")
     List<AnnouncementRow> selectNormalFrontAfter(@Param("schoolId") Long schoolId,
             @Param("category") Integer category, @Param("cursor") Long cursor, @Param("limit") int limit);
 
     /** 后台列表：含草稿与已下架。草稿的 publish_time 为 NULL，按它排序会不稳定，故统一按 id 倒序 */
-    @Select(COLUMNS
+    @Select("<script>" + COLUMNS
             + " WHERE a.is_deleted = 0 "
-            + " <if test='status != null'> AND a.status = #{status} </if>"
-            + " <if test='cursor != null'> AND a.id &lt; #{cursor} </if>"
-            + " ORDER BY a.id DESC LIMIT #{limit}")
+            + "<if test='status != null'> AND a.status = #{status} </if>"
+            + "<if test='cursor != null'> AND a.id &lt; #{cursor} </if>"
+            + " ORDER BY a.id DESC LIMIT #{limit}</script>")
     List<AnnouncementRow> selectAdminList(@Param("status") Integer status,
             @Param("cursor") Long cursor, @Param("limit") int limit);
 

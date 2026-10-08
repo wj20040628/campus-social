@@ -5,6 +5,10 @@ import com.campus.social.entity.Like;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.Collection;
+import java.util.List;
 
 @Mapper
 public interface LikeMapper extends BaseMapper<Like> {
@@ -24,4 +28,58 @@ public interface LikeMapper extends BaseMapper<Like> {
      */
     @Delete("DELETE FROM `like` WHERE user_id = #{userId} AND target_type = #{targetType} AND target_id = #{targetId}")
     int hardDelete(@Param("userId") long userId, @Param("targetType") int targetType, @Param("targetId") long targetId);
+
+    /**
+     * 批量判定「我对这批评论是否已赞」，返回已赞的评论 id 集合。
+     *
+     * <p>评论列表一页 20 条时，逐条 selectCount 会打出 20 次 count；
+     * 树形组装后条数更多（含全部子孙），逐条查更不可接受。
+     *
+     * <p>用 {@code target_id IN (...)} 而不是 `LIKE 'prefix'`：
+     * 前者能走 {@code idx_user_type(user_id, target_type, target_id)} 全命中，
+     * 后者在 id 非等值时只能全表扫。
+     */
+    @Select("<script>"
+            + "SELECT target_id FROM `like` WHERE user_id = #{userId} AND target_type = 2 "
+            + "AND target_id IN "
+            + "<foreach collection='ids' item='i' open='(' separator=',' close=')'>#{i}</foreach>"
+            + "</script>")
+    List<Long> selectLikedCommentIds(@Param("userId") long userId, @Param("ids") Collection<Long> ids);
+
+    /**
+     * 批量取评论点赞数，返回 target_id → count。
+     *
+     * <p>与 {@link #selectLikedCommentIds} 拆成两条而不是一条：
+     * 「我赞没赞」按 user_id 过滤、「多少人赞」全表统计，
+     * 过滤条件不同、走的索引也不同，合成一条会让其中一半用不上索引。
+     */
+    @Select("<script>"
+            + "SELECT target_id, COUNT(*) AS cnt FROM `like` WHERE target_type = 2 "
+            + "AND target_id IN "
+            + "<foreach collection='ids' item='i' open='(' separator=',' close=')'>#{i}</foreach>"
+            + " GROUP BY target_id"
+            + "</script>")
+    List<LikeCountRow> countByTargetIds(@Param("ids") Collection<Long> ids);
+
+    /** target_id → 点赞数 行投影 */
+    class LikeCountRow {
+        private Long targetId;
+        private Integer cnt;
+
+        public Long getTargetId() {
+            return targetId;
+        }
+
+        public void setTargetId(Long targetId) {
+            this.targetId = targetId;
+        }
+
+        public Integer getCnt() {
+            return cnt;
+        }
+
+        public void setCnt(Integer cnt) {
+            this.cnt = cnt;
+        }
+    }
 }

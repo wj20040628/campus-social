@@ -79,6 +79,10 @@ public enum ResultCode {
     // 实际数据没落库,这类「以为成功」的失败比直接报错难查得多。
     PROFILE_FIELD_RETIRED(1042, "院系与年级请通过 school-profile 或 onboarding-complete 设置"),
 
+    // 评论不存在。与 POST_NOT_FOUND 分开是因为「帖没了」和「某条回复没了」
+    // 对前端的处理不同：前者应退回帖子页，后者应只把该条回复置灰。
+    COMMENT_NOT_FOUND(1043, "评论不存在或已删除"),
+
     // 频率类:复用 HTTP 429 段(枚举内本就混排 4xx 与 1xxx)
     TOO_MANY_REQUESTS(429, "操作过于频繁,请稍后再试");
 

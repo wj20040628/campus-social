@@ -18,15 +18,20 @@ public interface ReportMapper extends BaseMapper<Report> {
      * 幂等插入（AC-13 的数据库兜底）。
      *
      * <p>{@code uk_report(reporter_id, target_type, target_id)} 命中时
-     * 返回 0 且不新增行，调用方据此回填 {@code duplicated = true} 与 message「已记录」。
+     * 抛 {@code DuplicateKeyException}，由 service 层捕获并回填
+     * {@code duplicated = true} 与 message「已记录」。
      *
-     * <p>不用 INSERT IGNORE：它会把「截断、超范围、非空约束」等真实错误一并吞掉，
-     * 变成静默的数据丢失。ON DUPLICATE KEY UPDATE 只吞「唯一键冲突」这一种预期情况。
+     * <p>刻意不用 {@code ON DUPLICATE KEY UPDATE}：那种写法下唯一键冲突
+     * 被 SQL 自己吞掉且返回值不可靠（mysql-connector-j 默认带 CLIENT_FOUND_ROWS，
+     * 冲突赋回原值也返回 1），无法区分「本次新插入」与「重复」，
+     * 调用方的 {@code affected == 0} 分支就成了死代码。
+     *
+     * <p>也不用 INSERT IGNORE：它会把「截断、超范围、非空约束」等真实错误
+     * 一并吞掉，变成静默的数据丢失。抛出来才知道哪条举报没存进去。
      */
     @Insert("INSERT INTO report (reporter_id, target_type, target_id, reason_type, reason_text, status) "
-            + "VALUES (#{reporterId}, #{targetType}, #{targetId}, #{reasonType}, #{reasonText}, 0) "
-            + "ON DUPLICATE KEY UPDATE id = id")
-    int insertIdempotent(@Param("reporterId") Long reporterId, @Param("targetType") int targetType,
+            + "VALUES (#{reporterId}, #{targetType}, #{targetId}, #{reasonType}, #{reasonText}, 0)")
+    int insertReport(@Param("reporterId") Long reporterId, @Param("targetType") int targetType,
             @Param("targetId") Long targetId, @Param("reasonType") int reasonType,
             @Param("reasonText") String reasonText);
 
@@ -46,9 +51,22 @@ public interface ReportMapper extends BaseMapper<Report> {
     int handle(@Param("id") Long id, @Param("status") int status, @Param("handlerId") Long handlerId,
             @Param("handleTime") LocalDateTime handleTime, @Param("handleNote") String handleNote);
 
-    /** 忽略动作:不改 status,仅记录处置人与备注(用于「已阅未处置」) */
+    /**
+     * 忽略动作:不改 status,仅记录处置人与备注(用于「已阅未处置」)。
+     *
+* <p>WHERE 里必须带 {@code AND handler_id IS NULL}：
+     * 少了它，重复 ignore 的影响行数完全取决于两次调用是否落在同一秒
+     * （{@code update_time = NOW()} 精确到秒，同秒时 MySQL 判为「值未变」返回 0，
+     * 跨秒则返回 1）——同一行为两次请求给出不同答案，属静默的不一致。
+     * 加上这个条件后：首次命中返回 1，重复必然返回 0，
+     * service 层据此稳定回 409。
+     *
+     * <p>这里 handler_id 判空是安全的：ban/reject 走的是 {@link #handle}，
+     * 处置后 status 变为 1/2，service 层已在进入本方法前拦掉，
+     * 不会与「已阅但未处置」的记录混淆。
+     */
     @Update("UPDATE report SET handler_id = #{handlerId}, handle_note = #{handleNote}, update_time = NOW() "
-            + "WHERE id = #{id} AND status = 0")
+            + "WHERE id = #{id} AND status = 0 AND handler_id IS NULL")
     int markIgnored(@Param("id") Long id, @Param("handlerId") Long handlerId,
             @Param("handleNote") String handleNote);
 

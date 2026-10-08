@@ -10,6 +10,7 @@ import com.campus.social.vo.GroupMessageVO;
 import com.campus.social.vo.GroupVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.websocket.WsPushService;
+import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -267,14 +268,7 @@ public class GroupServiceImpl implements GroupService {
         long water = groupReadMapper.lastRead(g.getId(), me);
         int unread = groupMessageMapper.unreadCountAfter(g.getId(), me, water);
 
-        User owner = userMapper.selectById(g.getOwnerId());
-        UserVO ovo = owner == null ? null
-                : UserVO.builder()
-                        .id(owner.getId())
-                        .username(owner.getUsername())
-                        .nickname(owner.getNickname() != null ? owner.getNickname() : owner.getUsername())
-                        .avatarUrl(owner.getAvatarUrl())
-                        .build();
+        UserVO ovo = UserVoAssembler.of(userMapper.selectById(g.getOwnerId()));
 
         // 最近一条消息摘要
         String preview = "";

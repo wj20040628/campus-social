@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "node scripts/check-sfc.mjs && node scripts/check-template-refs.mjs && node scripts/check-composable-exports.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "2.3.2",
