@@ -91,15 +91,61 @@ springdoc:
     path: /v3/api-docs
 
 # ------------------------------------------------------------
-# SMTP(QQ 邮箱)发验证码邮件
-# 生成授权码:QQ 邮箱 → 设置 → 账户 → 开启 POP3/SMTP 服务 → 生成 16 位授权码
-# 注意:password 填的是授权码,不是 QQ 密码
-# 生产建议用环境变量覆盖:MAIL_USERNAME / MAIL_PASSWORD
+# 健康检查(TD-09):Nginx / 运维探活依赖 /actuator/health
+# 只暴露 health 一个端点,management.endpoints.web.exposure.include 不含
+# env / configprops / beans —— 那些会把数据库地址、配置项打给公网。
+# management.server.port 独立监听,便于只在内网可达。
 # ------------------------------------------------------------
-# app.campus.message-gateway: dev=控制台打印验证码(本地默认) / prod=走下方 SMTP 真实发信
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# ------------------------------------------------------------
+# 跨域白名单(TD-01 / TD-02,上线阻断项)
+# 生产用 CORS_ALLOWED_ORIGINS 环境变量注入(逗号分隔),优先级高于下方配置项。
+# 两者都为空时只放行本机开发端口,**任何情况下都不回落到通配符**。
+# 改造前的 allowedOriginPatterns("*") 与 setAllowedOrigins("*") 已删除。
+# ------------------------------------------------------------
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    localhost-origins:
+      - http://localhost:5173
+      - http://localhost:5174
+      - http://127.0.0.1:5173
+  # F4 封禁计划在 Redis 中的最长保留天数。需>= 最长的封禁期限(30 天) + 余量,
+  # 否则 Redis 重启后未到期的解封计划会先于 key 过期而丢失
+  ban:
+    max-plan-days: 45
+      - http://127.0.0.1:5174
   campus:
     message-gateway: ${APP_MESSAGE_GATEWAY:dev}
+
+# ------------------------------------------------------------
+# 校园信息与护栏参数(F2 / F3 / F11)
+# 配额不硬编码:改一次要发一次版,而护栏参数恰恰需要按运营反馈调整。
+# ------------------------------------------------------------
+campus:
+  # MVP 单校,不建 school 表——为一行数据建表属过度设计
+  school-name: ${CAMPUS_SCHOOL_NAME:本校大学}
+  # 学校 ID,与 user.school_id / announcement.school_id 对齐。
+  # 做成配置而非各处硬编码 1:多校字段已在库里,真要开第二所学校时只改这一处
+  school-id: ${CAMPUS_SCHOOL_ID:1}
+  # 校园邮箱域名白名单,逗号分隔。生产用 CAMPUS_EMAIL_DOMAIN_WHITELIST 注入。
+  # 为空时所有域名都会被拒(1032),这是刻意设计:宁可不认证,不可错认证。
+  email-domain-whitelist: ${CAMPUS_EMAIL_DOMAIN_WHITELIST:}
+  # F3 免好友搭话护栏
+  daily-new-peer-limit: 5      # 每天最多向 5 个新对象发起首条
+  per-peer-daily-limit: 20     # 对同一陌生人每天最多 20 条
+  # F11 引导
+  onboarding-min-tags: 3
+  onboarding-max-tags: 5
+  max-tags: 8
 
 # ------------------------------------------------------------
 # AI 内容机审(LLM):直接接真实 LLM API

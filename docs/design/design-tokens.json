@@ -1,0 +1,232 @@
+{
+  "$meta": {
+    "product": "友声 · 校园生活社区",
+    "version": "1.0.0",
+    "owner": "颜好看 (designer)",
+    "generated": "2026-10-08",
+    "stack": "Vue 3.4 + Vite 5.4 + Element Plus 2.14.5",
+    "theme_strategy": "light-first; dark palette defined but DEFERRED out of MVP scope",
+    "prefix": "--ys",
+    "element_plus_bridge": "design-tokens.css 末尾的 EP Bridge 段落把 --ys-* 映射到 --el-*",
+    "contrast_note": "所有 color 条目中 contrast 字段为实测 WCAG 2.1 相对亮度比值(脚本计算,非估算); AA 门槛 4.5:1, 控件边界 3:1"
+  },
+
+  "color": {
+    "neutral": {
+      "bg":            { "value": "#F4F6F8", "type": "color", "usage": "页面底色(冷调浅灰,非米色/奶油)", "layer": "A1-identity" },
+      "surface":       { "value": "#FFFFFF", "type": "color", "usage": "卡片/列表/弹层表面", "layer": "A1-identity" },
+      "surface-2":     { "value": "#EDF1F5", "type": "color", "usage": "三级表面:官方通知条目底、分组头、禁用底", "layer": "B-slot" },
+      "fg":            { "value": "#16212E", "type": "color", "usage": "正文/标题主文本(带蓝调近黑,非纯黑)", "contrast": "15.01 on #F4F6F8", "layer": "A1-identity" },
+      "fg-2":          { "value": "#3B4A5C", "type": "color", "usage": "次级文本:卡片说明、次要标签", "contrast": "8.36 on #F4F6F8", "layer": "B-slot" },
+      "muted":         { "value": "#5A6B7E", "type": "color", "usage": "辅助文本:昵称下方说明、表单 help", "contrast": "5.05 on #F4F6F8", "layer": "A1-identity" },
+      "meta":          { "value": "#5F6E83", "type": "color", "usage": "元信息:时间戳、计数、页脚。已按 4.5:1 加暗,禁止再调浅", "contrast": "4.79 on #F4F6F8", "layer": "B-slot" },
+      "border":        { "value": "#D8DEE6", "type": "color", "usage": "装饰性分隔线/卡片描边(不承载控件识别)" },
+      "border-soft":   { "value": "#E8EDF2", "type": "color", "usage": "卡片内部行分隔线(divide-y)" },
+      "border-control":{ "value": "#8492A5", "type": "color", "usage": "表单控件边界:input/select/checkbox。WCAG 1.4.11 需 >=3:1", "contrast": "3.16 on #FFFFFF" },
+      "overlay":       { "value": "rgba(16, 33, 46, 0.45)", "type": "color", "usage": "模态遮罩" }
+    },
+
+    "accent": {
+      "accent":       { "value": "#0E7490", "type": "color", "usage": "主色「友声青」:主 CTA、当前导航选中态、链接、聚焦环", "contrast": "5.36 on #FFFFFF / 白字 5.36", "layer": "A1-identity", "screen_budget": "每屏可见使用 <= 2 处" },
+      "accent-hover": { "value": "#0A5E75", "type": "color", "usage": "主色 hover", "contrast": "白字 7.31", "layer": "A2" },
+      "accent-active":{ "value": "#084C5F", "type": "color", "usage": "主色 active/pressed", "contrast": "白字 9.51", "layer": "A2" },
+      "accent-on":    { "value": "#FFFFFF", "type": "color", "usage": "主色底之上的文本/图标", "layer": "A2" },
+      "accent-soft":  { "value": "#E2F0F4", "type": "color", "usage": "主色浅底:选中标签底、提示条底", "contrast": "accent on it = 4.59", "layer": "B-slot" },
+      "accent-2":       { "value": "#B44A12", "type": "color", "usage": "辅色「活动砖橙」:仅用于「活动/搭子」标签与入口,不用于主 CTA", "contrast": "白字 5.34 / 5.34 on #FFFFFF", "layer": "C-extension" },
+      "accent-2-hover": { "value": "#97400F", "type": "color", "usage": "辅色 hover", "contrast": "白字 6.87", "layer": "C-extension" },
+      "accent-2-active":{ "value": "#7E350C", "type": "color", "usage": "辅色 active", "contrast": "白字 8.74", "layer": "C-extension" },
+      "accent-2-soft":  { "value": "#FBEDE4", "type": "color", "usage": "辅色浅底", "layer": "C-extension" }
+    },
+
+    "semantic": {
+      "success":       { "value": "#157347", "type": "color", "usage": "成功:发布成功、审核通过", "contrast": "5.87 on #FFFFFF" },
+      "success-soft":  { "value": "#E5F2EA", "type": "color", "usage": "成功提示条底" },
+      "warning":       { "value": "#A85B08", "type": "color", "usage": "警告:内容待审核、字数将超", "contrast": "5.04 on #FFFFFF / 4.60 on #FDF3E7" },
+      "warning-soft":  { "value": "#FDF3E7", "type": "color", "usage": "警告提示条底" },
+      "danger":        { "value": "#C32B20", "type": "color", "usage": "错误/删除/举报", "contrast": "5.70 on #FFFFFF" },
+      "danger-soft":   { "value": "#FAE9E7", "type": "color", "usage": "错误提示条底" },
+      "info":          { "value": "#5A6B7E", "type": "color", "usage": "中性信息提示(沿用 Element Plus 惯例,info 为灰蓝不另起蓝)", "contrast": "5.05 on #FFFFFF" },
+      "info-soft":     { "value": "#EDF1F5", "type": "color", "usage": "中性提示条底" }
+    },
+
+    "official": {
+      "official-badge-bg":   { "value": "#16212E", "type": "color", "usage": "G3 官方通知「官方」徽章底(深墨,权威感,不消耗 accent 配额)" },
+      "official-badge-text": { "value": "#FFFFFF", "type": "color", "usage": "官方徽章文字", "contrast": "16.27" },
+      "official-surface":    { "value": "#EDF1F5", "type": "color", "usage": "官方通知条目底色(用 surface-2 微微区分,禁止彩色边框)" }
+    },
+
+    "category": {
+      "sport-fg": { "value": "#B44A12", "type": "color", "usage": "兴趣大类「运动」标签文字", "contrast": "4.67 on #FBEDE4" },
+      "sport-bg": { "value": "#FBEDE4", "type": "color", "usage": "兴趣大类「运动」标签底" },
+      "game-fg":  { "value": "#6B3FA0", "type": "color", "usage": "兴趣大类「游戏」标签文字。深紫纯色,禁止参与任何渐变", "contrast": "6.33 on #F1EBFA" },
+      "game-bg":  { "value": "#F1EBFA", "type": "color", "usage": "兴趣大类「游戏」标签底" },
+      "study-fg": { "value": "#2F6F4E", "type": "color", "usage": "兴趣大类「学习」标签文字", "contrast": "5.19 on #E7F1EB" },
+      "study-bg": { "value": "#E7F1EB", "type": "color", "usage": "兴趣大类「学习」标签底" },
+      "club-fg":  { "value": "#2B5C9E", "type": "color", "usage": "兴趣大类「社团」标签文字", "contrast": "5.75 on #E7EEF9" },
+      "club-bg":  { "value": "#E7EEF9", "type": "color", "usage": "兴趣大类「社团」标签底" }
+    },
+
+    "focus": {
+      "focus-ring": { "value": "0 0 0 3px rgba(14, 116, 144, 0.32)", "type": "boxShadow", "usage": "唯一合法的 :focus-visible 样式,禁止 outline: none" }
+    },
+
+    "theme": {
+      "dark": {
+        "status": "deferred (不在 MVP 范围,Token 结构已预留)",
+        "bg": "#111721", "surface": "#1A212C", "surface-2": "#232B38",
+        "fg": "#E6EAF0", "fg-2": "#B4BECD", "muted": "#8B96A6", "meta": "#7D8798",
+        "border": "#5E6977", "border-soft": "#2A3340",
+        "accent": "#4FD1C5", "accent-on": "#111721", "accent-2": "#F0A868",
+        "contrast_verified": "fg 14.89 / muted 6.00 / meta 4.96 / accent 9.64 on #111721"
+      }
+    }
+  },
+
+  "typography": {
+    "$note": "零 Web Font 下载。UGC 产品字符集不可穷举,子集化无效,故正文/标题全部走系统字体栈。等宽数字仅用于计数与时间。",
+    "webFontBytes": 0,
+    "fontFamily": {
+      "body":    { "value": "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"HarmonyOS Sans SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", \"Noto Sans SC\", \"Helvetica Neue\", Arial, sans-serif", "type": "fontFamily", "usage": "UI 与正文(中英混排,系统原生)" },
+      "display": { "value": "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"HarmonyOS Sans SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", \"Noto Sans SC\", \"Helvetica Neue\", Arial, sans-serif", "type": "fontFamily", "usage": "标题。与 body 同栈,层级靠字重/字号/字距建立,不靠换字体" },
+      "mono":    { "value": "ui-monospace, SFMono-Regular, \"SF Mono\", \"JetBrains Mono\", Menlo, Consolas, \"Liberation Mono\", monospace", "type": "fontFamily", "usage": "学号、时间码、计数、代码块" },
+      "latin":   { "value": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif", "type": "fontFamily", "usage": "纯拉丁/数字场景(与中文栈同源,无需额外请求)" }
+    },
+    "fontSize": {
+      "xs":   { "value": "12px", "type": "dimension", "usage": "标签/徽章/计数", "lineHeight": "1.5",  "letterSpacing": "0.01em" },
+      "sm":   { "value": "13px", "type": "dimension", "usage": "辅助说明/表单 help", "lineHeight": "1.6", "letterSpacing": "0.01em" },
+      "base": { "value": "14px", "type": "dimension", "usage": "正文基准(移动端与桌面一致)、帖子正文", "lineHeight": "1.7", "letterSpacing": "0" },
+      "md":   { "value": "16px", "type": "dimension", "usage": "卡片标题、会话气泡正文", "lineHeight": "1.6", "letterSpacing": "0" },
+      "lg":   { "value": "18px", "type": "dimension", "usage": "分组小标题", "lineHeight": "1.5", "letterSpacing": "-0.005em" },
+      "xl":   { "value": "20px", "type": "dimension", "usage": "区块标题", "lineHeight": "1.4", "letterSpacing": "-0.01em" },
+      "2xl":  { "value": "24px", "type": "dimension", "usage": "页面主标题", "lineHeight": "1.35", "letterSpacing": "-0.01em" },
+      "3xl":  { "value": "30px", "type": "dimension", "usage": "展示级(仅限空状态主句/引导页,不用于首页 Hero)", "lineHeight": "1.25", "letterSpacing": "-0.015em" }
+    },
+    "fontWeight": {
+      "regular":  { "value": "400", "type": "fontWeight", "usage": "正文" },
+      "medium":   { "value": "500", "type": "fontWeight", "usage": "小标题/按钮文字/表头 (中文系统字体无 510 档,取 500)" },
+      "semibold": { "value": "600", "type": "fontWeight", "usage": "大标题 (中文系统字体无 590 档,取 600)" }
+    },
+    "letterSpacing": {
+      "body":       { "value": "0",       "type": "dimension" },
+      "small":      { "value": "0.01em",  "type": "dimension", "usage": "12-13px 辅助文字" },
+      "allCaps":    { "value": "0.08em",  "type": "dimension", "usage": "纯大写拉丁标签,必须 >= 0.06em" },
+      "heading":    { "value": "-0.01em", "type": "dimension", "usage": "标题。中文负字距上限 -0.015em,再负会挤压字身框" }
+    },
+    "fontFeature": {
+      "numeric": { "value": "font-variant-numeric: tabular-nums; font-feature-settings: \"tnum\" 1;", "usage": "时间、计数、点赞数,防跳动" }
+    }
+  },
+
+  "spacing": {
+    "$note": "4px 基准网格。仅允许本清单内的值。",
+    "1":  { "value": "4px",  "type": "dimension", "usage": "图标与文字间隙" },
+    "2":  { "value": "8px",  "type": "dimension", "usage": "同一组内紧凑间距" },
+    "3":  { "value": "12px", "type": "dimension", "usage": "表单元素/标签间隙" },
+    "4":  { "value": "16px", "type": "dimension", "usage": "移动端页面左右留白;卡片内边距(紧凑)" },
+    "5":  { "value": "20px", "type": "dimension", "usage": "卡片内边距(标准)" },
+    "6":  { "value": "24px", "type": "dimension", "usage": "桌面页面左右留白;栅格 gutter" },
+    "8":  { "value": "32px", "type": "dimension", "usage": "区块间距" },
+    "10": { "value": "40px", "type": "dimension", "usage": "大区块间距" },
+    "12": { "value": "48px", "type": "dimension", "usage": "节区间距(桌面)" },
+    "16": { "value": "64px", "type": "dimension", "usage": "仅用于登录/空状态等独立屏" }
+  },
+
+  "radius": {
+    "$note": "卡片上限 12px。禁止 >=24px 的过度圆滑。",
+    "sm":   { "value": "4px",    "type": "dimension", "usage": "徽章/小标签" },
+    "md":   { "value": "6px",    "type": "dimension", "usage": "chip、按钮(小)" },
+    "lg":   { "value": "8px",    "type": "dimension", "usage": "按钮、输入框(默认)" },
+    "xl":   { "value": "12px",   "type": "dimension", "usage": "卡片(上限)" },
+    "2xl":  { "value": "16px",   "type": "dimension", "usage": "弹窗/抽屉" },
+    "full": { "value": "9999px", "type": "dimension", "usage": "头像、胶囊按钮、Tab 指示器" }
+  },
+
+  "shadow": {
+    "$note": "禁止发光(0 0 Npx 彩色光晕)。禁止同一元素同时 1px 边框 + blur>=16px 阴影(幽灵卡片)。",
+    "color": { "value": "16, 33, 46", "type": "other", "usage": "阴影色相取自 fg,禁止 rgba(0,0,0,*)" },
+    "1": { "value": "0 1px 2px rgba(16, 33, 46, 0.05)",  "type": "boxShadow", "usage": "卡片静止(可配 1px 边框)" },
+    "2": { "value": "0 2px 8px rgba(16, 33, 46, 0.08)",  "type": "boxShadow", "usage": "卡片 hover / 顶部栏吸顶(可配 1px 边框)" },
+    "3": { "value": "0 8px 24px rgba(16, 33, 46, 0.12)", "type": "boxShadow", "usage": "浮层:下拉/抽屉/Toast。此级别禁止配 1px 边框" },
+    "maxBlur": { "value": "24px", "type": "dimension", "usage": "模糊半径硬上限" }
+  },
+
+  "motion": {
+    "$note": "禁止弹跳/回弹。禁止 cubic-bezier 控制点 y < 0 或 > 1(即禁止 overshoot)。",
+    "duration": {
+      "instant": { "value": "80ms",  "type": "duration", "usage": "按钮按下、开关切换" },
+      "fast":    { "value": "150ms", "type": "duration", "usage": "收敛值:hover 变色、选中态" },
+      "base":    { "value": "200ms", "type": "duration", "usage": "下拉展开、Toast 进入" },
+      "slow":    { "value": "280ms", "type": "duration", "usage": "抽屉滑出" },
+      "page":    { "value": "320ms", "type": "duration", "usage": "页面/路由过渡(硬上限)" }
+    },
+    "easing": {
+      "out":     { "value": "cubic-bezier(0.2, 0, 0, 1)",     "type": "cubicBezier", "usage": "默认,用于绝大多数过渡" },
+      "inOut":   { "value": "cubic-bezier(0.4, 0, 0.2, 1)",    "type": "cubicBezier", "usage": "跨屏/位移过渡" },
+      "linear":  { "value": "linear",                          "type": "cubicBezier", "usage": "骨架屏微光、加载进度" }
+    },
+    "reducedMotion": { "value": "@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }", "type": "other", "usage": "必须全局实现" },
+    "forbidden": ["cubic-bezier(0.68, -0.55, 0.265, 1.55)", "cubic-bezier(0.34, 1.56, 0.64, 1)"]
+  },
+
+  "breakpoint": {
+    "$note": "mobile-first:基础样式即手机样式,用 min-width 逐级增强。大学生主力设备是手机,手机不是降级版本。",
+    "xs":  { "value": "0px",   "type": "dimension", "usage": "手机竖屏(<640)单列 + 底部 TabBar + 顶部精简 header" },
+    "sm":  { "value": "640px", "type": "dimension", "usage": "大屏手机/小平板:双列卡片网格可用" },
+    "md":  { "value": "768px", "type": "dimension", "usage": "平板:内容列 + 右侧栏置于内容下方;TabBar 仍在底部" },
+    "lg":  { "value": "1024px","type": "dimension", "usage": "桌面:左侧固定 Sidebar 220px + 内容列 640px + 右侧栏 320px" },
+    "xl":  { "value": "1280px","type": "dimension", "usage": "大桌面:容器锁定 1180px 居中" },
+    "2xl": { "value": "1536px","type": "dimension", "usage": "超宽屏:不放大内容列,仅增加左右留白" }
+  },
+
+  "layout": {
+    "containerMax":      { "value": "1180px", "type": "dimension", "usage": "桌面三栏总宽上限" },
+    "contentColumnMax":  { "value": "640px",  "type": "dimension", "usage": "Feed/正文列最大宽度,保证中文每行 30-38 字" },
+    "sidebarWidth":      { "value": "220px",  "type": "dimension", "usage": "桌面左侧导航" },
+    "asideWidth":        { "value": "320px",  "type": "dimension", "usage": "桌面右侧栏(官方通知/推荐)" },
+    "gutterPhone":       { "value": "16px",   "type": "dimension" },
+    "gutterTablet":      { "value": "24px",   "type": "dimension" },
+    "gutterDesktop":     { "value": "24px",   "type": "dimension" },
+    "gridColumns":       { "desktop": 12, "tablet": 8, "phone": 4, "type": "other" },
+    "sectionY":          { "phone": "32px", "tablet": "48px", "desktop": "80px", "type": "other", "usage": "节区垂直节奏" },
+    "topbarHeight":      { "value": "56px",  "type": "dimension", "usage": "移动端顶栏" },
+    "tabbarHeight":      { "value": "56px",  "type": "dimension", "usage": "移动端底部 TabBar(含安全区)" },
+    "safeAreaBottom":    { "value": "env(safe-area-inset-bottom, 0px)", "type": "other", "usage": "iPhone 底部安全区" }
+  },
+
+  "touch": {
+    "minTarget":   { "value": "44px", "type": "dimension", "usage": "WCAG 2.5.5 最小可点击区域(含 padding)" },
+    "minGap":      { "value": "8px",  "type": "dimension", "usage": "相邻可点击元素最小间距" },
+    "tabbarItem":  { "value": "56px", "type": "dimension", "usage": "底部 Tab 项高度" }
+  },
+
+  "zIndex": {
+    "base": { "value": 0, "type": "other" },
+    "sticky": { "value": 1100, "type": "other", "usage": "顶栏/筛选条吸顶" },
+    "dropdown": { "value": 1000, "type": "other" },
+    "overlay": { "value": 1200, "type": "other", "usage": "遮罩" },
+    "modal": { "value": 1210, "type": "other" },
+    "drawer": { "value": 1220, "type": "other" },
+    "toast": { "value": 1300, "type": "other" }
+  },
+
+  "icon": {
+    "library": "@element-plus/icons-vue",
+    "libraryVersion": "2.3.2",
+    "libraryReason": "element-plus@2.14.5 的 dependencies 直接包含它(已实测:node_modules + package-lock 均在),零新增依赖;294 个图标;风格为 viewBox 0 0 1024 1024 + fill=currentColor,与 EP 组件内部图标同源,不会出现两套风格",
+    "totalIcons": 294,
+    "sizes": { "inline": "16px", "inButton": "20px", "standalone": "24px" },
+    "style": "viewBox=\"0 0 1024 1024\" fill=\"currentColor\"; 尺寸只改 CSS width/height,不改 viewBox",
+    "customSupplements": {
+      "$note": "EP 图标库缺失的 3 个语义,由 src/icons/ 自绘补齐,必须与 EP 同为 1024 viewBox + fill 风格",
+      "like": { "file": "IconLike.vue", "semantic": "点赞:竖起的大拇指轮廓(空)/实心(已赞)", "reason": "EP 无 thumbs-up" },
+      "shield": { "file": "IconShield.vue", "semantic": "管理与审核:盾牌轮廓", "reason": "EP 无 shield" },
+      "send": { "file": "IconSend.vue", "semantic": "发送:纸飞机", "reason": "EP 无 send,promotion 是喇叭已被官方通知占用" }
+    },
+    "forbidEmoji": true
+  },
+
+  "state": {
+    "$note": "每个有状态组件必须覆盖 5 态:Loading / Empty / Error / Populated / Edge",
+    "requiredStates": ["default", "hover", "focus-visible", "active", "disabled", "loading", "error", "empty", "populated"]
+  }
+}

@@ -4,7 +4,11 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.campus.social.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
@@ -36,4 +40,127 @@ public interface UserMapper extends BaseMapper<User> {
             "  following_count = (SELECT COUNT(*) FROM relation r WHERE r.from_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
             "  update_time = NOW()")
     int reconcileAll();
+
+    // ---------------------------------------------------------------- F2 校内认证
+
+    /**
+     * 写入学校归属。
+     *
+     * <p>dept_id / grade_id 是权威值，dept / grade 是同一次写入里从字典表取出的名称快照
+     * （见User 实体注释）。快照与 id 在同一条 UPDATE 内落库，不分两次写，
+     * 避免出现「id 已更新、名称还是旧的」这种半更新状态被列表页读到。
+     *
+     * <p>「归属是否填全」（AC-18）改判 dept_id 与 grade_id 是否非空：
+     * 早期数据只有 dept 名称没有 id，若继续按名称判空，
+     * 字典化之后这些老用户会被误判为「没填归属」而被拦在引导页。
+     */
+    @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
+            + "grade_id = #{gradeId}, grade = #{grade}, update_time = NOW() "
+            + "WHERE id = #{userId}")
+    int updateSchoolProfile(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
+            @Param("deptId") Long deptId, @Param("dept") String dept,
+            @Param("gradeId") Long gradeId, @Param("grade") String grade);
+
+    /** 认证通过。WHERE 带 verify_status <> 1 兜住并发重复提交 */
+    @Update("UPDATE user SET verify_status = 1, update_time = NOW() "
+            + "WHERE id = #{userId} AND verify_status <> 1")
+    int markVerified(@Param("userId") Long userId);
+
+    /** 提交学号认证:置 2(审核中)并落 student_no。student_no 的 UNIQUE 是主防线 */
+    @Update("UPDATE user SET verify_status = 2, student_no = #{studentNo}, update_time = NOW() "
+            + "WHERE id = #{userId}")
+    int markVerifyPending(@Param("userId") Long userId, @Param("studentNo") String studentNo);
+
+    /** 驳回认证:置 3(被驳回)。队列就是 user 表本身,见 ARCHITECTURE §3 Q9.4 */
+    @Update("UPDATE user SET verify_status = #{status}, update_time = NOW() WHERE id = #{userId}")
+    int updateVerifyStatus(@Param("userId") Long userId, @Param("status") int status);
+
+    /** 封禁/解封(举报处置 action=ban)。status:0正常 1冻结 */
+    @Update("UPDATE user SET status = #{status}, update_time = NOW() WHERE id = #{userId}")
+    int updateAccountStatus(@Param("userId") Long userId, @Param("status") int status);
+
+    // ---------------------------------------------------------------- F11 引导
+
+    /**
+     * 引导完成的乐观锁幂等写（ARCHITECTURE §3 Q10.2 第 2 道防线）。
+     * {@code AND onboarding_step <> 3} 让这条 UPDATE 本身成为幂等键：
+     * InnoDB 下同行 UPDATE 天然互斥，影响行数=0 即说明已被并发请求或历史请求完成。
+     *
+     * <p>与 {@link #updateSchoolProfile} 同口径：id 与名称快照在同一条 UPDATE 内写入。
+     */
+    @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
+            + "grade_id = #{gradeId}, grade = #{grade}, "
+            + "onboarding_step = 3, update_time = NOW() "
+            + "WHERE id = #{userId} AND onboarding_step <> 3")
+    int completeOnboarding(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
+            @Param("deptId") Long deptId, @Param("dept") String dept,
+            @Param("gradeId") Long gradeId, @Param("grade") String grade);
+
+    /** 单独推进引导进度(选完标签但未完成关注时用) */
+    @Update("UPDATE user SET onboarding_step = #{step}, update_time = NOW() "
+            + "WHERE id = #{userId} AND onboarding_step < #{step}")
+    int advanceOnboardingStep(@Param("userId") Long userId, @Param("step") int step);
+
+    // ---------------------------------------------------------------- 推荐
+
+    /**
+     * 推荐关注的人（确定性规则排序，PRD §9 明确排除 AI 智能匹配）。
+     * 打分：同院系 4 > 同年级 2 > 已认证 1，末位 id DESC 保证同分结果稳定、翻页不抖动。
+     * 「曾有互动」这一档冷启动期没有数据，降级用 follower_count 代理。
+ *
+     * <p>排除：自己、已关注(type=1)、已拉黑(type=3)、status!=0、管理员账号。
+ *
+     * <p><b>同院系/同年级改用 id 比较</b>（原实现比的是 dept / grade 名称字符串）：
+     * 这是本轮字典化的核心动机。名称相等是脆弱的——「计算机学院」与「计科」，
+     * 「2024级」与「2024 级」都表示同一个人群却比不相等，同院系推荐会漏掉一半人。
+     * id 相等才是「同一维度」的准确表达。
+     *
+     * <p>COALESCE 回退到名称比较：字典化之前注册的老用户 dept_id 为 NULL，
+     * 若只比 id 会让这批人永远拿不到同院系加分，等于静默降级了老用户的推荐质量。
+     * 回退只在 id 为 NULL 时生效，新数据一律走 id 通道。
+     *
+     * <p>{@code commonTagCount} 用一条相关子查询算出，避免在 Java 侧做 N+1。
+     */
+    @Select("SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade, u.verify_status, u.follower_count, "
+            + "(CASE WHEN #{deptId} IS NOT NULL AND u.dept_id = #{deptId} THEN 4 "
+            + "      WHEN #{deptId} IS NULL AND u.dept = #{dept} AND u.dept IS NOT NULL THEN 4 ELSE 0 END) + "
+            + "(CASE WHEN #{gradeId} IS NOT NULL AND u.grade_id = #{gradeId} THEN 2 "
+            + "      WHEN #{gradeId} IS NULL AND u.grade = #{grade} AND u.grade IS NOT NULL THEN 2 ELSE 0 END) + "
+            + "(CASE WHEN u.verify_status = 1 THEN 1 ELSE 0 END) AS score, "
+            + "(SELECT COUNT(*) FROM user_tag ut WHERE ut.user_id = u.id AND ut.is_deleted = 0 "
+            + " AND ut.tag_id IN (SELECT tag_id FROM user_tag WHERE user_id = #{me} AND is_deleted = 0)) AS common_tag_count "
+            + "FROM user u "
+            + "WHERE u.id <> #{me} AND u.status = 0 AND u.is_deleted = 0 AND u.role = 0 AND u.school_id = #{schoolId} "
+            + "  AND NOT EXISTS (SELECT 1 FROM relation r "
+            + "                  WHERE r.from_user_id = #{me} AND r.to_user_id = u.id AND r.type IN (1, 3) AND r.is_deleted = 0) "
+            + "ORDER BY score DESC, u.follower_count DESC, u.id DESC "
+            + "LIMIT #{limit}")
+    List<com.campus.social.vo.RecommendUserRow> selectRecommendUsers(
+            @Param("me") Long me,
+            @Param("deptId") Long deptId,
+            @Param("dept") String dept,
+            @Param("gradeId") Long gradeId,
+            @Param("grade") String grade,
+            @Param("schoolId") Long schoolId,
+            @Param("limit") int limit);
+
+    /** 本校应触达人数(公告触达率分母) */
+    @Select("SELECT COUNT(*) FROM user WHERE school_id = #{schoolId} AND status = 0 AND is_deleted = 0 AND role = 0")
+    int countSchoolUsers(@Param("schoolId") Long schoolId);
+
+    /** 谁还没看：NOT EXISTS 判未读,游标按 id 升序(未读名单从旧到新看更合理) */
+    @Select("SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade FROM user u "
+            + "WHERE u.school_id = #{schoolId} AND u.status = 0 AND u.is_deleted = 0 AND u.role = 0 "
+            + "  AND u.id > #{cursor} "
+            + "  AND NOT EXISTS (SELECT 1 FROM announcement_read r "
+            + "                  WHERE r.announcement_id = #{announcementId} AND r.user_id = u.id AND r.is_deleted = 0) "
+            + "ORDER BY u.id ASC LIMIT #{limit}")
+    List<com.campus.social.vo.UnreadUserVO> selectUnreadUsers(@Param("announcementId") Long announcementId,
+            @Param("schoolId") Long schoolId, @Param("cursor") Long cursor, @Param("limit") int limit);
+
+    @Select("SELECT COUNT(*) FROM user u "
+            + "WHERE u.school_id = #{schoolId} AND u.status = 0 AND u.is_deleted = 0 AND u.role = 0 "
+            + "  AND NOT EXISTS (SELECT 1 FROM announcement_read r "
+            + "                  WHERE r.announcement_id = #{announcementId} AND r.user_id = u.id AND r.is_deleted = 0)")
+    int countUnreadUsers(@Param("announcementId") Long announcementId, @Param("schoolId") Long schoolId);
 }

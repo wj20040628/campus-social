@@ -1,0 +1,484 @@
+/* ==========================================================================
+ * ReportPane · 举报处置面板
+ * AdminReview.vue.md §1.3 卡片 + §1.4 吸底栏 + §4 撤销 Toast
+ * 断点纪律:字面量 px,值取自 design-tokens.json 的 breakpoint 段(见 design-tokens.css §0)
+ * ========================================================================== */
+
+.report-pane {
+  /* flex 列:进度条 + 滚动区 + 吸底栏三段,只有中间那段滚动 */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ---------------- 进度条 ---------------- */
+
+.report-pane__progress {
+  flex-shrink: 0;
+  padding: var(--ys-space-3) var(--ys-gutter-phone) 0;
+}
+
+.report-pane__progress-track {
+  height: 4px;
+  border-radius: var(--ys-radius-pill);
+  background: var(--ys-surface-2);
+  overflow: hidden;
+}
+
+.report-pane__progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--ys-accent);
+  transition: width var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.report-pane__progress-text {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-meta);
+}
+
+/* ---------------- 滚动区 ---------------- */
+
+.report-pane__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+}
+
+.report-pane__action-error {
+  margin: 0 0 var(--ys-space-3);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-danger-soft);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-danger);
+}
+
+/* ---------------- 列表模式(折叠条目) ---------------- */
+
+.report-pane__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* 条目间用分隔线,不用卡片盒子 —— 避免嵌套阴影 */
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.report-row + .report-row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.report-row__btn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-1);
+  /* 热区撑到 44px:视觉是两行小字,点的时候要好按 */
+  min-height: var(--ys-touch-min);
+  width: 100%;
+  padding: var(--ys-space-3) 0;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.report-row__btn:active {
+  background: var(--ys-surface-2);
+}
+
+.report-row__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+}
+
+.report-row__reason {
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-danger);
+}
+
+.report-row__time {
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.report-row__summary {
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+  /* 两行截断 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------- 逐条处置卡片(§1.3) ---------------- */
+
+.report-card {
+  /* 不套 el-card:卡片盒子 + 阴影在移动端会显得笨重 */
+  padding: var(--ys-space-5);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface);
+}
+
+.report-card__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+}
+
+.report-card__reason {
+  padding: 2px var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-danger-soft);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-danger);
+}
+
+.report-card__time {
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-card__reporter {
+  margin: var(--ys-space-3) 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+.report-card__rule {
+  margin: var(--ys-space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.report-card__label {
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+}
+
+.report-card__content {
+  margin: 0;
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  color: var(--ys-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 8 行封顶。line-clamp 不可逆,展开只能靠 is-open 换 class */
+.report-card__content:not(.is-open) {
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.report-card__more {
+  min-height: var(--ys-touch-min);
+  margin-top: var(--ys-space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.report-card__note {
+  margin-top: var(--ys-space-4);
+  padding: var(--ys-space-3);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+}
+
+.report-card__note-text {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------- 骨架屏 ---------------- */
+
+.report-pane__skeletons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-5) 0;
+}
+
+.report-skeleton + .report-skeleton {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.report-skeleton__line {
+  height: 14px;
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  animation: rp-shimmer 1.4s var(--ys-ease-linear) infinite;
+}
+
+.report-skeleton__line--tag {
+  width: 72px;
+  height: 18px;
+}
+
+.report-skeleton__line--who {
+  width: 45%;
+}
+
+.report-skeleton__line--short {
+  width: 60%;
+}
+
+@keyframes rp-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------------- 吸底操作栏(§1.4) ---------------- */
+
+.report-pane__foot {
+  flex-shrink: 0;
+  padding: var(--ys-space-3) var(--ys-gutter-phone);
+  padding-bottom: calc(var(--ys-space-3) + var(--ys-safe-bottom));
+  border-top: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+}
+
+.report-pane__ban-days {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin-bottom: var(--ys-space-3);
+}
+
+.report-pane__ban-days label {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  flex-shrink: 0;
+}
+
+.report-pane__ban-select {
+  /* 原生 select:iOS 会渲染成滚轮,比 EP 的下拉在手机上更好点 */
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  color: var(--ys-fg);
+}
+
+.report-pane__ban-warn {
+  margin: 0 0 0 auto;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
+  text-align: right;
+}
+
+.report-pane__actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  /* 间距 8px 是防误触的一部分:相邻按钮的概率靠间距吃掉 */
+  gap: var(--ys-space-2);
+}
+
+.report-pane__btn {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  cursor: pointer;
+  transition:
+    opacity var(--ys-motion-instant) var(--ys-ease-out),
+    transform var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.report-pane__btn:active:not(:disabled) {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.report-pane__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/*
+  危险按钮:实底 danger。
+  不能只靠红色区分 —— 文案本身就是动作(「成立并封禁」/「封禁 7 天」),
+  色盲用户读的是文字。这是 §5 无障碍的硬要求。
+*/
+.report-pane__btn--danger {
+  border-color: var(--ys-danger);
+  background: var(--ys-danger);
+  color: var(--ys-accent-on);
+}
+
+/* ---------------- 撤销条 ---------------- */
+
+/*
+  底部而非顶部:手机单手握持时拇指在下方,顶部 toast 够不着。
+  底边一条进度条线性收缩,比文字「5 秒后可撤销」直观。
+*/
+.report-undo {
+  position: absolute;
+  left: var(--ys-space-3);
+  right: var(--ys-space-3);
+  bottom: calc(var(--ys-space-3) + var(--ys-safe-bottom));
+  z-index: var(--ys-z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-fg);
+  color: var(--ys-bg);
+  overflow: hidden;
+  animation: rp-undo-in var(--ys-motion-base) var(--ys-ease-out) both;
+}
+
+.report-undo__text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+}
+
+.report-undo__btn {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-accent-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.report-undo__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--ys-accent);
+  /* 只动 transform,不动 width —— width 动画每帧触发重排 */
+  transform-origin: left center;
+}
+
+@keyframes rp-undo-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------------- 桌面端:双栏 ---------------- */
+
+@media (min-width: 1024px) {
+  .report-pane {
+    position: relative;
+  }
+
+  .report-pane__scroll {
+    padding: var(--ys-space-5) var(--ys-gutter-desktop);
+  }
+
+  /* 操作栏在桌面不吸底:按钮随内容排布,右下不再是拇指热区 */
+  .report-pane__foot {
+    position: static;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ys-space-4);
+    padding: 0 var(--ys-gutter-desktop) var(--ys-space-5);
+    border-top: 0;
+    background: none;
+  }
+
+  .report-pane__ban-days {
+    margin-bottom: 0;
+  }
+
+  .report-pane__ban-warn {
+    display: none;
+  }
+
+  /* 桌面鼠标够得着顶部,撤销条移到右上 */
+  .report-undo {
+    left: auto;
+    top: var(--ys-space-3);
+    right: var(--ys-space-3);
+    bottom: auto;
+    width: 320px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-skeleton__line {
+    animation: none;
+  }
+
+  .report-undo {
+    animation: none;
+  }
+
+  .report-pane__progress-fill {
+    transition: none;
+  }
+}

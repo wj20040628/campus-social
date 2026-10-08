@@ -1,0 +1,121 @@
+/* Announcement.vue 的样式,抽离到外部文件以控制单文件行数。 */
+.ann-page {
+  max-width: var(--ys-content-col);
+  margin: 0 auto;
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
+}
+
+.unread-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-height: 44px;
+  margin: var(--ys-space-4);
+  padding: 0 var(--ys-space-2) 0 var(--ys-space-4);
+  background: var(--ys-accent-soft);
+  border-radius: var(--ys-radius-lg);
+  color: var(--ys-accent);
+}
+
+.unread-bar__text {
+  flex: 1;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+}
+
+.unread-bar__act {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: none;
+  background: transparent;
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  border-radius: var(--ys-radius-lg);
+}
+
+.chips {
+  display: flex;
+  gap: var(--ys-space-2);
+  /* 横滑到屏幕边缘,让 chip 视觉上贴边 */
+  padding: 0 var(--ys-space-4) var(--ys-space-3);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  /* 视觉 32px,靠 padding 把热区撑到 44px(AC-15) */
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.chip.is-on {
+  background: var(--ys-accent);
+  border-color: var(--ys-accent);
+  color: var(--ys-accent-on);
+}
+
+.notice {
+  margin: 0 var(--ys-space-4) var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+}
+
+.notice--warn {
+  color: var(--ys-warning);
+}
+
+.group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+  min-height: 40px;
+  background: var(--ys-surface-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.group__count {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+.more-hint {
+  margin: 0;
+  padding: var(--ys-space-4);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+.more-hint--end {
+  color: var(--ys-meta);
+  cursor: default;
+}

@@ -1,0 +1,170 @@
+/*
+  吸底评论输入区(PostDetail.vue.md §1.1/§1.2)
+  移动端吸底,≥1024px 取消吸底排在评论列表下方(桌面没有键盘遮挡问题,
+  吸底反而侵占阅读区)。
+*/
+
+.cc {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--ys-z-sticky);
+  background: var(--ys-surface);
+  border-top: 1px solid var(--ys-border);
+  /*
+    sticky + translateY 是核心。--kb-h 由 useKeyboardViewport 写入 :root。
+    只动 transform —— 动 height/bottom 会每帧触发布局,长列表上卡顿明显。
+    不要与 fixed 混用:混用会出现键盘弹两次、输入区跑两次的 double-shift。
+  */
+  transform: translateY(calc(-1 * var(--kb-h, 0px)));
+  transition: transform var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.cc__mention {
+  /* grid 0fr→1fr 展开,不用 max-height 魔法值(魔法值要么留白要么裁内容) */
+  display: grid;
+  grid-template-rows: 1fr;
+  padding: var(--ys-space-2) 0;
+  background: var(--ys-surface-2);
+  border-bottom: 1px solid var(--ys-border-soft);
+}
+
+.cc__mention-strip {
+  display: flex;
+  gap: var(--ys-space-3);
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  list-style: none;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cc__mention-cell {
+  flex: 0 0 auto;
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ys-space-1);
+  padding: var(--ys-space-1) 0;
+  border: 0;
+  border-radius: var(--ys-radius-lg);
+  background: none;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cc__mention-cell:hover {
+  background: var(--ys-surface);
+}
+
+.cc__mention-name {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+}
+
+.cc__mention-empty {
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.cc__error {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4) 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+}
+
+.cc__row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-space-4);
+  padding-bottom: calc(var(--ys-space-2) + var(--ys-safe-bottom));
+}
+
+.cc__box {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 16px:iOS Safari 的缩放阈值,低于它聚焦时页面会放大且不自动缩回 */
+.cc__box :deep(.el-textarea__inner) {
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+}
+
+.cc__at,
+.cc__send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border: 0;
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.cc__at {
+  border-radius: var(--ys-radius-lg);
+  background: none;
+  color: var(--ys-muted);
+}
+
+.cc__at--on {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+.cc__at-glyph {
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* 自绘发送箭头:EP 图标里没有语义对的,纸飞机比「对勾」更符合「发出去」 */
+.cc__send {
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+}
+
+.cc__send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.cc__send-glyph {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 7px 0 7px 12px;
+  border-color: transparent transparent transparent var(--ys-accent-on);
+  /* 视觉重心偏左,箭头几何中心比盒子中心靠左 2px */
+  margin-left: 3px;
+}
+
+@media (min-width: 1024px) {
+  .cc {
+    position: static;
+    transform: none;
+    border-top: 0;
+    border-radius: var(--ys-radius-lg);
+    background: var(--ys-surface-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc,
+  .cc__at,
+  .cc__send,
+  .cc__mention-cell {
+    transition: none;
+  }
+}

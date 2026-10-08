@@ -1,0 +1,437 @@
+/*
+  操作日志页样式(AdminAudit.vue.md)
+  移动优先:<640px 是基准,≥768px / ≥1024px 只写差异(设计 §1/§2)。
+  全部走 --ys-* Token,零硬编码(ADR-009)。
+*/
+
+.audit {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: calc(var(--ys-space-6) + var(--ys-safe-bottom));
+  background: var(--ys-bg);
+}
+
+/* ---------------- 顶栏 ---------------- */
+.audit__bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--ys-z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  height: var(--ys-topbar-h);
+  padding: 0 var(--ys-gutter-phone);
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.audit__back,
+.audit__filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border: 0;
+  background: none;
+  color: var(--ys-fg);
+  cursor: pointer;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.audit__filter-btn--on {
+  color: var(--ys-accent);
+}
+
+.audit__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  letter-spacing: var(--ys-ls-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* ---------------- 筛选区 ---------------- */
+/*
+  grid-template-rows: 0fr → 1fr 而不是 max-height: 500px。
+  魔法值要么留白过多(展开后下方一大片空白),要么内容被裁掉,
+  而且动画时长会随内容高度变化 —— 同一个交互在不同筛选器下快慢不一。
+*/
+.audit__filter {
+  display: grid;
+  grid-template-rows: 0fr;
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border-soft);
+  transition: grid-template-rows var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.audit__filter--open {
+  grid-template-rows: 1fr;
+}
+
+.audit__filter-inner {
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding: 0 var(--ys-gutter-phone);
+}
+
+.audit__filter--open .audit__filter-inner {
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+}
+
+.af-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-1);
+}
+
+.af-label {
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+}
+
+/*
+  44px 触控热区 + 16px 输入字号。
+  16px 是 iOS Safari 的缩放阈值,低于它聚焦时会自动放大页面,
+  放大后用户要手动缩回去才能继续填 —— 移动端表单最容易踩的坑。
+*/
+.af-control :deep(.el-input__wrapper),
+.af-control :deep(.el-select__wrapper) {
+  min-height: var(--ys-touch-min);
+  font-size: var(--ys-text-md);
+}
+
+/* 搜索命中列表:贴着输入框的下拉,不是弹层 —— 手机上弹两层巨型浮层没法用 */
+.af-hits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--ys-border-soft);
+  border-radius: var(--ys-radius-md);
+  overflow: hidden;
+}
+
+.af-hit {
+  display: block;
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 0;
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.af-hit + .af-hit {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.af-hit:hover {
+  background: var(--ys-surface-2);
+}
+
+.af-inline-error {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-danger);
+}
+
+.af-actions {
+  display: flex;
+  gap: var(--ys-space-3);
+}
+
+.af-btn {
+  flex: 1;
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.af-btn--primary {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+}
+
+.af-btn--primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ---------------- 已选条件回显条 ---------------- */
+.audit__chips {
+  padding: var(--ys-space-2) var(--ys-gutter-phone);
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border-soft);
+}
+
+.chips {
+  display: flex;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  height: 32px;
+  padding-left: var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-accent-soft);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-accent);
+  white-space: nowrap;
+}
+
+/* chip 视觉高 32px,热区靠负 margin 撑到 44px(设计 §5) */
+.chip__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: var(--ys-touch-min);
+  margin: -6px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chips__clear {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ---------------- 日志列表 ---------------- */
+.audit__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 无卡片盒子:条目之间一条线(设计 §1 行 4) */
+.log {
+  display: flex;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+}
+
+.log + .log {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.log__avatar {
+  flex: none;
+}
+
+.log__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.log__line1 {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0;
+}
+
+.log__op {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+/*
+  动作标签的文字本身就是动作名,颜色只是辅助通道。
+  只靠红绿区分审核通过/驳回,色觉障碍用户读不出来。
+*/
+.log__tag {
+  flex: none;
+  padding: 0 var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-fg-2);
+}
+
+.log__tag--success {
+  background: var(--ys-success-soft);
+  color: var(--ys-success);
+}
+
+.log__tag--danger {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.log__tag--primary {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+/* detail 最多两行:日志里有长 JSON 与 URL,不截断会把一条撑成整屏 */
+.log__detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+  overflow-wrap: anywhere;
+}
+
+.log__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-1);
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* tabular-nums:等宽数字,时间列不会因为 :00 / :30 宽度不同而抖动 */
+.log__time {
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* IP 不截断:它是管理员复制排查时要看的东西 */
+.log__ip {
+  font-family: var(--ys-font-mono);
+}
+
+.audit__state {
+  padding: var(--ys-space-8) var(--ys-gutter-phone);
+}
+
+.sentinel {
+  min-height: var(--ys-space-6);
+  padding: 0 var(--ys-gutter-phone);
+}
+
+.sentinel__tip {
+  margin: 0;
+  padding: var(--ys-space-3) 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  text-align: center;
+}
+
+/* ---------------- ≥768px:留白放大,日志限宽居中(设计 §2) ---------------- */
+@media (min-width: 768px) {
+  .audit__bar,
+  .audit__filter-inner,
+  .audit__chips,
+  .log {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  .audit__filter-inner,
+  .audit__list,
+  .audit__state,
+  .sentinel {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ---------------- ≥1024px:筛选常驻展开(设计 §2) ----------------
+   桌面端管理员要精确选条件,把筛选收起是倒退。
+   JS 里的 expanded 在 isMobile=false 时恒为 true,这里只是让 CSS
+   也不依赖它 —— 两边各自判断,改一处不会让另一处露出破绽。
+*/
+@media (min-width: 1024px) {
+  .audit__filter {
+    grid-template-rows: 1fr;
+    background: var(--ys-bg);
+    border-bottom: 0;
+  }
+
+  .audit__filter-inner {
+    max-width: var(--ys-content-col);
+    padding: var(--ys-space-4) var(--ys-gutter-desktop);
+  }
+
+  .audit__filter-btn {
+    /* 桌面端筛选区常驻,这个开关失去意义 */
+    visibility: hidden;
+  }
+
+  .af-actions {
+    justify-content: flex-end;
+  }
+
+  .af-btn {
+    flex: 0 0 auto;
+    min-width: 96px;
+  }
+
+  .audit__list,
+  .audit__state,
+  .sentinel {
+    max-width: var(--ys-content-col);
+  }
+
+  .log {
+    transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+  }
+
+  .log:hover {
+    background: var(--ys-surface-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audit__filter,
+  .log,
+  .af-btn,
+  .af-hit,
+  .audit__back,
+  .audit__filter-btn {
+    transition: none;
+  }
+}

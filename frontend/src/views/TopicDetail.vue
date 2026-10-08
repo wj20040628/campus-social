@@ -8,7 +8,15 @@
 
       <div class="topic-list">
         <PostCard v-for="p in posts" :key="p.id" :post="p" @click="goDetail(p.id)" @topic="onTopic" />
-        <el-empty v-if="!loading && posts.length === 0" description="这个话题下还没有动态,来发第一条吧" />
+        <StateBlock
+          v-if="!loading && posts.length === 0"
+          variant="empty"
+          title="这个话题下还没有动态"
+          :description="`发一条带「${name}」的帖子,这个话题就有内容了`"
+          action-label="发第一条"
+          :icon="ChatLineSquare"
+          @action="goPublish"
+        />
         <div ref="sentinelEl" class="sentinel">
           <el-text v-if="loading" type="info">加载中…</el-text>
           <el-text v-else-if="!hasMore && posts.length" type="info">到底了</el-text>
@@ -23,6 +31,8 @@ import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
+import StateBlock from '@/components/common/StateBlock.vue'
+import { ChatLineSquare } from '@element-plus/icons-vue'
 import { topicFeed } from '@/api/feed'
 
 const route = useRoute()

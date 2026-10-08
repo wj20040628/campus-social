@@ -2,6 +2,7 @@ package com.campus.social.service;
 
 import com.campus.social.common.CursorPage;
 import com.campus.social.vo.ChatMessageVO;
+import com.campus.social.vo.ChatSendVO;
 import com.campus.social.vo.ConversationVO;
 
 public interface ChatService {
@@ -13,14 +14,17 @@ public interface ChatService {
     CursorPage<ChatMessageVO> history(long me, long peerId, Long lastId, int size);
 
     /**
-     * 发消息:
-     * 1. upsert conversation(归一 a<b)
-     * 2. INSERT chat_message(status=0, replyToId 可选)
-     * 3. conv.unread_x +1
-     * 4. WS 推给 receiver
-     * 非幂等(每次新消息)
+     * 发消息（F3 免好友搭话，含三重护栏）：
+     * 1. 护栏校验（黑名单双向 / 日配额 / 敏感词，见 {@code ChatGuardService}）
+     * 2. upsert conversation(归一 a<b)
+     * 3. INSERT chat_message(status=0, replyToId 可选)
+     * 4. conv.unread_x +1
+     * 5. WS 推给 receiver
+     * 非幂等（每次新消息）
+     *
+     * @return 发送回执：消息 id + 本次是否陌生人搭话 + 剩余新对象额度
      */
-    long send(long me, long toUserId, String content, Long replyToId);
+    ChatSendVO send(long me, long toUserId, String content, Long replyToId);
 
     /** 标记与某 peer 的会话已读:unread=0 + WS ack */
     void markRead(long me, long peerId);

@@ -29,47 +29,57 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public Result<?> business(BusinessException e) {
+    public ResponseEntity<Result<?>> business(BusinessException e) {
         log.warn("BusinessException: code={}, msg={}", e.getCode(), e.getMessage());
-        return Result.fail(e.getCode(), e.getMessage());
+        // 真实 HTTP 状态码:登记表内的码走映射(SPEC §9 AC-04 要 429、§12 步骤 3.4 要 403);
+        // 未登记的 1xxx 业务码保持 HTTP 200,零回归风险
+        HttpStatus status = BusinessHttpStatus.resolve(e.getCode());
+        if (status == null) {
+            return ResponseEntity.ok(Result.fail(e.getCode(), e.getMessage()));
+        }
+        return ResponseEntity.status(status).body(Result.fail(e.getCode(), e.getMessage()));
     }
 
     /** 参数校验:@Valid 触发的字段级错误 */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public Result<?> methodNotValid(MethodArgumentNotValidException e) {
+    public ResponseEntity<Result<?>> methodNotValid(MethodArgumentNotValidException e) {
         Map<String, String> fieldErrors = new HashMap<>();
         for (FieldError fe : e.getBindingResult().getFieldErrors()) {
             fieldErrors.put(fe.getField(), fe.getDefaultMessage());
         }
         log.warn("Param validation failed: {}", fieldErrors);
-        return Result.fail(ResultCode.BAD_REQUEST, "参数校验失败: " + fieldErrors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.fail(ResultCode.BAD_REQUEST, "参数校验失败: " + fieldErrors));
     }
 
     /** @RequestParam 缺失 */
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public Result<?> missingParam(MissingServletRequestParameterException e) {
+    public ResponseEntity<Result<?>> missingParam(MissingServletRequestParameterException e) {
         log.warn("Missing param: {}", e.getParameterName());
-        return Result.fail(ResultCode.BAD_REQUEST, "缺少参数: " + e.getParameterName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.fail(ResultCode.BAD_REQUEST, "缺少参数: " + e.getParameterName()));
     }
 
     /** 类型不匹配(如 id 传 abc) */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public Result<?> typeMismatch(MethodArgumentTypeMismatchException e) {
+    public ResponseEntity<Result<?>> typeMismatch(MethodArgumentTypeMismatchException e) {
         log.warn("Type mismatch: {} = {}", e.getName(), e.getValue());
-        return Result.fail(ResultCode.BAD_REQUEST, "参数类型错误: " + e.getName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.fail(ResultCode.BAD_REQUEST, "参数类型错误: " + e.getName()));
     }
 
     /** 404 资源不存在 */
     @ExceptionHandler(NoResourceFoundException.class)
-    public Result<?> notFound(NoResourceFoundException e) {
+    public ResponseEntity<Result<?>> notFound(NoResourceFoundException e) {
         log.info("404: {}", e.getResourcePath());
-        return Result.fail(ResultCode.NOT_FOUND);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Result.fail(ResultCode.NOT_FOUND));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public Result<?> methodNotSupported(HttpRequestMethodNotSupportedException e) {
+    public ResponseEntity<Result<?>> methodNotSupported(HttpRequestMethodNotSupportedException e) {
         log.warn("Method not allowed: {}", e.getMethod());
-        return Result.fail(ResultCode.METHOD_NOT_ALLOWED);
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(Result.fail(ResultCode.METHOD_NOT_ALLOWED));
     }
 
     /** 兜底:未知异常(500) */

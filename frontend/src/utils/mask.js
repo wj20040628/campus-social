@@ -21,4 +21,30 @@ export function displayName(u) {
   return maskUsername(u.username)
 }
 
-export default { maskUsername, displayName }
+/**
+ * 这个人完成了校内身份认证吗(AC-11 / AC-12 的唯一判据)。
+ *
+ * 为什么不用 `user.verified`:后端 UserVO 里**没有** verified 字段,
+ * 写了 `v-if="user.verified"` 的地方永远渲染不出来 —— 徽章全站消失,
+ * 而 AC-11 的「未认证不许发帖/搭话」也永远不会触发。
+ *
+ * 为什么用 id 判而不是名称判:后端 UserVO 的注释写明,
+ * 字典化之前注册的用户 deptId/gradeId 为 NULL 但名称有值。
+ * 用 `deptId === null` 判定会把这些人错误地推进引导页。
+ * 所以判据是**id 与名称同时为空**才算没填。
+ *
+ * 之所以抽成函数而不是散在各页 inline:Publish / PostDetail / Circles
+ * 都要用同一个判据,三处各写一遍必然漂移(上一轮就漂移过:
+ * Publish 用了不存在的 verified,Profile 用了正确的 id 判据)。
+ *
+ * @param {object|null|undefined} user 后端 UserVO
+ * @returns {boolean}
+ */
+export function isIdentityVerified(user) {
+  if (!user) return false
+  const hasId = !!(user.schoolId && user.deptId && user.gradeId)
+  const hasName = !!(user.dept || user.grade)
+  return hasId || hasName
+}
+
+export default { maskUsername, displayName, isIdentityVerified }

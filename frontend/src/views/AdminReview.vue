@@ -1,112 +1,207 @@
 <template>
-  <div class="review-admin">
-    <div class="admin-inner">
-      <el-page-header @back="router.back()" title="内容审核" />
+  <!--
+    审核处置(AdminReview.vue.md)
 
-      <el-tabs v-model="tab" @tab-change="load">
-        <el-tab-pane :label="`待审 (${pendingCount})`" name="pending" />
+    两个内容域(设计 §0):
+      举报处置 —— 默认落点。OD-19 的时效压力来自举报,不是机审队列。
+      内容审核 —— 机审队列,任务可以等。
+
+    本文件只做**编排**:顶栏、Tab、权限不足、把两个域挂上去。
+    业务逻辑全在下面三处,各有独立的数据源与错误语义:
+      components/admin/ReportPane.vue   举报域
+      composables/useReviewQueue.js     机审队列的分页 + 处置
+      composables/useUndoWindow.js      两域共用的 5 秒撤销
+
+    为什么顶栏不用 el-page-header:它在移动端是 60px 高的块状条,
+    与 MainLayout 的 56px 自定义顶栏不同高,两套顶栏叠在一起会错位。
+  -->
+  <div class="review-admin">
+    <!--
+      userInfo 还没到时先给骨架,不是空页。
+      直接跳空页会把「加载中」误判成「无权限」——
+      管理员明明有权限却看到「只有管理员能看」。
+    -->
+    <div v-if="!ready && !denied" class="review-admin__boot" aria-hidden="true">
+      <span class="review-admin__boot-line" />
+      <span class="review-admin__boot-line review-admin__boot-line--short" />
+    </div>
+
+    <!--
+      权限不足。与 AdminAudit 共用同一组件(设计 §3:两页必须完全一致,
+      各写一份的话改文案时必然漏掉一处)。
+    -->
+    <AdminDenied v-else-if="denied" class="review-admin__state" @action="router.replace('/')" />
+
+    <template v-else>
+      <header class="review-admin__bar">
+        <h1 class="review-admin__title">
+          <button type="button" class="review-admin__back" aria-label="返回" @click="router.back()">
+            <ArrowLeft class="review-admin__back-icon" aria-hidden="true" />
+            <span>审核处置</span>
+          </button>
+        </h1>
+        <p class="review-admin__hint">
+          {{ tab === 'report' ? '举报有时效,先处理' : '机审可以等' }}
+        </p>
+      </header>
+
+      <el-tabs v-model="tab" class="review-admin__tabs" @tab-change="onTabChange">
+        <el-tab-pane label="举报" name="report" />
+        <el-tab-pane :label="`内容审核${pendingCount ? ` (${pendingCount})` : ''}`" name="review" />
         <el-tab-pane label="已处理" name="processed" />
       </el-tabs>
 
-      <div class="task-list">
-        <el-card v-for="t in list" :key="t.id" class="task-card" :body-style="{ padding: '14px' }">
-          <div class="task-head">
-            <el-avatar :size="36" :src="resolveUrl(t.author?.avatarUrl)" />
-            <div class="task-author">
-              <div>{{ t.author ? displayName(t.author) : '未知用户' }}</div>
-              <div class="task-time">{{ t.createTime }}</div>
+      <!-- 举报域。数据、动作、撤销、五态全在组件内 -->
+      <ReportPane v-if="tab === 'report'" :status="0" @switch-tab="onTabChange" />
+
+      <!-- 机审队列 -->
+      <div v-else class="task-list">
+        <ul v-if="loading && list.length === 0" class="task-skeletons" aria-hidden="true">
+          <li v-for="n in 3" :key="n" class="task-skeleton">
+            <span class="task-skeleton__line task-skeleton__line--who" />
+            <span class="task-skeleton__line" />
+            <span class="task-skeleton__line" />
+            <span class="task-skeleton__line task-skeleton__line--short" />
+          </li>
+        </ul>
+
+        <ul v-else class="task-list__items">
+          <li v-for="t in list" :key="t.id" class="task-card">
+            <div class="task-head">
+              <el-avatar :size="36" :src="resolveUrl(t.author?.avatarUrl)" />
+              <div class="task-author">
+                <p class="task-author__name">{{ t.author ? displayName(t.author) : '未知用户' }}</p>
+                <p class="task-author__time">{{ fmt(t.createTime) }}</p>
+              </div>
+              <span class="task-status" :data-status="t.status">{{ statusText(t.status) }}</span>
             </div>
-            <el-tag :type="statusTag(t.status)" size="small">{{ statusText(t.status) }}</el-tag>
-          </div>
 
-          <div class="task-content">{{ t.content }}</div>
-          <div v-if="t.media" class="task-media">
-            <span class="media-badge">含媒体</span>
-          </div>
-          <div v-if="t.hitWords?.length" class="task-hitwords">
-            <span class="hitwords-label">命中词:</span>
-            <el-tag
-              v-for="w in t.hitWords"
-              :key="w"
-              type="danger"
-              size="small"
-              effect="plain"
-            >
-              {{ w }}
-            </el-tag>
-          </div>
+            <p class="task-content">{{ t.content }}</p>
 
-          <!-- AI 机审预判(有 ai_verdict 才显示;人审可覆盖) -->
-          <div v-if="t.aiVerdict" class="task-ai">
-            <div class="ai-line">
-              <el-tag :type="aiVerdictTag(t.aiVerdict)" size="small" effect="plain">AI 机审:{{ aiVerdictText(t.aiVerdict) }}</el-tag>
-              <span v-if="t.aiReviewedAt" class="ai-time">{{ t.aiReviewedAt }}</span>
+            <p v-if="t.hitWords?.length" class="task-hitwords">
+              <span class="task-hitwords__label">命中词</span>
+              <span v-for="w in t.hitWords.slice(0, 6)" :key="w" class="task-chip">{{ w }}</span>
+              <span v-if="t.hitWords.length > 6" class="task-chip task-chip--more">
+                +{{ t.hitWords.length - 6 }}
+              </span>
+            </p>
+
+            <!-- AI 机审预判(有 ai_verdict 才显示;人审可覆盖) -->
+            <div v-if="t.aiVerdict" class="task-ai">
+              <p class="task-ai__verdict" :data-verdict="t.aiVerdict">
+                AI 机审:{{ aiVerdictText(t.aiVerdict) }}
+              </p>
+              <p v-if="t.aiReason" class="task-ai__reason">{{ t.aiReason }}</p>
             </div>
-            <div v-if="t.aiReason" class="ai-reason">AI 理由:{{ t.aiReason }}</div>
-          </div>
 
-          <div v-if="t.status === 0" class="task-actions">
-            <el-input
-              v-if="showReason[t.id]"
-              v-model="reasons[t.id]"
-              placeholder="驳回理由(可选)"
-              maxlength="512"
-              style="width: 240px"
-            />
-            <div class="task-btns">
-              <el-button type="success" size="small" :loading="busy[t.id]" @click="doApprove(t)">
-                通过
-              </el-button>
-              <el-button type="danger" size="plain" @click="showReason[t.id] = !showReason[t.id]">
-                驳回
-              </el-button>
+            <p v-if="t.status === 2 && t.reason" class="task-reason">驳回理由:{{ t.reason }}</p>
+
+            <!--
+              处置区。设计 §1.4:一次点击即生效 + 5 秒撤销,
+              驳回要理由所以输入框常驻在按钮上方(不是弹窗)。
+            -->
+            <div v-if="t.status === 0" class="task-actions">
+              <label class="task-reason-input">
+                <span class="task-reason-input__label">驳回理由(发布者会看到)</span>
+                <input
+                  v-model="reasons[t.id]"
+                  type="text"
+                  maxlength="512"
+                  placeholder="写清依据"
+                />
+              </label>
+              <div class="task-btns">
+                <button
+                  type="button"
+                  class="task-btn task-btn--pass"
+                  :disabled="busy[t.id]"
+                  @click="approve(t)"
+                >
+                  通过
+                </button>
+                <button
+                  type="button"
+                  class="task-btn task-btn--reject"
+                  :disabled="busy[t.id]"
+                  @click="reject(t)"
+                >
+                  驳回
+                </button>
+              </div>
             </div>
-            <el-button
-              v-if="showReason[t.id]"
-              type="danger"
-              size="small"
-              :loading="busy[t.id]"
-              @click="doReject(t)"
-            >
-              确认驳回
-            </el-button>
-          </div>
-          <div v-else-if="t.status === 2 && t.reason" class="task-reason">
-            驳回理由:{{ t.reason }}
-          </div>
-        </el-card>
+          </li>
+        </ul>
 
-        <el-empty v-if="list.length === 0" :description="tab === 'pending' ? '没有待审内容' : '暂无记录'" />
+        <StateBlock
+          v-if="!loading && list.length === 0"
+          :variant="failed ? 'error' : 'empty'"
+          :title="failed ? '审核队列没拉出来' : tab === 'review' ? '机审队列是空的' : '还没有处理记录'"
+          :description="
+            failed
+              ? '可能是网络断了,点一下重试'
+              : tab === 'review'
+                ? '有命中敏感词的内容会自动进这里'
+                : '审过的内容会留档在这里'
+          "
+          :icon="failed ? WarningFilled : Files"
+          :action-label="failed ? '重试' : '看看举报'"
+          @action="failed ? onTabChange(tab) : onTabChange('report')"
+        />
       </div>
 
-      <div class="sentinel">
-        <el-text v-if="loading" type="info">加载中…</el-text>
-        <el-text v-else-if="!hasMore && list.length" type="info">到底了</el-text>
+      <!--
+        无限滚动哨兵。放在滚动区**外面**:
+        放在里面且列表为空时它一开始就在视口,IntersectionObserver
+        会连发多次 load,第一页被重复追加。
+      -->
+      <div v-if="tab !== 'report'" class="sentinel">
+        <p v-if="loading && list.length" class="sentinel__text">正在加载更多</p>
+        <p v-else-if="!hasMore && list.length" class="sentinel__text">到底了</p>
       </div>
+    </template>
+
+    <!-- 机审处置的撤销条。与举报域同一套形态,管理员学一次就够 -->
+    <div v-if="undo" class="review-undo" role="status" aria-live="assertive">
+      <span class="review-undo__text">{{ undo.text }}</span>
+      <button type="button" class="review-undo__btn" @click="undoReview">撤销</button>
+      <span class="review-undo__bar" :style="{ transform: `scaleX(${undo.ratio})` }" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { pending as pendingApi, processed as processedApi, approve as approveApi, reject as rejectApi } from '@/api/review'
+import { ArrowLeft, Files, WarningFilled } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
+import { useReviewQueue } from '@/composables/useReviewQueue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
+import AdminDenied from '@/components/common/AdminDenied.vue'
+import StateBlock from '@/components/common/StateBlock.vue'
+import ReportPane from '@/components/admin/ReportPane.vue'
 
 const router = useRouter()
-const tab = ref('pending')
-const list = ref([])
-const pendingCount = ref(0)
-const cursor = ref(null)
-const hasMore = ref(true)
-const loading = ref(false)
-const busy = reactive({})
-const reasons = reactive({})
-const showReason = reactive({})
-let observer = null
+const userStore = useUserStore()
+
+const tab = ref('report')
+const {
+  list, pendingCount, hasMore, loading, failed, busy, reasons, undo,
+  load, observeSentinel, approve, reject, undoReview,
+} = useReviewQueue()
+
+/**
+ * 权限不足(AC-20)。
+ *
+ * 判定用 store 的 isAdmin getter,不等 API 返 403 —— 等 403 意味着用户
+ * 已经看完一屏他不该看见的内容骨架。
+ *
+ * `ready` 与 `denied` 必须分开:userInfo 为 null(还没拉到)时**不**判 denied,
+ * 否则会把加载中误判成无权限。
+ */
+const ready = computed(() => !!userStore.userInfo)
+const denied = computed(() => ready.value && userStore.isAdmin !== true)
 
 function fmt(t) {
   return t ? dayjs(t).format('MM-DD HH:mm') : ''
@@ -115,190 +210,25 @@ function fmt(t) {
 function statusText(s) {
   return ['待审', '已通过', '已驳回'][s] || '未知'
 }
-function statusTag(s) {
-  return ['warning', 'success', 'danger'][s] || 'info'
-}
 
-/** AI 机审结论展示 */
 function aiVerdictText(v) {
   return { approve: '建议通过', reject: '建议驳回', manual: '转人工' }[v] || '未知'
 }
-function aiVerdictTag(v) {
-  return { approve: 'success', reject: 'danger', manual: 'warning' }[v] || 'info'
+
+/** 切 Tab。两个域的数据各自管理,这里只做「离开时收摊、进来时开工」 */
+function onTabChange(name) {
+  tab.value = name
+  if (name === 'report') return // 举报域无分页,组件自己在 setup 里拉
+  load(name, true).then(() => observeSentinel(name))
 }
 
-async function load(reset = false) {
-  if (reset) {
-    cursor.value = null
-    list.value = []
-    hasMore.value = true
-  }
-  loading.value = true
-  try {
-    const data = tab.value === 'pending'
-      ? await pendingApi(cursor.value, 20)
-      : await processedApi(cursor.value, 20)
-    if (reset) list.value = data.list
-    else list.value = [...list.value, ...data.list]
-    cursor.value = data.hasMore ? data.nextCursor : null
-    hasMore.value = data.hasMore
-    if (tab.value === 'pending') {
-      pendingCount.value = data.list.length + (cursor.value ? '…' : '')
-    }
-  } finally {
-    loading.value = false
-    nextTick(setupObserver)
-  }
-}
-
-function setupObserver() {
-  observer?.disconnect()
-  const el = document.querySelector('.sentinel')
-  if (!el) return
-  observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0]?.isIntersecting && !loading.value && hasMore.value) load()
-    },
-    { threshold: 0.1, rootMargin: '200px' }
-  )
-  observer.observe(el)
-}
-
-async function doApprove(t) {
-  try {
-    await ElMessageBox.confirm(`确认通过帖子 ${t.postId}?`, '审核', { type: 'warning' })
-  } catch {
-    return
-  }
-  busy[t.id] = true
-  try {
-    await approveApi(t.id)
-    ElMessage.success('已通过')
-    load(true)
-  } finally {
-    busy[t.id] = false
-  }
-}
-
-async function doReject(t) {
-  busy[t.id] = true
-  try {
-    await rejectApi(t.id, reasons[t.id] || '')
-    ElMessage.success('已驳回')
-    load(true)
-  } finally {
-    busy[t.id] = false
-  }
-}
-
-onMounted(() => load(true))
-onBeforeUnmount(() => observer?.disconnect())
+watch(
+  () => userStore.isAdmin,
+  (v) => {
+    // 权限在会话中途变化(被降权):立刻离开本页,别让越权数据留在屏幕上
+    if (v === false) router.replace('/')
+  },
+)
 </script>
 
-<style scoped>
-.admin-inner {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 20px;
-}
-.admin-inner .task-card {
-  border-radius: var(--card-radius);
-  transition: box-shadow 0.2s;
-}
-.admin-inner .task-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-}
-.task-list {
-  padding: 8px 0;
-}
-.task-card {
-  margin-bottom: 12px;
-}
-.task-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.task-author {
-  flex: 1;
-}
-.task-author div:first-child {
-  font-weight: 600;
-}
-.task-time {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.task-content {
-  margin: 12px 0;
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
-.task-media {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.media-badge {
-  background: var(--el-color-primary-light-8);
-  color: var(--el-color-primary);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.task-actions {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-.task-btns {
-  display: flex;
-  gap: 6px;
-}
-.task-reason {
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.task-hitwords {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  background: var(--el-color-danger-light-9);
-  border-radius: 6px;
-}
-.hitwords-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-/* AI 机审预判区 */
-.task-ai {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  background: var(--el-color-primary-light-9);
-  border-radius: 6px;
-}
-.ai-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ai-time {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.ai-reason {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.sentinel {
-  text-align: center;
-  padding: 16px;
-}
-</style>
+<style scoped src="./AdminReview.css"></style>

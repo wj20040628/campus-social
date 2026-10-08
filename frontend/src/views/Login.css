@@ -1,0 +1,6 @@
+/*
+  Login.vue 的样式全部来自共享的 Auth.css(与 Register.vue 共用)。
+  单独留一个文件是为了让 `<style scoped src="./Login.css">` 有落点,
+  同时在文件头留一条指针:改登录/注册的公共样式只改 Auth.css 一处。
+*/
+@import './Auth.css';

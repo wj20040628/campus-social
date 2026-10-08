@@ -149,4 +149,39 @@ public class WsPushService {
             log.warn("pushNotify fail: receiver={}, err={}", receiverId, e.getMessage());
         }
     }
+
+    /**
+     * 推公告轻量提示给当前在线的全体用户（F5，SPEC §5.3）。
+     *
+     * <p>只推标题与 id，不推正文：正文可能很长，全量推给全校在线用户
+     * 会让每条 WS 帧都携带一份，客户端收到后仍要再调详情接口。
+     * 客户端拿id 后自行拉 {@code GET /announcement/{id}}。
+     *
+     * <p>离线用户不在此列——他们靠 {@code GET /announcement/unread-count}
+     * 的红点发现新公告，故本方法不需要补偿逻辑。
+     *
+     * @param isTop 是否置顶。客户端据此决定用高亮样式还是普通样式
+     */
+    public void pushAnnouncement(java.util.Collection<Long> onlineUserIds, long announcementId,
+            String title, int category, boolean isTop) {
+        if (onlineUserIds == null || onlineUserIds.isEmpty()) {
+            return;
+        }
+        try {
+            String json = om.writeValueAsString(Map.of(
+                    "type", "announcement",
+                    "ts", System.currentTimeMillis(),
+                    "payload", Map.of(
+                            "announcementId", announcementId,
+                            "title", title,
+                            "category", category,
+                            "isTop", isTop
+                    )
+            ));
+            sessionManager.broadcastAll(onlineUserIds, json);
+            log.info("announcement pushed: id={}, onlineUsers={}", announcementId, onlineUserIds.size());
+        } catch (Exception e) {
+            log.warn("pushAnnouncement fail: id={}, err={}", announcementId, e.getMessage());
+        }
+    }
 }

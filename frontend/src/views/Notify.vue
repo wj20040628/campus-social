@@ -34,7 +34,7 @@
             </div>
             <el-tag v-if="!n.isRead" type="danger" size="small" effect="dark" class="n-badge">新</el-tag>
           </div>
-          <el-empty v-if="list.length === 0" description="暂无通知" :image-size="80" />
+          <StateBlock v-if="list.length === 0" variant="empty" title="没有新通知" description="有人点赞、评论或关注你时会出现在这儿" :icon="Bell" />
         </div>
         <div class="n-sentinel">
           <el-text v-if="loading" type="info">加载中…</el-text>
@@ -47,10 +47,12 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/feedback'
 import dayjs from 'dayjs'
 import { list as listApi, read as readApi, readAll as readAllApi } from '@/api/notify'
 import { getWsClient } from '@/utils/ws'
+import StateBlock from '@/components/common/StateBlock.vue'
+import { Bell } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
@@ -100,7 +102,7 @@ function setupObserver() {
 async function openAndRead(n) {
   // 跳转:点赞/评论/被关注 → 关联对象。
   // 注:评论(type=3)的 targetId 存的是帖子 id,后端未存评论 id,
-  // 故目前只能跳到帖子;「定位到具体那条评论」需后端加字段(★★中档)。
+  // 故目前只能跳到帖子;「定位到具体那条评论」需后端加字段(二级优先,非阻塞)
   const jump = () => {
     // 点赞/评论:优先用 postId(被指向的帖子 id);
     // 旧数据无 postId 时回退 targetId(点赞的 targetId 本就是帖子 id,评论的是评论 id,跳不了就退回首页)

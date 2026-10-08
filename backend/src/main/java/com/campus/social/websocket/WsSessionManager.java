@@ -96,6 +96,31 @@ public class WsSessionManager {
         return allSessions.size();
     }
 
+    /**
+     * 当前在线的用户 id 集合（F5 公告推送用）。
+     *
+     * <p>公告是广播级内容，但<b>只推给在线的人</b>：SPEC §5.3 明确
+     * 「发布时不写全员 notify 行，离线用户靠 unread-count 红点拉取」。
+     * 若改成给全校每人写一行 notify，1 万用户 × 100 公告 = 100 万行写入放大，
+     * 且已读要UPDATE 1 万行——这正是 SPEC §6.3 禁止的做法。
+     *
+     * <p>返回快照而非视图：调用方会拿着这个集合做一段时间的广播，
+     * 期间有人上下线不应导致 ConcurrentModificationException。
+     *
+     * <p><b>已知局限</b>：单机内存 Session 不能跨实例。部署第 2 个实例后，
+     * 用户连在 A 实例而公告发布在 B 实例时会漏推。
+     * 届时须改 Redis PubSub，当前单机部署不涉及（见 memory 记录）。
+     */
+    public java.util.Set<Long> onlineUserIds() {
+        java.util.Set<Long> online = new java.util.HashSet<>();
+        userSessions.forEach((uid, set) -> {
+            if (set.stream().anyMatch(WebSocketSession::isOpen)) {
+                online.add(uid);
+            }
+        });
+        return online;
+    }
+
     private void closeQuietly(WebSocketSession s) {
         try {
             s.close();

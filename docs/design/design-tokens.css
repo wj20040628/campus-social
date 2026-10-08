@@ -1,0 +1,394 @@
+/* ==========================================================================
+ * 友声 · 校园生活社区  Design Tokens
+ * 版本 1.0.0  |  设计:颜好看  |  生成日期 2026-10-08
+ * 技术栈:Vue 3.4 + Vite 5.4 + Element Plus 2.14.5
+ * --------------------------------------------------------------------------
+ * 引入顺序(不可调换):
+ *   import 'element-plus/dist/index.css'   -> 先
+ *   import './styles/design-tokens.css'    -> 后(本文件覆盖 --el-*)
+ *
+ * 硬规则:
+ *   1. 业务代码禁止出现硬编码色值,唯一例外 #fff / #000。
+ *   2. 颜色一律写 var(--ys-*);Element Plus 组件不要直接改 --el-*,改本文件的 Bridge 段。
+ *   3. 本文件是颜色与尺寸的唯一来源,新增颜色先加到这里再使用。
+ *   4. 断点纪律(SPEC §10.4):design-tokens.json 是唯一源。
+ *      下方 @custom-media 与 src/composables/useBreakpoint.js 是它的两份手工同步。
+ *      改断点必须三处同改,并在 PR 描述里写明三处都已改。
+ *
+ * 为什么需要 @custom-media:媒体查询条件不接受 CSS 自定义属性,
+ *   var(--ys-bp-sm) 在 @media 里不生效。规范内唯一解就是自定义媒体查询。
+ *   需要在 JS 里读断点时,从 design-tokens.json import,不要复制字面量。
+ *
+ * 禁止使用 Element Plus 的 :xs/:sm/:md/:lg/:xl 响应式属性:
+ *   EP 2.14.5 内置断点是 768/992/1200/1920,与本文件的 640/768/1024/1280/1536
+ *   完全错位(EP 的 sm=768 是本文件的 md;EP 的 md=992 本文件没有这一档)。
+ *   栅格一律 CSS Grid + @media (--ys-bp-*),见 SPEC §10.3 第 3 条。
+ * ========================================================================== */
+
+/* --------------------------------------------------------------------------
+ * 0. 断点自定义媒体查询
+ *    与 design-tokens.json 的 breakpoint 段一一对应,禁止单边修改
+ * -------------------------------------------------------------------------- */
+@custom-media --ys-bp-sm (min-width: 640px);   /* 手机 -> 平板 */
+@custom-media --ys-bp-md (min-width: 768px);
+@custom-media --ys-bp-lg (min-width: 1024px);  /* 平板 -> 桌面,桌面侧栏在此启用 */
+@custom-media --ys-bp-xl (min-width: 1280px);
+@custom-media --ys-bp-2xl (min-width: 1536px);
+
+:root {
+  /* ======================================================================
+   * 1. 中性色  --  冷调浅灰。刻意不是米色/奶油色:
+   *    温暖感由强调色、图片与排版承担,不由背景色承担。
+   * ====================================================================== */
+  --ys-bg: #f4f6f8;              /* 页面底色                     fg对比 15.01 */
+  --ys-surface: #ffffff;         /* 卡片 / 列表 / 弹层表面 */
+  --ys-surface-2: #edf1f5;       /* 三级表面:官方通知条目底、分组头、禁用底 */
+
+  --ys-fg: #16212e;              /* 正文主文本(带蓝调近黑)     对比 15.01 */
+  --ys-fg-2: #3b4a5c;            /* 次级文本                    对比 8.36 */
+  --ys-muted: #5a6b7e;           /* 辅助文本                    对比 5.05 */
+  --ys-meta: #5f6e83;            /* 元信息(时间/计数)          对比 4.79 */
+
+  --ys-border: #d8dee6;          /* 装饰性分隔线 / 卡片描边 */
+  --ys-border-soft: #e8edf2;     /* 卡片内部行分隔线 */
+  --ys-border-control: #8492a5;  /* 表单控件边界(WCAG 1.4.11 = 3.16) */
+  --ys-overlay: rgba(16, 33, 46, 0.45);
+
+  /* ======================================================================
+   * 2. 强调色
+   *    主色「友声青」#0E7490 —— 取「求其友声」的信号/回应语义。
+   *    刻意避开:#6366F1(AI 默认靛蓝)、#2563EB(默认蓝)、#FF2442(小红书红)、
+   *    以及任何紫->粉渐变。
+   *    青 vs 橙 是色觉障碍下最安全的轴之一(蓝黄轴上的两端)。
+   * ====================================================================== */
+  --ys-accent: #0e7490;          /* 白字 5.36 / 白底 5.36        每屏 <=2 处 */
+  --ys-accent-hover: #0a5e75;    /* 白字 7.31 */
+  --ys-accent-active: #084c5f;   /* 白字 9.51 */
+  --ys-accent-on: #ffffff;
+  --ys-accent-soft: #e2f0f4;     /* accent 落其上 = 4.59 */
+
+  /* 辅色「活动砖橙」——仅供「活动 / 搭子」标签与入口,不做主 CTA */
+  --ys-accent-2: #b44a12;        /* 白字 5.34 / 白底 5.34 */
+  --ys-accent-2-hover: #97400f;
+  --ys-accent-2-active: #7e350c;
+  --ys-accent-2-soft: #fbede4;
+
+  /* ======================================================================
+   * 3. 语义色
+   * ====================================================================== */
+  --ys-success: #157347;         /* 白底 5.87 */
+  --ys-success-soft: #e5f2ea;
+  --ys-warning: #a85b08;         /* 白底 5.04 / 浅底 4.60 */
+  --ys-warning-soft: #fdf3e7;
+  --ys-danger: #c32b20;          /* 白底 5.70 */
+  --ys-danger-soft: #fae9e7;
+  --ys-info: #5a6b7e;            /* 中性信息,沿用 EP 惯例不另起蓝 */
+  --ys-info-soft: #edf1f5;
+
+  /* ======================================================================
+   * 4. G3 官方通知专用
+   *    权威感靠「深墨徽章」,不靠彩色边框,也不消耗主色配额。
+   * ====================================================================== */
+  --ys-official-badge-bg: #16212e;
+  --ys-official-badge-text: #ffffff;   /* 对比 16.27 */
+  --ys-official-surface: #edf1f5;
+
+  /* ======================================================================
+   * 5. 兴趣大类标签(G2 找搭子)—— 浅底 + 深字,浅底不抢主视觉
+   * ====================================================================== */
+  --ys-cat-sport-fg: #b44a12;  --ys-cat-sport-bg: var(--ys-accent-2-soft);  /* 4.67 */
+  --ys-cat-game-fg: #6b3fa0;   --ys-cat-game-bg: #f1ebfa;    /* 6.33 */
+  --ys-cat-study-fg: #2f6f4e;  --ys-cat-study-bg: #e7f1eb;   /* 5.19 */
+  --ys-cat-club-fg: #2b5c9e;   --ys-cat-club-bg: #e7eef9;    /* 5.75 */
+
+  /* ======================================================================
+   * 6. 字体  —— 零 Web Font 下载(0 KB)
+   *    理由:UGC 产品的字符集不可穷举,子集化无效;完整中文字体 8-16MB,
+   *    在校园网/4G 下会拖垮首屏。系统字体栈在 iOS(苹方)/Android(鸿蒙、
+   *    思源)/Windows(雅黑)上都是本机最优解。层级靠字重·字号·字距建立。
+   * ====================================================================== */
+  --ys-font-body: -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "HarmonyOS Sans SC", "Microsoft YaHei", "Source Han Sans SC",
+    "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+  --ys-font-display: var(--ys-font-body);
+  --ys-font-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono",
+    Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* 字号阶梯(8 级)。正文基准 14px,中文阅读行高 1.7 */
+  --ys-text-xs: 12px;   --ys-lh-xs: 1.5;   --ys-ls-xs: 0.01em;
+  --ys-text-sm: 13px;   --ys-lh-sm: 1.6;   --ys-ls-sm: 0.01em;
+  --ys-text-base: 14px; --ys-lh-base: 1.7; --ys-ls-base: 0;
+  --ys-text-md: 16px;   --ys-lh-md: 1.6;   --ys-ls-md: 0;
+  --ys-text-lg: 18px;   --ys-lh-lg: 1.5;   --ys-ls-lg: -0.005em;
+  --ys-text-xl: 20px;   --ys-lh-xl: 1.4;   --ys-ls-xl: -0.01em;
+  --ys-text-2xl: 24px;  --ys-lh-2xl: 1.35; --ys-ls-2xl: -0.01em;
+  --ys-text-3xl: 30px;  --ys-lh-3xl: 1.25; --ys-ls-3xl: -0.015em;
+
+  /* 字重三级。中文系统字体无 510/590 档,取 500/600 */
+  --ys-weight-regular: 400;
+  --ys-weight-medium: 500;
+  --ys-weight-semibold: 600;
+
+  --ys-ls-allcaps: 0.08em;  /* 纯大写拉丁标签必须 >= 0.06em */
+
+  /* ======================================================================
+   * 7. 间距  --  4px 基准网格。只用这 10 个值,禁止 5/7/13/15/22/30 等非标值
+   * ====================================================================== */
+  --ys-space-1: 4px;
+  --ys-space-2: 8px;
+  --ys-space-3: 12px;
+  --ys-space-4: 16px;
+  --ys-space-5: 20px;
+  --ys-space-6: 24px;
+  --ys-space-8: 32px;
+  --ys-space-10: 40px;
+  --ys-space-12: 48px;
+  --ys-space-16: 64px;
+
+  /* ======================================================================
+   * 8. 圆角  --  卡片上限 12px。禁止 >=24px 的过度圆滑
+   * ====================================================================== */
+  --ys-radius-sm: 4px;
+  --ys-radius-md: 6px;
+  --ys-radius-lg: 8px;
+  --ys-radius-xl: 12px;
+  --ys-radius-2xl: 16px;
+  --ys-radius-full: 9999px;
+
+  /* ======================================================================
+   * 9. 阴影  --  三级。禁止发光;禁止 1px 边框 + blur>=16px 同时出现
+   *    阴影色相取自 --ys-fg(16,33,46),不用纯黑
+   * ====================================================================== */
+  --ys-shadow-1: 0 1px 2px rgba(16, 33, 46, 0.05);
+  --ys-shadow-2: 0 2px 8px rgba(16, 33, 46, 0.08);
+  --ys-shadow-3: 0 8px 24px rgba(16, 33, 46, 0.12);  /* 仅用于无边框浮层 */
+
+  /* ======================================================================
+   * 10. 动效  --  禁止弹跳。禁止控制点 y<0 或 y>1(禁止 overshoot)
+   * ====================================================================== */
+  --ys-motion-instant: 80ms;
+  --ys-motion-fast: 150ms;    /* 收敛值 */
+  --ys-motion-base: 200ms;
+  --ys-motion-slow: 280ms;
+  --ys-motion-page: 320ms;    /* 硬上限 */
+
+  --ys-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ys-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ys-ease-linear: linear;
+
+  --ys-focus-ring: 0 0 0 3px rgba(14, 116, 144, 0.32);
+
+  /* ======================================================================
+   * 11. 布局
+   * ====================================================================== */
+  --ys-container-max: 1180px;
+  --ys-content-col: 640px;      /* Feed 正文列:保证中文每行 30-38 字 */
+  --ys-sidebar-w: 220px;
+  --ys-aside-w: 320px;
+  --ys-gutter-phone: 16px;
+  --ys-gutter-desktop: 24px;
+  --ys-topbar-h: 56px;
+  --ys-tabbar-h: 56px;
+  --ys-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ys-touch-min: 44px;
+
+  /* 12. 层级 */
+  --ys-z-sticky: 1100;
+  --ys-z-dropdown: 1000;
+  --ys-z-overlay: 1200;
+  --ys-z-modal: 1210;
+  --ys-z-drawer: 1220;
+  --ys-z-toast: 1300;
+}
+
+/* ==========================================================================
+ * Element Plus Bridge
+ * 把 --ys-* 映射到 --el-*。业务代码不要直接改 --el-*。
+ * ========================================================================== */
+:root {
+  /* 主色 + 派生(派生值为 #0E7490 与白/黑的混合,已逐一计算) */
+  --el-color-primary: var(--ys-accent);
+  --el-color-primary-light-3: #569eb1;
+  --el-color-primary-light-5: #87bac8;
+  --el-color-primary-light-7: #b7d5de;
+  --el-color-primary-light-8: #cfe3e9;
+  --el-color-primary-light-9: #e7f1f4;
+  --el-color-primary-dark-2: #0b5d73;
+
+  --el-color-success: var(--ys-success);
+  --el-color-success-light-3: #5b9d7e;
+  --el-color-success-light-5: #8ab9a3;
+  --el-color-success-light-7: #b9d5c8;
+  --el-color-success-light-8: #d0e3da;
+  --el-color-success-light-9: #e8f1ed;
+  --el-color-success-dark-2: #115c39;
+
+  --el-color-warning: var(--ys-warning);
+  --el-color-warning-light-3: #c28c52;
+  --el-color-warning-light-5: #d4ad84;
+  --el-color-warning-light-7: #e5ceb5;
+  --el-color-warning-light-8: #eedece;
+  --el-color-warning-light-9: #f6efe6;
+  --el-color-warning-dark-2: #864906;
+
+  --el-color-danger: var(--ys-danger);
+  --el-color-danger-light-3: #d56b63;
+  --el-color-danger-light-5: #e19590;
+  --el-color-danger-light-7: #edbfbc;
+  --el-color-danger-light-8: #f3d5d2;
+  --el-color-danger-light-9: #f9eae9;
+  --el-color-danger-dark-2: #9c221a;
+
+  --el-color-error: var(--ys-danger);
+  --el-color-error-light-3: #d56b63;
+  --el-color-error-light-5: #e19590;
+  --el-color-error-light-7: #edbfbc;
+  --el-color-error-light-8: #f3d5d2;
+  --el-color-error-light-9: #f9eae9;
+  --el-color-error-dark-2: #9c221a;
+
+  --el-color-info: var(--ys-info);
+  --el-color-info-light-3: #8c97a5;
+  --el-color-info-light-5: #adb5bf;
+  --el-color-info-light-7: #ced3d8;
+  --el-color-info-light-8: #dee1e5;
+  --el-color-info-light-9: #eff0f2;
+  --el-color-info-dark-2: #485665;
+
+  /* 背景与表面 */
+  --el-bg-color: var(--ys-surface);
+  --el-bg-color-page: var(--ys-bg);
+  --el-bg-color-overlay: var(--ys-surface);
+  --el-fill-color: var(--ys-surface-2);
+  --el-fill-color-light: var(--ys-surface-2);
+  --el-fill-color-lighter: #f7f9fb;
+  --el-fill-color-blank: var(--ys-surface);
+  --el-fill-color-dark: var(--ys-surface-2);
+
+  /* 文本 */
+  --el-text-color-primary: var(--ys-fg);
+  --el-text-color-regular: var(--ys-fg-2);
+  --el-text-color-secondary: var(--ys-muted);
+  --el-text-color-placeholder: var(--ys-meta);
+  --el-text-color-disabled: #a7b0be;
+
+  /* 边框 */
+  --el-border-color: var(--ys-border);
+  --el-border-color-light: var(--ys-border);
+  --el-border-color-lighter: var(--ys-border-soft);
+  --el-border-color-extra-light: var(--ys-border-soft);
+  --el-border-color-dark: var(--ys-border-control);
+  --el-border-color-darker: var(--ys-border-control);
+
+  /* 圆角 */
+  --el-border-radius-base: var(--ys-radius-lg);
+  --el-border-radius-small: var(--ys-radius-md);
+  --el-border-radius-round: var(--ys-radius-xl);
+  --el-border-radius-circle: var(--ys-radius-full);
+
+  /* 字体 */
+  --el-font-family: var(--ys-font-body);
+  --el-font-size-extra-large: var(--ys-text-xl);
+  --el-font-size-large: var(--ys-text-md);
+  --el-font-size-medium: var(--ys-text-base);
+  --el-font-size-base: var(--ys-text-base);
+  --el-font-size-small: var(--ys-text-sm);
+  --el-font-size-extra-small: var(--ys-text-xs);
+
+  /* 阴影 */
+  --el-box-shadow: var(--ys-shadow-2);
+  --el-box-shadow-light: var(--ys-shadow-1);
+  --el-box-shadow-lighter: var(--ys-shadow-1);
+  --el-box-shadow-dark: var(--ys-shadow-2);
+
+  /* 动效 */
+  --el-transition-duration: var(--ys-motion-fast);
+  --el-transition-duration-fast: var(--ys-motion-instant);
+  --el-transition-function-ease-in-out-bezier: var(--ys-ease-in-out);
+  --el-transition-function-fast-bezier: var(--ys-ease-out);
+
+  --el-mask-color: var(--ys-overlay);
+}
+
+/* ==========================================================================
+ * 基础重置
+ * ========================================================================== */
+html,
+body {
+  margin: 0;
+  background: var(--ys-bg);
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 计数与时间用等宽数字,防止数字跳动 */
+.ys-num {
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* 键盘可达性:唯一合法的焦点样式。禁止在任何地方写 outline: none */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ys-focus-ring);
+}
+
+/* 卡片:1px 边框 + shadow-1。hover 只升到 shadow-2,不发光 */
+.ys-card {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  box-shadow: var(--ys-shadow-1);
+  transition: box-shadow var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.ys-card:hover {
+  border-color: var(--ys-border-control);
+  box-shadow: var(--ys-shadow-2);
+}
+
+/* 列表分组:用 1px 分隔线分组,不用卡片盒子(信息密度 6 时的默认做法) */
+.ys-list > * + * {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+/* 尊重系统的减弱动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+ * 深色主题 —— MVP 不在范围,Token 结构已预留。
+ * 启用方式:<html data-theme="dark">。启用前需实测 EP 组件的深色二次覆盖。
+ * ========================================================================== */
+:root[data-theme="dark"] {
+  --ys-bg: #111721;
+  --ys-surface: #1a212c;
+  --ys-surface-2: #232b38;
+  --ys-fg: #e6eaf0;        /* 对比 14.89 */
+  --ys-fg-2: #b4becd;      /* 对比 9.58 */
+  --ys-muted: #8b96a6;     /* 对比 6.00 */
+  --ys-meta: #7d8798;      /* 对比 4.96 */
+  --ys-border: #5e6977;    /* 控件边界,对比 3.22 */
+  --ys-border-soft: #2a3340;
+  --ys-accent: #4fd1c5;    /* 对比 9.64 */
+  --ys-accent-on: #111721;
+  --ys-accent-2: #f0a868;
+  --ys-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ys-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --ys-shadow-3: 0 8px 24px rgba(0, 0, 0, 0.55);
+}

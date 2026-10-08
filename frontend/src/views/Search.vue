@@ -1,20 +1,25 @@
 <template>
   <div class="search">
     <div class="search-inner">
-      <el-row :gutter="16">
-        <el-col :span="14">
-          <el-input
-            v-model="q"
-            placeholder="搜索帖子 / 用户 / 圈子"
-            clearable
-            @keyup.enter="doSearch"
-          >
-            <template #append>
-              <el-button @click="doSearch">搜索</el-button>
-            </template>
-          </el-input>
-        </el-col>
-      </el-row>
+      <!--
+        栅格一律 CSS Grid(红线 3 / SPEC §10.3 第 3 条)。
+        这里原本是 el-row + el-col :span="14":虽然没用响应式属性,但 EP 的
+        24 栅格本身属于 EP 的断点体系,换掉才能保证断点只有一套。
+        768 起两列:搜索框 + 按钮,按钮不再被挤到第二行。
+      -->
+      <div class="search__bar">
+        <el-input
+          v-model="q"
+          class="search__input"
+          placeholder="搜索帖子 / 用户 / 圈子"
+          clearable
+          @keyup.enter="doSearch"
+        >
+          <template #append>
+            <el-button @click="doSearch">搜索</el-button>
+          </template>
+        </el-input>
+      </div>
 
       <div v-if="searched">
         <el-tabs v-model="tab">
@@ -33,7 +38,7 @@
         <template v-else>
           <div v-if="tab === 'posts'" class="res-list">
             <PostCard v-for="p in results.posts || []" :key="p.id" :post="p" @click="router.push(`/post/${p.id}`)" />
-            <el-empty v-if="!(results.posts || []).length" description="没有匹配的帖子" :image-size="80" />
+            <StateBlock v-if="!(results.posts || []).length" variant="empty" title="没有匹配的帖子" description="换个词试试,或者直接发一条这个话题的" action-label="去发一条" :icon="Search" @action="router.push('/publish')" />
           </div>
 
           <div v-else-if="tab === 'users'" class="res-list">
@@ -44,7 +49,7 @@
                 <div class="u-sub">{{ maskUsername(u?.username) }}</div>
               </div>
             </div>
-            <el-empty v-if="!(results.users || []).length" description="没有匹配的用户" :image-size="80" />
+            <StateBlock v-if="!(results.users || []).length" variant="empty" title="没有匹配的同学" description="关键词可能太长了,试试只输入姓或昵称" action-label="改个关键词" :icon="User" @action="clearKw" />
           </div>
 
           <div v-else class="res-list">
@@ -55,12 +60,12 @@
                 <div class="u-sub">{{ c.memberCount || 0 }} 成员</div>
               </div>
             </div>
-            <el-empty v-if="!(results.circles || []).length" description="没有匹配的圈子" :image-size="80" />
+            <StateBlock v-if="!(results.circles || []).length" variant="empty" title="没有匹配的圈子" description="换个词试试,或者自己开一个" action-label="去圈子广场" :icon="Collection" @action="router.push('/circles')" />
           </div>
         </template>
       </div>
 
-      <el-empty v-else description="输入关键词开始搜索" :image-size="100" />
+      <StateBlock v-else variant="empty" title="搜搜看谁在聊什么" description="输入昵称、话题或圈子名,三个方向一起搜" :icon="Search" />
     </div>
   </div>
 </template>
@@ -72,6 +77,8 @@ import { search as searchApi } from '@/api/circle'
 import { maskUsername, displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
+import StateBlock from '@/components/common/StateBlock.vue'
+import { Search, User, Collection } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,6 +102,13 @@ async function doSearch() {
   }
 }
 
+/** 「没有匹配的用户」空态的出口:清空关键词重新搜,而不是让用户自己找输入框 */
+function clearKw() {
+  q.value = ''
+  results.value = {}
+  searched.value = false
+}
+
 // 从首页搜索框 / 话题跳来:读 ?kw 预填并自动搜
 onMounted(() => {
   const kw = route.query.kw
@@ -105,39 +119,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.search-inner {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 20px;
-}
-.res-list {
-  padding: 8px 0;
-}
-.user-item {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 8px;
-  margin: 0 -8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  cursor: pointer;
-  border-radius: var(--card-radius);
-  transition: background 0.15s;
-}
-.user-item:hover {
-  background: var(--el-fill-color-light);
-}
-.u-avatar {
-  flex-shrink: 0;
-}
-.c-avatar {
-  background: var(--el-color-primary-light-8);
-}
-.u-info {
-  flex: 1;
-  min-width: 0;
-}
-.u-name { font-weight: 600; }
-.u-sub { font-size: 12px; color: var(--el-text-color-secondary); }
-</style>
+<style scoped src="./Search.css"></style>

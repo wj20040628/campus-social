@@ -1,0 +1,86 @@
+/* CircleDetail.vue 的样式,抽离到外部文件以控制单文件行数。 */
+.cd {
+  max-width: var(--ys-content-col);
+  margin: 0 auto;
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
+}
+
+/*
+ * 分段控件:sticky + top: var(--ys-topbar-h) —— §7 第 1 点。
+ * 写 top:0 会被顶栏压住。
+ */
+.cd__tabs {
+  position: sticky;
+  top: var(--ys-topbar-h);
+  z-index: var(--ys-z-sticky);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  height: 44px;
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.cd__tab {
+  border: none;
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cd__tab.is-on {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}
+
+/* 指示条动 transform(§4),禁止弹性 overshoot */
+.cd__tab-ind {
+  position: absolute;
+  width: 50%;
+  height: 2px;
+  background: var(--ys-accent);
+  transform-origin: left center;
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+  pointer-events: none;
+}
+
+.cd__body {
+  padding: var(--ys-space-4);
+}
+
+.cd__gate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  margin-bottom: var(--ys-space-4);
+  border: 1px solid var(--ys-border-soft);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+}
+
+.cd__gate-text,
+.cd__act-hint {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.cd__gate-btn {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-surface);
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+}
+

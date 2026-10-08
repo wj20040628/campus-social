@@ -1,46 +1,61 @@
 /* ============================================================
- * 全局设计 token(现代清爽 · 大圆角宽松)
- * 引入顺序:element-plus CSS → 本文件(覆盖 EP 变量)→ 各组件
- * 改一处,全站 el-card/el-button/el-avatar 等自动跟随
+ * 历史文件已按 SPEC §8 / ADR-009 降级为「兼容垫片」
+ * ------------------------------------------------------------
+ * 颜色、圆角、字体、间距、阴影的唯一来源是 design-tokens.css。
+ * 本文件不再重定义任何 --el-* 变量(那正是 SPEC §11 坑 6
+ * 「两套 --el-color-primary」的根因),也不再自定义 --app-bg /
+ * --card-radius 这样的第二套值。
+ *
+ * main.js 的引入顺序不可调换(SPEC §11 坑 5,CSS 变量后定义者胜):
+ *   1. element-plus 的样式(按需引入,含 base.css 的 :root 默认值)
+ *   2. ./design-tokens.css   <- 必须在本文件之前
  * ============================================================ */
 
+/* ------------------------------------------------------------------
+ * 过渡期兼容映射:旧变量名 -> 新 Token。
+ * 只为尚未完成改造的页面兜底,新代码一律直接写 var(--ys-*)。
+ * 这里是给旧变量名一个 Token 值,不是新增一套设计值,
+ * 所以不会重新制造「Token 双源」——值仍然只有一个出处。
+ *
+ * 注意 --space-5/--space-6 的旧值(24/32)与 --ys-space-5/6(20/24)
+ * 不同,这里按 SPEC §8 统一到 4px 基准网格的新值,视觉上略有变化,
+ * 属于「历史文件迁移到唯一准绳」的预期结果。
+ * ------------------------------------------------------------------ */
 :root {
-  /* 圆角族(大圆角):卡片 12 / 按钮 8 / 小元素 6 / 全圆 16 */
-  --el-border-radius-base: 8px;
-  --el-border-radius-small: 6px;
-  --el-border-radius-round: 16px;
-  --el-card-border-radius: 12px;
+  --app-bg: var(--ys-bg);
+  --card-radius: var(--ys-radius-xl);
 
-  /* 自有间距 token(4px 步进) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-
-  /* 卡片标准圆角(供自定义卡片/媒体复用) */
-  --card-radius: 12px;
-
-  /* 全局文字/背景基调:白卡片浮在浅灰底上 */
-  --app-bg: #f7f8fa;
+  --space-1: var(--ys-space-1);
+  --space-2: var(--ys-space-2);
+  --space-3: var(--ys-space-3);
+  --space-4: var(--ys-space-4);
+  --space-5: var(--ys-space-5);
+  --space-6: var(--ys-space-6);
 }
 
-html, body {
-  margin: 0;
-  background: var(--app-bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  color: var(--el-text-color-primary);
-}
-
-/* 卡片默认圆角 + 更轻的阴影,统一观感 */
+/* ------------------------------------------------------------------
+ * 卡片:1px 边框 + --ys-shadow-1,hover 只升到 --ys-shadow-2。
+ * 原实现 hover 是 `0 4px 16px` —— blur 16px 与 1px 边框同时出现,
+ * 即 SPEC §8.1 所禁的「幽灵卡片」;且阴影用 rgba(0,0,0,*),
+ * 而 Token 规定阴影色相取自 --ys-fg(16,33,46),禁用纯黑。
+ * ------------------------------------------------------------------ */
 .el-card {
-  border-radius: var(--card-radius);
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: var(--ys-radius-xl);
+  border: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+  box-shadow: var(--ys-shadow-1);
+  transition:
+    box-shadow var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
 }
+
 .el-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border-color: var(--ys-border-control);
+  box-shadow: var(--ys-shadow-2);
+}
+
+/* EP 的 card body 默认内边距与项目密度不一致,在此统一收口,
+   避免每个页面各写一遍造成间距漂移。 */
+.el-card__body {
+  padding: var(--ys-space-4);
 }

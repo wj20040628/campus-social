@@ -1,5 +1,5 @@
 import { useUserStore } from '@/stores/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/feedback'
 import dayjs from 'dayjs'
 
 /**

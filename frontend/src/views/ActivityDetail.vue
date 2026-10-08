@@ -43,7 +43,7 @@
           </template>
         </div>
       </el-card>
-      <el-empty v-else description="活动不存在" />
+      <StateBlock v-else variant="error" title="这个活动不存在" description="可能已经结束或被发起人撤掉了" action-label="回圈子广场" :icon="WarningFilled" @action="router.push('/circles')" />
     </div>
   </div>
 </template>
@@ -52,8 +52,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Calendar } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from '@/utils/feedback'
+import { Calendar, WarningFilled } from '@element-plus/icons-vue'
+import StateBlock from '@/components/common/StateBlock.vue'
 import {
   activityDetail,
   signup as signupApi,

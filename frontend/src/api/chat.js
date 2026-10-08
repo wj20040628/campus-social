@@ -22,4 +22,15 @@ export function markRead(peerId) {
   return request.post(`/chat/read?peerId=${peerId}`)
 }
 
-export default { conversations, history, send, recall, markRead }
+/**
+ * 今日剩余破冰额度(AC-04)。**不消耗额度**,只查询。
+ * @param {number} [peerId] 传了才返回 remainingPerPeer(对特定对象的剩余条数)
+ * @returns {{ dailyNewPeerLimit:number, dailyNewPeerUsed:number,
+ *             remainingNewPeer:number, perPeerDailyLimit:number,
+ *             remainingPerPeer:number|null }}
+ */
+export function strangerQuota(peerId) {
+  return request.get(`/chat/stranger-quota${peerId ? `?peerId=${peerId}` : ''}`)
+}
+
+export default { conversations, history, send, recall, markRead, strangerQuota }

@@ -34,8 +34,13 @@ public interface AuthService {
     /** 当前用户 */
     UserVO me(long userId);
 
-    /** 更新资料:昵称/年级/院系/头像(邮箱手机号不可改) */
-    UserVO updateProfile(long userId, String nickname, String grade, String dept, String avatarUrl, String studentNo);
+    /**
+     * 更新资料：昵称 / 头像 / 学号（邮箱手机号不可改）。
+     *
+     * <p>不含院系与年级：这两项已字典化，只能经 {@code POST /user/school-profile}
+     * 与 {@code POST /onboarding/complete} 按字典 id 写入。
+     */
+    UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo);
 
     /** 发送邮箱/手机验证码(注册/登录/绑定) */
     String sendCode(SendCodeDTO dto);

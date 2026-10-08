@@ -1,0 +1,187 @@
+/*
+  Circles.vue 的样式。
+
+  移动端是单列全宽行(设计 §1.1);桌面端恢复卡片网格。
+  形态切换全部由媒体查询承担,模板里不为形态写分支。
+*/
+
+.circles-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 var(--ys-gutter-phone);
+}
+
+/* 分组头。移动端才需要 —— 桌面端不分组 */
+.circles__group-head {
+  display: none;
+  align-items: baseline;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: var(--ys-space-4) 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+.circles__group-count {
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ys-meta);
+}
+
+@media (min-width: 1024px) {
+  .circles-inner {
+    padding: 0 var(--ys-gutter-desktop);
+  }
+  .circles__group-head {
+    display: flex;
+  }
+}
+
+/*
+  桌面端从行式切回卡片网格。
+  移动端的单列由 .crow 自身撑满,这里只负责 ≥1024px 的网格。
+*/
+@media (min-width: 1024px) {
+  .circle-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--ys-space-4);
+  }
+}
+
+.sentinel {
+  padding: var(--ys-space-4);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------
+   创建圈子抽屉(移动端全屏)
+   用原生元素而不是 el-form:抽屉里只有一个字段,
+   el-form 的 label/error 布局在这个尺寸下反而是负担。
+   ------------------------------------------------------------------ */
+
+.circles-drawer :deep(.el-drawer__body) {
+  padding: 0;
+}
+
+.create {
+  display: flex;
+  flex-direction: column;
+  /* 100% 高度抽屉:吸底主按钮要能贴到安全区上沿 */
+  height: 100%;
+}
+
+.create__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+  min-height: var(--ys-topbar-h);
+  padding: 0 var(--ys-gutter-phone);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.create__title {
+  margin: 0;
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.create__cancel,
+.create__submit {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  cursor: pointer;
+}
+
+.create__cancel {
+  color: var(--ys-muted);
+}
+
+.create__submit {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}
+
+.create__submit:disabled {
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+.create__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  flex: 1;
+  padding: var(--ys-space-5) var(--ys-gutter-phone);
+}
+
+.create__label {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+.create__input {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  /* 16px:iOS Safari 下<16px 的输入聚焦会缩放整页 */
+  font-size: var(--ys-text-md);
+  color: var(--ys-fg);
+}
+
+.create__input:focus-visible {
+  border-color: var(--ys-accent);
+  box-shadow: var(--ys-focus-ring);
+  outline: none;
+}
+
+.create__hint {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+}
+
+/* 创建失败:贴近字段而不是 toast —— 抽屉会把 toast 挡住 */
+.create__error {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+}
+
+.create__foot {
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  padding-bottom: calc(var(--ys-space-4) + var(--ys-safe-bottom));
+  border-top: 1px solid var(--ys-border);
+}
+
+.create__primary {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-accent-on);
+  cursor: pointer;
+}
+
+.create__primary:disabled {
+  border-color: var(--ys-border-control);
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}

@@ -1,0 +1,220 @@
+/* ChatConvList.vue 的样式,抽离到外部文件以控制单文件行数。 */
+.cl {
+  background: var(--ys-surface);
+}
+
+.quota {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  min-height: 32px;
+  margin: var(--ys-space-3) var(--ys-space-4);
+  padding: 0 var(--ys-space-2) 0 var(--ys-space-4);
+  background: var(--ys-accent-soft);
+  border-radius: var(--ys-radius-md);
+  color: var(--ys-accent);
+}
+
+.quota__text {
+  font-size: var(--ys-text-xs);
+}
+
+.quota__num {
+  font-weight: var(--ys-weight-semibold);
+  font-size: var(--ys-text-sm);
+}
+
+.quota__why {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: none;
+  background: transparent;
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.grp + .grp {
+  margin-top: var(--ys-space-2);
+}
+
+.grp__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+  min-height: 40px;
+  background: var(--ys-surface-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+.grp__head--btn {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.grp__name {
+  flex: 1;
+}
+
+.grp__count {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+.grp__caret {
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.grp__caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* 展开/收起:只动 max-height */
+.grp__body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.grp__body.is-open {
+  max-height: 520px;
+}
+
+.grp__body ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.srow {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  min-height: 72px;
+  padding: 0 var(--ys-space-4);
+}
+
+.srow + .srow {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.srow__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+}
+
+.srow__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.srow__name,
+.crow__name {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.srow__preview,
+.crow__preview {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.srow__act,
+.grp__ignore-all {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: none;
+  background: transparent;
+  color: var(--ys-muted);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+}
+
+.grp__ignore-all {
+  width: 100%;
+  color: var(--ys-muted);
+}
+
+.crow + .crow {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.crow.is-active {
+  background: var(--ys-accent-soft);
+}
+
+.crow__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: 72px;
+  padding: 0 var(--ys-space-4);
+  border: none;
+  background: transparent;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.crow__avatar {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-md);
+}
+
+.crow__avatar--square {
+  border-radius: var(--ys-radius-lg);
+}
+
+.crow__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.crow__time {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}

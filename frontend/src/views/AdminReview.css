@@ -1,0 +1,509 @@
+/* ==========================================================================
+ * AdminReview · 审核处置页
+ * 顶栏与 MainLayout 的 56px 对齐;桌面端 MainLayout 隐藏顶栏,故用媒体查询让位
+ * ========================================================================== */
+
+.review-admin {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+/* ---------------- 启动骨架(userInfo 未到) ---------------- */
+
+.review-admin__state {
+  margin: auto;
+  padding: var(--ys-space-6) var(--ys-gutter-phone);
+}
+
+.review-admin__boot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
+  padding: calc(var(--ys-topbar-h) + var(--ys-space-6)) var(--ys-gutter-phone);
+}
+
+.review-admin__boot-line {
+  height: 56px;
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface-2);
+  animation: ar-shimmer 1.4s var(--ys-ease-linear) infinite;
+}
+
+.review-admin__boot-line--short {
+  height: 40px;
+  width: 60%;
+}
+
+/* ---------------- 移动端顶栏(56px,与 MainLayout 一致) ---------------- */
+
+.review-admin__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: var(--ys-topbar-h);
+  padding: 0 var(--ys-gutter-phone);
+  border-bottom: 1px solid var(--ys-border-soft);
+  background: var(--ys-surface);
+}
+
+.review-admin__back {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  /* 视觉是一行小字,热区撑到 44px */
+  min-height: var(--ys-touch-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  color: var(--ys-fg);
+  cursor: pointer;
+}
+
+.review-admin__back-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.review-admin__mode {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+
+.review-admin__tabs {
+  flex-shrink: 0;
+  padding: 0 var(--ys-gutter-phone);
+  background: var(--ys-surface);
+}
+
+.review-admin__tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+}
+
+.review-admin__tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+  background: var(--ys-border-soft);
+}
+
+/* ---------------- 机审队列 ---------------- */
+
+.task-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+}
+
+.task-list__items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 不套 el-card:卡片盒子 + 投影在移动端笨重,描边 + 圆角够了 */
+.task-card {
+  padding: var(--ys-space-5);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface);
+}
+
+.task-card + .task-card {
+  margin-top: var(--ys-space-4);
+}
+
+.task-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+}
+
+.task-author {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-author__name {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-author__time {
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 状态用「文字 + 颜色」两通道,不靠颜色单独承载信息 */
+.task-status {
+  flex-shrink: 0;
+  padding: 2px var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+}
+
+.task-status[data-status='0'] {
+  background: var(--ys-warning-soft);
+  color: var(--ys-warning);
+}
+
+.task-status[data-status='1'] {
+  background: var(--ys-success-soft);
+  color: var(--ys-success);
+}
+
+.task-status[data-status='2'] {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.task-content {
+  margin: var(--ys-space-4) 0 0;
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  color: var(--ys-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-hitwords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ys-space-1);
+  margin: var(--ys-space-3) 0 0;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-danger-soft);
+}
+
+.task-hitwords__label {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
+  margin-right: var(--ys-space-1);
+}
+
+.task-chip {
+  padding: 1px var(--ys-space-2);
+  border: 1px solid var(--ys-danger);
+  border-radius: var(--ys-radius-sm);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
+}
+
+.task-chip--more {
+  border-style: dashed;
+}
+
+.task-ai {
+  margin-top: var(--ys-space-3);
+  padding: var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-info-soft);
+}
+
+.task-ai__line {
+  margin: 0;
+}
+
+.task-ai__verdict {
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-info);
+}
+
+.task-ai__verdict[data-verdict='reject'] {
+  color: var(--ys-danger);
+}
+
+.task-ai__verdict[data-verdict='approve'] {
+  color: var(--ys-success);
+}
+
+.task-ai__reason {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+  overflow-wrap: anywhere;
+}
+
+.task-reason {
+  margin: var(--ys-space-3) 0 0;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface-2);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------- 处置区 ---------------- */
+
+.task-actions {
+  margin-top: var(--ys-space-4);
+  padding-top: var(--ys-space-4);
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.task-reason-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-1);
+  margin-bottom: var(--ys-space-3);
+}
+
+.task-reason-input__label {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+.task-reason-input input {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  /* <16px 时 iOS Safari 聚焦会放大页面且不自动缩回 */
+  font-size: var(--ys-text-md);
+  color: var(--ys-fg);
+}
+
+.task-reason-input input:focus-visible {
+  outline: 2px solid var(--ys-focus-ring);
+  outline-offset: 1px;
+}
+
+.task-btns {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--ys-space-2);
+}
+
+.task-btn {
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  cursor: pointer;
+  transition: opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.task-btn:active:not(:disabled) {
+  opacity: 0.7;
+}
+
+.task-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.task-btn--pass {
+  border-color: var(--ys-success);
+  background: var(--ys-success);
+  color: var(--ys-accent-on);
+}
+
+.task-btn--reject {
+  border-color: var(--ys-danger);
+  color: var(--ys-danger);
+}
+
+/* ---------------- 骨架屏 ---------------- */
+
+.task-skeletons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-5) 0;
+}
+
+.task-skeleton + .task-skeleton {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.task-skeleton__line {
+  height: 14px;
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  animation: ar-shimmer 1.4s var(--ys-ease-linear) infinite;
+}
+
+.task-skeleton__line--who {
+  width: 40%;
+}
+
+.task-skeleton__line--short {
+  width: 55%;
+}
+
+@keyframes ar-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------------- 无限滚动哨兵 ---------------- */
+
+.sentinel {
+  flex-shrink: 0;
+  padding: var(--ys-space-3);
+  padding-bottom: calc(var(--ys-space-3) + var(--ys-safe-bottom));
+  text-align: center;
+}
+
+.sentinel__text {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* ---------------- 撤销条 ---------------- */
+
+.review-undo {
+  position: fixed;
+  left: var(--ys-space-3);
+  right: var(--ys-space-3);
+  bottom: calc(var(--ys-space-3) + var(--ys-safe-bottom));
+  z-index: var(--ys-z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-fg);
+  color: var(--ys-bg);
+  overflow: hidden;
+  animation: ar-undo-in var(--ys-motion-base) var(--ys-ease-out) both;
+}
+
+.review-undo__text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-sm);
+}
+
+.review-undo__btn {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-accent-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.review-undo__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--ys-accent);
+  /* 只动 transform:width 动画每帧触发重排 */
+  transform-origin: left center;
+}
+
+@keyframes ar-undo-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------------- 桌面端 ---------------- */
+
+@media (min-width: 1024px) {
+  .review-admin {
+    min-height: 0;
+    max-width: var(--ys-container-max);
+    margin: 0 auto;
+    padding: var(--ys-space-5) var(--ys-gutter-desktop);
+  }
+
+  /* MainLayout 桌面端隐藏顶栏,本页必须让位,否则内容被压在下面 */
+  .review-admin__bar {
+    display: none;
+  }
+
+  .task-list {
+    padding: var(--ys-space-5) 0;
+  }
+
+  /* 桌面端卡片两列:机审是批量浏览,一列太长要滚很久 */
+  .task-list__items {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ys-space-4);
+  }
+
+  .task-card + .task-card {
+    margin-top: 0;
+  }
+
+  .task-btns {
+    grid-template-columns: repeat(2, minmax(0, 140px));
+    justify-content: start;
+  }
+
+  /* 桌面鼠标够得着顶部,撤销条移到右上 */
+  .review-undo {
+    left: auto;
+    right: var(--ys-space-6);
+    top: var(--ys-space-5);
+    bottom: auto;
+    width: 300px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-skeleton__line,
+  .review-undo {
+    animation: none;
+  }
+}

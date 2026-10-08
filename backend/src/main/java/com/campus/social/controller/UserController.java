@@ -29,12 +29,12 @@ public class UserController {
         return Result.ok(authService.me(userId));
     }
 
-    /** 更新资料:昵称/年级/院系/头像/学号 */
+    /** 更新资料:昵称/头像/学号。院系与年级走 POST /user/school-profile(字典 id) */
     @PutMapping("/me")
     public Result<UserVO> update(@Valid @RequestBody UpdateProfileDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(authService.updateProfile(me, dto.getNickname(), dto.getGrade(),
-                dto.getDept(), dto.getAvatarUrl(), dto.getStudentNo()));
+        return Result.ok(authService.updateProfile(me, dto.getNickname(),
+                dto.getAvatarUrl(), dto.getStudentNo()));
     }
 
     /** 用户卡片(公开,看他人主页用) */

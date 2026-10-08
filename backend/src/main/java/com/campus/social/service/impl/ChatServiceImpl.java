@@ -10,8 +10,10 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ChatConversationMapper;
 import com.campus.social.mapper.ChatMessageMapper;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.ChatGuardService;
 import com.campus.social.service.ChatService;
 import com.campus.social.vo.ChatMessageVO;
+import com.campus.social.vo.ChatSendVO;
 import com.campus.social.vo.ConversationVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.websocket.WsPushService;
@@ -34,6 +36,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatMessageMapper msgMapper;
     private final UserMapper userMapper;
     private final WsPushService wsPush;
+    private final ChatGuardService chatGuardService;
 
     @Override
     public CursorPage<ConversationVO> conversations(long me, Long lastId, int size) {
@@ -88,17 +91,16 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
-    public long send(long me, long toUserId, String content, Long replyToId) {
-        if (me == toUserId) {
-            throw new BusinessException(CHAT_SELF, "不能给自己发消息");
-        }
-        User peer = userMapper.selectById(toUserId);
-        if (peer == null) {
-            throw new BusinessException(NOT_FOUND, "对方不存在");
-        }
+    public ChatSendVO send(long me, long toUserId, String content, Long replyToId) {
         if (content == null || content.isBlank()) {
             throw new BusinessException(BAD_REQUEST, "消息不能为空");
         }
+
+        // 护栏前置：认证 / 黑名单 / 接收方开关 / 配额 / 敏感词五道。
+        // 放在最前面是因为后面每一步都要写库并推 WS，被护栏拒掉的请求
+        // 不该在会话表和消息表留下任何痕迹。
+        ChatSendVO guard = chatGuardService.check(me, toUserId, content);
+
         // 引用回复:被引消息必须存在且同会话(防跨会话引用)
         if (replyToId != null) {
             Long convIdCheck = findConvId(me, toUserId);
@@ -109,12 +111,11 @@ public class ChatServiceImpl implements ChatService {
         }
 
         long a = Math.min(me, toUserId);
-        long b = Math.max(me, toUserId);
         // 先查,查到直接用(避免无谓 upsert)
         Long convId = findConvId(me, toUserId);
         if (convId == null) {
             // 幂等建会话:并发首发也不会双双 insert 撞 uk_conv
-            convMapper.upsertConversation(a, b, null);
+            convMapper.upsertConversation(a, Math.max(me, toUserId), null);
             convId = convMapper.lastConvId();
         }
 
@@ -136,10 +137,16 @@ public class ChatServiceImpl implements ChatService {
             convMapper.touchUnreadA(convId, 1, m.getId());
         }
 
-        // WS 推给接收方
+// WS 推给接收方
         wsPush.pushChat(toUserId, convId, m.getId(), content, me);
-        log.debug("chat send: {} -> {} conv={} replyTo={}", me, toUserId, convId, replyToId);
-        return m.getId();
+        log.debug("chat send: {} -> {} conv={} replyTo={} stranger={}",
+                me, toUserId, convId, replyToId, guard.getIsStranger());
+
+        return ChatSendVO.builder()
+                .msgId(m.getId())
+                .isStranger(guard.getIsStranger())
+                .remainingNewPeerQuota(guard.getRemainingNewPeerQuota())
+                .build();
     }
 
     @Override

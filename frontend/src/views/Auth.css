@@ -1,0 +1,173 @@
+/* ==========================================================================
+   登录 / 注册 共用样式
+   --------------------------------------------------------------------------
+   为什么独立成文件:Login.vue 与 Register.vue 共用 .auth-* 四个类名,
+   原本两页各写一份,结果渐变背景与 400px 固定宽这两处硬编码被改了两遍
+   (Register.vue.md §7 要求「两页必须同时改」,并建议提到共享处避免第三次再改两遍)。
+
+   已删除的三处 AI 模板味 / 硬编码:
+     1. `background: linear-gradient(135deg, ...)`  —— 登录页 135° 渐变底,
+        这个十年被复制最多的登录页套路,且渐变是移动端合成层开销(AC-17 LCP 预算)
+     2. `#f7f8fa` 硬编码色值(红线 2)
+     3. `.auth-card { width: 400px }` —— 375px 视口下横向溢出(400 > 375 - 32)
+   ========================================================================== */
+
+.auth-page {
+  /* 移动端用 dvh:100vh 会被移动端浏览器地址栏遮挡,底部链接点不到。
+     vh 仅作降级,不支持 dvh 的老浏览器用前者 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ys-bg);
+}
+
+.auth-card {
+  /* 关键:100% 撑满留白 + max-width 封顶。
+     写死 400px 在 375px 视口下必然横向溢出(AC-15) */
+  width: 100%;
+  max-width: 400px;
+  padding: var(--ys-space-6) var(--ys-gutter-phone);
+}
+
+/* 桌面端才有卡片容器。移动端去掉盒子,留白本身已经够分组——
+   再套一层卡片只是多两道边框和一层阴影 */
+@media (min-width: 768px) {
+  .auth-card {
+    padding: var(--ys-space-6);
+    background: var(--ys-surface);
+    border: 1px solid var(--ys-border);
+    border-radius: var(--ys-radius-xl);
+    box-shadow: var(--ys-shadow-2);
+  }
+}
+
+/* 品牌区:设计要求「嘤其鸣矣，求其友声」这句在,
+   它是产品名的出处,不是装饰文案 */
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ys-space-1);
+  margin-bottom: var(--ys-space-6);
+}
+
+.auth-brand__name {
+  margin: 0;
+  font-size: var(--ys-text-3xl);
+  line-height: var(--ys-lh-3xl);
+  /* 30px 是展示字号,用最紧的字距 */
+  letter-spacing: var(--ys-ls-3xl);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.auth-brand__slogan {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+/* 表单区字段间距:设计要求 20px = --ys-space-5 */
+.auth-card :deep(.el-form-item) {
+  margin-bottom: var(--ys-space-5);
+}
+
+/* label 在上(设计 §1.1 label-position="top"),13px/500 */
+.auth-card :deep(.el-form-item__label) {
+  padding-bottom: var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+/* 44px 触控热区 */
+.auth-card :deep(.el-input__wrapper),
+.auth-card :deep(.el-input__inner) {
+  min-height: var(--ys-touch-min);
+}
+
+/* iOS Safari:<16px 的输入控件聚焦时页面会被放大且不会自动缩回。
+   16px 是不触发自动缩放的下限,14px 会在聚焦瞬间炸掉整页布局 */
+.auth-card :deep(.el-input__inner) {
+  font-size: var(--ys-text-md);
+}
+
+/* 错误提示:13px danger,贴近字段(设计 §3「所有错误都贴近字段」) */
+.auth-card :deep(.el-form-item__error) {
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-danger);
+}
+
+.auth-submit {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-lg);
+}
+
+/* 验证码行:输入 flex:1 + 按钮最小宽 104px,一行两列 */
+.code-row {
+  display: flex;
+  gap: var(--ys-space-2);
+  width: 100%;
+}
+
+.code-row .el-input {
+  flex: 1;
+}
+
+.code-row .el-button {
+  white-space: nowrap;
+  min-width: 104px;
+  min-height: var(--ys-touch-min);
+}
+
+/* 字段下方的补充说明。不是错误,用 meta 色 */
+.field-hint {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-meta);
+}
+
+.auth-link {
+  margin-top: var(--ys-space-6);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+.auth-link a {
+  /* 文字按钮但热区撑到 44px:视觉上是行内文字,点的时候要好按 */
+  display: inline-block;
+  min-height: var(--ys-touch-min);
+  line-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-1);
+  color: var(--ys-accent);
+  text-decoration: none;
+}
+
+.auth-link a:hover {
+  color: var(--ys-accent-hover);
+}
+
+.auth-tip {
+  margin-top: var(--ys-space-2);
+  text-align: center;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-meta);
+}
+
+/* 底部安全区:iPhone Home Indicator 会压住最后一个元素 */
+@media (max-width: 767px) {
+  .auth-page {
+    align-items: flex-start;
+    padding-bottom: calc(var(--ys-space-8) + var(--ys-safe-bottom));
+  }
+}

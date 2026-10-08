@@ -51,7 +51,36 @@ public enum ResultCode {
     NOT_ADMIN(1025, "需要管理员权限"),
     NOT_GROUP_MEMBER(1026, "你不是该群成员"),
     NOT_GROUP_OWNER(1027, "仅群主可操作"),
-    GROUP_NAME_EMPTY(1028, "群名称不能为空");
+    GROUP_NAME_EMPTY(1028, "群名称不能为空"),
+
+    // 业务码 1029 起:Phase 3 MVP(F3 搭话护栏 / F4 举报 / F5 公告 / F2 认证)
+    // 编号纪律:接续现有最大值 1028 往下排,不新造区间
+    USER_NOT_VERIFIED(1029, "请先完成校内认证"),
+    STRANGER_MSG_CLOSED(1030, "对方已关闭陌生人消息"),
+    ANNOUNCEMENT_NOT_FOUND(1031, "公告不存在或已下架"),
+    CAMPUS_EMAIL_NOT_ALLOWED(1032, "该邮箱域名不是受信任的校园邮箱"),
+    REPORT_NOT_FOUND(1033, "举报记录不存在"),
+    REPORT_ALREADY_HANDLED(1034, "该举报已被处置,请勿重复操作"),
+    TAG_NOT_FOUND(1035, "兴趣标签不存在"),
+    ONBOARDING_STEP_INCOMPLETE(1036, "请先完成引导第 1 步学校与年级信息"),
+    VERIFY_ALREADY_DONE(1037, "你已完成校内认证,无需重复认证"),
+    VERIFY_ALREADY_PENDING(1038, "你的学号认证正在人工核验中,请耐心等待"),
+    SCHOOL_PROFILE_INCOMPLETE(1039, "请先填写学校院系与年级"),
+
+    // 业务码 1040 起:院系与年级字典(引导第 1 步从自由文本改为字典 id)
+    // 编号纪律:接续现有最大值 1039 往下排。派单时说的「从 1033 起」已过期,
+    // 1033-1039 被 F4 举报与 F11 引导占用,此处不重号。
+    DEPT_INVALID(1040, "所选学院不存在或已停用,请重新选择"),
+    GRADE_INVALID(1041, "所选年级不存在或已停用,请重新选择"),
+
+    // 单独一个码而不复用 1040/1041:那两条说的是「你传的 id 不存在」,
+    // 这条说的是「你传的字段本身已下线」。调用方要能据此区分是改参数还是改接口。
+    // 之所以必须显式报错而不是静默忽略:静默忽略会让调用方以为写入成功,
+    // 实际数据没落库,这类「以为成功」的失败比直接报错难查得多。
+    PROFILE_FIELD_RETIRED(1042, "院系与年级请通过 school-profile 或 onboarding-complete 设置"),
+
+    // 频率类:复用 HTTP 429 段(枚举内本就混排 4xx 与 1xxx)
+    TOO_MANY_REQUESTS(429, "操作过于频繁,请稍后再试");
 
 
     private final int code;

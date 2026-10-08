@@ -1,0 +1,245 @@
+/* Profile.vue 的样式,抽离到外部文件以控制单文件行数。 */
+.profile-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--ys-space-4);
+}
+.profile-card {
+  /* 原写 var(--card-radius) —— 该变量在 design-tokens.css 里不存在,
+     浏览器会退回 initial(0),卡片变成直角,和设计稿的 --ys-radius-xl 不符 */
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
+  padding: 0;
+}
+/* 加载骨架:形状对齐真实内容(圆 + 文字条 + 三统计),不是 5 行等宽文字条 */
+.profile-skeleton {
+  padding: var(--ys-space-4);
+}
+.profile-skeleton__stats {
+  margin-top: var(--ys-space-2);
+}
+/* 整页替换态(用户不存在)与内容区同宽,避免大屏上孤零零一句话 */
+.profile-state {
+  padding: var(--ys-space-8) var(--ys-space-4);
+}
+.profile-card :deep(.el-card__body) {
+  padding: 0;
+}
+.profile-card :deep(.el-card__body) > * {
+  padding: 0 var(--ys-space-4);
+}
+/* 封面横幅:移动端隐藏 —— 纯灰空块,不承载信息,却吃掉 80-120px 首屏高度。
+   桌面端恢复 160px(桌面上一屏能看到全部,横幅不占成本,是身份感来源) */
+.p-cover {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .p-cover {
+    display: block;
+    height: 160px;
+    background: var(--ys-surface-2);
+  }
+  .p-head {
+    /* 头像压在横幅左下角,桌面才做这个 Instagram 式叠放 */
+    margin-top: -36px;
+  }
+  .p-avatar {
+    border: 4px solid var(--ys-surface);
+  }
+}
+
+.p-head {
+  display: flex;
+  gap: var(--ys-space-4);
+  align-items: flex-end;
+  padding: var(--ys-space-4) 0 var(--ys-space-3);
+}
+.p-avatar {
+  flex-shrink: 0;
+  /* 原 0 2px 8px rgba(0,0,0,.1) 是纯黑投影,与白描边叠加成"贴纸"效果 */
+  box-shadow: var(--ys-shadow-1);
+}
+.p-name {
+  font-size: var(--ys-text-xl);
+  line-height: var(--ys-lh-xl);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* 学院 · 年级:单行 13px muted 文本,1 行截断。不是彩色 tag —— 见模板注释 */
+.p-sub {
+  margin-top: var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-sub--empty {
+  color: var(--ys-meta);
+}
+
+.p-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-2);
+}
+
+/* 认证徽章(AC-12):图标 + 文字 + 颜色三重传达,不靠颜色单独承载语义 */
+.p-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-success);
+}
+
+.p-badge--off {
+  color: var(--ys-meta);
+}
+
+.p-badge__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.p-verify-link {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  text-decoration: none;
+}
+
+.p-verify-link:hover {
+  color: var(--ys-accent-hover);
+}
+
+.p-actions { margin-left: auto; display: flex; gap: var(--ys-space-2); }
+/*
+  三统计:三等分,不用卡片、不用分隔竖线(设计 §1.2)——
+  三个数字靠 --ys-space-4 的间距分组就够,加竖线是多余的视觉噪声。
+*/
+.p-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ys-space-4);
+  margin: var(--ys-space-3) 0;
+}
+
+.p-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-2) 0;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  color: var(--ys-fg);
+  text-align: center;
+}
+
+.p-stat--btn {
+  cursor: pointer;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-stat--btn:hover {
+  color: var(--ys-accent);
+}
+
+.p-stat--btn:active {
+  opacity: 0.7;
+}
+
+.p-stat__num {
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  font-weight: var(--ys-weight-semibold);
+  /* 数字用等宽 + tabular,避免 999+ 时数字跳动 */
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-stat__label {
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
+/* ---------------- 拉黑关系提示(设计 §3 权限态) ---------------- */
+.p-blocked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-2) 0 0;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-danger-soft);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-danger);
+}
+
+.p-blocked__undo {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-danger);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  color: var(--ys-danger);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-blocked__undo:hover {
+  background: var(--ys-danger-soft);
+}
+
+/* ---------------- 未认证说明(点发私信时) ---------------- */
+.vfy {
+  padding: var(--ys-space-4);
+}
+
+.vfy__why {
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.vfy__how {
+  margin: 0 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+.vfy__btn {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.vfy__btn:hover {
+  background: var(--ys-accent-hover);
+}

@@ -1,0 +1,50 @@
+/* ==========================================================================
+ * PostSheets · 详情页浮层组(更多操作表 / 举报 / 未认证提示)
+ * 从 PostDetail.css 抽出。三层浮层的内部样式都在这里,
+ * 它们共用「页面级浮层」这一套视觉规格。
+ * ========================================================================== */
+
+/* ---------------- 未认证说明(搭话时) ---------------- */
+
+.vfy {
+  padding: var(--ys-space-4);
+}
+
+.vfy__why {
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.vfy__how {
+  margin: 0 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+.vfy__btn {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.vfy__btn:hover {
+  background: var(--ys-accent-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vfy__btn {
+    transition: none;
+  }
+}

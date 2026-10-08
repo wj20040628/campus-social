@@ -1,0 +1,111 @@
+/* CircleActivities.vue 的样式,从 CircleDetail.css 切出。 */
+.cd__act-bar {
+  margin-bottom: var(--ys-space-4);
+}
+
+.cd__act-new {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-lg);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+}
+
+.cd__acts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.act + .act {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.act__btn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--ys-space-3) 0;
+  border: none;
+  background: transparent;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.act__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+.act__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.act__status {
+  flex: none;
+  height: 20px;
+  padding: 0 var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  font-size: var(--ys-text-xs);
+  line-height: 20px;
+}
+
+.act__status--open {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+.act__status--full {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+}
+
+.act__status--closed {
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+}
+
+.act__meta {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+}
+
+.act__btn:hover .act__meta {
+  color: var(--ys-fg-2);
+}
+
+@media (min-width: 768px) {
+  .cd__body {
+    padding: var(--ys-space-5);
+  }
+}
+
+/* 桌面:顶栏不 sticky,Tab 吸顶到 0 */
+@media (min-width: 1024px) {
+  .cd {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .cd__name {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+}

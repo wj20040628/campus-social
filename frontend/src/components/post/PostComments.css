@@ -1,0 +1,102 @@
+/* ==========================================================================
+ * PostComments · 评论区
+ * 从 PostDetail.css 抽出。评论区空态的视觉权重刻意低于页面级空态,
+ * 见 PostComments.vue 文件头注释。
+ * 断点纪律:字面量 px,值取自 design-tokens.json 的 breakpoint 段
+ * ========================================================================== */
+
+.comments {
+  border-top: 1px solid var(--ys-border);
+}
+
+.comments__head {
+  margin: 0;
+  padding: var(--ys-space-4) var(--ys-gutter-phone) var(--ys-space-2);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.comments__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.c-item {
+  display: flex;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  /* 通知跳转高亮:一次性,不加缓动(它是一次性提示不是状态迁移) */
+  scroll-margin-top: var(--ys-topbar-h);
+}
+
+.c-item + .c-item {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.c-item.is-highlight {
+  background: var(--ys-accent-soft);
+}
+
+.c-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.c-nick {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.c-reply {
+  margin-left: var(--ys-space-1);
+  font-weight: var(--ys-weight-regular);
+  color: var(--ys-muted);
+}
+
+.c-text {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  color: var(--ys-fg);
+  /* anywhere 而非 break-word:长 URL 不能把行撑破(AC-15) */
+  overflow-wrap: anywhere;
+}
+
+.c-mention {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.c-mention:hover {
+  text-decoration: underline;
+}
+
+.c-time {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- ≥768px:留白放大 + 限宽居中 ---------------- */
+
+@media (min-width: 768px) {
+  .comments__head,
+  .c-item {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  .comments {
+    max-width: var(--ys-content-col);
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+}

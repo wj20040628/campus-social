@@ -27,3 +27,9 @@ backend/src/main/resources/application-local.yml
 
 # OS
 .DS_Store
+
+# vite 构建中断残留的临时文件
+frontend/vite.config.js.timestamp-*.mjs
+
+# 迁移前的库结构备份(过程产物,不入库)
+bak/

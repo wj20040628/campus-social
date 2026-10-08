@@ -2,23 +2,28 @@ package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
 import com.campus.social.common.Result;
+import com.campus.social.dto.ChatSendDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.ChatService;
+import com.campus.social.service.StrangerQuotaService;
 import com.campus.social.vo.ChatMessageVO;
+import com.campus.social.vo.ChatSendVO;
 import com.campus.social.vo.ConversationVO;
+import com.campus.social.vo.StrangerQuotaVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/chat")
 public class ChatController {
 
     private final ChatService chatService;
+    private final StrangerQuotaService quotaService;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, StrangerQuotaService quotaService) {
         this.chatService = chatService;
+        this.quotaService = quotaService;
     }
 
     @GetMapping("/conversations")
@@ -40,19 +45,33 @@ public class ChatController {
         return Result.ok(chatService.history(me, peerId, lastId, size));
     }
 
-    @PostMapping("/message")
-    public Result<Map<String, Long>> send(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+    /**
+     * 发送消息（F3 免好友搭话，含三重护栏）。
+     *
+     * <p>openapi.yaml:269 把路径定为 {@code /chat/send}，但现有前端
+     * {@code frontend/src/api/chat.js} 打的是 {@code /chat/message}。
+     * 两条路径同时保留并指向同一实现：等前端切换完成再摘掉旧路径，
+     * 否则这一轮发版会直接把发消息功能打挂。
+     */
+    @PostMapping({"/send", "/message"})
+    public Result<ChatSendVO> send(@Valid @RequestBody ChatSendDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        long to = Long.parseLong(String.valueOf(body.get("toUserId")));
-        String content = String.valueOf(body.get("content"));
-        // 可选:引用回复(被引消息 id,同会话才允许)
-        Long replyToId = null;
-        Object rti = body.get("replyToId");
-        if (rti != null && !String.valueOf(rti).isBlank()) {
-            replyToId = Long.parseLong(String.valueOf(rti));
-        }
-        long msgId = chatService.send(me, to, content, replyToId);
-        return Result.ok(Map.of("msgId", msgId));
+        return Result.ok(chatService.send(me, dto.getToUserId(), dto.getContent(), dto.getReplyToId()));
+    }
+
+    /**
+     * 今日剩余破冰额度。只读不扣减，供前端在搭话入口展示，
+     * 避免用户试错多次后才发现已被拒。
+     *
+     * @param peerId 可选。传了才返回「对该对象」的剩余条数——
+     *               「剩余」不针对具体对象时没有意义，故不传则为 null。
+     */
+    @GetMapping("/stranger-quota")
+    public Result<StrangerQuotaVO> strangerQuota(
+            @RequestParam(value = "peerId", required = false) Long peerId,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(quotaService.snapshot(me, peerId));
     }
 
     /** 撤回消息:仅发送方、仅 60s 内 */

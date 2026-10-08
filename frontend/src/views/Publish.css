@@ -1,0 +1,283 @@
+/*
+  发帖页样式(Publish.vue.md)
+  移动优先:<640px 是基准,≥1024px 只写差异(设计 §2)。
+*/
+
+.pub {
+  display: flex;
+  flex-direction: column;
+  /* min-height 而非 height:键盘弹起时 100dvh 会把内容压到不可滚动 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+/* ---------------- 顶栏 ---------------- */
+.pub__bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--ys-z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  height: var(--ys-topbar-h);
+  padding: 0 var(--ys-gutter-phone);
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.pub__back {
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border: 0;
+  background: none;
+  color: var(--ys-fg);
+  cursor: pointer;
+}
+
+.pub__title {
+  margin: 0;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  letter-spacing: var(--ys-ls-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* ---------------- 正文区 ---------------- */
+.pub__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4) 0;
+}
+
+.pub__label {
+  padding: 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+/*
+  16px 是 iOS Safari 的缩放阈值。<16px 的输入控件聚焦时页面会被放大,
+  而且**不会自动缩回** —— 用户要手动缩回去才能继续写(Publish.vue.md §7)。
+*/
+.pub__editor {
+  flex: 1;
+  padding: 0 var(--ys-gutter-phone);
+}
+
+.pub__editor :deep(.el-textarea__inner) {
+  min-height: 200px;
+  height: 100%;
+  padding: 0 var(--ys-space-4);
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.pub__topic {
+  padding: 0 var(--ys-space-4);
+}
+
+.pub__topic :deep(.el-input__wrapper) {
+  min-height: var(--ys-touch-min);
+  font-size: var(--ys-text-md);
+}
+
+.pub__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  list-style: none;
+}
+
+.pub__chips li {
+  padding: 0 var(--ys-space-2);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-accent-soft);
+  font-size: var(--ys-text-sm);
+  line-height: 24px;
+  color: var(--ys-accent);
+}
+
+.pub__chips-more {
+  background: var(--ys-surface-2) !important;
+  color: var(--ys-fg-2) !important;
+}
+
+.pub__count {
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.pub__count--warn {
+  color: var(--ys-warning);
+}
+
+.pub__count--over {
+  color: var(--ys-danger);
+}
+
+.pub__count-tip {
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+  text-align: right;
+}
+
+.pub__state,
+.pub__loading {
+  padding: var(--ys-space-8) var(--ys-gutter-phone);
+}
+
+/* ---------------- 吸底操作栏 ---------------- */
+.pub__err {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-gutter-phone);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+  background: var(--ys-danger-soft);
+}
+
+/*
+  sticky + translateY,--kb-h 由 useKeyboardViewport 写入 :root。
+  不用 fixed:fixed 在 iOS 键盘弹起时会跟着视口乱飘(Publish.vue.md §4)。
+*/
+.pub__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--ys-z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-gutter-phone);
+  background: var(--ys-surface);
+  border-top: 1px solid var(--ys-border);
+  transform: translateY(calc(-1 * var(--kb-h, 0px)));
+  transition: transform var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.pub__upload {
+  display: contents;
+}
+
+.pub__icon-btn {
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border: 0;
+  border-radius: var(--ys-radius-lg);
+  background: none;
+  color: var(--ys-fg-2);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.pub__icon-btn:hover {
+  background: var(--ys-surface-2);
+}
+
+.pub__submit {
+  flex: 1;
+  max-width: 200px;
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-accent-on);
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.pub__submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------------- ≥1024px:不吸底,内容限宽(设计 §2) ---------------- */
+@media (min-width: 768px) {
+  .pub__bar,
+  .pub__foot {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  .pub__label,
+  .pub__count,
+  .pub__count-tip,
+  .pub__chips,
+  .pub__err {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  .pub__editor :deep(.el-textarea__inner),
+  .pub__topic {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+  }
+
+  .pub__body,
+  .pub__foot,
+  .pub__state,
+  .pub__loading {
+    max-width: var(--ys-content-col);
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pub__foot {
+    position: static;
+    transform: none;
+    justify-content: flex-end;
+    border-top: 0;
+  }
+
+  /* 桌面端媒体按钮恢复带文字 */
+  .pub__icon-btn {
+    width: auto;
+    padding: 0 var(--ys-space-4);
+    font-family: var(--ys-font-body);
+    font-size: var(--ys-text-base);
+    color: var(--ys-fg);
+  }
+
+  .pub__submit {
+    flex: 0 0 auto;
+    min-width: 120px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pub__foot,
+  .pub__count,
+  .pub__icon-btn,
+  .pub__submit {
+    transition: none;
+  }
+}

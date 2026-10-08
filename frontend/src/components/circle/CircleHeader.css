@@ -1,0 +1,92 @@
+/* CircleHeader.vue 的样式,从 CircleDetail.css 切出。 */
+.cd__banner {
+  padding: var(--ys-space-4);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.cd__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+}
+
+.cd__name {
+  margin: 0;
+  font-size: var(--ys-text-xl);
+  line-height: var(--ys-lh-xl);
+  letter-spacing: var(--ys-ls-xl);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  /* 最多 2 行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cd__join {
+  flex: none;
+  min-width: 88px;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+}
+
+.cd__join:disabled {
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+.cd__joined {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  height: 28px;
+  padding: 0 var(--ys-space-3);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-success-soft);
+  color: var(--ys-success);
+  font-size: var(--ys-text-sm);
+}
+
+.cd__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-3);
+}
+
+.cd__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-base);
+}
+
+.cd__owner,
+.cd__count,
+.cd__dot {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

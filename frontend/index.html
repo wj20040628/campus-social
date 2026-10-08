@@ -2,11 +2,17 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover:iPhone 安全区 env() 恒为 0 就是因为缺这一项(SPEC §11坑 8 同族)。
+         缺了它,TabBar 会被 Home Indicator 压住,AC-15 的 44px 热区实际不可点。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>友声 · 校园生活</title>
     <meta name="description" content="友声 —— 嘤其鸣矣，求其友声。让校园里的每一次发声，都能得到回应。" />
-    <meta name="theme-color" content="#2f5d50" />
+    <!-- theme-color 原为 #2f5d50,与设计 Token 主色不一致(SPEC §11 坑 7)。
+         已改为 design-tokens.json color.accent.accent 的值 #0E7490。
+         说明:这是全项目唯一允许出现字面色值的地方——浏览器要求该属性是纯色,
+         CSS 变量在此无效。它是 Token 的一次「静态快照」,改主色时须同步改这里。 -->
+    <meta name="theme-color" content="#0E7490" />
   </head>
   <body>
     <div id="app"></div>

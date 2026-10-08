@@ -6,16 +6,15 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.MessageGateway;
 import com.campus.social.service.VerifyCodeService;
+import com.campus.social.util.RedisLua;
 import com.campus.social.vo.TokenPairVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.List;
 import java.util.regex.Pattern;
 
 import static com.campus.social.common.ResultCode.*;
@@ -38,6 +37,7 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
     private final StringRedisTemplate redis;
     private final MessageGateway messageGateway;
     private final UserMapper userMapper;
+    private final RedisLua redisLua;
     private final SecureRandom random = new SecureRandom();
 
     private static final Duration CODE_TTL = Duration.ofMinutes(5);
@@ -93,22 +93,21 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
     }
 
     /**
-     * 「原子取出并删除」的安全实现。
+     * 「原子取出并删除」已收敛到 {@link com.campus.social.util.RedisLua}。
      *
-     * GETDEL 命令自 Redis 6.2 才引入,Redis 5.x 执行会抛 ERR unknown command。
-     * Spring Data Redis 3.2 的 opsForValue().getAndDelete() 底层即发 GETDEL,
-     * 因此这里改用等价 Lua 脚本:Lua 在 Redis 中同样原子执行,并发语义与 GETDEL 一致。
+     * <p>搬迁理由：GETDEL 命令自 Redis 6.2 才引入，Redis 5.x 执行会抛
+     * {@code ERR unknown command}；Spring Data Redis 3.2 的
+     * {@code opsForValue().getAndDelete()} 底层即发 GETDEL。
+     * 本项目已在验证码链路上踩过一次（SPEC §11 第 1 条）。
+     *
+     * <p>ARCHITECTURE.md §6.5 要求「所有原子读删一律走 Lua，集中放 util/RedisLua.java，
+     * 禁止散落」，§9.3 进一步裁决把本文件内的内联脚本抽出去。纯搬迁，语义与行为不变。
      */
-    private static final RedisScript<String> GET_AND_DELETE = RedisScript.of(
-            "local v = redis.call('GET', KEYS[1]) " +
-            "if v then redis.call('DEL', KEYS[1]) return v else return '' end",
-            String.class);
-
     @Override
     public void verify(String target, String code, String type) {
         String codeKey = "code:" + type + ":" + target;
         // 原子取出并删除:同一 code 并发多次 verify 只有一次能拿到非空值,杜绝同码双用
-        String expected = redis.execute(GET_AND_DELETE, List.of(codeKey));
+        String expected = redisLua.getAndDelete(codeKey);
         if (expected == null || expected.isEmpty()) {
             throw new BusinessException(CODE_INVALID, "验证码已失效,请重新获取");
         }

@@ -1,21 +1,69 @@
 <template>
   <div class="profile">
     <div class="profile-inner">
-      <!-- 首屏加载骨架:资料还没拉回来时占位,避免他人主页进来纯白 -->
-      <el-card v-if="!user" class="profile-card profile-skeleton">
-        <el-skeleton :rows="5" animated />
-      </el-card>
+      <!--
+        资料级失败:用户不存在 / 已注销(设计 §3 错误态,整页替换)。
+        原来这里是 `v-if="!user"` 一路走到骨架屏 —— load() 失败时 user 保持 null,
+        页面永远转圈,用户既看不到内容也看不到错误。
+      -->
+      <StateBlock
+        v-if="loadFailed"
+        class="profile-state"
+        variant="error"
+        title="这个用户不见了"
+        description="可能已经注销，或者链接错了"
+        action-label="回首页"
+        :icon="WarningFilled"
+        @action="router.push('/')"
+      />
+
+      <!-- 加载骨架。形状对齐真实内容:身份头(圆 + 三行条)+ 三统计(设计 §3) -->
+      <div v-else-if="!user" class="profile-skeleton" aria-hidden="true">
+        <SkeletonList variant="audit" :count="1" />
+        <div class="profile-skeleton__stats">
+          <SkeletonList variant="panel" :count="3" />
+        </div>
+      </div>
+
       <el-card v-else class="profile-card">
-        <!-- 封面横幅 -->
+        <!--
+          封面横幅:移动端隐藏(设计 §1.1)。
+          它在本项目里是一个纯灰空块,不承载信息,在 375px 下吃掉 80-120px 首屏高度,
+          把真正重要的身份信息推到折叠线以下。桌面端恢复 —— 桌面上横幅不占首屏成本,
+          且它是个人主页的身份感来源。
+        -->
         <div class="p-cover"></div>
         <div class="p-head">
-          <el-avatar :size="72" :src="resolveUrl(user.avatarUrl)" class="p-avatar" />
+          <!--
+            el-avatar 的 size 是**属性**不是 CSS,媒体查询改不动它(设计 §7)。
+            移动端 56 / 桌面端 72 必须走 computed,不能写死 :size="72"。
+          -->
+          <el-avatar :size="avatarSize" :src="resolveUrl(user.avatarUrl)" class="p-avatar" />
           <div class="p-info">
             <div class="p-name">{{ displayName(user) }}</div>
-            <div class="p-sub">{{ maskUsername(user?.username) }}</div>
+            <!--
+              学院 · 年级。设计 §1.1 要求单行 13px muted 文本,
+              不是两个彩色 tag —— 两个 tag 会把次要信息抬成视觉重点。
+              名称优先用后端下发的 name,没有则按 id 去字典反查(存量数据)。
+            -->
+            <div v-if="identity.deptName || identity.gradeName" class="p-sub">
+              {{ identityLine }}
+            </div>
+            <div v-else class="p-sub p-sub--empty">还没填学校归属</div>
             <div class="p-tags">
-              <el-tag v-if="user.dept" size="small">{{ user.dept }}</el-tag>
-              <el-tag v-if="user.grade" size="small" type="info">{{ user.grade }}</el-tag>
+              <!--
+                认证徽章(AC-12):只到「已认证 · XX 大学」这一层,
+                **不显示真实姓名与学号**。未认证时给本人一个「去认证」的出口。
+                判据见 useProfileData 的 verified(后端 UserVO 无 verified 字段)。
+              -->
+              <span v-if="verified" class="p-badge">
+                <CircleCheck class="p-badge__icon" aria-hidden="true" />
+                已认证<template v-if="user.schoolName"> · {{ user.schoolName }}</template>
+              </span>
+              <span v-else class="p-badge p-badge--off">未认证</span>
+              <router-link v-if="isMe && !verified" to="/onboarding" class="p-verify-link">
+                去认证
+              </router-link>
             </div>
           </div>
           <div class="p-actions">
@@ -25,99 +73,145 @@
             </template>
             <!-- 他人主页:关注 + 发私信 -->
             <template v-else-if="myId">
-              <el-button :type="relStatus?.following ? 'default' : 'primary'" :loading="followLoading" @click="toggleFollow">
+              <el-button
+                :type="relStatus?.following ? 'default' : 'primary'"
+                :loading="followLoading"
+                :aria-pressed="!!relStatus?.following"
+                :aria-label="`${relStatus?.following ? '已关注' : '关注'} ${displayName(user)}`"
+                @click="toggleFollowAndCount"
+              >
                 <el-icon><Plus /></el-icon> {{ relStatus?.following ? '已关注' : '关注' }}
               </el-button>
-              <el-button @click="goChat">
+              <!--
+                AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
+                与 PostDetail 的「搭句话」是同一套未认证处理。
+              -->
+              <el-button @click="onChatClick">
                 <el-icon><ChatDotRound /></el-icon> 发私信
               </el-button>
             </template>
           </div>
         </div>
 
-        <el-row class="p-stats">
-          <el-col :span="8">
-            <div class="stat-num clickable" @click="switchTab('followers')">{{ user.followerCount }}</div>
-            <div class="stat-label clickable" @click="switchTab('followers')">粉丝</div>
-          </el-col>
-          <el-col :span="8">
-            <div class="stat-num clickable" @click="switchTab('following')">{{ user.followingCount }}</div>
-            <div class="stat-label clickable" @click="switchTab('following')">关注</div>
-          </el-col>
-          <el-col :span="8"><div class="stat-num">{{ posts.length }}</div><div class="stat-label">动态</div></el-col>
-        </el-row>
+        <!-- 拉黑关系提示(设计 §3 权限态)。给出解除出口,不能只告知 -->
+        <p v-if="relStatus?.blacklisted" class="p-blocked">
+          你已经把 {{ displayName(user) }} 拉黑了
+          <button type="button" class="p-blocked__undo" @click="unblock">解除拉黑</button>
+        </p>
+
+        <!--
+          三统计:栅格一律 CSS Grid(设计 §1.2)。
+          可点项是<button>、不可点的「动态」是 <div>(设计 §5)——
+          用同一个元素靠 class 区分会让读屏器把「动态」也念成可点的。
+        -->
+        <div class="p-stats">
+          <button
+            v-for="s in clickableStats"
+            :key="s.label"
+            type="button"
+            class="p-stat p-stat--btn"
+            @click="switchTab(s.tab)"
+          >
+            <span class="p-stat__num">{{ cap(s.value) }}</span>
+            <span class="p-stat__label">{{ s.label }}</span>
+          </button>
+          <div class="p-stat">
+            <span class="p-stat__num">{{ cap(posts.length) }}</span>
+            <span class="p-stat__label">动态</span>
+          </div>
+        </div>
 
         <el-tabs v-model="tab" @tab-change="onTabChange">
           <el-tab-pane label="动态" name="posts">
             <!-- 作者侧:我的审核结果(被驳理由/命中词/AI 预判),仅本人主页显示 -->
-            <div v-if="isMe && myReviews.length" class="my-review">
-              <div class="my-review-title">
-                我的审核记录
-                <span class="my-review-sub">共 {{ myReviews.length }} 条</span>
-              </div>
-              <el-collapse v-model="myReviewActive">
-                <el-collapse-item
-                  v-for="r in myReviews"
-                  :key="r.postId"
-                  :name="r.postId"
-                >
-                  <template #title>
-                    <div class="mr-line">
-                      <el-tag v-if="r.status === 2" type="danger" size="small">已驳回</el-tag>
-                      <el-tag v-else-if="r.status === 0" type="warning" size="small">审核中</el-tag>
-                      <el-tag v-else type="success" size="small">已通过</el-tag>
-                      <span class="mr-time">{{ r.createTime }}</span>
-                    </div>
-                  </template>
-                  <div class="mr-body">
-                    <div v-if="r.hitWords?.length" class="mr-row">
-                      <span class="mr-label">命中词</span>
-                      <el-tag v-for="w in r.hitWords" :key="w" size="small" type="info" class="mr-hit">{{ w }}</el-tag>
-                    </div>
-                    <div v-if="r.reason" class="mr-row">
-                      <span class="mr-label">驳回理由</span>
-                      <span class="mr-text">{{ r.reason }}</span>
-                    </div>
-                    <div v-if="r.aiVerdict" class="mr-row">
-                      <span class="mr-label">AI 机审</span>
-                      <el-tag :type="aiTag(r.aiVerdict)" size="small">{{ aiText(r.aiVerdict) }}</el-tag>
-                      <span v-if="r.aiReason" class="mr-text">{{ r.aiReason }}</span>
-                    </div>
-                    <div v-if="r.status === 0" class="mr-tip">
-                      内容审核中,通过后即可展示。若长时间未通过,可修改命中词后重新提交。
-                    </div>
-                  </div>
-                </el-collapse-item>
-              </el-collapse>
-            </div>
+            <MyReviewBlock v-if="isMe" :list="myReviews" />
 
-            <PostCard v-for="p in posts" :key="p.id" :post="p" @click="goDetail(p.id)" />
-            <el-empty v-if="posts.length === 0" description="还没有发过动态" :image-size="80" />
+            <!-- 动态列表拉失败:只换内容区,身份头与统计仍可用(设计 §3) -->
+            <StateBlock
+              v-if="postsFailed"
+              variant="error"
+              title="动态没拉出来"
+              description="网络好像断了，再试一次"
+              action-label="重试"
+              :icon="WarningFilled"
+              @action="loadPosts"
+            />
+            <template v-else>
+              <PostCard v-for="p in posts" :key="p.id" :post="p" @click="goDetail(p.id)" />
+              <!--AC-19:空态出口按「我的主页 / 看别人」分开 ——
+              看别人的主页时让他去发帖子是没意义的,该引导去关注或回广场。-->
+              <StateBlock
+                v-if="posts.length === 0"
+                variant="empty"
+                :title="isMe ? '你还没发过动态' : 'TA 还没发过动态'"
+                :description="isMe ? '发一条，同校的同学就能看到你' : '关注 TA，发新动态时你会收到提醒'"
+                :action-label="isMe ? '发一条' : '回圈子广场'"
+                :icon="ChatLineSquare"
+                @action="isMe ? router.push('/publish') : router.push('/circles')"
+              />
+            </template>
           </el-tab-pane>
+          <!--
+            空态三条各给一个出口(设计 §3)。原实现三条 el-empty 全无按钮,违反 AC-19。
+            文案也按设计改:粉丝空要说「多发几条，就有人来了」而不是「会出现在这儿」——
+            后者只是描述现象,前者给行动。
+          -->
           <el-tab-pane label="粉丝" name="followers">
-            <UserList :list="followers" :loading="loadingFollowers" />
+            <UserList
+              :list="followers"
+              :loading="loadingFollowers"
+              empty-title="还没有人关注 TA"
+              empty-desc="多发几条，就有人来了"
+              empty-action="回首页"
+              @empty-action="router.push('/')"
+            />
           </el-tab-pane>
           <el-tab-pane label="关注" name="following">
-            <UserList :list="following" :loading="loadingFollowing" />
+            <UserList
+              :list="following"
+              :loading="loadingFollowing"
+              empty-title="TA 还没关注任何人"
+              empty-desc="去圈子里看看大家都在聊什么"
+              empty-action="去逛逛"
+              @empty-action="router.push('/circles')"
+            />
           </el-tab-pane>
         </el-tabs>
       </el-card>
     </div>
+
+    <!-- AC-11:未认证点「发私信」的说明 -->
+    <ActionSheet v-model="verifyOpen" title="发私信">
+      <div class="vfy">
+        <p class="vfy__why">要先认证校内身份才能搭话</p>
+        <p class="vfy__how">认证只需要校园邮箱或学号，一分钟就好</p>
+        <button type="button" class="vfy__btn" @click="goVerify">去认证</button>
+      </div>
+    </ActionSheet>
   </div>
 </template>
 
 <script setup>
+/**
+ * 个人主页(Profile.vue.md)
+ * 数据与副作用在 useProfileData / useProfileRelations 里,
+ * 本页只做身份头与三个 Tab 的编排。
+ */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ChatDotRound, Plus } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
-import { me as meApi, userCard } from '@/api/auth'
-import { myPosts as myPostsApi } from '@/api/feed'
-import { mine as myReviewsApi } from '@/api/review'
-import { status, follow as followApi, unfollow as unfollowApi, followers as followersApi, following as followingApi } from '@/api/relation'
+import { ChatDotRound, Plus, ChatLineSquare, CircleCheck, WarningFilled } from '@element-plus/icons-vue'
+import StateBlock from '@/components/common/StateBlock.vue'
+import SkeletonList from '@/components/common/SkeletonList.vue'
+import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
+import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import { useProfileData } from '@/composables/useProfileData'
+import { useProfileRelations } from '@/composables/useProfileRelations'
 import { useUserStore } from '@/stores/user'
-import { maskUsername, displayName } from '@/utils/mask'
+import { useDictStore } from '@/stores/dict'
+import { useIsMobile } from '@/composables/useBreakpoint'
+import { unblacklist } from '@/api/relation'
+import { capCount as cap } from '@/composables/usePostDetail'
+import { displayName, isIdentityVerified } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
 import UserList from '@/components/UserList.vue'
@@ -125,255 +219,113 @@ import UserList from '@/components/UserList.vue'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const dict = useDictStore()
+const isMobile = useIsMobile()
 const targetId = computed(() => Number(route.params.id))
 const myId = computed(() => userStore.userInfo?.id)
 /** 是否本人主页(防"关注自己":自己主页只显示编辑资料) */
 const isMe = computed(() => !!myId.value && myId.value === targetId.value)
 
-const user = ref(null)
-const posts = ref([])
-const relStatus = ref(null)
-const followLoading = ref(false)          // 关注按钮 loading(原 following)
-const followers = ref([])                 // 粉丝列表
-const following = ref([])                // 关注列表
-const loadingFollowers = ref(false)
-const loadingFollowing = ref(false)
+const {
+  user, posts, myReviews, loadFailed, postsFailed,
+  load, loadPosts, identity, identityLine, verified,
+} = useProfileData(targetId, myId, dict)
+
+/*
+  关注关系 + 粉丝/关注列表:状态与副作用都在 composable 里。
+  切人时的重置由 composable 内部的 watch 负责,这里不重复做。
+*/
+const {
+  relStatus, followLoading, followers, following,
+  loadingFollowers, loadingFollowing,
+  loadRelation, toggleFollow, onTabChange,
+} = useProfileRelations(targetId)
+
 const tab = ref('posts')
+const verifyOpen = ref(false)
 
-// 作者侧:我的审核结果(被驳/通过 + 理由 + 命中词 + AI 预判)
-const myReviews = ref([])
-const myReviewActive = ref([])
+/**
+ * el-avatar 的 :size 是属性,媒体查询改不动(设计 §7)。
+ * 移动端 56 / 桌面端 72,必须走 computed 而不是写死 :size="72"。
+ */
+const avatarSize = computed(() => (isMobile.value ? 56 : 72))
 
-function normalize(list) {
-  return (list || []).map((p) => ({
-    ...p,
-    createTime: dayjs(p.createTime).format('MM-DD HH:mm'),
-  }))
+/** 粉丝 / 关注两项可点(跳对应 Tab),「动态」不可点(数字来源是当前已加载的列表) */
+const clickableStats = computed(() => [
+  { label: '粉丝', value: user.value?.followerCount ?? 0, tab: 'followers' },
+  { label: '关注', value: user.value?.followingCount ?? 0, tab: 'following' },
+])
+
+/**
+ * 关注按钮 + 粉丝数联动。
+ *
+ * 计数在前端同步改而不是等下一次往返:用户看到「关注成功了但粉丝数没变」
+ * 会比慢 300ms 更困惑。
+ *
+ * 只有拿到明确的三态结果才动计数 —— 失败(null)时不动,
+ * 否则一次网络失败会让粉丝数凭空少 1。
+ */
+async function toggleFollowAndCount() {
+  const result = await toggleFollow()
+  if (!result || !user.value) return
+  user.value.followerCount = Math.max(
+    0,
+    (user.value.followerCount || 0) + (result === 'followed' ? 1 : -1),
+  )
 }
 
-async function load() {
-  // 自己:用 /user/me(全字段)+ 查自己的动态;他人:用 /user/{id} 卡片
-  if (myId.value === targetId.value) {
-    user.value = await meApi()
-    const data = await myPostsApi(null, 50)
-    posts.value = normalize(data.list)
-    loadMyReviews()
-  } else {
-    user.value = await userCard(targetId.value)
-    posts.value = []
-    myReviews.value = []
-  }
-  relStatus.value = await status(targetId.value)
-}
-
-// 拉我自己的审核结果(作者侧,只能看自己的)
-async function loadMyReviews() {
+/** 解除拉黑。失败时请求层已弹错,关系状态维持原样 */
+async function unblock() {
   try {
-    const data = await myReviewsApi(null, 50)
-    myReviews.value = (data?.list || []).filter(Boolean)
-    myReviewActive.value = [] // 默认全收起,避免一大片展开很吵
+    await unblacklist(targetId.value)
+    relStatus.value.blacklisted = false
+    await loadRelation().catch(() => {})
   } catch {
-    myReviews.value = []
+    /* 留在原地,用户可再点一次 */
   }
 }
 
-// AI 判定文案/标签色(与审核台一致)
-function aiText(v) {
-  return { approve: '建议通过', reject: '建议驳回', manual: '转人工' }[v] || v || ''
-}
-function aiTag(v) {
-  return { approve: 'success', reject: 'danger', manual: 'warning' }[v] || 'info'
+/** AC-11:未认证不跳私信,给说明与出口 */
+function onChatClick() {
+  if (!isIdentityVerified(userStore.userInfo)) {
+    verifyOpen.value = true
+    return
+  }
+  router.push(`/chat?to=${targetId.value}`)
 }
 
-// 点数字切 tab 并惰性拉列表(数字改动不触发 el-tabs 的 @tab-change,得手动切 tab.value)
+function goVerify() {
+  verifyOpen.value = false
+  router.push('/onboarding')
+}
+
+function goDetail(id) {
+  router.push(`/post/${id}`)
+}
+
+function goSettings() {
+  router.push('/settings')
+}
+
+/**
+ * 点数字切 Tab:数字改动不触发 el-tabs 的 @tab-change,得手动改 tab.value 再补拉列表。
+ */
 function switchTab(name) {
   tab.value = name
   onTabChange(name)
 }
 
-// 点 tab 头(「粉丝/关注」标签)触发惰性加载
-function onTabChange(name) {
-  if (name === 'followers' && !followers.value.length && !loadingFollowers.value) loadFollowers()
-  if (name === 'following' && !following.value.length && !loadingFollowing.value) loadFollowing()
-}
-
-async function loadFollowers() {
-  loadingFollowers.value = true
-  try {
-    const data = await followersApi(targetId.value, null, 50)
-    followers.value = (data?.list || []).filter(Boolean)
-  } finally {
-    loadingFollowers.value = false
-  }
-}
-
-async function loadFollowing() {
-  loadingFollowing.value = true
-  try {
-    const data = await followingApi(targetId.value, null, 50)
-    following.value = (data?.list || []).filter(Boolean)
-  } finally {
-    loadingFollowing.value = false
-  }
-}
-
-/**
- * 路由变化(从他人主页切到自己/切到别的用户)时,全量重载:
- * 组件被路由复用不会重建,onMounted 只跑一次,靠 watch 重新拉
- * user / relStatus / 粉丝 / 关注,否则按钮(编辑资料 vs 关注)和资料会残留旧 targetId 的值。
- */
+// 路由变化(从他人主页切到自己/切到别的用户)时全量重载:
+// 组件被路由复用不会重建,onMounted 只跑一次,靠 watch 重新拉
 watch(targetId, () => {
   user.value = null
-  relStatus.value = null
-  posts.value = []
-  myReviews.value = []
-  followers.value = []
-  following.value = []
   load()
-  loadFollowers()
-  loadFollowing()
 })
 
-async function toggleFollow() {
-  followLoading.value = true
-  try {
-    if (relStatus.value?.following) {
-      await unfollowApi(targetId.value)
-      relStatus.value.following = false
-      user.value.followerCount = Math.max(0, (user.value.followerCount || 0) - 1)
-    } else {
-      await followApi(targetId.value)
-      relStatus.value.following = true
-      user.value.followerCount = (user.value.followerCount || 0) + 1
-    }
-  } finally {
-    followLoading.value = false
-  }
-}
-
-function goChat() {
-  router.push(`/chat?to=${targetId.value}`)
-}
-function goDetail(id) {
-  router.push(`/post/${id}`)
-}
-function goSettings() {
-  router.push('/settings')
-}
-
-onMounted(load)
+onMounted(async () => {
+  // 字典与资料并发拉,不串行 —— 串行会让首屏多等一个往返
+  await Promise.all([dict.ensureLoaded(), load(), loadRelation().catch(() => {})])
+})
 </script>
 
-<style scoped>
-.profile-inner {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 20px;
-}
-.profile-card {
-  border-radius: var(--card-radius);
-  overflow: hidden;
-  padding: 0;
-}
-.profile-skeleton {
-  padding: 24px;
-}
-.profile-card :deep(.el-card__body) {
-  padding: 0;
-}
-.profile-card :deep(.el-card__body) > * {
-  padding: 0 20px;
-}
-.p-cover {
-  height: 96px;
-  background: linear-gradient(135deg, var(--el-color-primary-light-7), var(--el-color-primary-light-3));
-}
-.p-head {
-  display: flex;
-  gap: 16px;
-  align-items: flex-end;
-  margin-top: -36px;   /* 头像压到封面下沿,Instagram 式 */
-  padding-bottom: 12px;
-}
-.p-avatar {
-  border: 4px solid var(--el-bg-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-.p-name { font-size: 20px; font-weight: 700; }
-.p-sub { font-size: 13px; color: var(--el-text-color-secondary); }
-.p-tags { display: flex; gap: 6px; margin-top: 8px; }
-.p-actions { margin-left: auto; display: flex; gap: 8px; }
-.p-stats { margin: 12px 0 8px; text-align: center; }
-.stat-num { font-size: 22px; font-weight: 700; }
-.stat-label { font-size: 13px; color: var(--el-text-color-secondary); }
-.stat-num.clickable, .stat-label.clickable {
-  cursor: pointer;
-}
-.stat-num.clickable:hover, .stat-label.clickable:hover {
-  color: var(--el-color-primary);
-}
-
-/* 作者侧:我的审核记录 */
-.my-review {
-  margin: 0 20px 16px;
-  padding: 12px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 8px;
-}
-.my-review-title {
-  font-weight: 700;
-  font-size: 15px;
-  margin-bottom: 8px;
-}
-.my-review-sub {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--el-text-color-secondary);
-  margin-left: 8px;
-}
-.my-review .el-collapse {
-  border: none;
-  background: var(--el-bg-color);
-}
-.mr-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-.mr-time {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-left: 6px;
-}
-.mr-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mr-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.mr-label {
-  flex: 0 0 56px;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-.mr-text {
-  color: var(--el-text-color-regular);
-}
-.mr-hit {
-  margin-right: 4px;
-}
-.mr-tip {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  padding: 6px 8px;
-  background: var(--el-color-warning-light-9);
-  border-radius: 6px;
-}
-</style>
+<style scoped src="./Profile.css"></style>

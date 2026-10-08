@@ -1,0 +1,96 @@
+/* Chat.vue 的样式,抽离到外部文件以控制单文件行数。 */
+/*
+ * 手机:单栏。/chat 渲染列表,/chat/t/... 渲染会话 —— 两条路由各渲染自己的分支。
+ *
+ * 断点用字面量 1024px:本项目无 postcss-custom-media,
+ * `@media (--ys-bp-lg)` 会被浏览器静默丢弃整块规则(SPEC §11 沉默故障)。
+ * 值与 design-tokens.json 的 breakpoint.lg 一致;JS 侧由 useBreakpoint 读同一份。
+ */
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+.chat__list {
+  flex: 1;
+}
+
+.chat__main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat__thread {
+  flex: 1;
+  min-height: 0;
+}
+
+.chat__blank {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ys-space-4);
+  background: var(--ys-surface);
+}
+
+.chat__blank-title {
+  margin: 0;
+  max-width: 24ch;
+  text-align: center;
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  letter-spacing: var(--ys-ls-lg);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.chat__blank-btn {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-6);
+  border-radius: var(--ys-radius-lg);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  /*
+   * 桌面双栏:
+   *   左 --ys-aside-w(320px,原硬编码 280px 在 1024 下余量不够)
+   *   右 flex:1
+   * 高度扣掉顶栏:会话窗自己撑满剩余高度,内部消息区再 flex:1 滚动。
+   */
+  .chat {
+    flex-direction: row;
+    height: calc(100dvh - var(--ys-topbar-h));
+    background: var(--ys-surface);
+    border: 1px solid var(--ys-border);
+    border-radius: var(--ys-radius-xl);
+    overflow: hidden;
+  }
+
+  .chat__list {
+    flex: 0 0 var(--ys-aside-w);
+    width: var(--ys-aside-w);
+    border-right: 1px solid var(--ys-border);
+    overflow-y: auto;
+  }
+
+  .chat__main {
+    flex: 1;
+  }
+
+  /* 桌面无软键盘,不需要键盘位移 */
+  .chat__thread :deep(.input) {
+    transform: none;
+  }
+}

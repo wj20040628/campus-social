@@ -1,0 +1,110 @@
+/* AdminAnnouncement.vue 的样式,抽离到外部文件以控制单文件行数。 */
+.aa {
+  max-width: var(--ys-container-max);
+  margin: 0 auto;
+}
+
+.aa__head {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--ys-space-2) var(--ys-space-4) 0;
+}
+
+.aa__new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.aa__new:active {
+  opacity: 0.7;
+}
+
+.chips {
+  display: flex;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.chip.is-on {
+  background: var(--ys-accent);
+  border-color: var(--ys-accent);
+  color: var(--ys-accent-on);
+}
+
+.notice {
+  margin: 0 var(--ys-space-4) var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+}
+
+.notice--danger {
+  color: var(--ys-danger);
+}
+
+.aa__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--ys-surface);
+}
+
+.aa__list > * + * {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.more {
+  margin: 0;
+  padding: var(--ys-space-4);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .aa,
+  .aa__list {
+    background: var(--ys-surface);
+    border: 1px solid var(--ys-border);
+    border-radius: var(--ys-radius-xl);
+  }
+
+  .aa__list > *:first-child {
+    border-radius: var(--ys-radius-xl) var(--ys-radius-xl) 0 0;
+  }
+}

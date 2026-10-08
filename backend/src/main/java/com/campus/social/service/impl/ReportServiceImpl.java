@@ -1,0 +1,205 @@
+package com.campus.social.service.impl;
+
+import com.campus.social.common.ResultCode;
+import com.campus.social.dto.ReportHandleDTO;
+import com.campus.social.dto.ReportSubmitDTO;
+import com.campus.social.entity.Report;
+import com.campus.social.exception.BusinessException;
+import com.campus.social.mapper.ReportMapper;
+import com.campus.social.service.AuditService;
+import com.campus.social.service.BanService;
+import com.campus.social.service.ReportService;
+import com.campus.social.vo.ReportHandleVO;
+import com.campus.social.vo.ReportSubmitVO;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+
+import static com.campus.social.common.ResultCode.NOT_FOUND;
+import static com.campus.social.common.ResultCode.REPORT_ALREADY_HANDLED;
+import static com.campus.social.common.ResultCode.REPORT_NOT_FOUND;
+import static com.campus.social.common.ResultCode.UNPROCESSABLE;
+
+/**
+ * 举报服务实现（F4）。
+ *
+ * <p>幂等与并发两道防线：
+ * <ul>
+ *   <li>唯一索引 {@code uk_report(reporter_id,target_type,target_id)} 兜底，
+ *       插入用 {@code ON DUPLICATE KEY UPDATE id = id} 而非 INSERT IGNORE
+ *       ——后者会把截断、非空约束等真实错误一并吞掉，变成静默的数据丢失</li>
+ *   <li>处置走乐观锁 {@code UPDATE ... WHERE status = 0}，
+ *       影响行数 0 即「已被他人处置」，回 409</li>
+ * </ul>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ReportServiceImpl implements ReportService {
+
+    /** 处置动作 */
+    private static final String ACTION_BAN = "ban";
+    private static final String ACTION_REJECT = "reject";
+    private static final String ACTION_IGNORE = "ignore";
+
+    /** report.status */
+    private static final int STATUS_PENDING = 0;
+    private static final int STATUS_CONFIRMED = 1;
+    private static final int STATUS_REJECTED = 2;
+
+    /** 审计动作名 */
+    private static final String AUDIT_BAN = "report_ban";
+    private static final String AUDIT_REJECT = "report_reject";
+
+    private final ReportMapper reportMapper;
+    private final BanService banService;
+    private final AuditService auditService;
+
+    @Override
+    @Transactional
+    public ReportSubmitVO submit(long reporterId, ReportSubmitDTO dto) {
+        // 先查一次：命中就是幂等重复，直接回显原记录。
+        // 这不是并发保护（并发时两个请求可能都查不到），
+        // 真正的兜底是唯一索引 + ON DUPLICATE KEY。
+        var existing = reportMapper.selectByTarget(reporterId, dto.getTargetType(), dto.getTargetId());
+        if (existing != null) {
+            return ReportSubmitVO.builder()
+                    .reportId(existing.getId())
+                    .duplicated(true)
+                    .status(existing.getStatus())
+                    .build();
+        }
+
+        int affected = reportMapper.insertIdempotent(reporterId, dto.getTargetType(), dto.getTargetId(),
+                dto.getReasonType(), dto.getReasonText());
+        if (affected == 0) {
+            // 并发下另一个请求刚插进同一条唯一键。回查拿 id，不能当成失败报错——
+            // 对用户来说「重复举报」不是错误。
+            var again = reportMapper.selectByTarget(reporterId, dto.getTargetType(), dto.getTargetId());
+            if (again == null) {
+                // 查不到说明不是唯一键冲突而是真失败了，此时 affected 也必然 > 0，
+                // 走到这里说明数据被并发删掉了，回 500 让上层感知
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "举报提交异常，请重试");
+            }
+            return ReportSubmitVO.builder()
+                    .reportId(again.getId())
+                    .duplicated(true)
+                    .status(again.getStatus())
+                    .build();
+        }
+
+        var created = reportMapper.selectByTarget(reporterId, dto.getTargetType(), dto.getTargetId());
+        log.info("report submitted: reporter={}, type={}, target={}, reason={}",
+                reporterId, dto.getTargetType(), dto.getTargetId(), dto.getReasonType());
+        return ReportSubmitVO.builder()
+                .reportId(created == null ? null : created.getId())
+                .duplicated(false)
+                .status(STATUS_PENDING)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ReportHandleVO handle(long adminId, long reportId, ReportHandleDTO dto) {
+        var report = reportMapper.selectById(reportId);
+        if (report == null || Integer.valueOf(1).equals(report.getIsDeleted())) {
+            throw new BusinessException(REPORT_NOT_FOUND, "举报记录不存在");
+        }
+        if (!Integer.valueOf(STATUS_PENDING).equals(report.getStatus())) {
+            throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
+        }
+
+        String action = dto.getAction() == null ? "" : dto.getAction().trim();
+        LocalDateTime now = LocalDateTime.now();
+        return switch (action) {
+            case ACTION_BAN -> handleBan(adminId, report, dto, now);
+            case ACTION_REJECT -> handleReject(adminId, reportId, dto, now);
+            case ACTION_IGNORE -> handleIgnore(adminId, reportId, dto);
+            default -> throw new BusinessException(UNPROCESSABLE, "处置动作不合法，只能是 ban / reject / ignore");
+        };
+    }
+
+    /** 成立并封禁目标用户 */
+    private ReportHandleVO handleBan(long adminId, Report report, ReportHandleDTO dto, LocalDateTime now) {
+        Integer banDays = dto.getBanDays();
+        if (banDays == null || banDays < 0) {
+            throw new BusinessException(UNPROCESSABLE, "封禁必须指定天数，0 表示永久");
+        }
+        // 被封禁的是内容的作者，不是内容本身（targetType 五种取值分别解析）
+        long targetUserId = resolveTargetUserId(report);
+
+        int affected = reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, dto.getHandleNote());
+        if (affected == 0) {
+            throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
+        }
+        LocalDateTime bannedUntil = banService.ban(targetUserId, banDays);
+        auditService.record(adminId, AUDIT_BAN, "report", report.getId(),
+                "封禁用户 " + targetUserId + "，天数 " + banDays + "，备注 " + dto.getHandleNote(), "");
+        log.info("report ban: report={}, targetUser={}, days={}, admin={}",
+                report.getId(), targetUserId, banDays, adminId);
+        return ReportHandleVO.builder()
+                .reportId(report.getId())
+                .status(STATUS_CONFIRMED)
+                .action(ACTION_BAN)
+                .bannedUntil(bannedUntil)
+                .build();
+    }
+
+    /** 驳回：举报不成立 */
+    private ReportHandleVO handleReject(long adminId, long reportId, ReportHandleDTO dto, LocalDateTime now) {
+        int affected = reportMapper.handle(reportId, STATUS_REJECTED, adminId, now, dto.getHandleNote());
+        if (affected == 0) {
+            throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
+        }
+        auditService.record(adminId, AUDIT_REJECT, "report", reportId, dto.getHandleNote(), "");
+        log.info("report rejected: report={}, admin={}", reportId, adminId);
+        return ReportHandleVO.builder()
+                .reportId(reportId)
+                .status(STATUS_REJECTED)
+                .action(ACTION_REJECT)
+                .build();
+    }
+
+    /** 忽略：不改status，仅记录处置人（用于「已阅未处置」） */
+    private ReportHandleVO handleIgnore(long adminId, long reportId, ReportHandleDTO dto) {
+        int affected = reportMapper.markIgnored(reportId, adminId, dto.getHandleNote());
+        if (affected == 0) {
+            throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
+        }
+        log.info("report ignored: report={}, admin={}", reportId, adminId);
+        return ReportHandleVO.builder()
+                .reportId(reportId)
+                .status(STATUS_PENDING)
+                .action(ACTION_IGNORE)
+                .build();
+    }
+
+    /**
+     * 解析被封禁的用户 id。
+     *
+     * <p>{@code targetType} 五种取值的处置对象各不相同：
+     * 1用户→ targetId 本身；2帖子→ post.author_id；3评论→ comment.user_id；
+     * 4聊天消息→ chat_message.sender_id；
+     * 5搭子→ buddy_post（MVP+ 第二批，表已建但无端点，故不支持封禁）。
+     *
+     * <p>任一环查不到都回 404 而不是默默封举报人：封错对象的代价
+     * （误封无辜用户）远大于让管理员多点一次重新定位。
+     */
+    private long resolveTargetUserId(Report report) {
+        Long authorId = switch (report.getTargetType()) {
+            case 1 -> report.getTargetId();
+            case 2 -> reportMapper.selectPostAuthorId(report.getTargetId());
+            case 3 -> reportMapper.selectCommentAuthorId(report.getTargetId());
+            case 4 -> reportMapper.selectChatMessageSenderId(report.getTargetId());
+            default -> throw new BusinessException(UNPROCESSABLE,
+                    "搭子内容的封禁需在搭子模块上线后处理，请改为驳回或忽略");
+        };
+        if (authorId == null) {
+            throw new BusinessException(NOT_FOUND, "被举报内容已不存在或已被删除，无法定位作者");
+        }
+        return authorId;
+    }
+}

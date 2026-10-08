@@ -1,0 +1,198 @@
+/* Onboarding.vue 的样式,抽离到外部文件以控制单文件行数。 */
+/*
+ * 外壳用 100dvh 而非 100vh:iOS Safari 地址栏收起/展开时 100vh 不变,
+ * 会让吸底栏被地址栏压掉一半。dvh 随可视高度变化。
+ * (100vh 在移动端是已知坑,见 SPEC §11)
+ */
+.ob {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+.ob__bar {
+  height: 4px;
+  background: var(--ys-surface-2);
+  flex: none;
+}
+
+.ob__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--ys-accent);
+  /*
+   * 唯一允许过渡 width 的地方(§4):进度条语义就是宽度,无子元素重排。
+   * 其余动效一律只动 transform / opacity。
+   */
+  transition: width var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.ob__steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 var(--ys-space-4);
+  flex: none;
+}
+
+.ob__steps-text {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+}
+
+.ob__skip {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: none;
+  background: transparent;
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+}
+
+.ob__brand {
+  display: none;
+  margin: var(--ys-space-6) 0 0;
+  text-align: center;
+  font-size: var(--ys-text-3xl);
+  font-weight: var(--ys-weight-semibold);
+  letter-spacing: var(--ys-ls-3xl);
+  color: var(--ys-fg);
+}
+
+.ob__body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--ys-space-2) var(--ys-space-4) var(--ys-space-6);
+}
+
+.ob__foot {
+  flex: none;
+  background: var(--ys-surface);
+  border-top: 1px solid var(--ys-border);
+}
+
+.ob__foot-err {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4) 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+}
+
+.ob__foot-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  min-height: 56px;
+  padding: 0 var(--ys-space-4);
+}
+
+.ob__foot-meta {
+  flex: 1;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+}
+
+.ob__primary {
+  flex: 1;
+  min-height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-lg);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.ob__primary:disabled {
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+.ob__primary:not(:disabled):active {
+  opacity: 0.7;
+}
+
+/* 步骤切换:横向。禁止纵向位移(§4) */
+.slide-left-enter-active,
+.slide-left-leave-active,
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition:
+    transform var(--ys-motion-page) var(--ys-ease-in-out),
+    opacity var(--ys-motion-page) var(--ys-ease-in-out);
+}
+
+.slide-left-enter-from,
+.slide-right-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
+}
+
+.slide-left-leave-to,
+.slide-right-enter-from {
+  transform: translateX(-24px);
+  opacity: 0;
+}
+
+/* 桌面端:居中 480px 卡片,操作栏不吸底(§2) */
+@media (min-width: 768px) {
+  .ob {
+    justify-content: center;
+    background: var(--ys-bg);
+  }
+
+  .ob__bar,
+  .ob__steps {
+    display: none;
+  }
+
+  .ob__brand {
+    display: block;
+  }
+
+  .ob__body,
+  .ob__foot {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--ys-surface);
+    border: 1px solid var(--ys-border);
+    box-shadow: var(--ys-shadow-2);
+  }
+
+  .ob__body {
+    border-radius: var(--ys-radius-xl) var(--ys-radius-xl) 0 0;
+    border-bottom: none;
+  }
+
+  .ob__foot {
+    border-radius: 0 0 var(--ys-radius-xl) var(--ys-radius-xl);
+    overflow: hidden;
+  }
+
+  .ob__step1-only-desktop {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob__bar-fill,
+  .slide-left-enter-active,
+  .slide-left-leave-active,
+  .slide-right-enter-active,
+  .slide-right-leave-active {
+    transition: none;
+  }
+}

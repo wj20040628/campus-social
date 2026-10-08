@@ -11,21 +11,43 @@
     <div v-if="loading" class="u-loading">
       <el-skeleton :rows="3" animated />
     </div>
-    <el-empty v-if="!loading && !list.length" description="暂无" :image-size="60" />
+<!--
+空态文案由调用方传入:同一个组件被「粉丝」「关注」「被@推荐人」等场景复用,
+写死「暂无」会让所有场景都变成同一句废话(AC-19)。
+出口按钮同样由调用方给:「回首页」与「去逛逛」在两个场景里是不同的出路。
+    -->
+    <StateBlock
+      v-if="!loading && !list.length"
+      variant="empty"
+      :title="emptyTitle"
+      :description="emptyDesc"
+      :action-label="emptyAction"
+      :icon="User"
+      @action="$emit('empty-action')"
+    />
   </div>
 </template>
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { User } from '@element-plus/icons-vue'
 import { maskUsername, displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
+import StateBlock from '@/components/common/StateBlock.vue'
 
 const router = useRouter()
 
 defineProps({
   list: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  /** 空态主句,由调用方按语境给 */
+  emptyTitle: { type: String, default: '还没有人' },
+  emptyDesc: { type: String, default: '' },
+  /** 空态出口按钮文案。为空则不渲染按钮(AC-19 要求有出口,调用方应给出) */
+  emptyAction: { type: String, default: '' },
 })
+
+defineEmits(['empty-action'])
 
 function mask(u) { return maskUsername(u?.username) }
 function nick(u) { return displayName(u) }

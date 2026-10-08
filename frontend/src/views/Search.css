@@ -1,0 +1,89 @@
+/* ==========================================================================
+ * Search · 搜索页
+ * 断点纪律:字面量 px,值取自 design-tokens.json 的 breakpoint 段
+ * ========================================================================== */
+
+.search {
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+.search-inner {
+  max-width: var(--ys-content-col);
+  margin: 0 auto;
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+}
+
+/* 栅格一律 CSS Grid。原 el-row + el-col :span=14 属 EP 的 24 栅格体系,
+   换掉才能保证断点只有一套(红线 3)。搜索框占满,按钮跟着走 */
+.search__bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--ys-space-2);
+  margin-bottom: var(--ys-space-4);
+}
+
+.search__input {
+  width: 100%;
+}
+
+.res-list {
+  padding: var(--ys-space-2) 0;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4) var(--ys-space-2);
+  border-bottom: 1px solid var(--ys-border-soft);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.user-item:active {
+  background: var(--ys-surface-2);
+}
+
+.u-avatar {
+  flex-shrink: 0;
+}
+
+.c-avatar {
+  background: var(--ys-accent-soft);
+}
+
+.u-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.u-name {
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.u-sub {
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+@media (min-width: 768px) {
+  .search-inner {
+    padding: var(--ys-space-5) var(--ys-gutter-desktop);
+  }
+
+  .user-item:hover {
+    background: var(--ys-surface-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-item {
+    transition: none;
+  }
+}

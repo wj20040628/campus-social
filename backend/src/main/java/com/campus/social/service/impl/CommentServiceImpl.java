@@ -1,0 +1,237 @@
+package com.campus.social.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.campus.social.common.CursorPage;
+import com.campus.social.dto.CreateCommentDTO;
+import com.campus.social.entity.Comment;
+import com.campus.social.entity.Like;
+import com.campus.social.entity.Post;
+import com.campus.social.entity.User;
+import com.campus.social.exception.BusinessException;
+import com.campus.social.mapper.CommentMapper;
+import com.campus.social.mapper.LikeMapper;
+import com.campus.social.mapper.PostMapper;
+import com.campus.social.mapper.UserMapper;
+import com.campus.social.util.SensitiveWordFilter;
+import com.campus.social.vo.CommentVO;
+import com.campus.social.vo.UserVO;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static com.campus.social.common.ResultCode.POST_NOT_FOUND;
+
+/**
+ * 评论域实现（从 PostServiceImpl 拆出）。
+ *
+ * <p><b>为什么拆</b>：评论有自己独立的三级层级规则、@提及解析、按层级分派通知目标、
+ * 以及独立的「点赞对象是评论而非帖子」判定，与帖子的写扩散/Feed 游标逻辑没有共用代码。
+ * 混在一个类里会让「一次评论请求会改动哪些表」这件事无法一眼看完。
+ *
+ * <p><b>事务边界保持原样</b>：评论落库 + 帖子评论数 +1 + 热度分 + 通知
+ * 仍在同一事务内，拆类不改变原子性（Spring 事务基于代理，同类内部调用不生效，
+ * 故这里由 PostServiceImpl 注入本类并跨类调用，事务照常生效）。
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CommentServiceImpl {
+
+    private static final int TARGET_TYPE_COMMENT = 2;
+    private static final int NOTIFY_TYPE_COMMENT = 3;
+    private static final int NOTIFY_TYPE_MENTION = 9;  // 评论中被 @
+
+    private final PostMapper postMapper;
+    private final CommentMapper commentMapper;
+    private final LikeMapper likeMapper;
+    private final UserMapper userMapper;
+    private final SensitiveWordFilter sensitive;
+    private final ObjectMapper om;
+    private final com.campus.social.websocket.WsPushService wsPush;
+    /** 通知下发复用写路径的横切能力,保证「未读数 + WS 推送」口径一致 */
+    private final PostNotifySupport notifySupport;
+
+    @Transactional
+    public long comment(long postId, CreateCommentDTO dto, long userId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null || post.getStatus() != 1) {
+            throw new BusinessException(POST_NOT_FOUND, "帖子不可评论");
+        }
+        // 评论也过敏感词
+        String content = dto.getContent();
+        if (sensitive.containsBlock(content)) {
+            throw new BusinessException(com.campus.social.common.ResultCode.SENSITIVE_WORD_BLOCKED);
+        }
+        content = sensitive.replaceAll(content);
+
+        int level = dto.getLevel() == null ? 1 : dto.getLevel();
+        if (level < 1 || level > 3) {
+            throw new BusinessException(com.campus.social.common.ResultCode.BAD_REQUEST.getCode(), "评论层级 1~3");
+        }
+
+        Comment c = new Comment();
+        c.setPostId(postId);
+        c.setUserId(userId);
+        c.setParentId(dto.getParentId());
+        c.setLevel(level);
+        c.setReplyToUserId(dto.getReplyToUserId());
+        c.setContent(content);
+        c.setStatus(1);
+        bindMentioned(c, dto);
+        commentMapper.insert(c);
+
+        postMapper.adjustCommentCount(postId, 1);
+        // 热度分
+        postMapper.updateHotScore(postId, post.getHotScore() + 2.0);
+
+        pushCommentNotify(c, dto, post, userId);
+        return c.getId();
+    }
+
+    public CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId) {
+        LambdaQueryWrapper<Comment> qw = new LambdaQueryWrapper<Comment>()
+                .eq(Comment::getPostId, postId)
+                .eq(Comment::getStatus, 1)
+                .eq(Comment::getLevel, 1)
+                .lt(lastId != null, Comment::getId, lastId)
+                .orderByDesc(Comment::getId)
+                .last("LIMIT " + (size + 1));
+        List<Comment> rows = commentMapper.selectList(qw);
+        boolean hasMore = rows.size() > size;
+        List<Comment> page = rows.stream().limit(size).toList();
+
+        List<CommentVO> vos = page.stream().map(c -> toCommentVo(c, viewerId)).toList();
+        Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
+        return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    /**
+     * 解析并写入被 @ 用户映射。
+     *
+     * <p>存「昵称→id」而非只存 id：昵称可能重名，前端要据此把 @昵称 渲染成可点跳转，
+     * 只存 id 就得再发一次请求反查昵称。
+     */
+    private void bindMentioned(Comment c, CreateCommentDTO dto) {
+        if (dto.getMentionUserIds() == null || dto.getMentionUserIds().isEmpty()) {
+            return;
+        }
+        Map<String, Long> mentioned = new LinkedHashMap<>();
+        for (Long mid : dto.getMentionUserIds().stream().distinct().toList()) {
+            User mu = userMapper.selectById(mid);
+            if (mu != null && mu.getStatus() != 2) {
+                mentioned.put(mu.getNickname() != null ? mu.getNickname() : mu.getUsername(), mu.getId());
+            }
+        }
+        if (mentioned.isEmpty()) {
+            return;
+        }
+        try {
+            c.setMentioned(om.writeValueAsString(mentioned));
+        } catch (Exception ignored) {
+            // 提及映射序列化失败不阻塞评论本身:评论已能正常展示,
+            // 只是 @ 昵称不可点击。丢一个可点的 @ 比丢整条评论划算
+        }
+    }
+
+    /**
+     * 通知发送：按评论层级分派目标 + 单独给被 @ 者发 type=9。
+     *
+     * <p>归属人头（被通知方）取决于层级：一级评论通知帖子作者，
+     * 二级通知一级评论者，三级通知被回复的人。发错人会让用户收到与自己无关的红点。
+     */
+    private void pushCommentNotify(Comment c, CreateCommentDTO dto, Post post, long userId) {
+        Long notifyTarget;
+        int level = c.getLevel();
+        if (level == 1) {
+            notifyTarget = post.getAuthorId();
+        } else if (level == 2 && dto.getParentId() != null) {
+            Comment parent = commentMapper.selectById(dto.getParentId());
+            notifyTarget = parent != null ? parent.getUserId() : post.getAuthorId();
+        } else {
+            notifyTarget = dto.getReplyToUserId() != null ? dto.getReplyToUserId() : post.getAuthorId();
+        }
+        if (!notifyTarget.equals(userId)) {
+            notifySupport.pushNotify(notifyTarget, NOTIFY_TYPE_COMMENT, c.getId(), userId, c.getPostId());
+        }
+
+        // 被 @ 通知(type=9):按前端传来的唯一 id 精准发,昵称不唯一所以不靠正文反查。
+        // 排除自己、去重、跳过已失效用户
+        if (dto.getMentionUserIds() == null || dto.getMentionUserIds().isEmpty()) {
+            return;
+        }
+        List<Long> mentionIds = dto.getMentionUserIds().stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(mid -> !mid.equals(userId))
+                .toList();
+        for (Long mid : mentionIds) {
+            User mentioned = userMapper.selectById(mid);
+            if (mentioned != null && mentioned.getStatus() != 2) {
+                notifySupport.pushNotify(mid, NOTIFY_TYPE_MENTION, c.getId(), userId, c.getPostId());
+            }
+        }
+    }
+
+
+    /** 解析 comment.mentioned JSON 为 昵称→id 映射;解析失败返回 null(不阻塞评论展示) */
+    private Map<String, Long> parseMentioned(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return om.readValue(json, new TypeReference<Map<String, Long>>() { });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private CommentVO toCommentVo(Comment c, long viewerId) {
+        User u = userMapper.selectById(c.getUserId());
+        UserVO userVo = u == null ? null
+                : UserVO.builder()
+                        .id(u.getId())
+                        .username(u.getUsername())
+                        .nickname(u.getNickname() != null ? u.getNickname() : u.getUsername())
+                        .avatarUrl(u.getAvatarUrl())
+                        .build();
+
+        boolean liked = false;
+        if (viewerId > 0) {
+            Long cnt = likeMapper.selectCount(new LambdaQueryWrapper<Like>()
+                    .eq(Like::getUserId, viewerId)
+                    .eq(Like::getTargetType, TARGET_TYPE_COMMENT)
+                    .eq(Like::getTargetId, c.getId()));
+            liked = cnt > 0;
+        }
+        String replyNick = null;
+        if (c.getReplyToUserId() != null) {
+            User rep = userMapper.selectById(c.getReplyToUserId());
+            if (rep != null) {
+                replyNick = rep.getNickname() != null ? rep.getNickname() : rep.getUsername();
+            }
+        }
+        return CommentVO.builder()
+                .id(c.getId())
+                .postId(c.getPostId())
+                .userId(c.getUserId())
+                .user(userVo)
+                .parentId(c.getParentId())
+                .level(c.getLevel())
+                .replyToUserId(c.getReplyToUserId())
+                .replyToNickname(replyNick)
+                .content(c.getContent())
+                .mentioned(parseMentioned(c.getMentioned()))
+                .likeCount(0)
+                .liked(liked)
+                .createTime(c.getCreateTime())
+                .build();
+    }
+}

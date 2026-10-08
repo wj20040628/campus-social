@@ -2,9 +2,13 @@ package com.campus.social.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.campus.social.entity.Circle;
+import com.campus.social.vo.RecommendCircleRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
 
 @Mapper
 public interface CircleMapper extends BaseMapper<Circle> {
@@ -17,4 +21,24 @@ public interface CircleMapper extends BaseMapper<Circle> {
             "  member_count = (SELECT COUNT(*) FROM circle_member cm WHERE cm.circle_id = c.id AND cm.is_deleted = 0), " +
             "  update_time = NOW()")
     int reconcileMemberCount();
+
+    /**
+     * 引导推荐圈子（ARCHITECTURE §3 Q10.4）。
+     *
+     * <p>排序 {@code member_count DESC, create_time DESC, id DESC}：
+     * 末位 id DESC 是必需的——同一批种子圈子的 create_time 可能完全相同
+     * （批量导入时秒级精度会撞），没有末位兜底则每次刷新顺序都可能不同。
+     *
+     * <p>排除已加入：{@code circle_member.is_deleted = 0} 必须带。
+     * 漏掉它会让「退圈」的用户再也看不到这个圈子——用户会以为圈子消失了。
+     *
+     * <p>排除 status=1（封禁）的圈子：封禁意味着不让出现在任何列表里。
+     */
+    @Select("SELECT c.id, c.name, c.member_count, c.create_time FROM circle c "
+            + "WHERE c.is_deleted = 0 AND c.status = 0 "
+            + "  AND NOT EXISTS (SELECT 1 FROM circle_member cm "
+            + "                  WHERE cm.circle_id = c.id AND cm.user_id = #{me} AND cm.is_deleted = 0) "
+            + "ORDER BY c.member_count DESC, c.create_time DESC, c.id DESC "
+            + "LIMIT #{limit}")
+    List<RecommendCircleRow> selectRecommendCircles(@Param("me") Long me, @Param("limit") int limit);
 }

@@ -1,201 +1,271 @@
 <template>
-  <div class="publish">
-    <div v-if="loading" class="publish-inner">加载中…</div>
-    <el-card v-else class="publish-card">
-      <el-input
-        v-model="content"
-        type="textarea"
-        :rows="6"
-        placeholder="分享你的校园生活…"
-        maxlength="5000"
-        show-word-limit
-      />
+  <div class="pub">
+    <!-- 行 1:顶栏。编辑模式的「取消」就是这里的返回(Publish.vue.md §1) -->
+    <header class="pub__bar">
+      <button type="button" class="pub__back" aria-label="返回" @click="goBack">
+        <el-icon :size="20"><ArrowLeft /></el-icon>
+      </button>
+      <h1 class="pub__title">{{ isEdit ? '编辑动态' : '发动态' }}</h1>
+    </header>
 
-      <div class="media-preview">
-        <div v-for="(m, i) in media" :key="i" class="media-item">
-          <el-button
-            class="media-remove"
-            circle
-            size="small"
-            type="danger"
-            @click="media.splice(i, 1)"
-          >
-            <el-icon><Close /></el-icon>
-          </el-button>
-          <template v-if="m.type === 'img'">
-            <el-image :src="resolveUrl(m.url)" fit="cover" class="media-thumb" />
-          </template>
-          <template v-else>
-            <video :src="resolveUrl(m.url)" controls class="media-thumb"></video>
-            <span class="media-type">视频</span>
-          </template>
-        </div>
-      </div>
+    <!-- 编辑模式读取失败:整页替换而不是空编辑器(Publish.vue.md §3) -->
+    <StateBlock
+      v-if="loadFailed"
+      class="pub__state"
+      variant="error"
+      title="这篇帖子读不出来了"
+      description="可能已经被删掉，或者网络断了"
+      action-label="回上一页"
+      :icon="WarningFilled"
+      @action="goBack"
+    />
 
-      <!-- 话题(#话题#):逗号或空格分隔多个,如 校园生活,美食 -->
-      <el-input
-        v-model="topicText"
-        placeholder="话题(可选,用逗号分隔,如:校园生活,美食)"
-        clearable
-        class="topic-input"
-      />
-      <div v-if="topicTags.length" class="topic-preview">
-        <el-tag v-for="t in topicTags" :key="t" size="small" type="primary">
-          #{{ t }}
-        </el-tag>
-      </div>
+    <!--
+      AC-11 未认证:不跳转、不隐藏,把正文区换成说明块。
+      直接跳走会让用户以为产品坏了;给「为什么 + 怎么做」才是转化(设计 §3)。
+    -->
+    <StateBlock
+      v-else-if="!canPublish"
+      class="pub__state"
+      variant="denied"
+      title="要先认证校内身份才能发动态"
+      description="用校园邮箱或学号认证，一分钟就好"
+      action-label="去认证"
+      :icon="Lock"
+      @action="goVerify"
+    />
 
-      <div class="attach-row">
+    <!-- 读取骨架:形状对齐编辑器,不让用户盯着一句「加载中」(Publish.vue.md §3) -->
+    <div v-else-if="loading" class="pub__loading" aria-hidden="true">
+      <SkeletonList variant="panel" :count="5" />
+    </div>
+
+    <template v-else>
+      <main class="pub__body">
+        <!--
+          可见 label,不靠 placeholder 当 label(Publish.vue.md §5)。
+          16px 是 iOS Safari 不自动缩放的下限,14px 聚焦时页面会被放大且不缩回。
+        -->
+        <label class="pub__label" for="pub-content">正文</label>
+        <el-input
+          id="pub-content"
+          v-model="content"
+          type="textarea"
+          class="pub__editor"
+          placeholder="今天在校园里遇到什么了？"
+          maxlength="5000"
+          resize="none"
+        />
+
+        <MediaGrid :cells="cells" @remove="removeMedia" @retry="retryMedia" />
+
+        <label class="pub__label" for="pub-topic">话题</label>
+        <el-input
+          id="pub-topic"
+          v-model="topicText"
+          placeholder="话题（可选，用逗号分隔，如：校园生活,美食）"
+          clearable
+          class="pub__topic"
+        />
+        <ul v-if="topicTags.length" class="pub__chips">
+          <li v-for="t in topicTags" :key="t">#{{ t }}</li>
+          <!-- 超过 5 个只留前 5 个,多的用「+N」提示还有多少 -->
+          <li v-if="topicOverflow > 0" class="pub__chips-more">+{{ topicOverflow }}</li>
+        </ul>
+
+        <!-- 行 6:字数条。接近上限变色,到上限给一句可执行的提示 -->
+        <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
+          {{ content.length }} / {{ MAX_LEN }}
+        </p>
+        <p v-if="atLimit" class="pub__count-tip" role="status">
+          到 {{ MAX_LEN }} 字了，删一点再发
+        </p>
+      </main>
+
+      <!-- 错误提示贴操作栏上方。**正文与图片全部保留**(Publish.vue.md §3) -->
+      <p v-if="submitError" class="pub__err" role="alert">{{ submitError }}</p>
+
+      <!-- 行 7:吸底操作栏。键盘弹起时随 --kb-h 上移 -->
+      <footer class="pub__foot">
         <el-upload
           :show-file-list="false"
           :before-upload="beforeUpload"
           :http-request="uploadFile"
           accept="image/*"
+          class="pub__upload"
         >
-          <el-button icon="Picture" plain>添加图片</el-button>
+          <button type="button" class="pub__icon-btn" aria-label="添加图片">
+            <el-icon :size="20"><Picture /></el-icon>
+          </button>
         </el-upload>
         <el-upload
           :show-file-list="false"
           :before-upload="beforeUpload"
           :http-request="uploadFile"
           accept="video/*"
+          class="pub__upload"
         >
-          <el-button icon="VideoCamera" plain>添加视频</el-button>
+          <button type="button" class="pub__icon-btn" aria-label="添加视频">
+            <el-icon :size="20"><VideoCamera /></el-icon>
+          </button>
         </el-upload>
-      </div>
 
-      <div class="publish-actions">
-        <el-button @click="goBack">取消</el-button>
-        <el-button type="primary" :loading="posting" @click="submit">{{ isEdit ? '保存' : '发布' }}</el-button>
-      </div>
-    </el-card>
+        <button
+          type="button"
+          class="pub__submit"
+          :disabled="!canSubmit"
+          @click="submit"
+        >
+          {{ posting ? '提交中' : isEdit ? '保存' : '发布' }}
+        </button>
+      </footer>
+      <SafeArea position="bottom" />
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+/**
+ * 发帖 / 编辑动态(Publish.vue.md)
+ *
+ * 移动端关键结构:正文区 flex:1 撑满,媒体预览与吸底栏不随正文滚动 ——
+ * 这样在任何手机高度下,用户都能同时看到「我写了什么」和「发布按钮在哪」。
+ */
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Close } from '@element-plus/icons-vue'
-import { upload as uploadApi, createPost, updatePost, detail } from '@/api/feed'
+import { ElMessage } from '@/utils/feedback'
+import { isIdentityVerified } from '@/utils/mask'
+import { createPost, updatePost, detail } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
+import { useMediaUpload, parseTopics } from '@/composables/useMediaUpload'
+import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
+import StateBlock from '@/components/common/StateBlock.vue'
+import SkeletonList from '@/components/common/SkeletonList.vue'
+import SafeArea from '@/components/mobile/SafeArea.vue'
+import MediaGrid from '@/components/post/MediaGrid.vue'
+import { ArrowLeft, Lock, Picture, VideoCamera, WarningFilled } from '@element-plus/icons-vue'
+
+const MAX_LEN = 5000
+/** 距上限多少字开始变色。设计要求 >4800 预警 */
+const WARN_AT = 4800
+const MAX_TOPIC_SHOWN = 5
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+
 const content = ref('')
-const media = ref([])
-const posting = ref(false)
 const topicText = ref('')
+const posting = ref(false)
+const submitError = ref('')
 const loading = ref(false)
-const mediaUrls = ref([])
+const loadFailed = ref(false)
 const editingId = ref(null)
 
-// 路由名是 postEdit 即编辑模式(同组件复用,route.params.id 变化时全量重载,见铁律⑨)
+const {
+  cells, failedCount, readyMedia,
+  beforeUpload, uploadFile, retry: retryMedia, remove: removeMedia, seed, reset,
+} = useMediaUpload()
+
+// 键盘弹起时把 --kb-h 写到 :root,吸底栏靠 translateY 让位(ChatThread 同方案)
+useKeyboardViewport()
+
 const isEdit = computed(() => route.name === 'postEdit')
 
-// 新建/编辑都从 ?topic= 预填话题;编辑模式预填该帖的话题名
+/**
+ * AC-11:未认证不能发帖。
+ *
+ * 判据是 `isIdentityVerified`(后端 UserVO 没有 verified 字段,
+ * 用它会永远判不出未认证,AC-11 的拦截等于没写)。
+ *
+ * 取不到 userInfo 时**不拦** —— 可能只是还没拉完,拦了会让用户莫名进不去。
+ * 接口层还会再兜一道,这里只负责给一个明确的说明。
+ */
+const canPublish = computed(() => {
+  if (!userStore.userInfo) return true
+  return isIdentityVerified(userStore.userInfo)
+})
+
+const topicTags = computed(() => parseTopics(topicText.value))
+const topicOverflow = computed(() => {
+  const all = topicText.value
+    .split(/[,，\s]+/)
+    .map((s) => s.trim().replace(/^#+/, '').replace(/#+$/, '').trim())
+    .filter(Boolean)
+  return Math.max(0, all.length - MAX_TOPIC_SHOWN)
+})
+
+const nearLimit = computed(() => content.value.length > WARN_AT)
+const atLimit = computed(() => content.value.length >= MAX_LEN)
+
+const canSubmit = computed(
+  () => !posting.value && content.value.trim().length > 0 && failedCount.value === 0,
+)
+
+/** 新建/编辑都从 ?topic= 预填话题;编辑模式预填该帖的话题名 */
 async function loadPreload() {
-  if (isEdit.value) {
-    loading.value = true
-    try {
-      const data = await detail(route.params.id)
-      content.value = data.content || ''
-      topicText.value = (data.topics || []).join(',')
-      let m = data.media
-      if (m && typeof m === 'string') { try { m = JSON.parse(m) } catch { m = null } }
-      media.value = Array.isArray(m) ? m : []
-      mediaUrls.value = media.value.map(x => x.url)
-      editingId.value = data.id
-    } finally {
-      loading.value = false
-    }
-  } else {
+  if (!isEdit.value) {
     const t = route.query.topic
     if (t) topicText.value = String(t)
+    return
+  }
+  loading.value = true
+  loadFailed.value = false
+  try {
+    const data = await detail(route.params.id)
+    content.value = data.content || ''
+    topicText.value = (data.topics || []).join(',')
+    let m = data.media
+    if (m && typeof m === 'string') {
+      try {
+        m = JSON.parse(m)
+      } catch {
+        m = null
+      }
+    }
+    seed(m)
+    editingId.value = data.id
+  } catch {
+    loadFailed.value = true
+  } finally {
+    loading.value = false
   }
 }
 
 // 切 id 或切模式(同组件复用)时全量重载;新建/编辑模式互不残留
-watch([() => route.params.id, () => route.name], () => {
-  content.value = ''
-  media.value = []
-  mediaUrls.value = []
-  topicText.value = ''
-  editingId.value = null
-  loadPreload()
-}, { immediate: true })
-
-// 把话题输入(逗号/空格分隔)拆成数组,去掉 # 和空
-const topicTags = computed(() =>
-  topicText.value
-    .split(/[,，\s]+/)
-    .map((s) => s.trim().replace(/^#+/, '').replace(/#+$/, '').trim())
-    .filter((s) => s && s.length <= 64)
-    .filter((v, i, a) => a.indexOf(v) === i) // 去重
+watch(
+  [() => route.params.id, () => route.name],
+  () => {
+    content.value = ''
+    topicText.value = ''
+    editingId.value = null
+    submitError.value = ''
+    reset()
+    loadPreload()
+  },
+  { immediate: true },
 )
 
-function resolveUrl(url) {
-  if (!url) return ''
-  return url.startsWith('http') ? url : window.location.origin + url
-}
-
-function beforeUpload(file) {
-  const isImg = file.type.startsWith('image/')
-  const isVideo = file.type.startsWith('video/')
-  const maxB = isVideo ? 50 * 1024 * 1024 : 7.5 * 1024 * 1024
-  if (!isImg && !isVideo) {
-    ElMessage.warning('仅支持图片或视频')
-    return false
-  }
-  if (file.size > maxB) {
-    ElMessage.warning(isVideo ? '视频不能超过 50MB' : '图片不能超过 7.5MB')
-    return false
-  }
-  // 只校验、不手动触发:交给 el-upload 的 http-request(uploadFile) 统一走,
-  // 避免"before-upload 里同步调异步 upload 且不 await"的竞态
-  return true
-}
-
-async function uploadFile(option) {
-  const { file } = option
-  const isVideo = file.type.startsWith('video/')
-  const kind = isVideo ? 'video' : 'image'
-  try {
-    const data = await uploadApi(file, kind)
-    media.value.push({ type: kind === 'video' ? 'video' : 'img', url: data.url })
-    mediaUrls.value.push(data.url)
-  } catch {
-    ElMessage.error('上传失败')
-  }
-}
-
 async function submit() {
-  if (!content.value.trim() && media.value.length === 0) {
-    ElMessage.warning('先写点什么或传张图')
-    return
-  }
+  if (!canSubmit.value) return
   posting.value = true
+  submitError.value = ''
+  const media = readyMedia.value.length ? JSON.stringify(readyMedia.value) : null
+  const topics = topicTags.value.length ? topicTags.value : null
   try {
     if (isEdit.value) {
-      const data = await updatePost(editingId.value, {
-        content: content.value,
-        media: media.value.length ? JSON.stringify(media.value) : null,
-        topics: topicTags.value.length ? topicTags.value : null,
-      })
-      ElMessage.success(data.status === 0 ? '已保存,命中敏感词重回审核' : '已保存')
+      const data = await updatePost(editingId.value, { content: content.value, media, topics })
+      ElMessage.success(data.status === 0 ? '已保存，命中敏感词重回审核' : '已保存')
       router.push(`/post/${data.id}`)
     } else {
-      await createPost({
-        content: content.value,
-        media: media.value.length ? JSON.stringify(media.value) : null,
-        topics: topicTags.value.length ? topicTags.value : null,
-      })
-      ElMessage.success('发布成功')
+      await createPost({ content: content.value, media, topics })
+      // AC-06:命中敏感词时后端给 status=0(审核中),要明确告诉用户「发出去了但还在审」
+      ElMessage.success('发出去了，等别人来搭话吧')
       router.push('/')
     }
   } catch {
-    // request.js 已弹错
+    // 正文与图片**全部保留**,只给一句可重试的提示
+    submitError.value = '没发出去，再点一次'
   } finally {
     posting.value = false
   }
@@ -204,66 +274,10 @@ async function submit() {
 function goBack() {
   router.back()
 }
+
+function goVerify() {
+  router.push('/onboarding')
+}
 </script>
 
-<style scoped>
-.publish {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 20px;
-}
-.media-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 14px 0;
-}
-.media-item {
-  position: relative;
-}
-.media-thumb {
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  object-fit: cover;
-  display: block;
-}
-.media-remove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 1;
-}
-.media-type {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-.topic-input {
-  margin-bottom: 8px;
-}
-.topic-preview {
-  margin-bottom: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.attach-row {
-  display: flex;
-  gap: 12px;
-  margin: 12px 0 4px;
-}
-.publish-actions {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-</style>
+<style scoped src="./Publish.css"></style>

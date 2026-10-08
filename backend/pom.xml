@@ -114,6 +114,12 @@
             <version>2.5.0</version>
         </dependency>
 
+        <!-- 健康检查(TD-09):版本随 parent,只暴露 /actuator/health -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

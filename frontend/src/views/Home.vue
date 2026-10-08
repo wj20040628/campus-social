@@ -50,13 +50,25 @@
             :post="p"
             @click="goDetail(p.id)"
           />
-          <el-empty
+          <!--
+空态按 tab 分两种出口(AC-19):
+- 「关注」tab 空 → 去关注人(有 goFollow)
+- 「发现」tab 空 → 去发一条或逛圈子
+原 el-empty 只有描述没有出口,已替换。
+-->
+          <StateBlock
             v-if="!loading && posts.length === 0"
-            :description="tab === 'following' ? '你还没关注任何人,先关注一些同学吧' : '还没有动态,去发第一条吧'"
+            variant="empty"
+            :title="tab === 'following' ? '你关注的人还没发东西' : '这里还很空'"
+            :description="
+              tab === 'following'
+                ? '关注几个同学,他们的动态就会出现在这儿'
+                : '现在没人发东西,你可以先发一条'
+            "
+            :action-label="tab === 'following' ? '去圈子广场逛逛' : '发一条'"
+            :icon="ChatLineSquare"
+            @action="tab === 'following' ? goFollow() : router.push('/publish')"
           />
-          <div v-if="tab === 'following' && !posts.length" class="follow-hint">
-            <el-button link type="primary" @click="goFollow">去关注</el-button>
-          </div>
           <div ref="sentinelEl" class="sentinel">
             <el-text v-if="loading" type="info">加载中…</el-text>
             <el-text v-else-if="!hasMore && posts.length" type="info">到底了</el-text>
@@ -72,6 +84,8 @@ import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
+import StateBlock from '@/components/common/StateBlock.vue'
+import { ChatLineSquare } from '@element-plus/icons-vue'
 import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
 
 const router = useRouter()

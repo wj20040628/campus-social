@@ -1,0 +1,421 @@
+/* ChatThread.vue 的样式,抽离到外部文件以控制单文件行数。 */
+/*
+ * 高度用 100dvh:100vh 在移动端不含地址栏回缩高度,
+ * 底部输入区会被浏览器栏压掉一半。
+ */
+.th {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  background: var(--ys-bg);
+}
+
+.src {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-height: 32px;
+  padding: 0 var(--ys-space-2) 0 var(--ys-space-4);
+  background: var(--ys-surface-2);
+  flex: none;
+}
+
+.src__pin {
+  flex: none;
+  color: var(--ys-accent);
+}
+
+.src__text {
+  flex: 1;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.src__close,
+.reply__cancel {
+  flex: none;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ys-muted);
+  border-radius: var(--ys-radius-lg);
+  cursor: pointer;
+}
+
+.block {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  flex: none;
+}
+
+.block--danger {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.block--warning {
+  background: var(--ys-warning-soft);
+  color: var(--ys-warning);
+}
+
+.th__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--ys-space-3) var(--ys-space-4);
+  /* 列表底部不加安全区:输入区已含,重复加会多出一段空白 */
+  padding-bottom: var(--ys-space-2);
+}
+
+.th__blank {
+  margin: var(--ys-space-10) 0 0;
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+}
+
+.hist-err {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-10) 0;
+}
+
+.hist-err__text {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+}
+
+.hist-err__btn {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-5);
+  border-radius: var(--ys-radius-lg);
+  border: 1px solid var(--ys-border-control);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  cursor: pointer;
+}
+
+.skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding-top: var(--ys-space-2);
+}
+
+.skel__bubble {
+  height: 40px;
+  border-radius: var(--ys-radius-xl);
+  background: linear-gradient(
+    90deg,
+    var(--ys-surface-2) 25%,
+    var(--ys-border-soft) 37%,
+    var(--ys-surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: ys-sheen 1.4s var(--ys-ease-linear) infinite;
+}
+
+.skel__bubble.is-me {
+  align-self: flex-end;
+}
+
+.bubbles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}
+
+.brow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.brow--me {
+  align-items: flex-end;
+}
+
+.brow__sender {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  margin-bottom: 2px;
+}
+
+.bbubble {
+  max-width: 72%;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-xl);
+  /* 靠近对方一侧收成小圆角,做「尾巴感」 */
+  border-top-left-radius: var(--ys-radius-sm);
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  color: var(--ys-fg);
+  /* 长按热区 = 气泡本身,最小高 44px */
+  min-height: var(--ys-touch-min);
+}
+
+.brow--me .bbubble {
+  background: var(--ys-accent);
+  border-color: var(--ys-accent);
+  color: var(--ys-accent-on);
+  border-top-left-radius: var(--ys-radius-xl);
+  border-top-right-radius: var(--ys-radius-sm);
+}
+
+.bbubble--recalled {
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border-soft);
+  color: var(--ys-muted);
+  /* 撤回气泡内容居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.bbubble--failed {
+  background: var(--ys-danger-soft);
+  border-color: var(--ys-danger);
+  color: var(--ys-fg);
+}
+
+.bbubble--long .bbubble__text,
+.bbubble--long {
+  max-width: 82%;
+}
+
+.bbubble__recalled {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.bbubble__text {
+  margin: 0;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  /* 无空格长串不撑破气泡 */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 未展开时最多 8 行 */
+.bbubble--long:not(.bbubble--open) .bbubble__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bbubble__more {
+  margin-top: var(--ys-space-1);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.quote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--ys-space-2);
+  padding: var(--ys-space-1) var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+}
+
+.quote__from {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
+}
+
+.quote__text {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bbubble__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-1);
+}
+
+.bbubble__time {
+  font-size: var(--ys-text-xs);
+  /* 气泡底色不同,时间用半透明的白/黑;用 opacity 而非硬编码色 */
+  opacity: 0.7;
+}
+
+.bbubble__state {
+  font-size: var(--ys-text-xs);
+  opacity: 0.85;
+}
+
+/* 已读:语义色,不再用硬编码 #b3f0c8(原 Chat.vue:1027) */
+.bbubble__state.is-read {
+  color: var(--ys-success);
+  opacity: 1;
+  font-weight: var(--ys-weight-medium);
+}
+
+.brow:not(.brow--me) .bbubble__state.is-read {
+  color: var(--ys-success);
+}
+
+.bbubble__retry {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ys-danger);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.reply {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-height: 36px;
+  padding: 0 var(--ys-space-2) 0 var(--ys-space-4);
+  background: var(--ys-surface-2);
+  flex: none;
+}
+
+.reply__label {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+}
+
+.reply__text {
+  flex: 1;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 输入区(§1.4):
+ * sticky + translateY 是核心。--kb-h 由 useKeyboardViewport 写入。
+ * 只动 transform —— 动 height/top 会每帧触发布局,长列表上卡顿明显。
+ */
+.input {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--ys-z-sticky);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-space-4);
+  padding-bottom: calc(var(--ys-space-2) + var(--ys-safe-bottom));
+  background: var(--ys-surface);
+  border-top: 1px solid var(--ys-border);
+  flex: none;
+  transform: translateY(calc(-1 * var(--kb-h, 0px)));
+  transition: transform var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.input__box {
+  flex: 1;
+  min-width: 0;
+}
+
+.input--disabled {
+  background: var(--ys-surface-2);
+}
+
+.input__send {
+  flex: none;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  cursor: pointer;
+  transition: opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.input__send:disabled {
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+.input__send:not(:disabled):active {
+  opacity: 0.7;
+}
+
+.sheet__act {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border: none;
+  background: transparent;
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet__act--danger {
+  color: var(--ys-accent-2);
+}
+
+@keyframes ys-sheen {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel__bubble {
+    animation: none;
+  }
+
+  .input {
+    transition: none;
+  }
+}

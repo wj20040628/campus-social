@@ -1,0 +1,2510 @@
+openapi: 3.0.3
+
+# =============================================================================
+# 友声 · 校园生活社区  API 契约（MVP v1.0）
+#
+# 本文件是 Phase 2 放行门禁第 1 条。前端据此生成 TypeScript 类型与 MSW Mock，
+# 后端据此实现 Controller。端点清单以 docs/SPEC.md §5 为唯一依据。
+#
+# 修改纪律：任何端点变更必须同步改本文件，并在 PR 描述里写明「spec 已改」。
+# =============================================================================
+
+info:
+  title: 友声 · 校园生活社区 API
+  version: 1.0.0
+  summary: 校园社交 MVP 的对外 REST 契约
+  description: |
+    ## 0. 范围声明（本轮实现 / 不实现）
+
+    - 本文件覆盖 `docs/SPEC.md` §5.1 ~ §5.5 的全部端点，共 **27 个**。
+    - **`buddy_*` 端点本轮仅建表不实现，见 SPEC §2.2**。即下列 7 个端点在本文档中
+      **不存在**，Phase 3 禁止实现其 Service / Controller / 页面：
+      `POST /api/v1/buddy`、`GET /api/v1/buddy`、`GET /api/v1/buddy/{id}`、
+      `POST /api/v1/buddy/{id}/join`、`DELETE /api/v1/buddy/{id}/join`、
+      `GET /api/v1/buddy/mine`、`PATCH /api/v1/buddy/{id}/status`。
+      对应 `buddy_post` / `buddy_join` 两张表的 DDL 照给（见 `docs/sql/migration_v1.sql`），
+      但仅作预留，避免第二批迭代再改一次表。
+    - 本轮实现的标签端点是 `GET /api/v1/tags`、`PUT /api/v1/user/tags`、
+      `GET /api/v1/user/{id}/tags` —— 它们归属 F11 新用户引导（引导第 2 步要选标签），
+      不是 F6「按标签找搭子」的发现页。
+    - **院系与年级字典端点** `GET /api/v1/dict/school`（一次返回院系与年级）
+      归属 F11 引导第 1 步。引导第 1 步原先让用户自由填写「学院 / 年级」，
+      而 AC-14（同院系推荐 / 筛选）依赖院系相等判断——
+      「计算机学院」与「计科」会落库成两个不同的值，同院系的人被漏掉一半，
+      且院系改名后新老用户永久匹配不上。这两个端点把自由度收进字典表，
+      `POST /user/school-profile` 与 `POST /onboarding/complete` 相应改为按 id 传入。
+    - **`PUT /api/v1/user/me` 随字典化同步收窄**：请求体只剩 `nickname` / `avatarUrl` /
+      `studentNo`，`dept` 与 `grade` 已下线（归属改走上面两个端点）。
+      传入已下线字段返回 **400 `PROFILE_FIELD_RETIRED`**，**不静默忽略**——
+      静默忽略会让调用方以为写入成功、实际数据未落库，
+      这类「以为成功」的失败比直接报错难查得多。
+
+    ## 1. 路径前缀（ADR-008）
+
+    所有端点对外部统一 `/api/v1` 前缀。后端 Controller 内部路由**无**版本前缀，
+    由 Nginx 做 `rewrite ^/api/v1/(.*)$ /$1 break;` 映射（ADR-008 已知缺陷，见 OD-11）。
+    因此：
+    - 生产 / 联调环境：请求 `https://<domain>/api/v1/chat/send`
+    - 本地 `curl localhost:8080` 直连后端：请求 `http://localhost:8080/chat/send`
+
+    ## 2. 统一响应信封
+
+    复用现有 `common/Result.java` 的结构，**不是** `{code:0,data,message}`：
+
+    ```json
+    { "code": 200, "message": "成功", "data": { } }
+    ```
+
+    - `code = 200` 表示成功；其余取值来自 `common/ResultCode.java` 枚举。
+    - `message` 是人类可读文案，直接弹 toast，不做二次加工。
+    - `data` 为 `null` 时该字段被 `@JsonInclude(NON_NULL)` 省略。
+
+    ## 3. 分页语义
+
+    复用现有 `common/CursorPage.java`，字段名严格一致（游标而非页码）：
+
+    ```json
+    { "list": [], "nextCursor": 12345, "hasMore": true }
+    ```
+
+    - 入参：`cursor`（上一页返回的 `nextCursor`，首页不传）+ `size`。
+    - `nextCursor = null` 表示没有更多。
+    - **已知不一致（登记为技术债）**：历史端点 `/chat/conversations`、`/chat/history`、
+      `/review/*` 用的是 `lastId` 入参。本轮新增端点一律用 `cursor`，历史端点不动
+      （不在本轮改造范围），待 v1.1 统一。
+
+    ## 4. HTTP 状态码映射（`x-http-status-mapping`）
+
+    现状：现有 `GlobalExceptionHandler.business()` 对业务异常一律返回 **HTTP 200**，
+    错误只在响应体的 `code` 里。而 SPEC §9 AC-04 要求 429、§12 步骤 3.4 要求 403。
+    **两者冲突，必须改后端**，本契约按「改后端」写。
+
+    裁决：`GlobalExceptionHandler` 增加一张 ~12 项的 `code -> HTTP status` 映射表，
+    **只映射下表列出的码，其余 1xxx 业务码保持 HTTP 200 不变**（零回归风险）。
+    前端 `src/utils/request.js` 的错误分支已能读 `error.response.data.message` 弹 toast，
+    故切换到真实 HTTP 状态码不会丢失提示文案。
+
+    | ResultCode | 值 | HTTP |
+    |---|---|---|
+    | BAD_REQUEST | 400 | 400 |
+    | UNAUTHORIZED | 401 | 401 |
+    | FORBIDDEN | 403 | 403 |
+    | NOT_FOUND | 404 | 404 |
+    | CONFLICT | 409 | 409 |
+    | UNPROCESSABLE | 422 | 422 |
+    | TOO_MANY_REQUESTS（新增） | 429 | 429 |
+    | USER_FROZEN | 1001 | 403 |
+    | USER_CANCELLED | 1002 | 403 |
+    | BLACKLISTED | 1013 | 403 |
+    | NOT_ADMIN | 1025 | 403 |
+    | USER_NOT_VERIFIED（新增） | 1029 | 403 |
+    | STRANGER_MSG_CLOSED（新增） | 1030 | 403 |
+    | ANNOUNCEMENT_NOT_FOUND（新增） | 1031 | 404 |
+    | CAMPUS_EMAIL_NOT_ALLOWED（新增） | 1032 | 422 |
+    | 其余 1xxx | — | 200（不变） |
+
+    ## 5. 本轮需新增的 ResultCode 枚举项
+
+    现有 `ResultCode.java` 共 54 项，缺以下 5 个语义。除 `TOO_MANY_REQUESTS` 用 HTTP 码段
+    （枚举内本就混排 4xx 与 1xxx），其余接续 1xxx 段从 1029 起编号（现最大为 GROUP_NAME_EMPTY 1028）。
+
+    | 新增项 | 值 | 文案 | 用到它的端点 |
+    |---|---|---|---|
+    | `TOO_MANY_REQUESTS` | 429 | 操作过于频繁,请稍后再试 | `POST /chat/send`（配额超限，message 会被覆盖为「今日搭话额度已用完，明天再来」） |
+    | `USER_NOT_VERIFIED` | 1029 | 请先完成校内认证 | `POST /chat/send`、`POST /admin/announcement` |
+    | `STRANGER_MSG_CLOSED` | 1030 | 对方已关闭陌生人消息 | `POST /chat/send` |
+    | `ANNOUNCEMENT_NOT_FOUND` | 1031 | 公告不存在或已下架 | `GET /announcement/{id}`、`POST /announcement/{id}/read`、`PATCH /admin/announcement/{id}` |
+    | `CAMPUS_EMAIL_NOT_ALLOWED` | 1032 | 该邮箱域名不是受信任的校园邮箱 | `POST /user/verify/campus-email` |
+
+    凡是「校验不通过但语义已有现成码」的场景，**一律复用不新增**，例如：
+    敏感词拦截用 `SENSITIVE_WORD_BLOCKED(1008)`、标签超 8 个用
+    `UNPROCESSABLE(422)` 配自定义 message、验证码错误用 `CODE_INVALID(1020)`、
+    非管理员用 `NOT_ADMIN(1025)`、双向黑名单用 `BLACKLISTED(1013)`。
+
+    ## 6. 幂等约定
+
+    `POST /report`、`POST /announcement/{id}/read`、`POST /onboarding/complete`
+    三处均返回 **200 + `data.duplicated` 标记**，而不是 4xx。理由：重复提交是
+    「无事发生」而非「出错」，前端不该弹红色错误 toast。
+    响应体 `message` 在重复时回填为「已记录」/「已完成」，满足 SPEC §12 步骤 3.3 的断言。
+
+  contact:
+    name: 友声架构组
+  license:
+    name: 内部契约，未开源
+
+servers:
+  - url: https://{host}
+    description: 生产 / 预发。Nginx 将 /api/v1/* 重写为后端内部无前缀路由（ADR-008）
+    variables:
+      host:
+        default: api.yousheng.example
+  - url: http://localhost:8080
+    description: 本地直连后端。此 base 下需去掉 /api/v1 前缀，例如 /chat/send
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: report
+    description: F4 举报提交（上线门槛项）
+  - name: admin-report
+    description: F4 举报处置（管理员，手机端可用，OD-19）
+  - name: chat
+    description: F3 免好友搭话
+  - name: tag
+    description: 兴趣标签字典与用户标签（支撑 F11 引导第 2 步）
+  - name: announcement
+    description: F5 官方公告（前台）
+  - name: admin-announcement
+    description: F5 官方公告（后台，手机端可用，OD-19）
+  - name: verify
+    description: F2 校内身份归属与认证
+  - name: dict
+    description: 院系与年级字典（支撑 F11 引导第 1 步，人工维护不可写）
+  - name: onboarding
+    description: F11 新用户引导
+
+paths:
+
+  # ===========================================================================
+  # §5.1 F3 免好友搭话 + F4 举报闭环
+  # ===========================================================================
+
+  /report:
+    post:
+      operationId: submitReport
+      tags: [report]
+      summary: 提交举报
+      description: |
+        幂等。同一用户对同一 `targetType + targetId` 重复提交时，不新增记录，
+        返回 200、`duplicated = true`、`message` 为「已记录」（SPEC §9 AC-13）。
+        唯一索引 `uk_report(reporter_id, target_type, target_id)` 兜底。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportSubmitRequest'
+      responses:
+        '200':
+          description: 举报已受理（含重复提交的「已记录」情形）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportSubmitResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/reports:
+    get:
+      operationId: listAdminReports
+      tags: [admin-report]
+      summary: 举报列表（管理员）
+      description: |
+        进入即 `roleService.requireAdmin(userId)`，非管理员返回 403 `NOT_ADMIN`（AC-20）。
+        默认 `status = 0`（待审）在前，按 `create_time` 倒序，游标分页。
+        **本页必须在 375px 视口可用**（OD-19 / AC-14），故单次返回字段保持精简：
+        不返回 `reason_text` 全量，超过 60 字截断并附 `reasonTextTruncated`。
+      parameters:
+        - name: status
+          in: query
+          description: 0待审 1成立 2驳回。不传表示全部
+          required: false
+          schema:
+            type: integer
+            enum: [0, 1, 2]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 举报游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReportPageResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/reports/{id}/handle:
+    post:
+      operationId: handleAdminReport
+      tags: [admin-report]
+      summary: 处理举报（封禁 / 驳回 / 忽略）
+      description: |
+        处置动作三选一：
+        - `ban` 成立并封禁目标用户，`banDays` 必填（1/7/30/永久用 0 表示）
+        - `reject` 驳回，举报记录置 `status = 2`
+        - `ignore` 忽略，不改变 `status`，仅记录处置人与备注（用于「已阅未处置」）
+
+        `ban` 与 `reject` 需写 `audit_log`（复用现有 `AuditService`）。
+        同一举报重复处置返回 409 `CONFLICT`。
+      parameters:
+        - $ref: '#/components/parameters/ReportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportHandleRequest'
+      responses:
+        '200':
+          description: 处置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportHandleResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /chat/send:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: 发送消息（免好友搭话，含三重护栏）
+      description: |
+        **本端点是改造项，不是新增。** 现有实现在 `ChatController.java:43-56`
+        的 `POST /chat/message`，`ChatServiceImpl.send()` 已不校验好友关系
+        （`ChatServiceImpl.java:91-143`），免好友能力已存在，本轮只补护栏。
+
+        路径由 `/chat/message` 改为 `/chat/send`（SPEC §5.1），需同步改
+        `frontend/src/api/chat.js:15` 的 `request.post('/chat/message', ...)`。
+
+        护栏执行顺序（顺序不可调换，先便宜后昂贵）：
+        1. 不能给自己发 —— `CHAT_SELF(1014)`
+        2. 未通过校内认证不得发起搭话 —— `USER_NOT_VERIFIED(1029)`（AC-11）
+        3. 黑名单双向拦截（`relation.type = 3`）—— `BLACKLISTED(1013)`
+        4. 接收方 `stranger_msg_enabled = 0` —— `STRANGER_MSG_CLOSED(1030)`（AC-05）
+        5. 陌生人日配额（Redis ZSET 滑动窗口 Lua）—— `TOO_MANY_REQUESTS(429)`（AC-04）
+        6. 敏感词过滤（复用 `SensitiveWordFilter`）—— 命中拦截并写 `review_task`（AC-06）
+
+        配额配置进 `application.yml`，不硬编码：
+        `stranger.daily-new-peer = 5`、`stranger.per-peer-daily = 20`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatSendRequest'
+      responses:
+        '200':
+          description: 发送成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSendResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            403。取值为 `BLACKLISTED(1013)` 双向黑名单、`USER_NOT_VERIFIED(1029)` 未认证、
+            `STRANGER_MSG_CLOSED(1030)` 对方已关闭陌生人消息、`USER_FROZEN(1001)` 账号冻结
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: 422。`SENSITIVE_WORD_BLOCKED(1008)` 内容含违规词（AC-06）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '429':
+          description: |
+            429 `TOO_MANY_REQUESTS`。今日搭话额度用尽。
+            message 覆盖为「今日搭话额度已用完，明天再来」（AC-04）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /chat/stranger-quota:
+    get:
+      operationId: getStrangerQuota
+      tags: [chat]
+      summary: 查询今日剩余破冰额度
+      description: |
+        前端在「搭句话」入口展示剩余次数，避免用户盲目试错后才发现被拒。
+        不消耗额度。`resetAt` 为次日 00:00（服务器时区 Asia/Shanghai）的时间戳，
+        前端据此做倒计时文案。
+      responses:
+        '200':
+          description: 额度快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrangerQuotaResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
+  # §5.2 兴趣标签（本轮实现；buddy 系列排除）
+  # ===========================================================================
+
+  /tags:
+    get:
+      operationId: listInterestTags
+      tags: [tag]
+      summary: 兴趣标签树（按 category 分组）
+      description: |
+        `interest_tag` 字典全量返回，按 `category` 分组、组内按 `sort` 升序再按 `id` 升序。
+        不做分页：字典量恒定在 30–60 条。结果应缓存（本地 Caffeine 或 Redis，TTL 10min），
+        字典变更由后台人工维护，低频。
+      parameters:
+        - name: category
+          in: query
+          description: 1兴趣 2游戏 3运动 4学习 5生活。不传返回全部分组
+          required: false
+          schema:
+            type: integer
+            enum: [1, 2, 3, 4, 5]
+      responses:
+        '200':
+          description: 标签分组
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagTreeResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/tags:
+    put:
+      operationId: replaceMyTags
+      tags: [tag]
+      summary: 设置我的兴趣标签（批量覆盖）
+      description: |
+        语义是**全量覆盖**，不是增量追加：传入的 `tagIds` 即最终集合，
+        先删 `user_tag` 中本人的全部行再批量插入（同事务）。
+        上限 8 个，超出返回 422 `UNPROCESSABLE`，message 为「兴趣标签最多选择 8 个」。
+        `tagIds` 中若含不存在的 id，返回 400 `BAD_REQUEST`。
+        `interest_tag.use_count` 在事务内 `SET use_count = use_count ± 1` 增减，绝不读改写。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserTagsPutRequest'
+      responses:
+        '200':
+          description: 已覆盖
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTagsPutResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/{id}/tags:
+    get:
+      operationId: listUserTags
+      tags: [tag]
+      summary: 查看他人兴趣标签
+      description: |
+        公开信息，任意登录用户可查。用于他人主页的标签区（AC-12 约束：
+        该页不得出现真实姓名与学号，只展示昵称 + 头像 + 认证徽章 + 标签）。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 目标用户 id
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 目标用户的标签
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTagsGetResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
+  # §5.3 F5 官方公告 —— 后台（管理员，手机端可用）
+  # ===========================================================================
+
+  /admin/announcement:
+    post:
+      operationId: createAnnouncement
+      tags: [admin-announcement]
+      summary: 发布公告（草稿或直接发布）
+      description: |
+        `publishNow = false` 时落 `status = 0`（草稿），不推 WS、不进前台列表。
+        `publishNow = true` 时落 `status = 1`、`publish_time = now()`，
+        并通过 `WsPushService` 向**当前在线**用户推一条轻量提示（`notify.type = 6 公告`，
+        内容为标题 + id）。**不给全员写 notify 行**（SPEC §6.3：写入放大 1 万倍）。
+
+        发布方必须已通过校内认证，否则 403 `USER_NOT_VERIFIED`（AC-11）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementCreateRequest'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementCreateResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    get:
+      operationId: listAdminAnnouncements
+      tags: [admin-announcement]
+      summary: 后台公告列表
+      description: |
+        含草稿与已下架，供管理端编辑。按 `publish_time` 倒序，游标分页。
+        返回 `readCount` 与 `totalTargetCount`，供后台直接看触达率。
+      parameters:
+        - name: status
+          in: query
+          description: 0草稿 1已发布 2已下架。不传表示全部
+          required: false
+          schema:
+            type: integer
+            enum: [0, 1, 2]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 后台公告游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAnnouncementPageResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/announcement/{id}:
+    patch:
+      operationId: updateAnnouncement
+      tags: [admin-announcement]
+      summary: 编辑公告（含置顶 / 取消置顶 / 上架 / 下架）
+      description: |
+        部分更新，只传变化的字段。
+        - `isTop = 1` 时必须同时给 `topExpireTime`，否则 422
+        - `isTop = 0` 时服务端把 `top_expire_time` 置 NULL
+        - `status = 2`（下架）后该公告从前台列表消失，已产生的 `announcement_read` 保留
+        - 置顶生效到 `top_expire_time` 为止（AC-07），到期由定时任务或查询时过滤兜底
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementPatchRequest'
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementPatchResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404':
+          description: 404 `ANNOUNCEMENT_NOT_FOUND(1031)` 公告不存在或已下架
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/announcement/{id}/unread-users:
+    get:
+      operationId: listAnnouncementUnreadUsers
+      tags: [admin-announcement]
+      summary: 谁还没看（未读名单）
+      description: |
+        **本端点由 SPEC §9 AC-10 反推补齐，SPEC §5.3 的 7 个端点清单里没有它。**
+        AC-10 是 P0 验收项且明确要求「必须提供谁还没看名单」，缺端点则该 AC 无法验收。
+        已作为阻塞项回传 team-lead，需补进 SPEC §5.3。
+
+        实现：`NOT EXISTS (SELECT 1 FROM announcement_read r WHERE r.announcement_id = ? AND r.user_id = u.id)`
+        过滤 `school_id` 相同、`status = 0`、`is_deleted = 0` 的用户。游标分页，不一次性拉全量。
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 未读用户游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementUnreadUsersResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404':
+          description: 404 `ANNOUNCEMENT_NOT_FOUND(1031)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/announcement/{id}/remind:
+    post:
+      operationId: remindAnnouncementUnread
+      tags: [admin-announcement]
+      summary: 一键提醒未读人群
+      description: |
+        同样由 AC-10 反推补齐（SPEC §5.3 未列）。
+        只对**当前在线**的未读用户推 WS 提示（`notify.type = 6`），离线用户不落库。
+        同一公告同一管理员 60s 内不能重复提醒（Redis `setIfAbsent` 限频，Redis 5.0 安全 API），
+        超限返回 429 `TOO_MANY_REQUESTS`。
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      responses:
+        '200':
+          description: 提醒已发出
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementRemindResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404':
+          description: 404 `ANNOUNCEMENT_NOT_FOUND(1031)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
+  # §5.3 F5 官方公告 —— 前台
+  # ===========================================================================
+
+  /announcement:
+    get:
+      operationId: listAnnouncements
+      tags: [announcement]
+      summary: 前台公告列表（置顶优先）
+      description: |
+        排序：`is_top DESC`（且 `top_expire_time > now`）-> `publish_time DESC` -> `id DESC`。
+        只返回 `status = 1` 且 `school_id` 与当前用户一致的公告。
+        命中索引 `idx_school_status_top_time`。
+      parameters:
+        - name: category
+          in: query
+          description: 1教务 2后勤 3活动 4社团 5紧急 6其他。不传表示全部
+          required: false
+          schema:
+            type: integer
+            enum: [1, 2, 3, 4, 5, 6]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 公告游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementPageResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /announcement/unread-count:
+    get:
+      operationId: getAnnouncementUnreadCount
+      tags: [announcement]
+      summary: 未读公告数（红点）
+      description: |
+        计算口径：`已发布且 school_id 匹配的公告总数 − 本人 announcement_read 中匹配的行数`。
+        用两条 count 查询，不做全量写入（SPEC §6.3）。
+        结果缓存 30s（Redis），新公告发布时主动删该用户的缓存键。
+      responses:
+        '200':
+          description: 未读数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementUnreadCountResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /announcement/{id}:
+    get:
+      operationId: getAnnouncement
+      tags: [announcement]
+      summary: 公告详情（返回 isRead）
+      description: |
+        返回 `isRead`：当前用户是否已读过。
+        **本接口不写已读** —— 已读必须走 `POST /announcement/{id}/read` 显式上报，
+        否则「打开即已读」会让「谁还没看」名单失真，AC-10 无法成立。
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      responses:
+        '200':
+          description: 公告详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `ANNOUNCEMENT_NOT_FOUND(1031)` 公告不存在、是草稿或已下架
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /announcement/{id}/read:
+    post:
+      operationId: markAnnouncementRead
+      tags: [announcement]
+      summary: 已读回执（幂等）
+      description: |
+        幂等：重复提交返回 200、`duplicated = true`、`message` 为「已记录」，
+        `announcement_read` 不新增行（AC-09）。唯一索引 `uk_ann_user(announcement_id, user_id)` 兜底。
+        `announcement.read_count` 仅在**首次**已读时 `SET read_count = read_count + 1`。
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      responses:
+        '200':
+          description: 已记录（含重复提交的「已记录」情形）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementReadResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `ANNOUNCEMENT_NOT_FOUND(1031)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
+  # §5.4 F2 校内身份归属与认证
+  # ===========================================================================
+
+  /dict/school:
+    get:
+      operationId: getSchoolDict
+      tags: [dict]
+      summary: 学校字典（院系 + 年级，F11 引导第 1 步下拉）
+      description: |
+        一次返回**启用中**的院系与年级。结果已缓存（Redis，TTL 10min），
+        与 `/tags` 的缓存要求同口径；字典由后台人工维护，低频变更。
+        不做分页：字典量恒定在 60 条上下。
+
+        **为什么合并成一个端点**：引导第 1 步的三个下拉要同时可用，
+        分两次请求会出现「学院已选、年级还在转圈」的中间态——
+        用户可能在年级尚未加载时就点了下一步。客户端进程内缓存一次即可。
+
+        **为什么用户必须从字典里选**：AC-14（同院系推荐 / 筛选）依赖院系的相等判断。
+        自由文本下「计算机学院」与「计科」是两个不同的值，同院系的人会被漏掉一半；
+        院系改名（合并 / 更名是真实事件）后，存名称会让新老用户永久匹配不上。
+        因此 `POST /user/school-profile` 与 `POST /onboarding/complete`
+        只接受 `deptId` / `gradeId`，不接受名称字符串。
+
+        **只返回 `enabled = 1` 的项**。学校撤销或合并院系时置 `enabled = 0`：
+        新用户不再能选，但**历史用户仍持有该 id 且仍能解析出名称**，
+        因此老用户主页不会显示空白。已毕业的年级同理保留在表中但不返回。
+
+        **语义不对称**：`depts` 按 `schoolId` 过滤；`grades` 不带学校维度
+        （2024 级在任何学校都是 2024 级，跨校同年级天然可比）。
+        合并返回只是为了一次往返，不代表年级是学校的子集。
+      parameters:
+        - name: schoolId
+          in: query
+          description: |
+            学校ID，**只作用于院系列表**。MVP 单校，不传默认 1。
+            本端点是纯字典查询，不做「只能选本校」的限制——
+            与 `POST /user/school-profile` 的强校验口径不同（那里涉及写入归属，有越权风险）。
+          required: false
+          schema:
+            type: integer
+            format: int64
+            default: 1
+      responses:
+        '200':
+          description: 院系与年级列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolDictResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/me:
+    put:
+      operationId: updateMyProfile
+      tags: [user]
+      summary: 更新个人资料（昵称 / 头像 / 学号）
+      description: |
+        仅支持三个字段：`nickname`、`avatarUrl`、`studentNo`。全部可选，只更新传入的字段。
+
+        **`dept` 与 `grade` 已从本端点下线**。归属信息（院系 / 年级）改由
+        `POST /user/school-profile`（引导第 1 步）或 `POST /onboarding/complete` 写入，
+        且入参是**字典 id** 而非名称字符串。
+
+        下线原因：这两个字段原先是自由文本，保留会让用户把 `user.dept` 写成任意字符串
+        而 `dept_id` 不变，产生「展示名称与匹配 id 不一致」的脏数据——
+        这正是字典化要消灭的那类问题。
+
+        **传入已下线字段会返回 400 `PROFILE_FIELD_RETIRED`，不是静默忽略**。
+        静默忽略会让调用方以为写入成功、实际数据未落库，
+        这类「以为成功」的失败比直接报错难查得多。
+        其余未声明字段（客户端版本差异带来的）仍按原样放过，不报错。
+
+        注意：本端点**不做字典 id 校验**，因为它不接受字典 id。
+        院系/年级若为 NULL（存量用户），本接口不会填充，需走 school-profile。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+      responses:
+        '200':
+          description: 已更新，返回用户完整信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/school-profile:
+    post:
+      operationId: upsertSchoolProfile
+      tags: [verify]
+      summary: 设置或更新学校 / 学院 / 年级
+      description: |
+        写入 `user.school_id`（MVP 恒为 1）、`user.dept_id`、`user.grade_id`，
+        并在同一事务内把 `user.dept` / `user.grade` 更新为**从字典表取出的名称快照**。
+
+        **入参是字典 id，不是名称字符串**。这是本轮的行为变更：
+        改造前 `dept` / `grade` 是用户自由填的文本，
+        而 AC-14 依赖院系相等判断，「计算机学院」与「计科」会落库成两个不同的值，
+        同院系推荐与筛选同时失效。改为字典 id 后该问题从数据层根除。
+
+        - `deptId` / `gradeId` 必须是**启用中**的字典项。
+          不存在、已停用（学校撤销/合并、年级已毕业）、或 `deptId` 不属于该 `schoolId` 时，
+          返回 **422 `DEPT_INVALID` / `GRADE_INVALID`**。
+        - 响应同时回传 `deptId` 与 `deptName`（同理 `gradeId` / `gradeName`）：
+          前端拿到名称可直接显示，拿到 id 可回填草稿，不必二次请求反查。
+
+        这是 F11 引导第 1 步的落库动作，也是 AC-18 的判定依据：
+        `deptId` 与 `gradeId` 均有值即视为未完成第 1 步的反面（已完成），
+        前端必须阻断进入 Feed。
+        **本接口不产生认证状态**，只填归属信息；认证走下面三个端点。
+
+        兼容性：字典化之前注册的用户 `dept_id` / `grade_id` 为 NULL，
+        此类用户仍被判定为「归属已填」，不会被拦在引导页（见 AC-18 兼容说明）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchoolProfileRequest'
+      responses:
+        '200':
+          description: 已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolProfileResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/verify/campus-email:
+    post:
+      operationId: sendCampusEmailCode
+      tags: [verify]
+      summary: 发起校园邮箱验证码
+      description: |
+        先做域名白名单校验（白名单来自 `application.yml` 的
+        `campus.email-domain-whitelist`，逗号分隔，如 `mail.xxx.edu.cn,xxx.edu.cn`），
+        不在名单内直接 422 `CAMPUS_EMAIL_NOT_ALLOWED`，**不写 Redis、不发信**
+        —— 否则任意字符串会成为 Redis key 并被送去真实 SMTP 通道。
+
+        通过白名单后**完整复用现有 `VerifyCodeServiceImpl.send(target, type)`**，
+        `type` 传 `campus`。不新开辟验证码通道：邮箱通道（QQ SMTP）、
+        6 位码、5 分钟 TTL、60s 限频、每日 10 次上限、原子读删 Lua 全部现成。
+        超限返回 429（底层是 `CODE_TOO_FREQUENT(1021)` / `CODE_LIMIT_REACHED(1022)`，
+        由 HTTP 映射表转成 429）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampusEmailSendRequest'
+      responses:
+        '200':
+          description: 验证码已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: 409 `CONFLICT` 该账号已完成校内认证，无需重复认证
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: 422 `CAMPUS_EMAIL_NOT_ALLOWED(1032)` 邮箱域名不在校园白名单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/verify/campus-email/confirm:
+    post:
+      operationId: confirmCampusEmailCode
+      tags: [verify]
+      summary: 确认校园邮箱验证码
+      description: |
+        复用 `VerifyCodeServiceImpl.verify(target, code, "campus")`。
+        校验通过后把 `user.verify_status` 置 1（已认证），写 `school_id`。
+        原子读删走 `VerifyCodeServiceImpl.java:102-105` 的 Lua 脚本，
+        **禁止改用 `opsForValue().getAndDelete()`**（Redis 5.0 会抛 `ERR unknown command`，
+        已踩过一次坑，SPEC §11 第 1 条）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampusEmailConfirmRequest'
+      responses:
+        '200':
+          description: 认证结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyStatusResponse'
+        '400':
+          description: 400 `CODE_INVALID(1020)` 验证码错误或已过期
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: 409 `CONFLICT` 该账号已完成校内认证
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/verify/student-no:
+    post:
+      operationId: submitStudentNoVerify
+      tags: [verify]
+      summary: 学号 + 姓名后两位（人工核验兜底）
+      description: |
+        **冷启动期的兜底路径**：校园邮箱未必人人有（部分学校邮箱未激活、
+        毕业生邮箱已回收），所以必须留一条不依赖邮箱的通道。
+
+        提交后不直接认证，而是 `user.verify_status` 置 2（审核中），
+        同时往现有 `review_task` 表插一条由管理员人工核验的任务，
+        **不新建审核机制**（复用 `ReviewService`，与 G1 举报同一条流）。
+        管理员在手机端（OD-19）通过后由后台把 `verify_status` 置 1，
+        驳回置 3 并回填理由。
+
+        `studentNo` 走 `user.student_no` 唯一约束，已被他人占用返回 409
+        `STUDENT_NO_EXISTS(1004)`。`nameTail` 是姓名后两位，如「张三」传「三」，
+        「欧阳娜娜」传「娜娜」。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentNoVerifyRequest'
+      responses:
+        '200':
+          description: 已提交，进入人工核验
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentNoVerifyResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: 409。已认证 / 已在审核中 / `STUDENT_NO_EXISTS(1004)` 学号已被使用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/verify/status:
+    get:
+      operationId: getVerifyStatus
+      tags: [verify]
+      summary: 当前认证状态
+      description: |
+        前端据 `canStrangerChat` / `canPublishAnnouncement` 决定是否禁用入口，
+        不再在每个页面各写一遍判断（AC-11 的统一拦截口径，见 ARCHITECTURE §3 Q9）。
+        未认证时不返回任何真实姓名或学号字段（AC-12）。
+      responses:
+        '200':
+          description: 认证状态快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyStatusResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
+  # §5.5 F11 新用户引导
+  # ===========================================================================
+
+  /onboarding/tags:
+    get:
+      operationId: listOnboardingTags
+      tags: [onboarding]
+      summary: 引导用推荐标签
+      description: |
+        引导第 2 步的候选集。与 `GET /tags` 的区别：本接口做**首次梯度**裁剪 ——
+        每个 category 取 `use_count` 最高的若干条，总量 ≤ 60，
+        保证第一屏先看到本校最热的标签而不是一份 60 条的完整字典。
+        冷启动期 `use_count` 全为 0，退化为按 `sort` 升序取，结果稳定可重现。
+      parameters:
+        - name: size
+          in: query
+          description: 返回条数上限，默认 60，最大 60
+          required: false
+          schema:
+            type: integer
+            default: 60
+            maximum: 60
+      responses:
+        '200':
+          description: 引导候选标签
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingTagsResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /onboarding/complete:
+    post:
+      operationId: completeOnboarding
+      tags: [onboarding]
+      summary: 完成引导（批量写标签 + 批量关注，幂等）
+      description: |
+        一个事务做完三件事：写学校归属（`school_id` / `dept` / `grade`）、
+        覆盖写兴趣标签、批量关注推荐用户。
+
+        幂等键：用户维度。已完成的账号重复提交返回 200、`duplicated = true`、
+        `message` 为「已完成」，不重复写标签、不重复关注。
+        判据是 `user.onboarding_step = 3`（见 ARCHITECTURE §3 Q10，不新增表）。
+
+        `followUserIds` 为空是合法的 —— 引导第 3 步允许一个都不选。
+        关注复用现有 `RelationService`，已关注的不报错（跳过）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingCompleteRequest'
+      responses:
+        '200':
+          description: 引导完成（含重复提交的「已完成」情形）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingCompleteResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /onboarding/recommend-users:
+    get:
+      operationId: recommendOnboardingUsers
+      tags: [onboarding]
+      summary: 引导推荐关注的人
+      description: |
+        **冷启动期不上算法**（PRD §9 明确排除 AI 智能匹配）。
+        确定性规则排序，优先级从高到低：
+        1. 同院系（**`user.dept_id` 相等**）
+        2. 同年级（**`user.grade_id` 相等**）
+        3. 已通过校内认证（`verify_status = 1`）
+        4. 曾有互动（近 7 天有发帖或评论，`post` / `comment` 表存在记录）
+        5. `follower_count` 降序
+
+        排除自己、已关注的、已拉黑的、`status != 0` 的账号。
+        单校 MVP 下 `school_id` 恒为 1，该维度不参与排序但写进 SQL 以便后续扩校。
+
+        **AC-14 的匹配依据已从名称改为字典 id**：原实现比的是 `user.dept` / `user.grade`
+        字符串，「计算机学院」与「计科」不相等会让同院系的人漏掉一半，
+        且院系改名后新老用户会永久匹配不上。改比 id 后，改名只影响展示文本，
+        匹配关系自动保持正确。
+        兼容：`dept_id` / `grade_id` 为 NULL 的存量用户（字典化前注册）
+        回退到名称比较，不会被静默降级。
+      parameters:
+        - name: size
+          in: query
+          description: 返回条数，默认 12，最大 20
+          required: false
+          schema:
+            type: integer
+            default: 12
+            maximum: 20
+      responses:
+        '200':
+          description: 推荐用户列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingRecommendUsersResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /onboarding/recommend-circles:
+    get:
+      operationId: recommendOnboardingCircles
+      tags: [onboarding]
+      summary: 引导推荐圈子
+      description: |
+        同样是规则排序，不上一算法：`circle.member_count` 降序 -> 与我的标签重合度降序
+        -> `create_time` 降序。排除已加入的（查 `circle_member`）。
+        冷启动期圈子可能不足，允许返回少于 `size` 条甚至空数组 —— 空态由前端
+        展示引导文案 + 行动按钮（AC-19），**不允许出现空白页**。
+      parameters:
+        - name: size
+          in: query
+          description: 返回条数，默认 8，最大 20
+          required: false
+          schema:
+            type: integer
+            default: 8
+            maximum: 20
+      responses:
+        '200':
+          description: 推荐圈子列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingRecommendCirclesResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+components:
+
+  # ---------------------------------------------------------------------------
+  # 认证
+  # ---------------------------------------------------------------------------
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        `Authorization: Bearer <access>`。access token 有效期 15 分钟，
+        refresh 7 天。由 `interceptor/AuthInterceptor.java` 校验，
+        失败时拦截器直接写 HTTP 401 并短路，不进 Controller。
+        刷新逻辑见 `frontend/src/utils/request.js` 的 401 单例队列。
+
+  # ---------------------------------------------------------------------------
+  # 复用参数
+  # ---------------------------------------------------------------------------
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: 上一页返回的 nextCursor。首页不传
+      schema:
+        type: integer
+        format: int64
+        nullable: true
+    Size:
+      name: size
+      in: query
+      required: false
+      description: 每页条数
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 50
+    ReportId:
+      name: id
+      in: path
+      required: true
+      description: 举报记录 id
+      schema:
+        type: integer
+        format: int64
+    AnnouncementId:
+      name: id
+      in: path
+      required: true
+      description: 公告 id
+      schema:
+        type: integer
+        format: int64
+
+  # ---------------------------------------------------------------------------
+  # 复用响应
+  # ---------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: 400 `BAD_REQUEST` 参数缺失或格式错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unauthorized:
+      description: 401 `UNAUTHORIZED` 未登录或 token 失效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Forbidden:
+      description: 403 `FORBIDDEN` / `USER_FROZEN(1001)` / `USER_CANCELLED(1002)` 无权限或账号不可用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    ForbiddenAdmin:
+      description: 403 `NOT_ADMIN(1025)` 需要管理员权限（AC-20）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: 404 `NOT_FOUND` 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Conflict:
+      description: 409 `CONFLICT` 资源冲突（已认证 / 已处置 / 学号被占用）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unprocessable:
+      description: 422 `UNPROCESSABLE` 业务校验失败（敏感词 / 标签超上限 / 置顶缺到期时间）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    TooManyRequests:
+      description: 429 `TOO_MANY_REQUESTS` 操作过于频繁（搭话配额 / 验证码限频）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    InternalError:
+      description: 500 `INTERNAL_ERROR` 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+
+  schemas:
+
+    # ---- 通用 -------------------------------------------------------------
+
+    ErrorBody:
+      type: object
+      description: 错误响应体。data 字段被 @JsonInclude(NON_NULL) 省略
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          description: ResultCode 枚举取值
+          example: 1025
+        message:
+          type: string
+          description: 可直接展示给用户的人类可读文案
+          example: 需要管理员权限
+
+    CursorPageEnvelope:
+      type: object
+      description: |
+        游标分页外壳。字段名与 common/CursorPage.java 严格一致：
+        list / nextCursor / hasMore。nextCursor 为 null 表示没有更多
+      required: [hasMore, nextCursor]
+      properties:
+        list:
+          type: array
+          items: {}
+        nextCursor:
+          type: integer
+          format: int64
+          nullable: true
+          description: 下一页游标；null 表示没有更多
+        hasMore:
+          type: boolean
+
+    # ---- F3 / F4 ----------------------------------------------------------
+
+    ReportSubmitRequest:
+      type: object
+      required: [targetType, targetId, reasonType]
+      properties:
+        targetType:
+          type: integer
+          description: 1用户 2帖子 3评论 4聊天消息 5搭子
+          enum: [1, 2, 3, 4, 5]
+          example: 4
+        targetId:
+          type: integer
+          format: int64
+          example: 88213
+        reasonType:
+          type: integer
+          description: 1骚扰 2广告 3色情 4诈骗 5其他
+          enum: [1, 2, 3, 4, 5]
+          example: 1
+        reasonText:
+          type: string
+          maxLength: 200
+          description: 补充说明，可选
+          example: 连续三天发游戏代练广告
+
+    ReportSubmitData:
+      type: object
+      required: [reportId, duplicated]
+      properties:
+        reportId:
+          type: integer
+          format: int64
+        duplicated:
+          type: boolean
+          description: true 表示此前已举报过同一目标，本次未创建新记录
+        status:
+          type: integer
+          description: 0待审 1成立 2驳回
+          enum: [0, 1, 2]
+
+    ReportSubmitResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReportSubmitData'
+
+    ReportVO:
+      type: object
+      required: [id, targetType, targetId, reasonType, status, createTime]
+      properties:
+        id:
+          type: integer
+          format: int64
+        reporterId:
+          type: integer
+          format: int64
+        reporterNickname:
+          type: string
+        targetType:
+          type: integer
+          enum: [1, 2, 3, 4, 5]
+        targetId:
+          type: integer
+          format: int64
+        targetSummary:
+          type: string
+          description: 被举报对象的摘要文本，供管理员在手机上快速判断
+          example: 今晚王者缺一个，来吗
+        reasonType:
+          type: integer
+          enum: [1, 2, 3, 4, 5]
+        reasonText:
+          type: string
+          maxLength: 60
+          description: 超过 60 字截断
+        reasonTextTruncated:
+          type: boolean
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        handlerId:
+          type: integer
+          format: int64
+          nullable: true
+        handleTime:
+          type: string
+          format: date-time
+          nullable: true
+        createTime:
+          type: string
+          format: date-time
+
+    AdminReportPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/CursorPageEnvelope'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ReportVO'
+                    pendingCount:
+                      type: integer
+                      description: status=0 的总数，供手机端顶栏红点展示
+
+    ReportHandleRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          description: ban 成立并封禁 / reject 驳回 / ignore 忽略
+          enum: [ban, reject, ignore]
+          example: ban
+        banDays:
+          type: integer
+          description: action=ban 时必填。1/7/30，0 表示永久封禁
+          enum: [0, 1, 7, 30]
+        handleNote:
+          type: string
+          maxLength: 200
+          description: 处置备注，写入 audit_log
+
+    ReportHandleData:
+      type: object
+      required: [reportId, status, action]
+      properties:
+        reportId:
+          type: integer
+          format: int64
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        action:
+          type: string
+          enum: [ban, reject, ignore]
+        bannedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: action=ban 时的解封时间；永久封禁为 null
+
+    ReportHandleResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReportHandleData'
+
+    ChatSendRequest:
+      type: object
+      required: [toUserId, content]
+      properties:
+        toUserId:
+          type: integer
+          format: int64
+          example: 1024
+        content:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 搭话内容。首条搭话前端限制 50 字，服务端统一放宽到 500
+          example: 周五下午三点三号场，缺两个人，来吗
+        replyToId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 引用回复的消息 id，同会话才允许
+
+    ChatSendData:
+      type: object
+      required: [msgId]
+      properties:
+        msgId:
+          type: integer
+          format: int64
+        isStranger:
+          type: boolean
+          description: 本次是否属于向陌生人发起（用于前端埋点）
+        remainingNewPeerQuota:
+          type: integer
+          nullable: true
+          description: |
+            本次为向新对象发起首条时，返回剩余「新对象」额度；
+            非新对象场景为 null。前端据此刷新「还能搭话 N 人」文案
+
+    ChatSendResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ChatSendData'
+
+    StrangerQuotaData:
+      type: object
+      required: [remainingNewPeer, remainingPerPeer]
+      properties:
+        dailyNewPeerLimit:
+          type: integer
+          description: 每日最多可向几个新对象发起，来自 application.yml
+          example: 5
+        dailyNewPeerUsed:
+          type: integer
+          example: 1
+        remainingNewPeer:
+          type: integer
+          description: 今日剩余可发起的新对象数
+          example: 4
+        perPeerDailyLimit:
+          type: integer
+          example: 20
+        remainingPerPeer:
+          type: integer
+          nullable: true
+          description: |
+            对指定 peer 的当日剩余条数。不传 peerId 时为 null，
+            因为「剩余」必须针对某个具体对象才有意义
+          example: 18
+        resetAt:
+          type: string
+          format: date-time
+          description: 次日 00:00（Asia/Shanghai）
+        strangerMsgEnabled:
+          type: boolean
+          description: 我是否接收陌生人消息。false 时前端应提示「你已关闭陌生人搭话」
+
+    StrangerQuotaResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/StrangerQuotaData'
+
+    # ---- 标签 --------------------------------------------------------------
+
+    TagItem:
+      type: object
+      required: [id, name, category]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: 王者荣耀
+        category:
+          type: integer
+          description: 1兴趣 2游戏 3运动 4学习 5生活
+          enum: [1, 2, 3, 4, 5]
+        useCount:
+          type: integer
+          description: 被多少用户选中
+          example: 137
+
+    TagGroup:
+      type: object
+      required: [category, categoryName, tags]
+      properties:
+        category:
+          type: integer
+          enum: [1, 2, 3, 4, 5]
+        categoryName:
+          type: string
+          example: 游戏
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagItem'
+
+    TagTreeResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [groups, total]
+              properties:
+                groups:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TagGroup'
+                total:
+                  type: integer
+                  example: 52
+
+    UserTagsPutRequest:
+      type: object
+      required: [tagIds]
+      properties:
+        tagIds:
+          type: array
+          maxItems: 8
+          description: 全量覆盖。空数组表示清空我的标签
+          items:
+            type: integer
+            format: int64
+          example: [12, 27, 33]
+
+    UserTagsPutResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [tagIds]
+              properties:
+                tagIds:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TagItem'
+
+    UserTagsGetResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [userId, tags]
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+                tags:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TagItem'
+
+    # ---- 公告 --------------------------------------------------------------
+
+    AnnouncementPublisher:
+      type: object
+      required: [id, nickname, verified]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+          example: 教务处通知君
+        avatarUrl:
+          type: string
+          nullable: true
+        verified:
+          type: boolean
+          description: 是否已通过校内认证（AC-12：认证徽章只展示到这一层）
+        schoolName:
+          type: string
+          nullable: true
+          description: 已认证时返回，如「XX 大学」；未认证为 null
+
+    AnnouncementListItem:
+      type: object
+      required: [id, title, category, isTop, status, publishTime, isRead]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: 关于 2026 级新生选课的通知
+        summary:
+          type: string
+          description: 正文前 80 字，列表页用，避免整篇下发拖慢移动端首屏
+          example: 本学期通识选修课将于 9 月 12 日开放，请同学们提前完成培养方案核对……
+        category:
+          type: integer
+          description: 1教务 2后勤 3活动 4社团 5紧急 6其他
+          enum: [1, 2, 3, 4, 5, 6]
+        isTop:
+          type: integer
+          description: 0否 1是。置顶且在 topExpireTime 之前才生效
+          enum: [0, 1]
+        topExpireTime:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        publishTime:
+          type: string
+          format: date-time
+          nullable: true
+        readCount:
+          type: integer
+        isRead:
+          type: boolean
+          description: 当前用户是否已读
+        publisher:
+          $ref: '#/components/schemas/AnnouncementPublisher'
+
+    AnnouncementPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/CursorPageEnvelope'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/AnnouncementListItem'
+
+    AnnouncementDetailData:
+      type: object
+      required: [id, title, content, category, isRead]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        content:
+          type: string
+          description: 正文，纯文本 + 换行，不做富文本（MVP 不做富文本编辑器）
+        category:
+          type: integer
+          enum: [1, 2, 3, 4, 5, 6]
+        isTop:
+          type: integer
+          enum: [0, 1]
+        topExpireTime:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        publishTime:
+          type: string
+          format: date-time
+          nullable: true
+        readCount:
+          type: integer
+        isRead:
+          type: boolean
+        readTime:
+          type: string
+          format: date-time
+          nullable: true
+        publisher:
+          $ref: '#/components/schemas/AnnouncementPublisher'
+        canViewUnreadList:
+          type: boolean
+          description: 我是否是发布方且已认证。true 时前端展示「谁还没看」入口（AC-10）
+
+    AnnouncementDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AnnouncementDetailData'
+
+    AnnouncementReadData:
+      type: object
+      required: [announcementId, duplicated]
+      properties:
+        announcementId:
+          type: integer
+          format: int64
+        readTime:
+          type: string
+          format: date-time
+        duplicated:
+          type: boolean
+          description: true 表示此前已读过，本次未新增记录（AC-09）
+
+    AnnouncementReadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AnnouncementReadData'
+
+    AnnouncementUnreadCountResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [unreadCount]
+              properties:
+                unreadCount:
+                  type: integer
+                  example: 3
+                latestAnnouncementId:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: 最新一条未读公告 id，供红点点击直达
+
+    AnnouncementCreateRequest:
+      type: object
+      required: [title, content, category]
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 60
+          example: 关于 2026 级新生选课的通知
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        category:
+          type: integer
+          enum: [1, 2, 3, 4, 5, 6]
+        isTop:
+          type: integer
+          enum: [0, 1]
+          default: 0
+        topExpireTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: isTop=1 时必填
+        publishNow:
+          type: boolean
+          default: true
+          description: false 表示存为草稿
+
+    AnnouncementCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [id, status]
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                status:
+                  type: integer
+                  enum: [0, 1, 2]
+                pushedOnlineCount:
+                  type: integer
+                  description: 发布时通过 WS 触达的在线用户数；草稿为 0
+
+    AnnouncementPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 60
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        category:
+          type: integer
+          enum: [1, 2, 3, 4, 5, 6]
+        isTop:
+          type: integer
+          enum: [0, 1]
+        topExpireTime:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: integer
+          description: 1上架 2下架。不允许改回 0 草稿
+          enum: [1, 2]
+
+    AnnouncementPatchResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [id, status, isTop]
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                status:
+                  type: integer
+                  enum: [0, 1, 2]
+                isTop:
+                  type: integer
+                  enum: [0, 1]
+                topExpireTime:
+                  type: string
+                  format: date-time
+                  nullable: true
+
+    AdminAnnouncementListItem:
+      allOf:
+        - $ref: '#/components/schemas/AnnouncementListItem'
+        - type: object
+          properties:
+            totalTargetCount:
+              type: integer
+              description: 本校应触达人数，用于算触达率
+            reachRate:
+              type: number
+              format: double
+              description: readCount / totalTargetCount，0 到 1
+            createTime:
+              type: string
+              format: date-time
+
+    AdminAnnouncementPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/CursorPageEnvelope'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/AdminAnnouncementListItem'
+
+    UnreadUserItem:
+      type: object
+      required: [id, nickname]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        dept:
+          type: string
+          nullable: true
+        grade:
+          type: string
+          nullable: true
+
+    AnnouncementUnreadUsersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/CursorPageEnvelope'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/UnreadUserItem'
+                    totalUnread:
+                      type: integer
+
+    AnnouncementRemindResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [remindedCount]
+              properties:
+                remindedCount:
+                  type: integer
+                  description: 本次实际推达的在线未读用户数
+                totalUnread:
+                  type: integer
+                  description: 未读总数。remindedCount 小于它是因为离线用户不落库
+
+    # ---- 字典（F11 引导第 1 步）-------------------------------------------
+
+    DeptItem:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: school_dept.id。提交时原样回传给 POST /user/school-profile 的 deptId
+          example: 12
+        name:
+          type: string
+          description: 院系名称，仅供展示，不接受用户提交
+          example: 计算机科学与技术学院
+        sort:
+          type: integer
+          description: 排序权重，升序。服务端已排好序返回，此字段供前端本地重排时使用
+          example: 10
+
+    GradeItem:
+      type: object
+      required: [id, name, enrollYear]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: school_grade.id。提交时原样回传给 gradeId
+          example: 3
+        name:
+          type: string
+          example: 2024级
+        enrollYear:
+          type: integer
+          description: |
+            入学年份。单独给出而不是让前端从 name 里截前 4 位——
+            「2024级」「2024 级」「2024级本科」都能解析出 2024，
+            截字符串等于把解析规则复制一份到每一处消费方。
+          example: 2024
+        sort:
+          type: integer
+          example: 30
+
+    SchoolDictResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [schoolId, depts, grades, deptTotal, gradeTotal]
+              properties:
+                schoolId:
+                  type: integer
+                  format: int64
+                  description: 本次院系列表所属的学校 id
+                  example: 1
+                depts:
+                  type: array
+                  description: 启用中的院系，按 sort 升序、id 升序兜底
+                  items:
+                    $ref: '#/components/schemas/DeptItem'
+                grades:
+                  type: array
+                  description: |
+                    启用中的年级，按 sort 升序（新近入学的排最前）。
+                    不含已毕业年级（enabled=0），但那些年级在库中仍然保留，
+                    以便历史用户的回显不显示空白。
+                  items:
+                    $ref: '#/components/schemas/GradeItem'
+                deptTotal:
+                  type: integer
+                  description: 可选院系总数，前端用来显示「共 N 个院系」
+                  example: 55
+                gradeTotal:
+                  type: integer
+                  description: 可选年级总数（不含已毕业年级）
+                  example: 6
+
+    # ---- F2 认证 -----------------------------------------------------------
+
+    SchoolProfileRequest:
+      type: object
+      required: [deptId, gradeId]
+      properties:
+        schoolId:
+          type: integer
+          format: int64
+          description: MVP 单校，恒为 1，不传默认 1
+          default: 1
+        deptId:
+          type: integer
+          format: int64
+          description: |
+            院系字典 id，取自 `GET /dict/school` 的 `depts`。
+            **不接受院系名称字符串**——自由文本会让 AC-14 的同院系匹配漏人。
+            id 不存在、已停用或不属于该 schoolId 时返回 422 `DEPT_INVALID`。
+          example: 12
+        gradeId:
+          type: integer
+          format: int64
+          description: |
+            年级字典 id，取自 `GET /dict/school` 的 `grades`。
+            id 不存在或已停用（已毕业）时返回 422 `GRADE_INVALID`。
+          example: 3
+
+    SchoolProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [schoolId, deptId, gradeId, profileComplete]
+              properties:
+                schoolId:
+                  type: integer
+                  format: int64
+                schoolName:
+                  type: string
+                  nullable: true
+                deptId:
+                  type: integer
+                  format: int64
+                deptName:
+                  type: string
+                  nullable: true
+                  description: 由服务端从字典表取出。前端直接显示，不必二次请求反查名称
+                gradeId:
+                  type: integer
+                  format: int64
+                gradeName:
+                  type: string
+                  nullable: true
+                  description: 年级名称，如「2024级」
+                profileComplete:
+                  type: boolean
+                  description: |
+                    deptId 与 gradeId 均有值。false 时前端阻断进入 Feed（AC-18）。
+                    兼容：字典化之前注册、只有名称没有 id 的用户仍返回 true。
+
+    UserProfileUpdateRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+          maxLength: 64
+          description: 昵称。为 null 或不传则不更新该字段
+        avatarUrl:
+          type: string
+          maxLength: 512
+          description: 头像 URL。为 null 或不传则不更新该字段
+        studentNo:
+          type: string
+          maxLength: 32
+          description: 学号。变更时做全局唯一校验，重复返回 `STUDENT_NO_EXISTS`
+      additionalProperties: true
+      description: |
+        三个字段全部可选，服务端只更新传入的字段。
+
+        **不接受 `dept` / `grade`**：这两个字段已随字典化下线，改由
+        `POST /user/school-profile` 或 `POST /onboarding/complete` 写入。
+        传入 `dept` 或 `grade` 会返回 **400 `PROFILE_FIELD_RETIRED`**，不是静默忽略。
+
+        `additionalProperties: true` 是刻意开放的：客户端版本差异可能带来无关字段，
+        这些放行不报错；但上面两个已下线字段由服务端显式拦截并报错。
+
+    UserProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [id, username, nickname]
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                username:
+                  type: string
+                  description: 邮箱或手机号，中间部分脱敏
+                nickname:
+                  type: string
+                avatarUrl:
+                  type: string
+                  nullable: true
+                grade:
+                  type: string
+                  nullable: true
+                  description: 年级名称快照。存量用户可能是阶段口径（如「大三」），字典化后新写入的是入学年份口径（如「2026级」）
+                dept:
+                  type: string
+                  nullable: true
+                  description: 院系名称快照
+                deptId:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: |
+                    院系字典 id。**存量用户为 NULL 但 dept 有值**，
+                    所以判断「用户是否已填院系」必须看 dept 与 deptId 是否同时为空，
+                    不能只看 deptId。
+                gradeId:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: 年级字典 id。同上，存量用户为 NULL 但 grade 有值
+                followerCount:
+                  type: integer
+                followingCount:
+                  type: integer
+                unreadNotifyCount:
+                  type: integer
+                role:
+                  type: integer
+                  description: 0 普通用户 1 管理员
+                createTime:
+                  type: string
+                  format: date-time
+
+    CampusEmailSendRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 128
+          example: 2024210123@mail.example.edu.cn
+
+    CampusEmailConfirmRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 128
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          example: '483920'
+
+    StudentNoVerifyRequest:
+      type: object
+      required: [studentNo, nameTail]
+      properties:
+        studentNo:
+          type: string
+          minLength: 6
+          maxLength: 32
+          example: '2024210123'
+        nameTail:
+          type: string
+          minLength: 1
+          maxLength: 4
+          description: 姓名后 1 到 2 位，用于人工核验比对
+          example: 三
+
+    StudentNoVerifyResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [verifyStatus, reviewTaskId]
+              properties:
+                verifyStatus:
+                  type: integer
+                  description: 固定返回 2 审核中
+                  enum: [2]
+                reviewTaskId:
+                  type: integer
+                  format: int64
+                  description: 落进 review_task 的任务 id，管理员据此核验
+                estimatedHours:
+                  type: integer
+                  description: 人工核验的预期时长，用于前端文案
+                  example: 24
+
+    VerifyStatusData:
+      type: object
+      required: [verifyStatus, canStrangerChat, canPublishAnnouncement]
+      properties:
+        verifyStatus:
+          type: integer
+          description: 0未认证 1已认证 2审核中 3驳回
+          enum: [0, 1, 2, 3]
+        verifyStatusText:
+          type: string
+          example: 已认证
+        schoolId:
+          type: integer
+          format: int64
+        schoolName:
+          type: string
+          nullable: true
+          example: XX 大学
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectReason:
+          type: string
+          nullable: true
+          description: verifyStatus=3 时的驳回理由
+        canStrangerChat:
+          type: boolean
+          description: 是否可发起搭话。verifyStatus=1 才为 true（AC-11）
+        canPublishAnnouncement:
+          type: boolean
+          description: 是否可发布公告。verifyStatus=1 才为 true（AC-11）
+        profileComplete:
+          type: boolean
+          description: 引导第 1 步是否完成（dept 与 grade 均已填）
+
+    VerifyStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/VerifyStatusData'
+
+    # ---- F11 引导 ----------------------------------------------------------
+
+    OnboardingTagsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [tags, minSelect, maxSelect]
+              properties:
+                tags:
+                  type: array
+                  maxItems: 60
+                  items:
+                    $ref: '#/components/schemas/TagItem'
+                minSelect:
+                  type: integer
+                  description: 引导要求最少选几个
+                  example: 3
+                maxSelect:
+                  type: integer
+                  example: 5
+
+    OnboardingCompleteRequest:
+      type: object
+      required: [deptId, gradeId, tagIds]
+      properties:
+        schoolId:
+          type: integer
+          format: int64
+          default: 1
+        deptId:
+          type: integer
+          format: int64
+          description: |
+            院系字典 id，取自 `GET /dict/school` 的 `depts`。**不接受名称字符串**——
+            AC-14 的同院系匹配依赖它，自由文本会让同院系的人匹配不上。
+            无效或已停用返回 422 `DEPT_INVALID`。
+          example: 12
+        gradeId:
+          type: integer
+          format: int64
+          description: 年级字典 id，取自 `GET /dict/school` 的 `grades`。无效或已停用返回 422 `GRADE_INVALID`
+          example: 3
+        tagIds:
+          type: array
+          minItems: 3
+          maxItems: 8
+          description: 引导要求 3 到 5 个，服务端放宽到 8 与 PUT /user/tags 对齐
+          items:
+            type: integer
+            format: int64
+        followUserIds:
+          type: array
+          maxItems: 50
+          description: 可为空，允许一个都不关注
+          items:
+            type: integer
+            format: int64
+
+    OnboardingCompleteResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [completed, duplicated, onboardingStep]
+              properties:
+                completed:
+                  type: boolean
+                duplicated:
+                  type: boolean
+                  description: true 表示此前已完成，本次未重复写入
+                onboardingStep:
+                  type: integer
+                  description: 0未开始 1已填归属 2已选标签 3已完成
+                  enum: [0, 1, 2, 3]
+                followedCount:
+                  type: integer
+                tagCount:
+                  type: integer
+
+    RecommendUserItem:
+      type: object
+      required: [id, nickname, verified, reason]
+      properties:
+        id:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        dept:
+          type: string
+          nullable: true
+        grade:
+          type: string
+          nullable: true
+        verified:
+          type: boolean
+          description: 是否已通过校内认证
+        followerCount:
+          type: integer
+        reason:
+          type: string
+          description: 推荐理由，直接展示（规则可解释，不做算法）
+          example: 同院系 · 计算机科学与技术学院
+        commonTagCount:
+          type: integer
+          description: 与我的标签重合数
+        followed:
+          type: boolean
+          description: 调用时是否已被我关注。true 时前端渲染为已关注态
+
+    OnboardingRecommendUsersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [users]
+              properties:
+                users:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RecommendUserItem'
+                emptyHint:
+                  type: string
+                  nullable: true
+                  description: |
+                    列表为空时的引导文案，由服务端下发以保证前后端一致（AC-19）。
+                    非空时为 null
+                  example: 还没有同院系的同学注册，先看看全校活跃的人
+
+    RecommendCircleItem:
+      type: object
+      required: [id, name, memberCount]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: 深夜自习室
+        description:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        memberCount:
+          type: integer
+        commonTagCount:
+          type: integer
+        joined:
+          type: boolean
+
+    OnboardingRecommendCirclesResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [circles]
+              properties:
+                circles:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RecommendCircleItem'
+                emptyHint:
+                  type: string
+                  nullable: true
+                  example: 圈子还在建，你可以先关注几个同学
+
+    # ---- 仅 message 的简单响应 ----------------------------------------------
+
+    MessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              properties:
+                message:
+                  type: string
+                  example: 验证码已发送,5 分钟内有效
+
+    ResultMeta:
+      type: object
+      description: |
+        统一信封的 code / message。与 common/Result.java 一致：
+        code=200 为成功；data 为 null 时被 @JsonInclude(NON_NULL) 省略
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 成功

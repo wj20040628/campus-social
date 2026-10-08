@@ -235,18 +235,22 @@ public class AuthServiceImpl implements AuthService {
         return toVo(user);
     }
 
+    /**
+     * 更新资料：昵称 / 头像 / 学号。
+     *
+     * <p><b>院系与年级不在此处改</b>：它们已改为字典 id（见 {@code UpdateProfileDTO} 注释），
+     * 走 {@code POST /user/school-profile} 或 {@code POST /onboarding/complete}。
+     * 保留自由文本入口会让展示名称与 dept_id 失配，污染 AC-14 的匹配依据。
+     */
     @Override
     @Transactional
-    public UserVO updateProfile(long userId, String nickname, String grade, String dept, String avatarUrl,
-            String studentNo) {
+    public UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(USER_CANCELLED);
         }
         // 先捕获旧值,updateById 之后 user 字段就变新值了,审计 diff 需要旧值做"→"左边
         String oldNickname = user.getNickname();
-        String oldGrade = user.getGrade();
-        String oldDept = user.getDept();
         String oldStudentNo = user.getStudentNo();
         String oldAvatar = user.getAvatarUrl();
         // 学号变更需唯一校验
@@ -261,10 +265,6 @@ public class AuthServiceImpl implements AuthService {
         }
         if (nickname != null)
             user.setNickname(nickname);
-        if (grade != null)
-            user.setGrade(grade);
-        if (dept != null)
-            user.setDept(dept);
         if (avatarUrl != null)
             user.setAvatarUrl(avatarUrl);
         userMapper.updateById(user);
@@ -272,10 +272,6 @@ public class AuthServiceImpl implements AuthService {
         StringBuilder diff = new StringBuilder();
         if (nickname != null && !nickname.equals(oldNickname))
             diff.append("昵称:").append(nullSafe(oldNickname)).append("→").append(nickname).append("; ");
-        if (grade != null && !grade.equals(oldGrade))
-            diff.append("年级:").append(nullSafe(oldGrade)).append("→").append(grade).append("; ");
-        if (dept != null && !dept.equals(oldDept))
-            diff.append("院系:").append(nullSafe(oldDept)).append("→").append(dept).append("; ");
         if (studentNo != null && !studentNo.isBlank() && !studentNo.equals(oldStudentNo))
             diff.append("学号:").append(nullSafe(oldStudentNo)).append("→").append(studentNo).append("; ");
         if (avatarUrl != null && !avatarUrl.equals(oldAvatar))
@@ -316,6 +312,10 @@ public class AuthServiceImpl implements AuthService {
                 .avatarUrl(user.getAvatarUrl())
                 .grade(user.getGrade())
                 .dept(user.getDept())
+                // 字典 id 随名称一起下发：前端要靠它区分「字典里的正式项」与
+                // 「字典化之前填的老数据」。只给名称的话前端无法判断该不该推进引导页
+                .deptId(user.getDeptId())
+                .gradeId(user.getGradeId())
                 .followerCount(user.getFollowerCount())
                 .followingCount(user.getFollowingCount())
                 .unreadNotifyCount(user.getUnreadNotifyCount())
