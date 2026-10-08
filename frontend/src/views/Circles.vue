@@ -1,6 +1,100 @@
 <template>
   <div class="circles">
-    <div class="circles-inner">
+    <!--
+      顶栏工具条(设计 §1 行 1)。
+      全站 TopBar 的发布按钮在手机端是隐藏的(TabBar 中位已有),所以
+      「创建圈子」必须由本页自己提供 —— 否则列表非空时用户**没有任何
+      创建入口**,只有一个在空态里露面的按钮。
+    -->
+    <div class="circles__tools">
+      <label class="sr-only" for="circle-search">搜圈子</label>
+      <input
+        id="circle-search"
+        v-model="keyword"
+        class="circles__search"
+        type="search"
+        placeholder="搜圈子名"
+        @keyup.enter="runSearch"
+        @search="runSearch"
+      />
+      <button
+        type="button"
+        class="circles__search-go"
+        :disabled="searching || !keyword.trim()"
+        @click="runSearch"
+      >
+        {{ searching ? '搜着' : '搜' }}
+      </button>
+      <button
+        v-if="isSearching"
+        type="button"
+        class="circles__search-clear"
+        @click="clearSearch"
+      >
+        清空
+      </button>
+      <button
+        type="button"
+        class="circles__create"
+        aria-label="创建圈子"
+        @click="onCreateClick"
+      >
+        <el-icon :size="20"><Plus /></el-icon>
+        <span class="circles__create-text">创建圈子</span>
+      </button>
+    </div>
+
+    <!-- 首屏骨架:6 条圈子行(48px 方块 + 两行文字条) -->
+    <div v-if="!loaded && !loadFailed" class="circles__skeleton" aria-hidden="true">
+      <SkeletonList variant="audit" :count="6" />
+    </div>
+
+    <!--
+      列表加载失败:整页替换 + 重试(设计 §3 错误态)。
+      只有首屏失败才到这里;追加翻页失败保留已有内容(见 useCircles.load)。
+    -->
+    <StateBlock
+      v-else-if="loadFailed"
+      variant="error"
+      title="圈子列表没拉出来"
+      description="可能是网络断了，点一下重试"
+      action-label="重试"
+      :icon="WarningFilled"
+      @action="load"
+    />
+
+    <!-- 搜索态:结果与搜索失败是两种状态,主句不同 -->
+    <template v-else-if="isSearching">
+      <StateBlock
+        v-if="searchFailed"
+        variant="error"
+        title="没搜到"
+        description="搜的时候网络断了，再试一次"
+        action-label="重试"
+        :icon="WarningFilled"
+        @action="runSearch"
+      />
+      <StateBlock
+        v-else-if="!results.length"
+        variant="empty"
+        title="没找到叫这个名字的圈子"
+        description="换个词，或者自己建一个"
+        action-label="创建圈子"
+        :icon="Plus"
+        @action="onCreateClick"
+      />
+      <div v-else class="circle-rows">
+        <CircleRow
+          v-for="c in results"
+          :key="`s-${c.id}`"
+          :circle="c"
+          @open="goDetail"
+          @join="joinCircle"
+        />
+      </div>
+    </template>
+
+    <template v-else>
       <!--
         「我加入的」与「全部圈子」两个分组(设计 §1)。
         移动端分组是因为列表变长了,分组给的是「先看我加过的」这个快捷视角;
@@ -27,10 +121,6 @@
           全部圈子
           <span class="circles__group-count">{{ circles.length }}</span>
         </h2>
-        <!--
-          hideJoined:已在「我加入的」里出现过的圈子不重复列。
-          不去重的话同一个圈子会在一屏里出现两次,用户会以为是两个不同的圈子。
-        -->
         <div class="circle-rows">
           <CircleRow
             v-for="c in visibleCircles"
@@ -42,10 +132,7 @@
         </div>
       </section>
 
-      <!--
-        AC-19:空态必须有可点出口。
-        搜索无结果与冷启动是两种状态,主句不同 —— 共用一句会让用户以为页面坏了。
-      -->
+      <!-- AC-19:空态必须有可点出口。冷启动一句主句就够,搜索无结果另有一句 -->
       <StateBlock
         v-if="circles.length === 0"
         variant="empty"
@@ -53,13 +140,14 @@
         description="建一个篮球圈、考研圈或者你们院的圈子，名字你定"
         action-label="创建圈子"
         :icon="Plus"
-        @action="openCreate"
+        @action="onCreateClick"
       />
-    </div>
+    </template>
 
-    <div class="sentinel">
-      <el-text v-if="loading" type="info">加载中…</el-text>
-      <el-text v-else-if="!hasMore && circles.length" type="info">到底了</el-text>
+    <!-- 无限滚动哨兵。搜索态下不参与(搜索是一次性结果) -->
+    <div v-if="!isSearching" class="sentinel">
+      <span v-if="loading" class="circles__more">加载中</span>
+      <span v-else-if="!hasMore && circles.length" class="circles__more">到底了</span>
     </div>
 
     <!--
@@ -111,6 +199,15 @@
         </div>
       </div>
     </el-drawer>
+
+    <!-- AC-11:未认证建圈子。给「为什么 + 怎么做」,不给沉默失败 -->
+    <ActionSheet v-model="verifyOpen" title="创建圈子">
+      <div class="vfy">
+        <p class="vfy__why">要先认证校内身份才能建圈子</p>
+        <p class="vfy__how">认证只需要校园邮箱或学号，一分钟就好</p>
+        <button type="button" class="vfy__btn" @click="goVerify">去认证</button>
+      </div>
+    </ActionSheet>
   </div>
 </template>
 
@@ -123,50 +220,27 @@
  * 圆角与内边距,视觉上是孤立方块堆叠,浪费 32px 垂直空间且不像列表。
  * 桌面端恢复网格(见 CircleRow.vue 内的媒体查询)。
  */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from '@/utils/feedback'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import SkeletonList from '@/components/common/SkeletonList.vue'
+import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import CircleRow from '@/components/common/CircleRow.vue'
-import { list as listApi, join as joinApi, createCircle as createApi } from '@/api/circle'
+import { useCircles } from '@/composables/useCircles'
 
 const router = useRouter()
-const circles = ref([])
-const cursor = ref(null)
-const hasMore = ref(true)
-const loading = ref(false)
-const showCreate = ref(false)
-const newName = ref('')
-const creating = ref(false)
-/** 创建失败的提示,贴在输入框下方(设计 §3)。不用 toast 是因为抽屉会挡住它 */
-const createError = ref('')
+const verifyOpen = ref(false)
+
+const {
+  circles, hasMore, loading, loadFailed, loaded,
+  keyword, searching, searchFailed, results, isSearching,
+  joinedCircles, visibleCircles,
+  showCreate, newName, creating, createError,
+  openCreate, load, runSearch, clearSearch, joinCircle, create,
+} = useCircles()
 
 let observer = null
-
-/** 「我加入的」分组。空则整组隐藏(v-if 在模板上),不留空分组头 */
-const joinedCircles = computed(() => circles.value.filter((c) => c.joined))
-
-/** 「全部圈子」分组里要排除已在上方出现过的,否则同一个圈子一屏出现两次 */
-const visibleCircles = computed(() =>
-  joinedCircles.value.length
-    ? circles.value.filter((c) => !c.joined)
-    : circles.value,
-)
-
-async function load() {
-  loading.value = true
-  try {
-    // 不传关键字:openapi 里 GET /circle 没有 keyword 参数(已查证)。
-    // 搜索能力要等后端补,前端不发明不存在的端点。
-    const data = await listApi(cursor.value, 20)
-    circles.value = cursor.value ? [...circles.value, ...data.list] : data.list
-    cursor.value = data.hasMore ? data.nextCursor : null
-    hasMore.value = data.hasMore
-  } finally {
-    loading.value = false
-  }
-}
 
 function setupObserver() {
   observer?.disconnect()
@@ -181,39 +255,14 @@ function setupObserver() {
   observer.observe(el)
 }
 
-async function joinCircle(c) {
-  try {
-    await joinApi(c.id)
-    c.joined = true
-    ElMessage.success(`已加入「${c.name}」`)
-  } catch {
-    // 按钮回到「加入」态(c.joined 未改)+ request.js 已弹错(设计 §3)
-    ElMessage.closeAll()
-  }
+/** AC-11:未认证时弹说明而不是直接开抽屉 —— 填完名字才被拦等于白填 */
+function onCreateClick() {
+  if (openCreate() === 'need-verify') verifyOpen.value = true
 }
 
-function openCreate() {
-  createError.value = ''
-  showCreate.value = true
-}
-
-async function create() {
-  const name = newName.value.trim()
-  if (!name || creating.value) return
-  creating.value = true
-  createError.value = ''
-  try {
-    await createApi(name)
-    showCreate.value = false
-    newName.value = ''
-    ElMessage.success('圈子建好了，去发第一条吧')
-    await load()
-  } catch {
-    // 输入的名字**保留** —— 清空等于让用户重打一遍(设计 §3)
-    createError.value = '没创建成功，再点一次'
-  } finally {
-    creating.value = false
-  }
+function goVerify() {
+  verifyOpen.value = false
+  router.push('/onboarding')
 }
 
 function goDetail(id) {

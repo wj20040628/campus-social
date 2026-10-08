@@ -18,35 +18,78 @@
         @submit.prevent="onSubmit"
       >
         <el-form-item label="邮箱/手机号" prop="username">
-          <el-input v-model="form.username" placeholder="you@qq.com 或 13800000000" autocomplete="username" />
+          <el-input
+            v-model="form.username"
+            placeholder="you@qq.com 或 13800000000"
+            autocomplete="username"
+            :aria-describedby="fieldErrors.username ? 'username-err' : undefined"
+          />
+          <!--
+            设计 §3 错误 1):邮箱已被注册。
+            除了文案还要给一个「去登录」的**内联**出口 ——
+            发现邮箱已注册时,最优出路是去登录而不是重新注册,
+            让用户在两页之间自己找是设计想避免的。
+          -->
+          <p v-if="fieldErrors.username" id="username-err" class="field-error" role="alert">
+            {{ fieldErrors.username }}
+            <router-link v-if="usernameTaken" to="/login/form" class="field-error__link">
+              去登录
+            </router-link>
+          </p>
         </el-form-item>
 
         <el-form-item label="验证码" prop="verifyCode">
           <div class="code-row">
-            <el-input v-model="form.verifyCode" maxlength="6" placeholder="6位验证码" />
+            <el-input
+              v-model="form.verifyCode"
+              maxlength="6"
+              placeholder="6位验证码"
+              inputmode="numeric"
+            />
+            <!-- aria-live 挂在独立 span 上,倒计时能被读屏播报(设计 §4) -->
             <el-button
               :disabled="sending || cd > 0"
               :loading="sending"
+              aria-disabled="sending || cd > 0"
               @click="sendCode"
             >
-              {{ cd > 0 ? `${cd}s 后重发` : '获取验证码' }}
+              获取验证码
+              <span class="sr-only" aria-live="polite">{{ cdHint }}</span>
             </el-button>
           </div>
+          <p v-if="cd > 0" class="code-cd" aria-hidden="true">{{ cd }}s 后重发</p>
+          <p v-if="fieldErrors.verifyCode" class="field-error" role="alert">
+            {{ fieldErrors.verifyCode }}
+          </p>
         </el-form-item>
 
         <el-form-item label="密码" prop="password">
-          <el-input
+          <PasswordInput
             v-model="form.password"
-            type="password"
-            show-password
             placeholder="6~64 位"
             autocomplete="new-password"
           />
+          <!-- 设计 §3 错误 3):密码太短。贴字段,不是顶部汇总 -->
+          <p v-if="fieldErrors.password" class="field-error" role="alert">
+            {{ fieldErrors.password }}
+          </p>
         </el-form-item>
 
         <el-form-item label="学号（选填）" prop="studentNo">
-          <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />
-          <p class="field-hint">填了能更快通过校内认证；用校园邮箱注册可以自动认证。</p>
+          <el-input
+            v-model="form.studentNo"
+            placeholder="如 2024001234"
+            maxlength="32"
+            aria-describedby="student-no-hint"
+          />
+          <!--
+            学号的提示不是错误,用 meta 色;设计 §5 要求它被 aria-describedby
+            关联到输入框,读屏聚焦学号时会一起念出来。
+          -->
+          <p id="student-no-hint" class="field-hint">填了能更快通过校内认证；用校园邮箱注册可以自动认证。</p>
+          <p v-if="fieldErrors.studentNo" class="field-error" role="alert">
+            {{ fieldErrors.studentNo }}
+          </p>
         </el-form-item>
 
         <el-form-item label="昵称（选填）" prop="nickname">
@@ -68,6 +111,18 @@
         </el-form-item>
       </el-form>
 
+      <!--
+        表单级错误(网络失败 / 服务端错误)。设计 §3 错误 4):
+        「网络好像断了,点这里重试」,「点这里」可点 ——
+        纯文本的话用户只能把整个表单重填一遍,而网络失败恰恰最不该让人重填。
+      -->
+      <AuthErrorLine
+        v-if="formError"
+        :message="formError"
+        :retryable="retryable"
+        @retry="onSubmit"
+      />
+
       <div class="auth-link">
         已有账号？
         <router-link to="/login/form">去登录</router-link>
@@ -88,14 +143,16 @@
  * 学院 / 年级是字典下拉而非自由文本:自由文本会让「计算机学院」与「计科」
  * 算两个院系,同院系推荐(AC-14)漏人。
  */
-import { reactive, ref, computed, onUnmounted } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
-import { sendCode as sendCodeApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { IDENTITY_MODEL } from '@/constants/schoolDict'
-import { dictWriteError, applyDictInvalid } from '@/utils/dictError'
+import { useCodeCountdown } from '@/composables/useCodeCountdown'
+import { useRegisterSubmit } from '@/composables/useRegisterSubmit'
 import SchoolFields from '@/components/common/SchoolFields.vue'
+import PasswordInput from '@/components/auth/PasswordInput.vue'
+import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -103,10 +160,6 @@ const userStore = useUserStore()
 const isDev = import.meta.env.DEV
 
 const formRef = ref()
-const loading = ref(false)
-const sending = ref(false)
-const cd = ref(0)           // 倒计时秒
-let cdTimer = null
 const form = reactive({
   username: '', password: '', studentNo: '', nickname: '', verifyCode: '',
 })
@@ -115,6 +168,36 @@ const form = reactive({
 const identity = ref({ ...IDENTITY_MODEL })
 /** 后端 1040/1041 判定的无效字段 */
 const identityInvalid = ref({})
+
+const { cd, sending, start: startCd } = useCodeCountdown()
+
+const {
+  loading,
+  formError,
+  retryable,
+  fieldErrors,
+  usernameTaken,
+  sendCode: sendCodeAction,
+  submit: submitRegister,
+} = useRegisterSubmit({
+  form,
+  identity,
+  identityInvalid,
+  userStore,
+  onDone: () => router.push('/onboarding'),
+})
+
+function sendCode() {
+  sendCodeAction({ sending, startCd })
+}
+
+/** 倒计时读屏播报文本。每 10 秒换一次,避免每秒打断(设计 §4) */
+const cdHint = computed(() => {
+  const s = cd.value
+  if (s === 0) return '可以重新获取验证码'
+  if (s % 10 === 0 || s <= 3) return `${s} 秒后可以重新获取验证码`
+  return ''
+})
 
 const rules = {
   username: [
@@ -155,90 +238,22 @@ const identityError = computed(() => {
   return ''
 })
 
-async function sendCode() {
-  const isEmail = form.username.includes('@') && form.username.split('@').length === 2
-  const isPhone = /^1[3-9]\d{9}$/.test(form.username)
-  if (!isEmail && !isPhone) {
-    ElMessage.warning('先填合法的邮箱或手机号')
-    return
-  }
-  sending.value = true
-  try {
-    await sendCodeApi(form.username, 'register')
-    ElMessage.success('验证码已发送（开发模式见后端控制台）')
-    cd.value = 60
-    cdTimer = setInterval(() => {
-      cd.value--
-      if (cd.value <= 0) clearInterval(cdTimer)
-    }, 1000)
-  } catch {
-    // request.js 已弹错
-  } finally {
-    sending.value = false
-  }
-}
-
+/**
+ * 表单提交入口。
+ *
+ * 本地校验与「归属没填满」的短路留在这里,发请求之后的事全在
+ * useRegisterSubmit 里 —— 这个分界与 Login.vue 一致。
+ */
 async function onSubmit() {
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
+  // 归属三项是必填(AC-18),没填满就别白发请求
   if (identityError.value) {
     ElMessage.warning(identityError.value)
     return
   }
-  loading.value = true
-  try {
-    await userStore.register(
-      form.username,
-      form.password,
-      form.studentNo || undefined,
-      form.verifyCode,
-      form.nickname || undefined,
-    )
-    await userStore.fetchMe()
-    // 归属一起提交,避免注册后再走一遍引导第 1 步
-    await saveSchoolProfileSafe(identity.value)
-    await userStore.fetchMe()
-    ElMessage.success('注册成功')
-    // AC-18:注册后进引导,不是直接进 Feed。
-    // 直接进 Feed 的话引导守卫会把用户弹回 /onboarding,看起来像"点了没反应"
-    router.push('/onboarding')
-  } catch {
-    // request.js 已弹错
-  } finally {
-    loading.value = false
-  }
+  await submitRegister()
 }
-
-/**
- * 学校归属提交失败**不阻断注册成功**。
- * 用户已经拿到账号了,只丢了一个选填的归属字段 —— 为此把整个注册流程报失败
- * 会让用户以为注册没成功、然后重复注册(真实姓名与学号会被占用)。
- * 归属没存上的后果只是引导页第1 步要重填一次,这个代价小得多。
- *
- * 但**字典失效**(1040/1041)要落到字段上:本地校验全过、只有服务端知道
- * 该学院已停用。不提示的话用户进引导页会再选一次同一个无效项。
- */
-async function saveSchoolProfileSafe(payload) {
-  try {
-    const { saveSchoolProfile } = await import('@/api/dict')
-    await saveSchoolProfile(payload)
-  } catch (e) {
-    const bad = dictWriteError(e)
-    if (bad) {
-      // 清掉已失效的 id:它多半已不在新字典里,留着会在下拉里显示成一个裸数字
-      identityInvalid.value = applyDictInvalid(identity.value, bad)
-      // 注册页不强制刷字典(引导页会拉,这里拦住会拖慢注册),但**必须说清后果**:
-      // 不说的话就是「注册成功 → 跳引导 → 第 1 步又卡住」,用户会以为注册坏了。
-      ElMessage.warning(`${bad.hint},注册已成功,进引导后重选一下就行`)
-      return
-    }
-    ElMessage.warning('学校归属没存上，进引导后补一下就行')
-  }
-}
-
-onUnmounted(() => {
-  if (cdTimer) clearInterval(cdTimer)
-})
 </script>
 
 <style scoped src="./Register.css"></style>

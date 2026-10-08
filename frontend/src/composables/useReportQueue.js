@@ -51,7 +51,35 @@ export function useReportQueue(status) {
   /** 已处置数 = 总数 - 待处置数。进度条靠它,不能靠 list.length */
   const doneCount = computed(() => Math.max(0, total.value - list.value.length))
   const progressPct = computed(() => (total.value ? (doneCount.value / total.value) * 100 : 0))
-  const current = computed(() => (listMode.value ? null : list.value[0] || null))
+
+  /**
+   * 当前处置条目的下标。
+   *
+   * [为什么从「重排到头部」改成 index]
+   * 原实现把选中的那条**搬到数组头部**(`openOne` 重排、`act` 用 slice(1) 砍第一个),
+   * 于是 `current` 恒等于 `list[0]`。那套写法能用,但接不了 J/K ——
+   * useReviewHotkeys 假设的是「list + currentIndex」,两套机制会打架。
+   * 统一成 index 驱动后,「当前是哪条」由一个数字表达,两边说的是同一件事。
+   *
+   * [顺带修掉的一个偏差]
+   * 原 `onUndo` 用 `[back, ...list]` 把撤销的条目塞回**头部**,这会改变列表顺序,
+   * 不符合设计 §1.4 第 3 条要求的「结果与没点过完全一致」。
+   * 按下标插回原位才是真的没动过 —— 管理员第 3 条按了封禁又撤销,
+   * 后面几条的相对顺序不该变。
+   */
+  const currentIndex = ref(0)
+  const current = computed(() => (listMode.value ? null : list.value[currentIndex.value] || null))
+
+  /** 列表变化后把下标夹回有效范围 */
+  function clampIndex() {
+    const max = list.value.length - 1
+    if (max < 0) {
+      currentIndex.value = 0
+      return
+    }
+    if (currentIndex.value > max) currentIndex.value = max
+    if (currentIndex.value < 0) currentIndex.value = 0
+  }
   /** 摘要超 8 行(约 60 字)才给「展开全文」,否则给一个点不动的按钮是噪音 */
   const longContent = computed(() => (current.value?.targetSummary?.length || 0) > 60)
   const banLabel = computed(() => {
@@ -72,6 +100,14 @@ export function useReportQueue(status) {
       list.value = data.list || []
       // pendingCount 是后端给的待审总数;非待审状态下可能不给,退化为本页条数
       total.value = data.pendingCount ?? list.value.length
+      // 重拉后列表是全新的,旧下标没有意义(可能指向另一条)。
+      // 处置失败会触发 load,不清的话管理员会看到「还在处置刚才那条」——
+      // 实际上那条刚被别的管理员处置掉了。
+      currentIndex.value = 0
+      // 下标归零后必须退回列表模式:留在逐条模式会显示 list[0],
+      // 而这次可能是处置失败的重拉 —— 管理员会以为「重试后自动换到下一条」,
+      // 实际上屏幕内容根本没动,只有进度条悄悄回退。
+      listMode.value = true
       if (!list.value.length) listMode.value = true
     } catch {
       // 失败不清 list:已经看到的 20 条比一个空白页有用,只在完全没数据时才整块报错
@@ -81,11 +117,16 @@ export function useReportQueue(status) {
     }
   }
 
-  /** 列表模式点某条 → 进逐条处置。只挪指针,不重新请求 */
+  /**
+   * 列表模式点某条 → 进逐条处置。只挪指针,不重新请求。
+   *
+   * 不再重排数组 —— 只记下标。重排会让「撤销插回原位」变得难以推理,
+   * 而 J/K 也需要一个稳定的下标语义。
+   */
   function openOne(r) {
     const i = list.value.findIndex((x) => x.id === r.id)
     if (i < 0) return
-    list.value = [list.value[i], ...list.value.slice(0, i), ...list.value.slice(i + 1)]
+    currentIndex.value = i
     listMode.value = false
     reset()
   }
@@ -115,7 +156,11 @@ export function useReportQueue(status) {
     const body = { action }
     if (action === 'ban') body.banDays = banDays.value
 
-    list.value = list.value.slice(1)
+    // 按下标移除,不用 slice(0)/slice(1) —— 那是「砍第一个」的写法,
+    // 建立在「当前项恒在头部」的旧假设上。J/K 切到第 3 条时它会砍错。
+    const at = currentIndex.value
+    list.value = list.value.filter((_, i) => i !== at)
+    clampIndex()
     if (!list.value.length) listMode.value = true
 
     const text = {
@@ -124,7 +169,7 @@ export function useReportQueue(status) {
       ignore: '已忽略这条举报',
     }[action]
 
-    open(text, () => commit(report.id, body), report)
+    open(text, () => commit(report.id, body), { report, at })
   }
 
   async function commit(id, body) {
@@ -142,11 +187,24 @@ export function useReportQueue(status) {
     }
   }
 
-  /** 撤销:把条目放回列表头部。窗口内请求根本没发出去,所以不需要任何补偿 */
+  /**
+   * 撤销:把条目放回**原来的下标**。窗口内请求根本没发出去,所以不需要任何补偿。
+   *
+   * 放回原位而不是塞到头部:设计 §1.4 第 3 条要求「结果与没点过完全一致」。
+   * 塞头部虽然让那条又可见了,但它后面的条目全被顶后一位 ——
+   * 管理员第 3 条封禁又撤销,再往下处置时看到的顺序已经变了,不是「没点过」。
+   */
   function onUndo() {
     const back = undoNow()
     if (!back) return
-    list.value = [back, ...list.value]
+    const { report, at } = back
+    const next = [...list.value]
+    // 下标可能被 clamp 夹过(比如当时删的是最后一条),插回时再夹一次,
+    // 否则会出现「插到数组之外」把条目 append 到末尾的静默错位。
+    const pos = Math.min(Math.max(at ?? 0, 0), next.length)
+    next.splice(pos, 0, report)
+    list.value = next
+    currentIndex.value = pos
     listMode.value = false
     reset()
     ElMessage.info('已撤销，这条还在待处置里')
@@ -170,6 +228,7 @@ export function useReportQueue(status) {
     doneCount,
     progressPct,
     current,
+    currentIndex,
     longContent,
     banLabel,
     reasonText,
@@ -178,5 +237,10 @@ export function useReportQueue(status) {
     confirmBan,
     act,
     onUndo,
+    // reset 要导出的原因:ReportPane 用 J/K 切条目时,切过去要清掉上一条的
+    // 「封禁时长选择 / 展开全文 / 上一条的错误提示」,否则会出现
+    // 「A 封禁第 1 条后按 J 到第 2 条,吸底栏还开着 7 天时长选择」——
+    // 管理员以为在给第 2 条选时长,实际那个面板属于第 1 条。
+    reset,
   }
 }

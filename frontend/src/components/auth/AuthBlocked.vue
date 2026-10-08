@@ -1,0 +1,52 @@
+<template>
+  <!--
+    账号不可用状态。设计 §3 权限态要求「整页替换」而不是弹个 toast:
+    冻结的账号再输多少次密码都不会成功,继续展示输入框只会让人反复试。
+  -->
+  <div class="auth-page">
+    <div class="auth-card auth-card--blocked">
+      <div class="auth-brand">
+        <p class="auth-brand__name">友声</p>
+        <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+      </div>
+
+      <div class="blocked" role="alert">
+        <el-icon class="blocked__icon" :size="28" aria-hidden="true"><Lock /></el-icon>
+        <p class="blocked__title">{{ title }}</p>
+        <p class="blocked__reason">{{ reason }}</p>
+      </div>
+
+      <!--
+        「返回登录」是设计 §3 点名的次按钮。账号冻结时这个页面就是登录页,
+        所以它其实是「回到能输密码的状态」——仍给出路,不把用户堵死。
+      -->
+      <div class="blocked__actions">
+        <el-button class="auth-submit" @click="$emit('back')">返回登录</el-button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+/**
+ * 账号封禁 / 注销的整页状态。
+ *
+ * 纯展示:标题与副句由父级从 utils/authError.accountBlocked() 拿,
+ * 本组件不碰 API、不判断错误码。
+ *
+ * 副句必须写明下一步(申诉或重新注册)。这是设计 §3 的硬要求,
+ * 也因为只说「被封禁」而不给出路,用户除了放弃没有第二个选项。
+ */
+import { Lock } from '@element-plus/icons-vue'
+
+defineProps({
+  /** 主句,如「这个账号被暂停使用了」 */
+  title: { type: String, required: true },
+  /** 副句:说清能做什么 */
+  reason: { type: String, required: true },
+})
+
+defineEmits(['back'])
+</script>
+
+<style scoped src="./AuthBlocked.css"></style>

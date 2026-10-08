@@ -1,5 +1,13 @@
 <template>
-  <div class="auth-page">
+  <!-- 账号被冻结/注销:整页替换(设计 §3 权限态) -->
+  <AuthBlocked
+    v-if="blocked"
+    :title="blocked.title"
+    :reason="blocked.reason"
+    @back="backFromBlocked"
+  />
+
+  <div v-else class="auth-page">
     <div class="auth-card">
       <!--
         品牌区承担了「登录」这个标题的角色,表单顶部不再放一个大标题 ——
@@ -26,73 +34,36 @@
         </button>
       </div>
 
-      <!-- 密码登录 -->
-      <el-form
+      <!--
+        v-show 保留已填内容(设计 §3 空态):切换 Tab 不该清空邮箱。
+        两个表单都常驻,登录失败后切到另一 Tab 也不丢输入。
+      -->
+      <PasswordForm
         v-show="tab === 'password'"
-        ref="pwdRef"
         :model="pwdForm"
-        :rules="pwdRules"
-        label-position="top"
-        @submit.prevent="loginPassword"
-      >
-        <el-form-item label="邮箱/手机号" prop="username">
-          <el-input
-            v-model="pwdForm.username"
-            placeholder="you@qq.com 或 13800000000"
-            autocomplete="username"
-          />
-        </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input
-            v-model="pwdForm.password"
-            type="password"
-            show-password
-            autocomplete="current-password"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" native-type="submit" class="auth-submit" :loading="loadingPwd">
-            登录
-          </el-button>
-        </el-form-item>
-      </el-form>
-
-      <!-- 邮箱验证码登录 -->
-      <el-form
+        :loading="loadingPwd"
+        @submit="submitPassword"
+      />
+      <CodeForm
         v-show="tab === 'code'"
-        ref="codeRef"
         :model="codeForm"
-        :rules="codeRules"
-        label-position="top"
-        @submit.prevent="loginCode"
-      >
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="codeForm.email" placeholder="you@qq.com" autocomplete="email" />
-        </el-form-item>
-        <el-form-item label="验证码" prop="code">
-          <div class="code-row">
-            <el-input v-model="codeForm.code" maxlength="6" placeholder="6位验证码" />
-            <el-button
-              :disabled="sending || cd > 0"
-              :loading="sending"
-              @click="sendCode"
-            >
-              {{ cd > 0 ? `${cd}s 后重发` : '获取验证码' }}
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" native-type="submit" class="auth-submit" :loading="loadingCode">
-            验证码登录
-          </el-button>
-        </el-form-item>
-      </el-form>
+        :loading="loadingCode"
+        :cd="cd"
+        :sending="sending"
+        @submit="submitCode"
+        @send-code="sendCode"
+      />
 
       <!--
         表单级错误。设计 §3 明确「不要弹 ElMessage」——
         弹窗会挡住键盘,用户还得再点一次才能改。贴在按钮下方。
       -->
-      <p v-if="formError" class="auth-error" role="alert">{{ formError }}</p>
+      <AuthErrorLine
+        v-if="formError"
+        :message="formError"
+        :retryable="retryable"
+        @retry="retry"
+      />
 
       <div class="auth-link">
         没有账号？
@@ -107,14 +78,22 @@
  * 登录页(Login.vue.md)
  *
  * 两个 Tab 切换时**保留已填内容**(设计 §3 空态):切换 Tab 不该清空邮箱。
- * 用 v-show 而不是 v-if 就是为了不丢 DOM 状态 —— v-if 会重建表单,
- * 用户在密码登录填了邮箱,切到验证码登录再切回来就得重填。
+ *
+ * 这个文件现在只做编排:结构、Tab 状态、两个表单模型。
+ * 副作用(发请求 + 错误分类)在 useLoginSubmit,倒计时在 useCodeCountdown,
+ * 三个状态各自独立成块 —— 因为原本 297 行已顶到 300 行门禁。
  */
-import { reactive, ref, onUnmounted } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { sendCode as sendCodeApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
+import { useLoginSubmit, sendCodeFailMessage } from '@/composables/useLoginSubmit'
+import { useCodeCountdown } from '@/composables/useCodeCountdown'
+import AuthBlocked from '@/components/auth/AuthBlocked.vue'
+import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
+import PasswordForm from '@/components/auth/PasswordForm.vue'
+import CodeForm from '@/components/auth/CodeForm.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -126,120 +105,58 @@ const TABS = [
 ]
 
 const tab = ref('password')
-/** 表单级错误信息。贴在按钮下方而不是弹 toast(设计 §3) */
-const formError = ref('')
-
-function switchTab(v) {
-  tab.value = v
-  formError.value = ''
-}
-
-// 密码登录
-const pwdRef = ref()
-const loadingPwd = ref(false)
 const pwdForm = reactive({ username: '', password: '' })
-const pwdRules = {
-  username: [
-    { required: true, message: '请输入邮箱或手机号', trigger: 'blur' },
-    {
-      validator: (r, v, cb) => {
-        const isEmail = v.includes('@') && v.split('@').length === 2
-        const isPhone = /^1[3-9]\d{9}$/.test(v)
-        if (isEmail || isPhone) cb()
-        else cb(new Error('需为合法邮箱或 11 位手机号'))
-      },
-      trigger: 'blur',
-    },
-  ],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-}
-
-// 验证码登录
-const codeRef = ref()
-const loadingCode = ref(false)
-const sending = ref(false)
-const cd = ref(0)
-let cdTimer = null
 const codeForm = reactive({ email: '', code: '' })
-const codeRules = {
-  email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
-  ],
-  code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' },
-  ],
-}
 
 function goHome() {
   const returnUrl = route.query.returnUrl || '/'
   router.push(typeof returnUrl === 'string' ? returnUrl : '/')
 }
 
-/** 账号密码错误:说「邮箱或密码不对」而不是回显后端的原始 message */
-function handleLoginError(e, fallback) {
-  formError.value = fallback
-  ElMessage.closeAll()
+const {
+  blocked,
+  formError,
+  retryable,
+  loadingPwd,
+  loadingCode,
+  submitPassword,
+  submitCode,
+  retry,
+  clearError,
+  backFromBlocked,
+} = useLoginSubmit({ pwdForm, codeForm, userStore, onSuccess: goHome })
+
+const { cd, sending, start: startCd } = useCodeCountdown()
+
+function switchTab(v) {
+  tab.value = v
+  // 切 Tab 清错误:密码错的提示留到验证码登录页会误导
+  clearError()
 }
 
-async function loginPassword() {
-  const ok = await pwdRef.value.validate().catch(() => false)
-  if (!ok) return
-  formError.value = ''
-  loadingPwd.value = true
-  try {
-    await userStore.login(pwdForm.username, pwdForm.password)
-    await userStore.fetchMe()
-    goHome()
-  } catch (e) {
-    handleLoginError(e, '邮箱或密码不对，再试一次')
-  } finally {
-    loadingPwd.value = false
-  }
-}
-
+/**
+ * 发验证码。
+ *
+ * 失败文案由 sendCodeFailMessage 分类(网络 / 限频 / 上限 / 其他),
+ * 不再靠 request.js 的 toast 兜 —— toast 会挡住用户正在点的输入框。
+ */
 async function sendCode() {
   if (!codeForm.email || !codeForm.email.includes('@')) {
     formError.value = '先填一个合法邮箱，再点获取验证码'
     return
   }
-  formError.value = ''
+  clearError()
   sending.value = true
   try {
     await sendCodeApi(codeForm.email, 'login')
     ElMessage.success('验证码已发送（开发模式见后端控制台）')
-    cd.value = 60
-    cdTimer = setInterval(() => {
-      cd.value--
-      if (cd.value <= 0) clearInterval(cdTimer)
-    }, 1000)
-  } catch {
-    formError.value = '验证码没发出去，稍后再试一次'
+    startCd()
+  } catch (e) {
+    formError.value = sendCodeFailMessage(e)
   } finally {
     sending.value = false
   }
 }
-
-async function loginCode() {
-  const ok = await codeRef.value.validate().catch(() => false)
-  if (!ok) return
-  formError.value = ''
-  loadingCode.value = true
-  try {
-    await userStore.loginByCode(codeForm.email, codeForm.code)
-    await userStore.fetchMe()
-    goHome()
-  } catch (e) {
-    handleLoginError(e, '验证码不对或者过期了，重新获取一次')
-  } finally {
-    loadingCode.value = false
-  }
-}
-
-onUnmounted(() => {
-  if (cdTimer) clearInterval(cdTimer)
-})
 </script>
 
 <style scoped src="./Login.css"></style>

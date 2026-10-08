@@ -21,18 +21,23 @@
     />
 
     <!--
-      AC-11 未认证:不跳转、不隐藏,把正文区换成说明块。
+      未登录:不跳转、不隐藏,把正文区换成说明块。
       直接跳走会让用户以为产品坏了;给「为什么 + 怎么做」才是转化(设计 §3)。
+
+      判据是**登录**不是认证:发帖不要求校内认证(AC-11 只约束搭话与发布公告),
+      所以这里拦住的是「没登录」的人,不是「没认证」的人。
+      路由层 requiresAuth 已经挡了绝大多数未登录访问,这个块是兜底 ——
+      比如 token 在进页面后过期,userStore 被 clear 掉。
     -->
     <StateBlock
       v-else-if="!canPublish"
       class="pub__state"
       variant="denied"
-      title="要先认证校内身份才能发动态"
-      description="用校园邮箱或学号认证，一分钟就好"
-      action-label="去认证"
+      title="登录之后才能发动态"
+      description="用邮箱或手机号登录，几秒就好"
+      action-label="去登录"
       :icon="Lock"
-      @action="goVerify"
+      @action="goLogin"
     />
 
     <!-- 读取骨架:形状对齐编辑器,不让用户盯着一句「加载中」(Publish.vue.md §3) -->
@@ -134,7 +139,6 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
-import { isIdentityVerified } from '@/utils/mask'
 import { createPost, updatePost, detail } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
 import { useMediaUpload, parseTopics } from '@/composables/useMediaUpload'
@@ -173,18 +177,22 @@ useKeyboardViewport()
 const isEdit = computed(() => route.name === 'postEdit')
 
 /**
- * AC-11:未认证不能发帖。
+ * 发帖只要求**登录**,不要求**已认证**。
  *
- * 判据是 `isIdentityVerified`(后端 UserVO 没有 verified 字段,
- * 用它会永远判不出未认证,AC-11 的拦截等于没写)。
+ * [为什么不按 isIdentityVerified 判]
+ * AC-11 只约束「发起搭话」与「发布公告」两项,**不含用户发帖**;
+ * 后端 PostController.create 也没有挂 @RequireVerified —— 两边本来就该一致。
+ * 用 isIdentityVerified 会拦下未认证用户,造成「前端不让发但后端让发」,
+ * 而且用户看不到任何错误码,只会觉得莫名其妙。
  *
- * 取不到 userInfo 时**不拦** —— 可能只是还没拉完,拦了会让用户莫名进不去。
- * 接口层还会再兜一道,这里只负责给一个明确的说明。
+ * [为什么不写 verified]
+ * 后端 UserVO **没有** verified 字段(只有 RecommendUserVO 有)。
+ * 写 `userInfo?.verified !== false` 会得到第二个恒真判据 ——
+ * 上一版就是这个问题:判据看着有、实际永远放行,AC-11 拦截形同虚设。
+ * 后端若日后真给 UserVO 加了 verified,应改的是判据取值,
+ * 不是把「已登录」退回成「已认证」。
  */
-const canPublish = computed(() => {
-  if (!userStore.userInfo) return true
-  return isIdentityVerified(userStore.userInfo)
-})
+const canPublish = computed(() => !!userStore.hasToken)
 
 const topicTags = computed(() => parseTopics(topicText.value))
 const topicOverflow = computed(() => {
@@ -275,8 +283,17 @@ function goBack() {
   router.back()
 }
 
-function goVerify() {
-  router.push('/onboarding')
+/**
+ * 未登录时的主行动出口。
+ *
+ * 去登录而不是去认证:能走到这里说明是「没登录」而不是「没认证」
+ * (判据见 canPublish)。跳 /onboarding 会让用户以为要先做引导才能发帖。
+ *
+ * 带 returnUrl:登录后要回到当前这篇草稿,否则用户填到一半的内容
+ * 在路由跳转后就找不回来了。
+ */
+function goLogin() {
+  router.push({ path: '/login', query: { returnUrl: route.fullPath } })
 }
 </script>
 

@@ -1,6 +1,55 @@
-/*
-  Register.vue 的样式全部来自共享的 Auth.css(与 Login.vue 共用)。
-  单独留一个文件是为了让 `<style scoped src="./Register.css">` 有落点,
-  同时在文件头留一条指针:改登录/注册的公共样式只改Auth.css 一处。
-*/
-@import './Auth.css';
+/* ==========================================================================
+   Register.vue 专属样式
+   --------------------------------------------------------------------------
+   .auth-* 系列在 Auth.css(与 Login.vue 共用),这里只放注册页独有的四类:
+     1. .field-error  字段级错误 —— 设计 §3 要求每条错误贴到对应字段下
+     2. .field-error__link  错误文案里的内联出口「去登录」
+     3. .code-cd  倒计时文案
+     4. .sr-only  只给读屏的文本节点
+   ========================================================================== */
+
+/* 字段级错误。与 Auth.css 的 .field-hint 同位置、同字号,只有颜色不同 ——
+   两者靠 meta / danger 区分,不用字号或边框再强调一层 */
+.field-error {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-danger);
+  /* 学号被占用这类长文案在窄屏要能换行 */
+  overflow-wrap: anywhere;
+}
+
+/* 「去登录」内联出口。与主文案同字号,靠 underline 表明可点 */
+.field-error__link {
+  color: var(--ys-accent);
+  text-decoration: underline;
+  padding: 0 var(--ys-space-1);
+}
+
+.field-error__link:hover {
+  color: var(--ys-accent-hover);
+}
+
+/* 倒计时文案。独立一行而不是塞在按钮里:
+   按钮文案随秒数变宽窄会让整行抖动,横向重排在小屏上很明显 */
+.code-cd {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+}
+
+/* 只给读屏:视觉上隐藏但必须留在无障碍树里。
+   不能用 display:none 或 visibility:hidden —— 那样 aria-live 不会播报。
+   clip-path 那几行是标准做法,配合 overflow:hidden 一起用 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

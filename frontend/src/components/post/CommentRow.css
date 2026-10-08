@@ -143,6 +143,28 @@
   cursor: pointer;
 }
 
+/*
+  溢出入口:后端 children 上限 20 条,超出的必须给出口
+  (契约「不得静默截断」)。与 .c-toggle 视觉区分 —— toggle 是「折叠已有的」,
+  这个是「去取没给全的」,一个是本地操作一个是网络请求,误点的代价不同。
+*/
+.c-more-replies {
+  margin-top: var(--ys-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+  transition: opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.c-more-replies:disabled {
+  /* 加载中不给手型:点了没反应会让用户以为按钮坏了 */
+  cursor: default;
+  opacity: 0.55;
+}
+
 /* ---------------- ≥768px:留白放大 + 限宽居中 ---------------- */
 
 @media (min-width: 768px) {
@@ -160,7 +182,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .c-reply-btn {
+  .c-reply-btn,
+  .c-more-replies {
     transition: none;
   }
 }

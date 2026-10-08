@@ -27,8 +27,10 @@
         :key="n.id"
         :node="n"
         :my-id="myId"
+        :overflow-of="overflowApi"
         @reply="emit('reply', $event)"
         @go-user="emit('go-user', $event)"
+        @load-children="loadChildren"
       />
     </ul>
 

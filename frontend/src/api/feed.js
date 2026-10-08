@@ -57,6 +57,21 @@ export function comments(postId, lastId, size = 20) {
   return request.get(`/post/${postId}/comments?${q}`)
 }
 
+/**
+ * 某条评论的全部直接子回复(溢出补齐用)。
+ *
+ * 契约 `GET /post/{id}/comment/{commentId}/children`:
+ * - **不递归**,只查直接子回复(二级→三级、三级无子,一层就够)
+ * - `nextCursor` 按子回复自身 id 游标,与一级列表口径一致
+ * - `data.totalForParent` 是该节点的直接子回复**总数**(不受本次 size 限制),
+ *   用它算「共 N 条,已加载 M 条」—— 不要把 childrenOverflowCount 和
+ *   本页长度反复相加,两处相加漏一次就会显示错总数
+ */
+export function commentChildren(postId, commentId, lastId, size = 20) {
+  const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
+  return request.get(`/post/${postId}/comment/${commentId}/children?${q}`)
+}
+
 export function myPosts(lastId, size = 20) {
   const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
   return request.get(`/post/mine?${q}`)
@@ -73,5 +88,5 @@ export function upload(file, kind = 'image') {
 
 export default {
   createPost, detail, deletePost, feed, feedFollowing, topicFeed, hot,
-  like, unlike, comment, comments, myPosts, upload,
+  like, unlike, comment, comments, commentChildren, myPosts, upload,
 }

@@ -40,87 +40,16 @@
     height: 160px;
     background: var(--ys-surface-2);
   }
-  .p-head {
-    /* 头像压在横幅左下角,桌面才做这个 Instagram 式叠放 */
-    margin-top: -36px;
-  }
-  .p-avatar {
-    border: 4px solid var(--ys-surface);
-  }
 }
 
-.p-head {
-  display: flex;
-  gap: var(--ys-space-4);
-  align-items: flex-end;
-  padding: var(--ys-space-4) 0 var(--ys-space-3);
-}
-.p-avatar {
-  flex-shrink: 0;
-  /* 原 0 2px 8px rgba(0,0,0,.1) 是纯黑投影,与白描边叠加成"贴纸"效果 */
-  box-shadow: var(--ys-shadow-1);
-}
-.p-name {
-  font-size: var(--ys-text-xl);
-  line-height: var(--ys-lh-xl);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
+/*
+  身份头(.p-head / .p-avatar / .p-name / .p-sub / .p-tags / .p-badge /
+  .p-verify-link / .p-actions)已整体搬进 components/profile/ProfileHead.vue。
+  留在这里会与组件内的 scoped 规则并存 —— 父级这条虽然不命中组件内部节点,
+  但同名类留在两个文件里,下一个改样式的人一定会改错地方。
+  桌面端的负边距与白描边也跟着搬过去了,见 ProfileHead.vue。
+*/
 
-/* 学院 · 年级:单行 13px muted 文本,1 行截断。不是彩色 tag —— 见模板注释 */
-.p-sub {
-  margin-top: var(--ys-space-1);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  color: var(--ys-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.p-sub--empty {
-  color: var(--ys-meta);
-}
-
-.p-tags {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--ys-space-2);
-  margin-top: var(--ys-space-2);
-}
-
-/* 认证徽章(AC-12):图标 + 文字 + 颜色三重传达,不靠颜色单独承载语义 */
-.p-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ys-space-1);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  color: var(--ys-success);
-}
-
-.p-badge--off {
-  color: var(--ys-meta);
-}
-
-.p-badge__icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.p-verify-link {
-  font-size: var(--ys-text-sm);
-  color: var(--ys-accent);
-  text-decoration: none;
-}
-
-.p-verify-link:hover {
-  color: var(--ys-accent-hover);
-}
-
-.p-actions { margin-left: auto; display: flex; gap: var(--ys-space-2); }
 /*
   三统计:三等分,不用卡片、不用分隔竖线(设计 §1.2)——
   三个数字靠 --ys-space-4 的间距分组就够,加竖线是多余的视觉噪声。

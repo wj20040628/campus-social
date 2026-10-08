@@ -13,6 +13,35 @@
 
 /* ---------------- 进度条 ---------------- */
 
+.report-pane__keys {
+  flex-shrink: 0;
+  margin: 0;
+  padding: var(--ys-space-3) var(--ys-gutter-phone) 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-meta);
+}
+
+.report-pane__keys span {
+  margin-right: var(--ys-space-4);
+}
+
+/* kbd 不用浏览器默认样式:默认是等宽黑底,与浅色卡片冲突 */
+.report-pane__keys kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: var(--ys-space-1);
+  padding: 0 var(--ys-space-1);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  text-align: center;
+  color: var(--ys-fg-2);
+}
+
 .report-pane__progress {
   flex-shrink: 0;
   padding: var(--ys-space-3) var(--ys-gutter-phone) 0;

@@ -125,6 +125,54 @@
   margin-top: var(--ys-space-4);
 }
 
+/*
+  桌面端快捷键的「当前条目」标记。
+  没有它,按 J 之后管理员不知道当前落在哪 —— 键盘操作是隐式的,
+  看不见就等于没有。快捷键只在 lg 档注册(见 useReviewHotkeys),
+  标记也只在桌面端出现,移动端不会有「哪条被选中」的错觉。
+
+  用 accent 描边而不是背景色:换背景色会和加载态的卡片底色混淆,
+  描边不会与任何内容抢注意力。
+*/
+.task-card--current {
+  border-color: var(--ys-accent);
+}
+
+/* 键盘焦点样式。与 --current 分开:focus-visible 只在键盘操作时出现,
+   鼠标点击不该留一圈描边 */
+.task-card:focus-visible {
+  outline: 2px solid var(--ys-accent);
+  outline-offset: 2px;
+}
+
+/* 快捷键说明条。meta 色 + 小字:它是辅助信息,不该和「审核处置」标题
+   抢同一个视觉层级 */
+.review-admin__keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-4);
+  margin: 0 0 var(--ys-space-3);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-meta);
+}
+
+/* kbd 不用浏览器默认样式:默认是等宽黑底,与本页的浅色卡片风格冲突 */
+.review-admin__keys kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: var(--ys-space-1);
+  padding: 0 var(--ys-space-1);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  text-align: center;
+  color: var(--ys-fg-2);
+}
+
 .task-head {
   display: flex;
   align-items: center;

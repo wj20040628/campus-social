@@ -56,6 +56,17 @@
 
       <!-- 机审队列 -->
       <div v-else class="task-list">
+        <!--
+          快捷键说明。设计 §2 把 J/K/A/R/U 定为「桌面管理员的刚需」,
+          但没给任何发现机制 —— 管理员不知道键位,快捷键等于没做。
+          只在桌面端出现:移动端无物理键盘,列出来是噪音。
+        -->
+        <p v-if="!isMobile" class="review-admin__keys">
+          <span><kbd>J</kbd><kbd>K</kbd> 切换</span>
+          <span><kbd>A</kbd> 通过</span>
+          <span><kbd>R</kbd> 驳回</span>
+          <span><kbd>U</kbd> 撤销</span>
+        </p>
         <ul v-if="loading && list.length === 0" class="task-skeletons" aria-hidden="true">
           <li v-for="n in 3" :key="n" class="task-skeleton">
             <span class="task-skeleton__line task-skeleton__line--who" />
@@ -66,7 +77,21 @@
         </ul>
 
         <ul v-else class="task-list__items">
-          <li v-for="t in list" :key="t.id" class="task-card">
+          <!--
+            tabindex="-1" + ref:设计 §5 要求「切换条目时程序化聚焦,
+            让屏幕阅读器读出新条目」。不写 -1 的话这个 li 不可聚焦,
+            watch 里调 focus() 会被浏览器忽略(静默失败)。
+            ref 用函数式,currentIndex 变化时 Vue 会重新绑定,
+            配合 watch 触发聚焦。
+          -->
+          <li
+            v-for="(t, i) in list"
+            :key="t.id"
+            :ref="(el) => setCardRef(t.id, el)"
+            tabindex="-1"
+            class="task-card"
+            :class="{ 'task-card--current': !isMobile && i === currentIndex }"
+          >
             <div class="task-head">
               <el-avatar :size="36" :src="resolveUrl(t.author?.avatarUrl)" />
               <div class="task-author">
@@ -175,7 +200,11 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Files, WarningFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from '@/utils/feedback'
 import { useReviewQueue } from '@/composables/useReviewQueue'
+import { useReviewHotkeys } from '@/composables/useReviewHotkeys'
+import { useListFocus } from '@/composables/useListFocus'
+import { useIsMobile } from '@/composables/useBreakpoint'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import AdminDenied from '@/components/common/AdminDenied.vue'
@@ -184,12 +213,47 @@ import ReportPane from '@/components/admin/ReportPane.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const isMobile = useIsMobile()
 
 const tab = ref('report')
 const {
   list, pendingCount, hasMore, loading, failed, busy, reasons, undo,
   load, observeSentinel, approve, reject, undoReview,
 } = useReviewQueue()
+
+/**
+ * 桌面快捷键(设计 §2「键盘」行,原文标为刚需)。
+ *
+ * 只挂在机审域 —— 举报域的交互形态是「列表点进去逐条处置」,
+ * 且它有自己的 openOne/listMode 状态机;把 J/K 塞进那个状态机是另一件事,
+ * 本轮不碰(避免两个状态机互相打架)。
+ *
+ * hint 走 ElMessage 而不是新开一个提示条:这个页面已经有撤销条占着底部,
+ * 再加一条常驻提示会与它重叠。快捷键失效本身是低频事件,toast 足够。
+ */
+const { currentIndex } = useReviewHotkeys({
+  list,
+  loading,
+  undo,
+  busy,
+  approve,
+  reject,
+  undoReview,
+  onHint: (msg) => ElMessage.info(msg),
+})
+
+/**
+ * 程序化聚焦当前卡片(设计 §5)。
+ *
+ * disabled 传 isMobile:移动端没有物理键盘,但读屏用户可能用外接键盘
+ * 或开关控制访问 —— 在那类场景下抢走焦点反而会打断他当前的浏览位置。
+ * 桌面端才做。
+ */
+const { setRef: setCardRef } = useListFocus({
+  index: currentIndex,
+  list,
+  disabled: isMobile,
+})
 
 /**
  * 权限不足(AC-20)。

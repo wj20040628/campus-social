@@ -2813,7 +2813,28 @@ components:
           type: integer
           format: int64
           nullable: true
-          description: 所回复的评论 id。一级评论为 null
+          description: |
+            所回复的评论 id。一级评论为 null。
+
+            **`level` 与 `parentId` 的对应关系（实现必须按下表，不得按字面理解）**：
+
+            | level | parentId 填什么 |
+            |---|---|
+            | 1 | null |
+            | 2 | **被回复的那条一级评论的 id** |
+            | 3 | **其一级祖先的 id**，即被回复评论所在那一级回复的根 |
+
+            **为什么三级填一级祖先而不是被回复评论的 id**：填直接父级会让三级在
+            树里多出一层，前端渲染成 4 层缩进，违反设计「禁止楼层缩进超过 2 层」。
+
+            **这是契约曾缺失、已由team-lead 于 2026-10-08 补齐的一条。**
+            早期本字段只写「所回复的评论 id，一级评论为 null」，未说明三级填哪一级 ——
+            按字面实现会把 `parent_id` 指向二级，二级与三级在
+            `idx_post_parent(post_id, parent_id, level)` 里成为平级，
+            前端按 parentId 建树时三级挂到二级下面，用户看到「我的回复不见了」。
+
+            注意与通知归属的区别：通知归属里**只有 `level == 2` 才查 parentId**
+            （见下方 `replyToUserId`），三级的通知目标由 `replyToUserId` 决定。
         level: { type: integer, enum: [1, 2, 3] }
         replyToUserId:
           type: integer

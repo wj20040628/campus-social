@@ -33,65 +33,22 @@
           且它是个人主页的身份感来源。
         -->
         <div class="p-cover"></div>
-        <div class="p-head">
-          <!--
-            el-avatar 的 size 是**属性**不是 CSS,媒体查询改不动它(设计 §7)。
-            移动端 56 / 桌面端 72 必须走 computed,不能写死 :size="72"。
-          -->
-          <el-avatar :size="avatarSize" :src="resolveUrl(user.avatarUrl)" class="p-avatar" />
-          <div class="p-info">
-            <div class="p-name">{{ displayName(user) }}</div>
-            <!--
-              学院 · 年级。设计 §1.1 要求单行 13px muted 文本,
-              不是两个彩色 tag —— 两个 tag 会把次要信息抬成视觉重点。
-              名称优先用后端下发的 name,没有则按 id 去字典反查(存量数据)。
-            -->
-            <div v-if="identity.deptName || identity.gradeName" class="p-sub">
-              {{ identityLine }}
-            </div>
-            <div v-else class="p-sub p-sub--empty">还没填学校归属</div>
-            <div class="p-tags">
-              <!--
-                认证徽章(AC-12):只到「已认证 · XX 大学」这一层,
-                **不显示真实姓名与学号**。未认证时给本人一个「去认证」的出口。
-                判据见 useProfileData 的 verified(后端 UserVO 无 verified 字段)。
-              -->
-              <span v-if="verified" class="p-badge">
-                <CircleCheck class="p-badge__icon" aria-hidden="true" />
-                已认证<template v-if="user.schoolName"> · {{ user.schoolName }}</template>
-              </span>
-              <span v-else class="p-badge p-badge--off">未认证</span>
-              <router-link v-if="isMe && !verified" to="/onboarding" class="p-verify-link">
-                去认证
-              </router-link>
-            </div>
-          </div>
-          <div class="p-actions">
-            <!-- 自己主页:只显示「编辑资料」(不显示关注/私信,防止"关注自己") -->
-            <template v-if="isMe">
-              <el-button @click="goSettings">编辑资料</el-button>
-            </template>
-            <!-- 他人主页:关注 + 发私信 -->
-            <template v-else-if="myId">
-              <el-button
-                :type="relStatus?.following ? 'default' : 'primary'"
-                :loading="followLoading"
-                :aria-pressed="!!relStatus?.following"
-                :aria-label="`${relStatus?.following ? '已关注' : '关注'} ${displayName(user)}`"
-                @click="toggleFollowAndCount"
-              >
-                <el-icon><Plus /></el-icon> {{ relStatus?.following ? '已关注' : '关注' }}
-              </el-button>
-              <!--
-                AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
-                与 PostDetail 的「搭句话」是同一套未认证处理。
-              -->
-              <el-button @click="onChatClick">
-                <el-icon><ChatDotRound /></el-icon> 发私信
-              </el-button>
-            </template>
-          </div>
-        </div>
+
+        <!-- 身份头(设计 §1.1 的核心改造)独立成组件 -->
+        <ProfileHead
+          :user="user"
+          :identity="identity"
+          :identity-line="identityLine"
+          :verified="verified"
+          :is-me="isMe"
+          :following="!!relStatus?.following"
+          :follow-loading="followLoading"
+          :show-actions="!!myId && !isMe"
+          :avatar-size="avatarSize"
+          @follow="toggleFollowAndCount"
+          @chat="onChatClick"
+          @settings="goSettings"
+        />
 
         <!-- 拉黑关系提示(设计 §3 权限态)。给出解除出口,不能只告知 -->
         <p v-if="relStatus?.blacklisted" class="p-blocked">
@@ -199,11 +156,12 @@
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChatDotRound, Plus, ChatLineSquare, CircleCheck, WarningFilled } from '@element-plus/icons-vue'
+import { ChatLineSquare, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import ProfileHead from '@/components/profile/ProfileHead.vue'
 import { useProfileData } from '@/composables/useProfileData'
 import { useProfileRelations } from '@/composables/useProfileRelations'
 import { useUserStore } from '@/stores/user'
@@ -212,7 +170,6 @@ import { useIsMobile } from '@/composables/useBreakpoint'
 import { unblacklist } from '@/api/relation'
 import { capCount as cap } from '@/composables/usePostDetail'
 import { displayName, isIdentityVerified } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
 import UserList from '@/components/UserList.vue'
 

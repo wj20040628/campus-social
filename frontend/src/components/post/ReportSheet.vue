@@ -119,7 +119,15 @@ async function doSubmit() {
     emit('update:modelValue', false)
     emit('done', data)
   } catch (e) {
-    error.value = e?.response?.data?.message || '没提交成功,再点一次'
+    /**
+     * 三级兜底,e?.message 不能省。
+     *
+     * request.js 的业务错误分支(响应 code != 200)抛的是 `new Error(message)`,
+     * **不带 response 字段** —— 只写 `e?.response?.data?.message` 的话,
+     * 业务错误永远落到兜底文案,用户看到的是「没提交成功」这种没有信息量的话,
+     * 而后端其实已经说了原因(比如 1033 举报记录不存在)。
+     */
+    error.value = e?.response?.data?.message || e?.message || '没提交成功,再点一次'
   } finally {
     submitting.value = false
   }
