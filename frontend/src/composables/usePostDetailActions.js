@@ -1,7 +1,8 @@
 import { ref, computed, nextTick } from 'vue'
 import dayjs from 'dayjs'
 import { ElMessage } from '@/utils/feedback'
-import { buildCommentForest, replySpecFor } from '@/composables/useCommentTree'
+import { buildCommentForest } from '@/composables/useCommentTree'
+import { replySpecFor } from '@/composables/useCommentReplySpec'
 import {
   detail, like, unlike, deletePost,
   comments as commentsApi, comment as commentApi,
@@ -117,7 +118,12 @@ export function usePostDetailActions(route, router) {
       await loadComments()
     } catch (e) {
       const err = new Error('comment failed')
-      // 三处兜底:业务错误(Error.message)、HTTP 错误(response)、网络错误(无 message)
+      // 三处兜底,对应 request.js 的两条响应拦截路径:
+      //   1. 业务错误(code != 200)→ reject(new Error(message)),**不带 .response**,
+      //      所以第一档取不到,真实文案在 e.message
+      //   2. HTTP 错误(4xx/5xx 走 onRejected)→ axios error,带 .response
+      //   3. 网络错误/超时 → 两者都没有,落兜底文案
+      // 顺序不能颠倒:把 e.message 放前面会让 HTTP 错误显示后端的笼统文案
       err.userMessage = e?.response?.data?.message || e?.message || '没发出去，再点一次发送'
       throw err
     }

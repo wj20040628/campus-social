@@ -1,6 +1,15 @@
 import { computed } from 'vue'
-import dayjs from 'dayjs'
 import { capCount } from '@/composables/usePostDetail'
+// 判环（chainReaches）与「回复时该传什么」（rootIdOf / replySpecFor）已拆到
+// useCommentReplySpec.js —— 那两个是回复交互的领域逻辑，与树构建是两个关注点。
+// 本文件仍要用 chainReaches：挂载前确认不会形成环。
+import { chainReaches } from './useCommentReplySpec'
+// 节点整形（normalize / collect）已拆到 commentNodeShape.js —— 那是「单个节点
+// 长什么样」，与本文件「节点怎么挂成树」是两个关注点。
+import { collect, normalize } from './commentNodeShape'
+// 深度常量独立成文件：本文件、useCommentReplySpec、commentNodeShape 三者共用
+// (若让后两者从本文件取会形成循环依赖)
+import { MAX_RENDER_DEPTH, MAX_VISUAL_DEPTH } from './commentDepth'
 
 /**
  * 评论树(契约 `GET /post/{id}/comments` + `POST /post/{id}/comment`)
@@ -8,10 +17,15 @@ import { capCount } from '@/composables/usePostDetail'
  *
  * ## 契约的三个硬事实(全部来自 openapi.yaml,不是推测)
  *
- * 1. 列表端点**只返回一级评论**。二三级要前端按 `parentId` 自己嵌套。
- * 2. `parentId`:一级为 null;二级填**所回复的那条一级评论 id**;
+ * 1. 列表端点返回**一级评论 + 每条的 `children` 子树**（三级封顶，每节点上限 20 条，
+ *    超限条数在 `childrenOverflowCount`，不得静默截断）。溢出补齐走
+ *    `GET /post/{id}/comment/{commentId}/children`，见 `useCommentChildren.js`。
+ *    **历史**：本注释早期写的是「只返回一级评论，二三级由前端按 parentId 自己嵌套」——
+ *    那是错的，后端照它实现导致二三级在任何端点都取不到。已在契约 57e20e1 更正。
+ * 2. `parentId`：一级为 null；二级填**所回复的那条一级评论 id**；
+ *    三级填**其一级祖先 id**（不是被回复评论的 id，否则树里多出一层）。
  *    三级场景下该字段**不参与通知归属判定**(实现里只有 `level == 2` 才查 parentId)。
- * 3. `replyToUserId` = 被回复的人 id,服务端会校验「此人是否参与过本帖讨论」,
+ * 3. `replyToUserId` = 被回复的人 id，服务端会校验「此人是否参与过本帖讨论」，
  *    不通过则**降级通知帖子作者且接口照样 200**。
  *
  * ## 由此推出的填法(这就是不触发降级的办法)
@@ -24,58 +38,133 @@ import { capCount } from '@/composables/usePostDetail'
  * 但展示前缀 `回复 @xxx` 来自 `CommentVO.replyToNickname`,
  * 而后端 `toCommentVo` 是从 `c.getReplyToUserId()` 反查昵称的 ——
  * 二级不填这个字段,「回复 @xxx」前缀整条消失。
+ *
+ * ## 溢出懒加载不在本文件
+ *
+ * 按节点独立的状态（各自的游标 / 加载中 / 错误）由 `useCommentChildren.js` 承担。
+ * 塞进来会让本文件同时管「树怎么长」和「溢出怎么补」两件事。
  */
-
-/** 视觉缩进最多 2 层(设计 §4「禁止评论区楼层缩进超过 2 层」)。level 2 与 3 同缩进 */
-export const MAX_VISUAL_DEPTH = 2
 
 /**
- * 渲染递归的**硬上限**。与 MAX_VISUAL_DEPTH 分开:
- * 缩进上限是设计约束(视觉),这个是数据防御(环 / 超长链)。
+ * 把接口返回的评论列表转成渲染用的森林 + id→node 索引。
  *
- * 脏数据能构出 A→B→A 的环,那种节点虽然被 buildCommentForest 归到了根,
- * 但彼此的 children 仍然互指 —— 递归渲染不设上限会栈溢出、整页白屏。
- * 到 3 层还没到头的,子级一律不渲染:宁可少显示几条,也不能让整页挂掉。
+ * ## 两种数据来源,优先用后端给的
+ *
+ * 契约补了 `children` 后,**正常路径是后端直接下发整棵树** —— 每条评论的
+ * `children` 就是它的直接子回复,前端只需要递归 normalize 一下(排时间序、
+ * 兜 children)。这时**不能**再按 parentId 重建:后端已经把父子关系组装好,
+ * 重建会① 抹掉 childrenOverflowCount ② 在 `parentId` 语义有歧义时挂错位置。
+ *
+ * 但自建分支不能删,三个场景仍需要:
+ * 1. **溢出补齐页**:`GET .../children` 只返回直接子回复,不带 grandchildren,
+ *    其中若有三级,仍要靠 parentId 挂回二级。
+ * 2. **降级容错**:某个后端版本没下发 children 时,靠 parentId 也能把二级/三级
+ *    拼出来(就是早先的实现),行为退化但不白屏。
+ * 3. **孤儿评论**:`parentId` 指向的父不在本页(父在下一页/被删)时,
+ *    归到根而不是丢弃 —— 否则用户会看到「我明明回复了,评论不见了」。
+ *
+ * @param {Array<object>} list 接口返回的评论列表(顶层为一级)
+ * @param {Map<number, Array<object>>|null} [extraByParent] 溢出页并入用:父 id → 额外子回复
+ * @returns {{roots: Array<object>, index: Map<number, object>}}
  */
-export const MAX_RENDER_DEPTH = 3
+export function buildCommentForest(list, extraByParent = null) {
+  const index = new Map()
+  const raw = (list || []).filter((c) => c && c.id != null)
+  if (raw.length === 0) return { roots: [], index }
 
-/**
- * 归一化单条评论:格式化时间、补 children 容器。
- *
- * `user` 可能是 null(用户被删),`createTime` 是 `LocalDateTime` 序列化的时间串,
- * 两者都要挡住 —— 直接 `dayjs(undefined).format()` 会得到 "Invalid Date"。
- */
-function normalize(c) {
-  return {
-    ...c,
-    createTime: c.createTime ? dayjs(c.createTime).format('MM-DD HH:mm') : '',
-    children: [],
+  // 递归 normalize 后端下发的子树(有 children 的走这条)
+  for (const c of raw) collect(c, index)
+
+  // 降级路径:所有顶层都是 level=1 且没有任何 children —— 说明这份响应
+  // 是「只给一级」的旧形状(或某个后端版本没下发 children)。
+  // 这时按 parentId 自建,行为退化但不白屏。
+  const hasAnyChildren = raw.some((c) => Array.isArray(c.children) && c.children.length)
+  const forest = hasAnyChildren ? null : attachByParentId(raw.map((c) => normalize(c)))
+  if (forest) {
+    return mergeExtra(forest, extraByParent)
   }
+
+  // 正常路径:顶层各自是一棵树的根。顺序沿用后端给的
+  // (契约:一级按 id 倒序),不按 parentId 重排 —— 后端已组装好父子关系。
+  const roots = []
+  for (const c of raw) {
+    const n = index.get(c.id)
+    if (n) roots.push(n)
+  }
+  return mergeExtra({ roots, index }, extraByParent)
 }
 
 /**
- * 把扁平列表归一化成森林 + 建 id→node 索引。
+ * 把「溢出补齐页取回的子回复」并进已建好的森林。
  *
- * ## 孤儿评论为什么归到根而不是丢弃
+ * ## 为什么不直接 push 到 node.children
  *
- * `parentId` 指向的父评论不在本页时(父在下一页、或父被删),如果丢弃这条评论,
- * 用户会看到「我明明回复了,评论不见了」。归到根至少内容还在、还能读到。
- * 真实后端目前只返回一级,这个分支暂时走不到,但**归一化必须先写对**,
- * 否则后端一放开二三级,前端要重写一遍。
+ * 森林是 computed 每次重算的产物,外部改它的节点,下一次 props 变化就被覆盖 ——
+ * 表现是「点开加载了,刷新一下又只剩 20 条」。把额外节点作为**入参**传进来,
+ * 让它们在建树阶段就被合并,是唯一能活过重算的做法。
  *
- * @param {Array<object>} list 接口返回的扁平评论
- * @returns {{roots: Array<object>, index: Map<number, object>}}
+ * ## 去重
+ *
+ * 溢出页的第一页可能与 children 里的 20 条有重叠(后端按 id 游标分页,
+ * 边界可能落在已给的条目上)。按 id 去重,重复的丢弃 —— 同一个 id 渲染两次
+ * 会让「共 N 条」和实际条数对不上。
+ *
+ * @param {{roots: Array<object>, index: Map<number, object>}} forest
+ * @param {Map<number, Array<object>>|null} extraByParent 父 id → 额外子回复
  */
-export function buildCommentForest(list) {
-  const index = new Map()
-  for (const c of list || []) {
-    if (c && c.id != null) index.set(c.id, normalize(c))
+function mergeExtra(forest, extraByParent) {
+  if (!extraByParent || extraByParent.size === 0) return forest
+  const { index } = forest
+  for (const [parentId, list] of extraByParent) {
+    const parent = index.get(parentId)
+    if (!parent || !Array.isArray(list)) continue
+    const seen = new Set(parent.children.map((c) => c.id))
+    for (const raw of list) {
+      if (!raw || raw.id == null || seen.has(raw.id)) continue
+      // collect 对「已在 index 里」的节点会继续递归补它的子树但返回 null,
+      // 所以这里只在拿到新节点时才 push —— 已加载的那条不重复渲染,
+      // 但它带回来的更深一层(grandchildren)会被补进树里。
+      const node = collect(raw, index)
+      if (node) {
+        parent.children.push(node)
+        seen.add(node.id)
+      }
+    }
+    // 溢出页取回的是「最新的 20 条」,并到已有 children 后统一按 id 倒序:
+    // 契约说 children 取最老的 20 条,新取的自然更新,放头部才符合
+    // 「按 id 倒序 = 最新在前」的既有阅读顺序。
+    parent.children.sort((a, b) => b.id - a.id)
   }
-  // 挂到父下,还是当根,按 hasParentInTree 判 —— 纯看 parentId 链,
-  // 不依赖「谁先被处理」。环里 A→B→A 两条都会判定为 true,于是都进不了 children,
-  // 落到 roots 平铺:内容宁可平铺也不能不显示。
+  return forest
+}
+
+/**
+ * 递归收集一棵后端下发的子树,顺带 normalize 每个节点。
+ *
+ * 为什么要递归而不是只处理顶层:契约说 `children` 是「直接子回复,元素仍是
+ * CommentVO(递归同构)」—— 二级的 children 就是三级。只处理顶层的话,
+ * 三级节点进不了 index,回复三级评论时 `replySpecFor` 查不到人。
+ *
+ * **关键点:必须把 normalize 后的子节点写回父节点的 children。**
+ * `normalize` 是返回新对象的(不污染入参),如果不回写,父节点 children 里
+ * 躺着的仍是接口原对象,而 index 里存的是另一个对象 —— 同一个 id 对应两个
+ * 实例,渲染时读格式化时间会拿到未格式化的原值(显示成 ISO 串)。
+ *
+ * `MAX_RENDER_DEPTH` 同时用作收集深度上限:后端已保证三级封顶,
+ * 这里再兜一层是为了防脏数据成环导致无限递归。
+ */
+
+/**
+ * 按 parentId 把**扁平**列表挂成森林。
+ *
+ * 保留这个函数是因为 `buildCommentForest` 的降级路径要用它(见上)。
+ * 判环沿 parentId 链,与遍历顺序无关 —— 环里 A→B→A 两条都判定为不成环,
+ * 于是都进不了 children,落到 roots 平铺:内容宁可平铺也不能整段消失。
+ */
+function attachByParentId(nodes) {
+  const index = new Map(nodes.map((n) => [n.id, n]))
   const roots = []
-  for (const node of index.values()) {
+  for (const node of nodes) {
     const parent = node.parentId != null ? index.get(node.parentId) : null
     if (parent && parent !== node && !chainReaches(node.id, parent.id, index)) {
       parent.children.push(node)
@@ -87,85 +176,13 @@ export function buildCommentForest(list) {
       roots.push(node)
     }
   }
-  // 同一层内按 id 倒序(与后端 orderByDesc(id) 一致),子级同样倒序
+  // 自建时后端没排过序,得自己排:与契约一致(同层 id 倒序 = 最新在前)。
+  // 正常路径(后端下发树)不排 —— 那边已在服务端排好,重排会丢「取最老的
+  // 那 20 条」的顺序(契约对溢出明确要求按 id 升序取前 20)。
   const byIdDesc = (a, b) => b.id - a.id
   roots.sort(byIdDesc)
-  for (const node of index.values()) node.children.sort(byIdDesc)
+  for (const node of nodes) node.children.sort(byIdDesc)
   return { roots, index }
-}
-
-/**
- * 从 `startId` 沿 parentId 上溯,能不能走到 `targetId`。
- *
- * 沿 **parentId 链**走而不是 children —— parentId 是接口给的原始数据,
- * 与「谁已经挂好了」无关,所以结果与遍历顺序无关,环必然被识别出来。
- * 最多上溯 MAX_RENDER_DEPTH 层,超长链直接当成不成环(真实数据只有 3 层)。
- *
- * 为什么要判:真实后端不可能成环(`parentId` 由服务端从一级评论派生),
- * 但**前端不能假设数据干净**。成环时递归渲染会栈溢出、整页白屏,
- * 判一次的代价远低于白屏的代价。
- */
-function chainReaches(startId, targetId, index) {
-  let cur = index.get(targetId)
-  for (let i = 0; i < MAX_RENDER_DEPTH; i += 1) {
-    if (!cur) return false
-    if (cur.id === startId) return true
-    cur = cur.parentId != null ? index.get(cur.parentId) : null
-  }
-  return false
-}
-
-/**
- * 回溯到所属的一级评论 id。
- *
- * 三级回复的 `parentId` 必须填**一级祖先**而不是直接父级:
- * 契约说三级时 parentId 不参与通知判定,但它决定这条评论挂在哪棵树下——
- * 填直接父级会让渲染树多出一层(违反 2 层缩进上限),填一级祖先才与
- * 「二三级都挂在一级评论下」一致。
- *
- * @param {object} node 目标评论节点
- * @param {Map<number, object>} index buildCommentForest 返回的索引
- * @returns {number|null} 一级评论 id
- */
-export function rootIdOf(node, index) {
-  let cur = node
-  let guard = 0
-  // guard 兜底脏数据里的环(A.parentId=B 且 B.parentId=A),最多跳 10 层
-  while (cur && cur.parentId != null && cur.level > 1 && guard < 10) {
-    const p = index.get(cur.parentId)
-    if (!p || p === cur) break
-    cur = p
-    guard += 1
-  }
-  return cur ? cur.id : null
-}
-
-/**
- * 回复某条评论时应提交的 `parentId` / `level` / `replyToUserId`。
- *
- * | 被回复的层级 | 发出层级 | parentId              | replyToUserId      |
- * |---|---|---|---|
- * | 一级 | 2 | 该一级评论自身 id | 该评论作者 id |
- * | 二级 | 3 | 其一级祖先 id | 该评论作者 id |
- * | 三级 | 3 | 其一级祖先 id | 该评论作者 id(封顶,不升 4) |
- * | 无 | 1 | null | null |
- *
- * 三级封顶的原因:契约 `level` 枚举只到 3,后端 `level > 3` 直接 400。
- * 封顶后语义变成「并入同一层的追问」,展示上因为 MAX_VISUAL_DEPTH = 2
- * 也与二级同缩进,读起来不突兀。
- *
- * @param {object|null} target 被回复的评论节点
- * @param {Map<number, object>} index
- * @returns {{parentId: number|null, level: number, replyToUserId: number|null}}
- */
-export function replySpecFor(target, index) {
-  if (!target) return { parentId: null, level: 1, replyToUserId: null }
-  const level = Math.min((Number(target.level) || 1) + 1, 3)
-  return {
-    parentId: level === 1 ? null : rootIdOf(target, index),
-    level,
-    replyToUserId: target.userId ?? null,
-  }
 }
 
 /**

@@ -73,6 +73,26 @@
       >{{ open ? '收起回复' : `展开 ${node.children.length} 条回复` }}</button>
 
       <!--
+        溢出入口(契约 childrenOverflowCount)。
+        后端 children 最多给 20 条,超出的条数在这里 —— 不给入口就等于
+        静默截断,契约明确禁止。文案里的数字用 totalForParent(总条数)
+        减已加载数,而不是直接念 childrenOverflowCount:后者是「被截断的
+        条数」,用户要的是「一共几条」。
+      -->
+      <button
+        v-if="open && overflowState"
+        type="button"
+        class="c-more-replies"
+        :disabled="overflowState.loading"
+        @click="$emit('load-children', node)"
+      >
+        <template v-if="overflowState.loading">加载中…</template>
+        <template v-else-if="overflowState.error">{{ overflowState.error }}</template>
+        <template v-else-if="overflowState.done">已加载全部回复</template>
+        <template v-else>还有 {{ overflowLeft }} 条回复</template>
+      </button>
+
+      <!--
         到 MAX_RENDER_DEPTH 就不往下渲染了 —— 脏数据能构出环(A→B→A),
         不设硬上限会栈溢出、整页白屏。宁可少显示几条。
         缩进仍然 clamp 到 MAX_VISUAL_DEPTH:那是视觉约束,和数据无关。
@@ -84,8 +104,10 @@
           :node="ch"
           :depth="Math.min(depth + 1, MAX_VISUAL_DEPTH)"
           :my-id="myId"
+          :overflow-of="overflowOf"
           @reply="emit('reply', $event)"
           @go-user="emit('go-user', $event)"
+          @load-children="emit('load-children', $event)"
         />
       </ul>
     </div>
@@ -100,7 +122,7 @@
  */
 import { ref, computed, watch, nextTick } from 'vue'
 import { splitComment } from '@/composables/usePostDetail'
-import { MAX_RENDER_DEPTH, MAX_VISUAL_DEPTH } from '@/composables/useCommentTree'
+import { MAX_RENDER_DEPTH, MAX_VISUAL_DEPTH } from '@/composables/commentDepth'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 
@@ -112,14 +134,45 @@ const props = defineProps({
   depth: { type: Number, default: 0 },
   /** 登录用户 id。为空(游客)时不给回复入口 —— 发评论需要身份 */
   myId: { type: [Number, String], default: null },
+  /**
+   * 取溢出状态与加载函数的访问器(由 PostComments 传下)。
+   * 用函数而不是直接把状态对象传下来:状态是响应式的,函数能在渲染时
+   * 拿到最新值;传对象则每层都要自己解 ref,递归组件里容易漏。
+   */
+  overflowOf: { type: Function, default: null },
 })
 
-const emit = defineEmits(['reply', 'go-user'])
+const emit = defineEmits(['reply', 'go-user', 'load-children'])
 
 const expanded = ref(false)
 const open = ref(true)
 const textRef = ref(null)
 const isLong = ref(false)
+
+/**
+ * 本节点的溢出状态。`childrenOverflowCount > 0` 或已加载过溢出页才需要。
+ * 两个条件都要 —— 加载完后 count 仍是 18(后端不会改它),但那时
+ * 该显示的是「已加载全部」而不是「还有 18 条」。
+ */
+const overflowState = computed(() => {
+  const of = props.overflowOf
+  if (!of) return null
+  const s = of.stateOf(props.node.id)
+  const hasOverflow = Number(props.node.childrenOverflowCount) > 0
+  return s || hasOverflow ? s || { loading: false, error: '', done: false } : null
+})
+
+/**
+ * 还要加载几条 = 总条数(totalForParent)- 已加载数。
+ * 拿不到 total 时退回 childrenOverflowCount(后端给了但还没加载过的场景)。
+ */
+const overflowLeft = computed(() => {
+  const s = overflowState.value
+  const total = s?.total || 0
+  const loaded = props.node.children.length
+  if (total > 0) return Math.max(0, total - loaded)
+  return Math.max(0, Number(props.node.childrenOverflowCount) || 0)
+})
 
 /**
  * 能不能回复。未登录、回复自己都不给入口。
