@@ -50,6 +50,18 @@ info:
       传入已下线字段返回 **400 `PROFILE_FIELD_RETIRED`**，**不静默忽略**——
       静默忽略会让调用方以为写入成功、实际数据未落库，
       这类「以为成功」的失败比直接报错难查得多。
+    - **`POST /api/v1/admin/announcement` 与 `PATCH /api/v1/admin/announcement/{id}`
+      额外要求「已通过校内认证」**（AC-11）：除管理员权限外，还需 `verify_status = 1`，
+      否则 403 `USER_NOT_VERIFIED(1029)`。
+      **为什么编辑与发布同权**：编辑能改 title / content，改完立即推给全校在线用户，
+      效果与发布等价；只拦发布不拦编辑，等于留了一条绕行路径。
+      读类端点（`GET /admin/announcement`、`GET /admin/announcement/{id}/unread-users`、
+      `POST /admin/announcement/{id}/remind`）**不要求认证**——
+      它们不产生新的对外内容，且已分别由 `@RequireAdmin` 与 service 层的
+      「发布方本人或管理员」判定把关。
+
+    - **`UserVO.verified`（AC-12徽章判据）**：由服务端给出，
+      **前端不得从「是否填了院系 / 年级」反推**——那与认证是两个独立事实。
 
     ## 1. 路径前缀（ADR-008）
 
@@ -1096,12 +1108,24 @@ paths:
     get:
       operationId: listPostComments
       tags: [comment]
-      summary: 评论列表（仅一级）
+      summary: 评论列表（一级 + 各条的子树）
       description: |
-        **只返回一级评论**，不返回二 / 三级。
-        二三级由前端按 `parentId` 在一级评论下自行嵌套渲染——
-        这与「删上级评论再发子回复」的用例无关：删帖是按帖物理硬删全部评论，
-        不存在「父评论没了、子评论还在」的中间态，所以不需要服务端做孤儿降级。
+        **顶层数组只返回一级评论**（`level=1`），每个一级评论的 `children` 字段
+        携带它的**完整子树**（二级 + 三级，三级封顶）。
+
+        **历史（勿删）**：本契约早期版本在这里写的是「只返回一级评论，
+        二三级由前端按 `parentId` 在一级评论下自行嵌套渲染」。**这是错的**——
+        前端只拿到一级评论时，`parentId` 指向的父评论根本不在响应里，
+        无从嵌套。实际后果：用户点「回复」→ 接口返回 200 →
+        刷新后回复消失 → 用户以为系统坏了。**静默错误，不报任何错。**
+
+        树形由**服务端组装**（N+1 查询集中在服务端一次做完），
+        前端只负责按 `level` 决定缩进层级，`MAX_RENDER_DEPTH=3` 与
+        `MAX_VISUAL_DEPTH=2` 是两个独立约束。
+
+        **分页边界不变**：`lastId` / `size` / `nextCursor` **只作用于一级评论**。
+        子树不参与一级分页 —— 把子树算进分页会导致「同一条一级评论
+        在第 1 页出现、在第 2 页又出现」。
       parameters:
         - name: lastId
           in: query
@@ -1113,11 +1137,52 @@ paths:
           schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
       responses:
         '200':
-          description: 一级评论列表
+          description: 一级评论列表（每条带 children 子树）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommentCursorPageResponse'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/{id}/comment/{commentId}/children:
+    parameters:
+      - $ref: '#/components/parameters/PostId'
+      - name: commentId
+        in: path
+        required: true
+        description: 被溢出的那个评论 id（只查它的**直接**子回复，不再往下递归）
+        schema: { type: integer, format: int64 }
+    get:
+      operationId: listCommentChildren
+      tags: [comment]
+      summary: 某条评论的全部直接子回复（分页）
+      description: |
+        **只查 `commentId` 的直接子回复，不递归。**
+        二级的孩子是三级、三级没有孩子，所以递归查询最多一层就该停；
+        真要再往下，前端拿本页返回的 id 再调一次即可。
+
+        存在的理由是 `children` 有 20 条上限：溢出时前端用本端点补齐，
+        **不是为了「一次性拿全部评论」**。
+
+        `nextCursor` 按子回复自身的 `id` 游标分页，与一级列表口径一致
+        （取 id 升序、返回用id 降序，故首页返回的是最新 20 条）。
+      parameters:
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 直接子回复列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentChildrenPageResponse'
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   # ===========================================================================
@@ -2608,6 +2673,22 @@ components:
           type: integer
           nullable: true
           description: 未读通知数（红点）
+        verified:
+          type: boolean
+          nullable: true
+          description: |
+            **是否已通过校内认证**。AC-12 的认证徽章判据，前端直接用这个字段，
+            不要从「是否填了院系 / 年级」反推。
+
+            **为什么必须由服务端给**：填写院系与通过认证是两个独立事实——
+            用户可以在引导第 1 步填完院系却从未提交邮箱验证码。
+            前端反推会在这种情况下显示「已认证」，等于伪造身份声明。
+
+            只给两态不给四态：审核中（2）/ 被拒（3）属于「我的认证进度」，
+            由 `GET /user/verify/status` 的 `verifyStatus` 承担。
+            在此再放一份四态字段，两处口径一旦漂移就会让徽章显示错误状态。
+
+            为 null 时按未认证处理。
         role:
           type: integer
           enum: [0, 1]
@@ -2713,7 +2794,15 @@ components:
     CommentVO:
       type: object
       description: |
-        一级评论卡片。字段与 `vo/CommentVO.java` 一一对应。
+        评论卡片。字段与 `vo/CommentVO.java` 一一对应。
+
+        **本对象出现在两个层级的响应里，语义不同**：
+        - `GET /post/{id}/comments` 顶层数组 = **一级评论**（`level=1`），每项带一棵 `children` 树
+        - 嵌套在 `children` 里的项 = 二级 / 三级评论，`children` 恒为 `[]`
+
+        **历史（勿删）**：本契约早期版本 description 写的是「一级评论卡片」且**无 `children` 字段**，
+        后端据此只返回一级、二三级在任何端点都取不到 → 用户点「回复」得200、
+        刷新后回复消失。已由 team-lead 于 2026-10-08 补`children`（见下方字段说明）。
       required: [id, postId, userId, level, liked]
       properties:
         id: { type: integer, format: int64 }
@@ -2750,6 +2839,32 @@ components:
             被 @ 的用户，**昵称 → id** 的映射。
             存 id 是因为昵称可能重名，前端渲染 @昵称 时据此跳对应主页。
             服务端序列化失败时该字段为 null，不阻塞评论展示。
+        children:
+          type: array
+          default: []
+          description: |
+            **直接子回复**数组，元素仍是 `CommentVO`（递归同构）。
+
+            - 一级评论 → 其二级回复
+            - 二级评论 → 其三级回复
+            - 三级评论 → 恒为 `[]`（**三级封顶**，`level` 上限 3）
+
+            **上限与降级（不得静默截断）**：每个节点的 `children` 最多返回
+            `MAX_CHILDREN_PER_NODE`（拟定 **20**）条。超限时：
+            1. 按 `id` 升序取前 20 条（**取最老的**，保证回复链连续可读）
+            2. 该节点的 `childrenOverflowCount` 置为剩余条数
+            3. 前端对溢出部分显示「还有 N 条回复」，点击后调用
+               `GET /post/{id}/comment/{commentId}/children` 拉取该节点的完整直接子回复列表
+
+            `nextCursor` 的语义**不变**：仍按一级评论 id 游标分页，不因子树而改变。
+
+        childrenOverflowCount:
+          type: integer
+          default: 0
+          description: |
+            该节点的直接子回复**因上限被截断的条数**。0 表示全部返回。
+            存在于契约而非仅在文档，是为了让前端能区分
+            「只有 2 条回复」和「还有 18 条没给你」。
           additionalProperties: { type: integer, format: int64 }
 
     CommentCreatedResponse:
@@ -2780,6 +2895,31 @@ components:
                   format: int64
                   nullable: true
                 hasMore: { type: boolean }
+
+    CommentChildrenPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [list, nextCursor, hasMore, totalForParent]
+              properties:
+                list:
+                  type: array
+                  items: { $ref: '#/components/schemas/CommentVO' }
+                nextCursor:
+                  type: integer
+                  format: int64
+                  nullable: true
+                hasMore: { type: boolean }
+                totalForParent:
+                  type: integer
+                  description: |
+                    该节点的**直接子回复总条数**（不受本次分页 size 限制）。
+                    前端用它算「共 N 条，已加载 M 条」，**不必把
+                    `childrenOverflowCount` 与本页长度反复相加**——
+                    两处相加一旦漏一次就会显示错总数。
 
     # ---- F2 认证 -----------------------------------------------------------
 
