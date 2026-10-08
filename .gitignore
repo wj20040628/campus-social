@@ -33,3 +33,9 @@ frontend/vite.config.js.timestamp-*.mjs
 
 # 迁移前的库结构备份(过程产物,不入库)
 bak/
+
+# 冒烟测试的临时产物(含真实 JWT,绝不入库)
+# smoke_tok.txt 是 POST /auth/login 的响应体,里面是能直接用的 access_token
+backend/smoke_tok.txt
+backend/smoke_*.txt
+backend/*_tok.txt

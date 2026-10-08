@@ -60,20 +60,38 @@ function clean() {
   return deleted
 }
 
-/* 收尾:把没删掉的(被占用/是别的进程正在写的)列出来。
- * 这些是带 hash 的旧 chunk,留着不影响新产物正确性,只需如实告知。 */
-function reportLeftover() {
+/* 收尾:把没删掉的列出来。
+ * removed 是 clean() 已删掉的个数,left 是剩余。
+ * 两种情况必须分开报:
+ *   removed=0,left>0  -> clean() 没删掉任何东西(可能被占用,也可能守卫拦截)
+ *   removed>0,left>0  -> 删了一部分,剩下的删不动
+ * 混成同一句提示会让人往错误方向排查(「代码没跑到」被说成「文件被占用」)。
+ * 剩下这些带 hash 的旧 chunk 不影响构建正确性 —— vite 只按 index.html
+ * 引用的名字取产物 —— 但会累积成无用文件并在部署时一起上传,必须如实告知。
+ */
+function reportLeftover(removed) {
   const left = walk(OUT)
   if (left.length === 0) return 0
-  console.warn(`\n注意:${left.length} 个旧产物删不掉(可能正被预览服务占用),已跳过:`)
+  const cause = removed === 0 ? '未删掉任何旧产物' : `已清理 ${removed} 个,剩余删不动`
+  console.warn(`\n注意:${left.length} 个旧产物${cause}(可能被预览服务占用或被批量删除守卫拦截):`)
   for (const f of left.slice(0, 10)) console.warn('  ', f)
   if (left.length > 10) console.warn(`   ...另 ${left.length - 10} 个`)
-  console.warn('   带 hash 的旧文件不影响本次构建结果,可忽略。\n')
+  console.warn('   带 hash 的旧文件不影响本次构建结果,但会占磁盘并随部署上传。\n')
   return left.length
 }
 
-reportLeftover()
-console.log('dist/assets 已清理')
+/* 先清旧产物,再构建。
+ * clean() 返回「删掉了几个」,reportLeftover() 报「还剩几个删不动」。
+ * 两者都要调,而且顺序不能反 —— 先删完再看剩下的,
+ * 否则会把「代码没跑到 clean」误报成「文件被占用」。
+ * 少删的那些不影响构建正确性(vite 只按 index.html 引用的名字取产物),
+ * 但会累积成无用文件、并在部署时一起上传,所以要如实报出来。
+ */
+const removed = clean()
+const left = reportLeftover(removed)
+if (left === 0) {
+  console.log(`dist/assets 已清理 ${removed} 个旧产物`)
+}
 
 const r = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], {
   stdio: 'inherit',
