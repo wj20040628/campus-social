@@ -1,4 +1,3 @@
-import { computed } from 'vue'
 import { capCount } from '@/composables/usePostDetail'
 // 判环（chainReaches）与「回复时该传什么」（rootIdOf / replySpecFor）已拆到
 // useCommentReplySpec.js —— 那两个是回复交互的领域逻辑，与树构建是两个关注点。
@@ -189,6 +188,12 @@ function attachByParentId(nodes) {
  * 计数封顶。与页面其他计数同一口径。
  * 传的是**森林里的一级条数** —— 评论数是帖子级的 `commentCount`,
  * 这里只标题「评论 N」,用一级条数会与真实总数不符,所以调用方传 post.commentCount。
+ *
+ * ## 为什么现在零引用
+ *
+ * 它只是 `capCount` 的一层包装,而 PostComments.vue 直接 import 了 `capCount`
+ * (见该文件 `countText`)。两层做同一件事,留一层就够。
+ * 若要删,连同下面的 capCount import 一起删。
  */
 export function commentCountText(n) {
   return capCount(n)
@@ -198,22 +203,23 @@ export function commentCountText(n) {
  * 递归统计一棵子树里有多少条评论(含各级)。
  *
  * 用途:一级评论下折叠「展开 N 条回复」时,让用户知道折叠了多少。
+ *
+ * ## 为什么现在零引用 —— 别急着删,它是「口径修正」的工具
+ *
+ * `CommentRow.vue:73` 的折叠文案用的是 `node.children.length`,那是**已加载数**。
+ * 溢出页还没加载时它偏小(契约:children 最多给 20 条,其余在 childrenOverflowCount),
+ * 于是用户看到的「展开 20 条回复」与实际「共 38 条」不符。
+ * 正确口径是本函数(整棵子树)或 `overflowState.total`(仅直接子回复)。
+ *
+ * SPEC / 设计文档里目前没有「折叠时显示子树总数」这条要求(核实过),
+ * 所以**不擅自改 CommentRow 的文案** —— 那是设计决策。
+ * 留着的意义:真要修口径时,现成且已被验证的算法在这里。
+ * 若 Phase 4 决定统一口径,接上即可;若决定永远用已加载数,本函数删掉。
+ *
  * @param {object} node
  * @returns {number}
  */
 export function countSubtree(node) {
   if (!node) return 0
   return 1 + (node.children || []).reduce((n, ch) => n + countSubtree(ch), 0)
-}
-
-/**
- * 评论区的可见列表:森林 + 总条数。
- * @param {import('vue').Ref<Array<object>>} comments
- */
-export function useCommentForest(comments) {
-  const forest = computed(() => buildCommentForest(comments.value))
-  return {
-    roots: computed(() => forest.value.roots),
-    index: computed(() => forest.value.index),
-  }
 }

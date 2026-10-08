@@ -97,6 +97,7 @@
         :comments="comments"
         :total="post.commentCount"
         :my-id="myId"
+        :post-id="route.params.id"
         @ask="askComment"
         @go-user="goUser"
         @reply="startReply"

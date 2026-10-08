@@ -199,6 +199,23 @@ onBeforeUnmount(() => {
 .feed-tabs {
   margin-bottom: 8px;
 }
+/*
+ * 「关注 / 全部」两个 tab 的可点区:375px 实测 48x40,高度差 AC-15 的 44px 4 个像素。
+ * el-tabs__item 是 EP 内部类,只能用 :deep 打进去。
+ * 只给 min-height —— 横向已经 48 > 44,加 min-width 反而会把两个 tab 撑开、
+ * 让「关注」离屏幕左边更远。
+ */
+.feed-tabs :deep(.el-tabs__item) {
+  min-height: var(--ys-touch-min);
+}
+/*
+ * 搜索框 append 里的「搜索」按钮:375px 实测 60x32。
+ * 它与输入框同行,输入框本身够高,但按钮自身只有 32px,拇指点它偏小。
+ * 只给 min-height,宽度 60 已过线。
+ */
+.feed-search :deep(.el-input-group__append .el-button) {
+  min-height: var(--ys-touch-min);
+}
 .feed-tools {
   display: flex;
   gap: 10px;

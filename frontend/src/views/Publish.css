@@ -69,6 +69,24 @@
 */
 .pub__editor {
   flex: 1;
+  /*
+   * min-width: 0 不能省。flex item 的默认 min-width 是 auto,
+   * 意思是「不小于内容的最小宽度」—— 而 el-textarea 内部有 100% 宽的行内元素,
+   * 于是这个 item 被撑到比容器宽。
+   *
+   * box-sizing: border-box 同样不能省,而原因是**项目没有全局 border-box**
+   * (核实过 src/styles/*.css 与 index.html,一处都没有)。
+   * content-box 下 padding 是在 width 之外额外加的:
+   *   .pub__body 内容宽 343 → .pub__editor 的 width 被 flex 算成 343
+   *   再加上左右各 8px 的 gutter padding = 375 + 16 = 391
+   *   而视口只有 375 → 实测 scrollWidth=391,横向滚动 16px。
+   *
+   * 只给这一个元素加 border-box 而不是全局加:全局改动影响所有元素的
+   * 盒模型计算,那属于设计决策(SPEC 该不该要求全局 border-box),
+   * 不该由一个横向滚动的修复顺带决定。
+   */
+  min-width: 0;
+  box-sizing: border-box;
   padding: 0 var(--ys-gutter-phone);
 }
 

@@ -37,6 +37,9 @@
 .circles__search-go,
 .circles__search-clear {
   flex: none;
+  /* min-width 不是多余的:375px 实测「搜」这个按钮 37x44,高度够但宽度差 7px。
+     单字按钮在 xs 字号下宽度只有 37,AC-15 要的是 44x44 的正方形热区。 */
+  min-width: var(--ys-touch-min);
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-3);
   border: 0;

@@ -26,6 +26,9 @@
 }
 
 .quota__why {
+  /* min-width 不是多余的:375px 实测这个按钮 40x44,高度够但宽度差 4px。
+     两个汉字在 xs 字号下宽度只有 40,AC-15 要的是 44x44 的正方形热区。 */
+  min-width: var(--ys-touch-min);
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-2);
   border: none;

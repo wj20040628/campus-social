@@ -179,6 +179,16 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
 }
+/*
+ * 「全部已读」用 EP 的 link button,而 link 态在 EP 里没有内边距 ——
+ * 375px 实测只有 62x20,AC-15 要求 44x44。给它补最小热区。
+ * 用 min-height/min-width 而不是 padding:改 padding 会把文字与标题挤开,
+ * 视觉上「全部已读」四个字离左边框的距离会变。
+ */
+.n-head :deep(.el-button.is-link) {
+  min-width: var(--ys-touch-min);
+  min-height: var(--ys-touch-min);
+}
 .n-list {
   display: flex;
   flex-direction: column;
