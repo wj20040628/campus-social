@@ -41,8 +41,24 @@ function walk(d) {
  */
 function clean() {
   let deleted = 0
+  /* 失败项收集在集合里,跨轮不再重试。
+   *
+   * ★ 这是一个实测出来的缺陷,不是理论优化:
+   *   原实现每轮重新 walk() 再 slice(0, BATCH),于是被守卫拦下的那批文件
+   *   永远排在最前面 —— 每轮切到的都是同一批(删不掉的) + 同一批新的,
+   *   跑满 100 轮就放弃。而守卫是**累计计数**的:本机 safe-delete 在
+   *   单轮累计删到 50 个之后开始拦截,一旦撞上,后续 unlinkSync 全失败。
+   *
+   *   实测后果:dist/assets 里同时躺着 17:52 / 18:03 / 18:04 三个批次的产物,
+   *   index-*.js 有三个同尺寸不同 hash 的副本,总计 148 个文件,
+   *   而 index.html 只引用其中 1 个。「死产物 0 个」这个结论是错的。
+   *
+   *   现在把失败项记进 failed,后续轮次跳过它们,
+   *   让本轮剩下的文件仍有机会被删掉。
+   */
+  const failed = new Set()
   for (let round = 0; round < 100; round++) {
-    const files = walk(OUT)
+    const files = walk(OUT).filter((f) => !failed.has(f))
     if (files.length === 0) break
     let progress = 0
     for (const f of files.slice(0, BATCH)) {
@@ -51,32 +67,53 @@ function clean() {
         deleted++
         progress++
       } catch {
-        /* 被占用或守卫拦截:下一轮不再重试同一文件 */
+        /* 命中批量删除守卫或文件被占用:本轮不再重试这一项 */
+        failed.add(f)
       }
     }
-    // 这一轮一个都没删掉说明剩下的全删不动,提前收手
+    // 这一轮一个都没删掉,说明剩下的全是已知的删不动项,提前收手
     if (progress === 0) break
   }
   return deleted
 }
 
-/* 收尾:把没删掉的列出来。
+/* 收尾:把没删掉的列出来,并说清成因。
+ *
  * removed 是 clean() 已删掉的个数,left 是剩余。
  * 两种情况必须分开报:
- *   removed=0,left>0  -> clean() 没删掉任何东西(可能被占用,也可能守卫拦截)
+ *   removed=0,left>0  -> clean() 没删掉任何东西
  *   removed>0,left>0  -> 删了一部分,剩下的删不动
- * 混成同一句提示会让人往错误方向排查(「代码没跑到」被说成「文件被占用」)。
- * 剩下这些带 hash 的旧 chunk 不影响构建正确性 —— vite 只按 index.html
- * 引用的名字取产物 —— 但会累积成无用文件并在部署时一起上传,必须如实告知。
+ * 混成同一句提示会让人往错误方向排查。
+ *
+ * [实测:删不动的成因不是文件占用,是本机的 safe-delete 批量守卫]
+ * 单轮 unlinkSync 删 121 个文件:成功 49、失败 72,失败原因全部是
+ *   [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50 → N 个}
+ * 守卫在累计删除数超过阈值(50)后开始拦截,而 clean() 的 BATCH=40
+ * 意味着第二轮就撞上它。**没有一个是 EBUSY/占用。**
+ *
+ * 所以提示必须写「批量删除守卫」而不是「可能被占用」——
+ * 后者会把人引到「关掉预览服务」这个方向上,而那跟这里完全无关。
+ *
+ * 解法:交互式确认一次即可(用户在终端确认),或手工清空 dist/assets。
+ * 剩下这些带 hash 的旧 chunk **不影响构建正确性** ——
+ * vite 只按 index.html 引用的名字取产物 —— 但会占磁盘并随部署上传,必须如实告知。
  */
 function reportLeftover(removed) {
   const left = walk(OUT)
   if (left.length === 0) return 0
-  const cause = removed === 0 ? '未删掉任何旧产物' : `已清理 ${removed} 个,剩余删不动`
-  console.warn(`\n注意:${left.length} 个旧产物${cause}(可能被预览服务占用或被批量删除守卫拦截):`)
+  const cause = removed === 0
+    ? '未删掉任何旧产物'
+    : `已清理 ${removed} 个,剩余删不动`
+  console.warn(`\n注意:${left.length} 个旧产物${cause}:`)
+  console.warn('  成因:本机 safe-delete 批量删除守卫(单轮累计删到 50 个后拦截),不是文件被占用。')
+  console.warn('  它们**不影响本次构建的正确性**(vite 只按 index.html 引用的名字取产物),')
+  console.warn('  但会让「dist 里有几个文件」这个数字失真:跨轮构建会在此累积,')
+  console.warn('  实测见过index-*.js 三个同尺寸不同 hash 的副本并存。')
+  console.warn('  统计首屏体积时只认 index.html 实际引用的那几个;')
+  console.warn('  要彻底清空请手工删除 dist/assets 目录,或在终端确认一次批量删除。')
   for (const f of left.slice(0, 10)) console.warn('  ', f)
   if (left.length > 10) console.warn(`   ...另 ${left.length - 10} 个`)
-  console.warn('   带 hash 的旧文件不影响本次构建结果,但会占磁盘并随部署上传。\n')
+  console.warn('')
   return left.length
 }
 
