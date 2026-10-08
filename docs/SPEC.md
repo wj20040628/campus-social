@@ -234,6 +234,45 @@ GET    /api/v1/onboarding/recommend-users     推荐关注的人
 GET    /api/v1/onboarding/recommend-circles   推荐圈子
 ```
 
+### 5.0 帖子域与评论域（**Phase 2 补录 —— 原清单遗漏，team-lead 已追认**）
+
+> **为什么补这一节**：本节原先不存在。Phase 2 写 SPEC §5 与 `openapi.yaml` 时，
+> 帖子域被当作「项目原有能力」默认跳过，导致契约 27 个路径里**一个 `/post` 端点都没有**。
+> 但契约号称「前后端唯一准绳」，漏掉一整个域就是契约失效：
+> 前端拿不到任何帖子接口的类型定义，`openapi-typescript` 不会生成 `PostVO` / `CommentVO`，
+> 前端只能靠手写或猜——这正是它 `grep parentId` 零命中的根因。
+>
+> **路径以 `PostController.java` 实测为准**，不照记忆写。该控制器 `@RequestMapping("/post")`，
+> 实际暴露 **13 个**端点（不是 14 个，`/mine` 易被漏计），分装在 10 条路径里——
+> `/post/{id}` 一条承载 get+put+delete，`/post/{id}/like` 一条承载 post+delete。
+
+```
+POST   /api/v1/post                             发动态（media 为 JSON 字符串，敏感词命中分0/1 级）
+PUT    /api/v1/post/{id}                        编辑动态（仅作者；content 可空，允许只改话题/媒体）
+GET    /api/v1/post/{id}                        帖子详情（每次调用 view_count +1）
+DELETE /api/v1/post/{id}                        软删除（仅作者；跨 6 表级联硬删关联数据）
+GET    /api/v1/post/feed?lastId=&size=&by=&order=&topic=   写扩散 Feed（我关注的）
+GET    /api/v1/post/hot?size=&lastHotScore=     探索页（热门，按 hot_score 游标）
+GET    /api/v1/post/topic?topic=&lastId=&size=  话题落地页
+GET    /api/v1/post/feed/following?lastId=&size= 关注的人的帖子（读 feed_item 收件箱）
+GET    /api/v1/post/mine?lastId=&size=          某用户发的帖子
+POST   /api/v1/post/{id}/like                   点赞（幂等）
+DELETE /api/v1/post/{id}/like                   取消点赞（幂等）
+POST   /api/v1/post/{id}/comment                发评论（1/2/3 级 + @提及）
+GET    /api/v1/post/{id}/comments?lastId=&size= 评论列表（仅一级）
+```
+
+**分页一律游标制**：`CursorPage{list, nextCursor, hasMore}`，无 `page` / `total`。
+`nextCursor` 为 `null` 即没有更多，前端收到即停止翻页。
+
+**三级评论通知归属（已实现，勿改口径）**：
+一级→帖子作者；二级→`parentId` 指向的评论作者；三级→`replyToUserId`，
+但**服务端会校验此人是否参与过本帖讨论**，不满足则**降级为通知帖子作者，不报错**。
+
+**已知局限（不是缺陷，QA 勿当bug 报）**：
+- `GET /post/feed` 的 `by` 非 `time` 时，游标只用单一 id，同值可能重复或漏。原实现即如此。
+- 三级校验挡不住「该用户确实参与过本帖、但发评论者想通知的不是他」——回复意图不在数据里，服务端无从区分。
+
 ---
 
 ## 6. 数据库表清单（锁定）

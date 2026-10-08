@@ -16,7 +16,19 @@ info:
   description: |
     ## 0. 范围声明（本轮实现 / 不实现）
 
-    - 本文件覆盖 `docs/SPEC.md` §5.1 ~ §5.5 的全部端点，共 **27 个**。
+    - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，共 **41 个方法 / 37 条路径**。
+    - **帖子域与评论域（13 个端点 / 10 条路径）系Phase 2 补录**（SPEC §5.0）。
+      原契约 27 个方法全是本轮新建的（举报 / 聊天 / 标签 / 公告 / 字典 / 认证 / 引导），
+      帖子域被整体遗漏。但契约号称前后端唯一准绳，漏一整个域就等于契约失效——
+      前端拿不到任何帖子接口的类型定义，这正是它 `grep parentId` 零命中的根因。
+      本次补录路径以 `PostController.java` 实测为准（**实际 13 个方法**，
+      分装在 10 条路径里：`/post/{id}` 一条承载 get+put+delete，`/post/{id}/like`
+      一条承载 post+delete，故端点数少于路径数×2）。
+      - 方法计数：13 = `/post` 1 + `/post/feed` 1 + `/post/hot` 1 + `/post/topic` 1
+        + `/post/feed/following` 1 + `/post/mine` 1 + `/post/{id}` 3 + `/post/{id}/like` 2
+        + `/post/{id}/comment` 1 + `/post/{id}/comments` 1
+      - 路径计数：10 = 上述 10 条。合计 27 + 14 = **41 个方法**（`/user/me` PUT 已在原27 内，
+        不重复计入）。
     - **`buddy_*` 端点本轮仅建表不实现，见 SPEC §2.2**。即下列 7 个端点在本文档中
       **不存在**，Phase 3 禁止实现其 Service / Controller / 页面：
       `POST /api/v1/buddy`、`GET /api/v1/buddy`、`GET /api/v1/buddy/{id}`、
@@ -164,6 +176,13 @@ tags:
     description: 院系与年级字典（支撑 F11 引导第 1 步，人工维护不可写）
   - name: onboarding
     description: F11 新用户引导
+  - name: post
+    description: |
+      帖子域（Phase 2 补录）。路径以 `PostController.java` 实测为准，该控制器
+      `@RequestMapping("/post")`，实际暴露 13 个端点。本域原先整体遗漏于契约，
+      前端拿不到类型定义是 `grep parentId` 零命中的根因。
+  - name: comment
+    description: 评论域（挂在 `PostController` 上，非独立控制器；`Comment` 无自己的 Controller）
 
 paths:
 
@@ -710,6 +729,398 @@ paths:
         '500': { $ref: '#/components/responses/InternalError' }
 
   # ===========================================================================
+  # §5.0 帖子域 + 评论域（Phase 2 补录）
+  #
+  # 路径与字段全部来自 PostController.java / PostVO.java / CommentVO.java /
+  # CreatePostDTO.java / CreateCommentDTO.java 实测，非凭记忆。
+  # ===========================================================================
+
+  /post:
+    post:
+      operationId: createPost
+      tags: [post]
+      summary: 发动态
+      description: |
+        敏感词**分级**处理，不是简单拒绝：
+        - level-0（严重词）→ 拒发，返回 422 `SENSITIVE_WORD_BLOCKED(1008)`
+        - level-1（ mild 词）→ **存原文并进审核队列**，帖子 `status = 0`（审核中），
+          此时不进入任何 Feed；`review_task` 同帖只入队一次，重复提交不产生第二行
+
+        发帖成功即触发**写扩散**：向粉丝的 `feed_item` 收件箱各插一行。
+        单条插入失败只记 warn，不中断其余粉丝、也不回滚发帖事务。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '200':
+          description: 已创建。`status = 0` 表示进审核中，仍返回 postId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCreatedResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/feed:
+    get:
+      operationId: listMyFeed
+      tags: [post]
+      summary: 写扩散 Feed（我关注的）
+      description: |
+        游标分页。`by` 支持 `time`（默认）与热度维度，`order` 支持 `desc` / `asc`。
+        `topic` 可选，按话题名过滤。
+
+        **已知局限（不是缺陷，QA 勿当 bug 报）**：`by` 为非 `time` 维度时，
+        游标只用单一 `id`，多条记录同值可能导致翻页重复或漏。**原实现即如此**，
+        本次只是把行为写进契约，不在MVP 修复。
+      parameters:
+        - name: lastId
+          in: query
+          description: 上一页的 nextCursor。首页不传
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+        - name: by
+          in: query
+          description: 排序维度。不传默认 `time`
+          required: false
+          schema: { type: string, default: time, enum: [time, hot] }
+        - name: order
+          in: query
+          required: false
+          schema: { type: string, default: desc, enum: [desc, asc] }
+        - name: topic
+          in: query
+          description: 话题名过滤（不带 #）
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Feed 页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCursorPageResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/hot:
+    get:
+      operationId: listHotPosts
+      tags: [post]
+      summary: 探索页（热门）
+      description: |
+        按 `hot_score` 倒序的游标分页，游标字段是 `lastHotScore` 而非 `lastId`
+        ——热度值可能相同，所以这里的分页天然可能重复或漏，取热榜可接受。
+      parameters:
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+        - name: lastHotScore
+          in: query
+          description: 上一页最后一条的热度值。首页不传
+          required: false
+          schema: { type: number, format: double, nullable: true }
+      responses:
+        '200':
+          description: 热门帖列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCursorPageResponse'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/topic:
+    get:
+      operationId: listPostsByTopic
+      tags: [post]
+      summary: 话题落地页
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          description: 话题名（不带 #）
+          schema: { type: string }
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 该话题下的帖子
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCursorPageResponse'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/feed/following:
+    get:
+      operationId: listFollowingFeed
+      tags: [post]
+      summary: 关注的人的帖子（读 feed_item 收件箱）
+      description: |
+        与 `/post/feed` 的区别：这里**直读 `feed_item` 收件箱**（写扩散的产物），
+        查的是「已投递到我信箱的」，而不是实时 join 关注关系。
+        未登录返回 401（此端点不降级为游客视角）。
+      parameters:
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 收件箱中的帖子
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCursorPageResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/mine:
+    get:
+      operationId: listMyPosts
+      tags: [post]
+      summary: 某用户发的帖子
+      parameters:
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 我发的帖子
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCursorPageResponse'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PostId'
+    get:
+      operationId: getPost
+      tags: [post]
+      summary: 帖子详情
+      description: |
+        每次调用 `view_count +1`。未登录也能看（`auth` 可选），此时 `liked` 恒为 false。
+        帖子不存在、已下架或已删除统一返回 404 `POST_NOT_FOUND(1009)`，
+        **不区分这三种状态**——区分开等于告诉别人「这个 id 曾经存在过」。
+      responses:
+        '200':
+          description: 帖子详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDetailResponse'
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      operationId: editPost
+      tags: [post]
+      summary: 编辑动态（仅作者）
+      description: |
+        `content` **可空**：允许只改话题或媒体而保留原内容，所以 DTO 层不用
+        `@NotBlank`，改由service 对「三者全空」做兜底拒绝（语义比注解更准确）。
+
+        三类失败都返回 4xx，不会静默成功：非作者 → 403 `NOT_POST_AUTHOR(1011)`；
+        帖子不存在 / 已删→ 404；内容命中 level-0 敏感词 → 422。
+
+        命中 level-1 敏感词时**存原文并重新入队审核**，`review_task` 同帖只保留一行
+        （重复入队会撞唯一键，所以要先清空 `reviewer_id` 与 `reason`、把 `status` 退回 0）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '200':
+          description: 编辑后的完整帖子
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDetailResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403':
+          description: 403 `NOT_POST_AUTHOR(1011)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: deletePost
+      tags: [post]
+      summary: 软删除（仅作者）
+      description: |
+        路径名叫delete，实现是**级联硬删**：`post`、`post_topic`、`post_media`、
+        `like`、`comment`（按帖物理删光）、`feed_item` 六张表一起清。
+        非作者 → 403 `NOT_POST_AUTHOR(1011)`。重复删除返回 404。
+      responses:
+        '200':
+          description: 已删除。data 为 null（被 `@JsonInclude(NON_NULL)` 省略）
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 403 `NOT_POST_AUTHOR(1011)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/{id}/like:
+    parameters:
+      - $ref: '#/components/parameters/PostId'
+    post:
+      operationId: likePost
+      tags: [post]
+      summary: 点赞
+      description: 幂等：重复点赞不报错，`like_count` 不再增长。成功后推送通知给作者。
+      responses:
+        '200':
+          description: 已点赞
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: unlikePost
+      tags: [post]
+      summary: 取消点赞
+      description: 幂等：未点赞时取消也不报错，`like_count` 不减到负数。
+      responses:
+        '200':
+          description: 已取消点赞
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/{id}/comment:
+    parameters:
+      - $ref: '#/components/parameters/PostId'
+    post:
+      operationId: createComment
+      tags: [comment]
+      summary: 发评论
+      description: |
+        `level` 1/2/3，≤3，缺省为 1。评论同样过敏感词（命中 level-0 直接拒发）。
+
+        **通知归属**（发错人会让用户收到与自己无关的红点）：
+        - `level = 1` → 通知帖子作者
+        - `level = 2` 且传了 `parentId` → 通知 `parentId` 指向的评论作者
+        - `level = 3` → 见下方 `replyToUserId` 的校验与降级规则
+
+        评论落库 + 帖子 `comment_count +1` + 热度分上升 + 通知，
+        四者在**同一事务**内。@提及（`mentionUserIds`）另发 `type = 9` 通知，
+        按 id 精准发（昵称不唯一，不能靠正文反查）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '200':
+          description: 已创建。返回 commentId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentCreatedResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`（含帖子已下架 / 不可评论）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/{id}/comments:
+    parameters:
+      - $ref: '#/components/parameters/PostId'
+    get:
+      operationId: listPostComments
+      tags: [comment]
+      summary: 评论列表（仅一级）
+      description: |
+        **只返回一级评论**，不返回二 / 三级。
+        二三级由前端按 `parentId` 在一级评论下自行嵌套渲染——
+        这与「删上级评论再发子回复」的用例无关：删帖是按帖物理硬删全部评论，
+        不存在「父评论没了、子评论还在」的中间态，所以不需要服务端做孤儿降级。
+      parameters:
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 一级评论列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentCursorPageResponse'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
   # §5.4 F2 校内身份归属与认证
   # ===========================================================================
 
@@ -1182,6 +1593,14 @@ components:
       in: path
       required: true
       description: 公告 id
+      schema:
+        type: integer
+        format: int64
+    PostId:
+      name: id
+      in: path
+      required: true
+      description: 帖子 id
       schema:
         type: integer
         format: int64
@@ -2052,6 +2471,315 @@ components:
                   type: integer
                   description: 可选年级总数（不含已毕业年级）
                   example: 6
+
+    # ---- 帖子域 + 评论域（Phase 2 补录）---------------------------------
+    #
+    # 字段全部来自 vo/PostVO.java、vo/CommentVO.java、dto/CreatePostDTO.java、
+    # dto/CreateCommentDTO.java 实测，一个字段都没凭想象加。
+    # 改这些 schema 时请同步核对该 Java 文件，不要只改契约。
+
+    CreatePostRequest:
+      type: object
+      description: |
+        发帖 / 编辑**共用**同一入参（`dto/CreatePostDTO.java`）。
+        `content` 在新建时必填、编辑时可空，所以契约层不用 required，
+        由 service 对「content / media / topics 三者全空」做兜底拒绝。
+      properties:
+        content:
+          type: string
+          maxLength: 5000
+          nullable: true
+          description: 正文。命中 level-0 敏感词拒发；level-1 存原文并进审核
+        media:
+          type: string
+          nullable: true
+          description: |
+            **JSON 字符串**，不是数组——形如
+            `[{"type":"img","url":"/uploads/xxx"},{"type":"video","url":"...","dur":12}]`。
+            用字符串是历史决定：后端用 Jackson 解析校验，避免为一个弱结构引入强类型。
+            响应侧 `PostVO.media` 则是**已解析的 JSON 节点**，两者形态不同，
+            前端不要把请求里的字符串直接当响应里的对象用。
+        circleId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 可选，挂到某圈子。非圈子成员发帖到该圈子返回 403
+        topics:
+          type: array
+          nullable: true
+          description: 话题名列表（**不带 #**）。写入 `post_topic` 关联表
+          items: { type: string }
+
+    PostVO:
+      type: object
+      description: |
+        帖子卡片 / 详情。字段与 `vo/PostVO.java` 一一对应。
+        列表与详情**共用**这一个 schema——组装口径相同，不区分两个结构。
+      required: [id, authorId, status, liked]
+      properties:
+        id: { type: integer, format: int64 }
+        authorId: { type: integer, format: int64 }
+        author:
+          $ref: '#/components/schemas/UserVO'
+        content:
+          type: string
+          description: 正文
+        media:
+          type: array
+          nullable: true
+          description: |
+            **已解析的 JSON 数组**（`PostVO.media` 是 `JsonNode`）。
+            元素形如 `{type,url}` 或 `{type,url,dur}`。
+            无媒体时为 null，被 `@JsonInclude(NON_NULL)` 省略。
+          items: { type: object }
+        status:
+          type: integer
+          enum: [0, 1, 2, 3]
+          description: |
+            0 审核中（不进 Feed）/ 1 通过 / 2 下架 / 3 已删除。
+            **只有 status = 1 才会出现在任何 Feed 里**，
+            前端若自行拼列表会漏掉这个过滤条件。
+        likeCount: { type: integer, description: 点赞数 }
+        commentCount: { type: integer, description: 评论数 }
+        viewCount:
+          type: integer
+          description: 浏览数。每次 `GET /post/{id}` +1
+        topics:
+          type: array
+          nullable: true
+          description: 话题名列表（快手式 #话题#，**不含 # 号**）
+          items: { type: string }
+        hotScore:
+          type: number
+          format: double
+          nullable: true
+          description: 热度分。`/post/hot` 按它倒序分页
+        circleId:
+          type: integer
+          format: int64
+          nullable: true
+        createTime:
+          type: string
+          format: date-time
+          description: 本地时间（`LocalDateTime`，**不带时区后缀**）
+        liked:
+          type: boolean
+          description: |
+            当前登录用户是否已赞。未登录时恒为 false。
+            游客拿到 false 是对的——没登录不可能点过赞。
+
+    UserVO:
+      type: object
+      description: |
+        用户卡片（脱敏，不含 passwordHash / studentNo 等敏感字段）。
+        字段来自 `vo/UserVO.java`。
+      properties:
+        id: { type: integer, format: int64 }
+        username:
+          type: string
+          description: 邮箱或手机号，**部分脱敏**（显示前几位 + 后几位）
+        nickname: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        grade:
+          type: string
+          nullable: true
+          description: |
+            年级**名称快照**，如「2024级」。字典化之后仍保留为快照，
+            是为了下游七八处列表查询能直接读 `user.grade` 而不必 join。
+        dept:
+          type: string
+          nullable: true
+          description: 院系**名称快照**，同上，非权威字段
+        deptId:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            院系字典 id，与上面的名称快照**并存**。
+            匹配与筛选以 id 为准，名称只是展示快照。
+        gradeId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 年级字典 id，与上面的名称快照并存
+        followerCount: { type: integer, nullable: true }
+        followingCount: { type: integer, nullable: true }
+        unreadNotifyCount:
+          type: integer
+          nullable: true
+          description: 未读通知数（红点）
+        role:
+          type: integer
+          enum: [0, 1]
+          nullable: true
+          description: 0 普通用户 / 1 管理员
+        createTime: { type: string, format: date-time, nullable: true }
+
+    PostCreatedResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [postId]
+              properties:
+                postId: { type: integer, format: int64 }
+
+    PostDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/PostVO' }
+
+    PostCursorPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [list, nextCursor, hasMore]
+              description: |
+                游标分页外壳，字段名与 `common/CursorPage.java` 严格一致。
+                **没有 page / total**——帖子列表用游标，不用页码。
+              properties:
+                list:
+                  type: array
+                  items: { $ref: '#/components/schemas/PostVO' }
+                nextCursor:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: 下一页游标。**为 null 即没有更多**，前端收到就停止翻页
+                hasMore: { type: boolean }
+
+    CreateCommentRequest:
+      type: object
+      description: |
+        评论入参，字段来自 `dto/CreateCommentDTO.java`。
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 2000
+          description: 评论正文。命中 level-0 敏感词拒发
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            一级评论为 null；**二级评论填其所回复的那条一级评论 id**。
+            三级场景下本字段当前**不参与通知归属判定**（见下方说明）。
+        level:
+          type: integer
+          enum: [1, 2, 3]
+          default: 1
+          description: 1 一级 / 2 二级 / 3 三级，≤3
+        replyToUserId:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            **被回复的人 id，仅三级评论有意义。**
+
+            **服务端会校验此人是否参与过本帖讨论**（本帖存在他 status=1 的评论）；
+            **校验不通过则降级为通知帖子作者，不报错**。
+
+            也就是说：传了一个没在本帖说过话的人，**接口照样 200**，
+            但通知会落到帖子作者头上。前端不会收到错误提示，
+            所以传错id 时界面上看不出异常——这是「降级而非丢弃」的设计取舍：
+            丢弃会让「我回复了人却没人收到」表现得像系统坏了，
+            降级至少让通知有一个可解释的落点。
+
+            **校验挡得住**：伪造他人 userId 定向骚扰、把A 帖的 id 传到 B 帖（跨帖骚扰）、
+            前端 bug 导致的误传。
+            **校验挡不住（已知局限，不视为缺陷）**：该用户确实参与过本帖讨论，
+            但发评论者想通知的不是他——「回复意图」不在数据里，服务端无从区分。
+
+            校验口径说明：之所以校验「是否参与过本帖」而不是「是否等于 `parentId` 的作者」，
+            是因为三级评论走的是独立分支，实现里只有 `level == 2` 才会去查 `parentId`，
+            三级路径上反查 `parentId` 取不到「本次回复对象」的可靠依据。
+        mentionUserIds:
+          type: array
+          nullable: true
+          description: |
+            被 @ 的用户 id 列表（可空）。**必须传 id 不能只传昵称**——昵称可能重名，
+            昵称匹配会 @ 错人。服务端按 id 精准发 type=9 通知，并自动排除自己、去重、
+            跳过已失效用户
+          items: { type: integer, format: int64 }
+
+    CommentVO:
+      type: object
+      description: |
+        一级评论卡片。字段与 `vo/CommentVO.java` 一一对应。
+      required: [id, postId, userId, level, liked]
+      properties:
+        id: { type: integer, format: int64 }
+        postId: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        user: { $ref: '#/components/schemas/UserVO' }
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 所回复的评论 id。一级评论为 null
+        level: { type: integer, enum: [1, 2, 3] }
+        replyToUserId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 被回复的人 id（= 入参原值，**不因降级而改写**）
+        replyToNickname:
+          type: string
+          nullable: true
+          description: |
+            被回复者的昵称，供前端渲染「回复 @xxx」。
+            **可能与实际通知接收人不一致**：入参 `replyToUserId` 校验不通过时，
+            通知降级给了帖子作者，但评论内容里的被回复者仍是这里显示的这个人。
+            这是「降级而非丢弃」的可见副作用。
+        content: { type: string }
+        likeCount: { type: integer, description: 评论点赞数。点赞对象是**评论**而非帖子 }
+        liked: { type: boolean, description: 当前用户是否已赞这条评论 }
+        createTime: { type: string, format: date-time }
+        mentioned:
+          type: object
+          nullable: true
+          description: |
+            被 @ 的用户，**昵称 → id** 的映射。
+            存 id 是因为昵称可能重名，前端渲染 @昵称 时据此跳对应主页。
+            服务端序列化失败时该字段为 null，不阻塞评论展示。
+          additionalProperties: { type: integer, format: int64 }
+
+    CommentCreatedResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [commentId]
+              properties:
+                commentId: { type: integer, format: int64 }
+
+    CommentCursorPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [list, nextCursor, hasMore]
+              properties:
+                list:
+                  type: array
+                  items: { $ref: '#/components/schemas/CommentVO' }
+                nextCursor:
+                  type: integer
+                  format: int64
+                  nullable: true
+                hasMore: { type: boolean }
 
     # ---- F2 认证 -----------------------------------------------------------
 

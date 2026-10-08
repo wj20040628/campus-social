@@ -118,11 +118,11 @@ app:
       - http://localhost:5173
       - http://localhost:5174
       - http://127.0.0.1:5173
+      - http://127.0.0.1:5174
   # F4 封禁计划在 Redis 中的最长保留天数。需>= 最长的封禁期限(30 天) + 余量,
   # 否则 Redis 重启后未到期的解封计划会先于 key 过期而丢失
   ban:
     max-plan-days: 45
-      - http://127.0.0.1:5174
   campus:
     message-gateway: ${APP_MESSAGE_GATEWAY:dev}
 

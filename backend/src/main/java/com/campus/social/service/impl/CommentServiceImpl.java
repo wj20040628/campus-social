@@ -156,7 +156,7 @@ public class CommentServiceImpl {
             Comment parent = commentMapper.selectById(dto.getParentId());
             notifyTarget = parent != null ? parent.getUserId() : post.getAuthorId();
         } else {
-            notifyTarget = dto.getReplyToUserId() != null ? dto.getReplyToUserId() : post.getAuthorId();
+            notifyTarget = resolveLevel3Target(dto, post);
         }
         if (!notifyTarget.equals(userId)) {
             notifySupport.pushNotify(notifyTarget, NOTIFY_TYPE_COMMENT, c.getId(), userId, c.getPostId());
@@ -178,6 +178,42 @@ public class CommentServiceImpl {
                 notifySupport.pushNotify(mid, NOTIFY_TYPE_MENTION, c.getId(), userId, c.getPostId());
             }
         }
+    }
+
+    /**
+     * 三级评论的通知接收方。
+     *
+     * <p><b>为什么校验「是否参与过本帖」而不是「是否等于 parentId 的作者」</b>：
+     * 三级评论走的是 else 分支，本方法所在的 if 链里只有 {@code level == 2} 才会去查
+     * {@code parentId}，所以在这里反查 parentId 时它可能为 null、也可能指向一级评论，
+     * <b>取不到「本次回复对象」的可靠依据</b>。而「B 是不是 C 想回复的人」这个意图
+     * 只有客户端知道，服务端无论怎么查都是猜测。
+     *
+     * <p><b>为什么不能用「更严格 = 必须匹配 parentId 作者」</b>：那会把正常的
+     * 「A 评论 → B 回复 A → C 回复 B」误判成非法。更糟的是前端当前
+     * <b>完全没有传 parentId</b>（已grep 确认零命中），严格口径下会把所有三级回复
+     * 全部误判，等于直接关掉这个功能。
+     *
+     * <p><b>本方法挡得住</b>：伪造他人 userId 定向骚扰、把A 帖的 id 传到 B 帖（跨帖骚扰）、
+     * 前端 bug 导致的误传。
+     *
+     * <p><b>本方法挡不住（已知局限，不视为缺陷）</b>：该用户确实参与过本帖讨论，
+     * 但发评论者想通知的不是他。服务端无从区分，因为「回复意图」不在数据里。
+     *
+     * <p><b>为什么降级给帖子作者而不是丢弃</b>：丢弃会让「我回复了人却没人收到」
+     * 表现得像系统坏了；降级至少让通知有一个可解释的落点。通知错人是骚扰，
+     * 静默吞掉同样不是好结果，两者之间取「可解释」这一侧。
+     */
+    private Long resolveLevel3Target(CreateCommentDTO dto, Post post) {
+        Long target = dto.getReplyToUserId();
+        if (target == null) {
+            return post.getAuthorId();
+        }
+        boolean participated = commentMapper.selectCount(new LambdaQueryWrapper<Comment>()
+                .eq(Comment::getPostId, post.getId())
+                .eq(Comment::getUserId, target)
+                .eq(Comment::getStatus, 1)) > 0;
+        return participated ? target : post.getAuthorId();
     }
 
 
