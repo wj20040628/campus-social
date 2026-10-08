@@ -81,8 +81,12 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public PostVO edit(long postId, CreatePostDTO dto, long authorId) {
+        // write 层永远返回 null（成功落库或无变更都一样），所以这里必然回详情。
+        // 保留 != null 判断是为了让该分支在 write 层签名变化时不会静默出错——
+        // 若将来 write 层改为真的回传 VO，这个三元会自然生效而不是被忽略。
+        // 失败路径（非作者 / 帖子不存在 / 已删除 / 内容为空 / 拒发敏感词）
+        // 由 write 层抛 BusinessException，不会走到这里
         PostVO changed = writeService.edit(postId, dto, authorId);
-        // null = 幂等空操作或无差异,统一回详情
         return changed != null ? changed : detail(postId, authorId);
     }
 

@@ -133,6 +133,7 @@ public class PostVoAssembler {
     }
 
     private UserVO authorVo(Long authorId) {
+        // null = 作者不存在或已注销。帖子仍在但作者卡渲染为空，属可接受降级
         if (authorId == null) {
             return null;
         }

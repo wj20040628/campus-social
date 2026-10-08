@@ -165,6 +165,7 @@ public class PostWriteService {
                         topicBinder.topicIdsOf(postId).stream().map(String::valueOf).toList(),
                         dto.getTopics().stream().map(String::valueOf).toList());
         if (!contentChanged && !mediaChanged && !topicsChanged) {
+            // null = 无需变更,调用方按 postId 回读详情即可(与下面的正常落库返回同一含义)
             return null;
         }
 
@@ -207,6 +208,7 @@ public class PostWriteService {
                 postId, authorId, contentChanged, mediaChanged, topicsChanged, needsReview);
         auditService.record(authorId, "edit_post", "post", postId,
                 "编辑帖子" + (needsReview ? "(命中敏感词,重回审核)" : ""), null);
+        // null = 已落库,不是「编辑失败」。调用方按 postId 回读详情
         return null;
     }
 

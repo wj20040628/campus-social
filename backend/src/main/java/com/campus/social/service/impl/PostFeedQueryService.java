@@ -183,6 +183,7 @@ public class PostFeedQueryService {
 
     /** 游标语义：time 用 id；非 time 用排序列的「上页末值」。前端统一传回 lastId 即可 */
     private Long calcNextCursor(List<Post> page, boolean hasMore, boolean byTime, String by) {
+        // null = 没有下一页。前端收到 null 即停止翻页
         if (!hasMore) {
             return null;
         }
