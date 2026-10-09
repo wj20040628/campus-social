@@ -46,7 +46,15 @@ for ns, name in refs:
     if ns not in NAMESPACES:
         dangling.append(("%s/%s" % (ns, name), "命名空间 %s 不存在" % ns))
     elif name not in NAMESPACES[ns]:
-        dangling.append(("%s/%s" % (ns, name), "定义缺失"))
+        # ★ 悬空时检查同名定义是否在别的命名空间。
+        #   同一个错我犯了两次（responses/MessageResponse vs schemas/MessageResponse），
+        #   两次都靠肉眼/编译撞出来。门禁应该直接说「你在 schemas 里有同名定义，
+        #   命名空间写错了」——把纠错成本从一轮对话降到零。
+        alt = sorted(n2 for n2, d in NAMESPACES.items() if name in d)
+        why = "定义缺失"
+        if alt:
+            why = "命名空间写错：%s/%s 存在于 components/%s" % (ns, name, "/".join(alt))
+        dangling.append(("%s/%s" % (ns, name), why))
 
 print("=" * 60)
 print("openapi.yaml 完整性校验")

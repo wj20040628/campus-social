@@ -202,6 +202,99 @@ tags:
 paths:
 
   # ===========================================================================
+  # §5.4.1 F2 学号核验审核（管理员）
+  #
+  # ★ Phase 2 补录，2026-10-09。为什么必须有：实测确认「浙江理工大学不给
+  #   学生开通邮箱账号」（邮箱系统存在但账号从未发放），校园邮箱认证对
+  #   全体学生不可用，学号核验成为唯一认证通道。而它此前只有提交端点、
+  #   没有审核端点 —— 提交后 verify_status 永远停在 2（审核中），无人能批，
+  #   所有用户过不了 AC-11，搭话/公告全废。这是上线阻塞项。
+  #
+  #   审核数据来源：user 表 verify_status=2 的行（student_no 列 + UNIQUE 防重），
+  #   姓名后两位在 audit_log（migration 未增补 name_tail 列，见 ARCHITECTURE §3）。
+  #   管理员凭学号格式 + 院系年级人工判断真伪（MVP 阶段管理员即站长本人）。
+  # ===========================================================================
+
+  /admin/verify/pending:
+    get:
+      operationId: listPendingVerify
+      tags: [admin-verify]
+      summary: 学号核验待审列表（管理员）
+      description: |
+        查 `verify_status = 2`（审核中）的用户，按提交时间倒序，游标分页。
+        进入即 `roleService.requireAdmin(userId)`，非管理员 403 `NOT_ADMIN`（AC-20）。
+        本页须在 375px 视口可用（OD-19）。
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 待审学号核验游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminVerifyPageResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/verify/{userId}/approve:
+    post:
+      operationId: approveVerify
+      tags: [admin-verify]
+      summary: 通过学号核验
+      description: |
+        `verify_status` 2→1（已认证），写 audit_log（actor=管理员）。
+        目标不存在或状态非 2 时 404 `VERIFY_NOT_FOUND(1044)`。
+        通过后用户即获得 AC-11 全部能力（搭话/发公告）。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404':
+          description: 404 `VERIFY_NOT_FOUND(1044)` 用户不存在或不在审核中状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/verify/{userId}/reject:
+    post:
+      operationId: rejectVerify
+      tags: [admin-verify]
+      summary: 驳回学号核验
+      description: |
+        `verify_status` 2→3（已驳回），reason 写 audit_log。
+        驳回后用户可修改后重新提交（submitStudentNo 只拦 1/2 两种状态）。
+        reason 必填——用户需要知道为什么被驳回才能改对。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminVerifyRejectRequest' }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404':
+          description: 404 `VERIFY_NOT_FOUND(1044)` 用户不存在或不在审核中状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ===========================================================================
   # §5.0 F1 认证与令牌（AuthController）
   #
   # ★ 这6 个端点是Phase 2 补录的，2026-10-08 之前整块缺失。
@@ -3539,6 +3632,59 @@ components:
           format: int64
           description: accessToken 过期时刻（epoch 毫秒）。由 JwtUtil 签发时算出
           example: 1791450320000
+
+    AdminVerifyPendingItem:
+      type: object
+      description: |
+        一条待审的学号核验。字段刻意精简（OD-19 手机审核）：
+        管理员判断真伪需要的是「学号 + 院系年级 + 昵称」，其余不下发。
+      required: [userId, nickname, studentNo, dept, grade]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          description: 申请人 user.id，approve/reject 端点的路径参数就是它
+        nickname: { type: string }
+        studentNo:
+          type: string
+          description: 申请人填的学号（UNIQUE，同号已被别的账号占用时提交即 409）
+        dept: { type: string, description: 院系名称快照 }
+        grade: { type: string, description: 年级名称快照 }
+        submittedAt:
+          type: string
+          format: date-time
+          description: 提交时间（user.update_time），倒序排序键
+
+    AdminVerifyPageData:
+      type: object
+      required: [list, hasMore]
+      properties:
+        list:
+          type: array
+          items: { $ref: '#/components/schemas/AdminVerifyPendingItem' }
+        nextCursor:
+          type: integer
+          format: int64
+          nullable: true
+          description: 下一页游标（最后一条的 userId），没有更多时为 null
+        hasMore: { type: boolean }
+
+    AdminVerifyPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/AdminVerifyPageData' }
+
+    AdminVerifyRejectRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 驳回理由，必填——用户要靠它知道该怎么改。写 audit_log
 
     TokenPairEnvelope:
       allOf:
