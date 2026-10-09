@@ -116,7 +116,13 @@ async function openAndRead(n) {
         router.push('/')
       }
     } else if (n.type === 1) {
-      router.push(`/user/${n.actorId}`) // 被关注 → 关注你的人
+      // 被关注 → 关注你的人
+      // actorId 可能为空(后端 NotifyVO.actorId 是 Long 包装类型,
+      // 系统类通知没有「谁触发的」这个概念),拼出 /user/undefined 这种坏 URL
+      // 会让 vue-router 推一个不存在的路由。TopBar.onUserCommand 已修过同一类,
+      // 这里是第二个入口。拿不到 id 就落到首页,不给用户点不动的入口。
+      if (n.actorId != null) router.push(`/user/${n.actorId}`)
+      else router.push('/')
     } else if (n.type === 4) {
       router.push(`/chat`)
     } else if (n.type === 6 || n.type === 7 || n.type === 8) {

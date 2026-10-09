@@ -38,7 +38,15 @@
           tabindex="-1"
         >
           <router-view v-slot="{ Component }">
-            <Transition name="ys-fade" mode="out-in">
+            <!--
+              **不要加 mode="out-in"**(实测:同一 URL `/user/undefined`,
+              整页加载 kids=9/text=27 正常,SPA 导航 kids=0/text=0 永久空白,
+              再点侧栏也恢复不了,只有 F5 能重置)。
+              机制:out-in 要等旧组件 leave 完才挂新的,靠 transitionend 推进;
+              组件在 leave 阶段抛错时收不到该事件,新组件永不挂载。
+              去掉后组件抛错不再阻断挂载 —— 用户看到可用的错误页,而不是整片空白。
+            -->
+            <Transition name="ys-fade">
               <component :is="Component" />
             </Transition>
           </router-view>

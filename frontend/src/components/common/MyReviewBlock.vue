@@ -56,6 +56,34 @@
 </template>
 
 <script setup>
+/**
+ * 展开项用 ref 而非普通数组 —— el-collapse 的 v-model 改的是数组本身,
+ * 普通数组也能工作,但组件要按响应式语义读它,ref 更明确。
+ *
+ * [这一行 import 是补的,不是原本就有的]
+ * 原文件整个 <script setup> 里没有从 'vue' import 任何东西,却在这里用了
+ * `ref([])` —— 运行时报 `ReferenceError: ref is not defined`。
+ *
+ * ## 后果:个人主页白屏,且刷新无效
+ *
+ * 实测(Chrome headless + CDP,登录态,直接进 /user/2):
+ *   ReferenceError: ref is not defined
+ *     at setup (src/components/common/MyReviewBlock.vue:24:16)
+ *     at callWithErrorHandling (...) at setupStatefulComponent (...)
+ * #main-content 量到 kids=2 text=0 —— 有壳但没内容。
+ *
+ * 配合 MainLayout 的 <Transition mode="out-in">:组件在 setup 抛错后,
+ * 旧组件的 leave 阶段收不到 transitionend,**新组件永不挂载**,
+ * 整个 router-view 区域永久空白,点侧栏也恢复不了,只有 F5 能重置。
+ *
+ * ## 为什么编译期不报
+ *
+ * check-sfc.mjs 走的是 @vue/compiler-sfc 的 compileScript,它只做语法转换,
+ * 不做作用域分析 —— `ref` 被当成普通全局标识符,语法合法。
+ * 门禁「全部通过」在这里等于没查。
+ */
+import { ref } from 'vue'
+
 /** 审核状态码与文案。与后端 review_task.status 一致:0 审核中 1 已通过 2 已驳回 */
 const STATUS_TEXT = { 0: '审核中', 1: '已通过', 2: '已驳回' }
 

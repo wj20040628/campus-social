@@ -44,9 +44,21 @@
       <!--
         步骤切换:横向位移 + 淡入,**禁止纵向位移**(§4)——
         纵向位移会让上方进度条与下方吸底栏之间产生视差错位。
-        key 用 step 强制重建,是刻意的:横向进出场需要 enter/leave 都跑。
+
+        [不要加 mode="out-in",也不要为了补它而加 :key]
+        out-in 的缺陷已在 MainLayout 上实测坐实:同一 URL 整页加载正常、
+        SPA 导航永久空白(leave 阶段抛错 → 收不到 transitionend → 新组件永不挂载)。
+        引导页是**新用户第一次用**的路径,白屏代价最高,所以这轮一并去掉。
+
+        原本想用 :key="step" 顶上,查过会丢东西:
+          - StepTags / StepFollow **零内部 ref** —— 重建无损
+          - StepIdentity 有两个:touched(哪些字段被碰过,用于字段级提示)
+            与 fieldsRef(校验器句柄)。重建后 touched 归零,
+            用户填了一半的字段会退回「没碰过」,追问提示消失。
+        所以不加 key,只去 mode —— StepIdentity 靠 v-if/v-else-if 切换,
+        本来就会重建,key 不会改变这一点,只会额外把已渲染的也重建一次。
       -->
-      <Transition :name="dir > 0 ? 'slide-left' : 'slide-right'" mode="out-in">
+      <Transition :name="dir > 0 ? 'slide-left' : 'slide-right'">
         <StepIdentity
           v-if="step === 1"
           ref="step1Ref"

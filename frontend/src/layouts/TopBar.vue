@@ -114,8 +114,14 @@ function goBack() {
 }
 
 function onUserCommand(cmd) {
-  if (cmd === 'profile') router.push(`/user/${userStore.userInfo?.id}`)
-  else if (cmd === 'settings') router.push('/settings')
+  if (cmd === 'profile') {
+    // userInfo 可能尚未就绪(后台 fetchMe 还在飞),此时 id 为 undefined,
+    // 拼成 /user/undefined 这种坏 URL,vue-router 推它会在 <Transition> 换页
+    // 渲染时崩掉整片 <router-view>(parentNode 为 null 的 patch 错)→ 白屏。
+    // 拿不到 id 就静默不动,绝不让一次坏导航打断全站渲染。
+    const id = userStore.userInfo?.id
+    if (id != null) router.push(`/user/${id}`).catch(() => {})
+  } else if (cmd === 'settings') router.push('/settings').catch(() => {})
   else if (cmd === 'logout') emit('logout')
 }
 </script>

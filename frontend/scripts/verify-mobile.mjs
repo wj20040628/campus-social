@@ -16,7 +16,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import http from 'node:http'
 
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-const BASE = 'http://127.0.0.1:5178'
+const BASE = process.env.SERVE_BASE || 'http://127.0.0.1:5173'
 const PORT = 9222
 const VIEWPORT = { width: 375, height: 812, deviceScaleFactor: 3, mobile: true }
 /** --self-test:只跑灵敏度自检,量完即退出（不输出各路由报告） */
@@ -92,6 +92,17 @@ try {
 
   await send('Page.enable')
   await send('Runtime.enable')
+  /**
+   * 固定「无动画偏好」。
+   *
+   * headless Chrome 的默认状态各版本不一致(有的默认 reduce、有的 no-preference),
+   * 而 reduced-motion 下 `transition-duration` 会被压到 0.01ms ——
+   * 那样量不到真实的过渡时长,也就量不到「过渡期间内容区是否位移」这类问题。
+   * 写死 no-preference,不依赖默认值。
+   */
+  await send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  })
   await send('Emulation.setDeviceMetricsOverride', VIEWPORT)
 
   /**
@@ -335,7 +346,7 @@ try {
           const host = document.querySelector('main') || document.body;
           const d = document.createElement('div');
           d.className = 'selftest-wide';
-          d.style.cssText = 'width:1200px;height:10px;background:#eee';
+          d.style.cssText = 'width:1200px;height:10px;background:currentColor';
           host.appendChild(d);
         })()`,
         check: (m) => m.hScroll === true,
@@ -370,8 +381,8 @@ try {
           const c = document.createElement('div');
           c.className = 'selftest-page';
           c.style.cssText = 'position:fixed;left:5px;top:300px;width:200px;z-index:99999';
-          c.innerHTML = '<div style="width:190px;height:40px;background:#ddd"></div>'
-            + '<div style="width:190px;height:40px;background:#ccc"></div>';
+          c.innerHTML = '<div style="width:190px;height:40px;background:currentColor"></div>'
+            + '<div style="width:190px;height:40px;background:currentColor"></div>';
           document.body.appendChild(c);
         })()`,
         check: (m) => Array.isArray(m.stack) && m.stack.some((s) => s.container.includes('selftest-page') && s.stacked === true),
@@ -391,8 +402,8 @@ try {
           const c = document.createElement('div');
           c.className = 'selftest-page';
           c.style.cssText = 'position:fixed;left:5px;top:420px;width:400px;display:flex;z-index:99999';
-          c.innerHTML = '<div style="width:190px;height:40px;background:#ddd"></div>'
-            + '<div style="width:190px;height:40px;background:#ccc"></div>';
+          c.innerHTML = '<div style="width:190px;height:40px;background:currentColor"></div>'
+            + '<div style="width:190px;height:40px;background:currentColor"></div>';
           document.body.appendChild(c);
         })()`,
         check: (m) => Array.isArray(m.stack) && m.stack.some((s) => s.container.includes('selftest-page') && s.stacked === false),

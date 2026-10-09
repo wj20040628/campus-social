@@ -5,7 +5,7 @@
  * 根因是 MainLayout 的<Transition mode="out-in"> 在 leave 阶段抛错时，
  * 永远走不到挂载新组件那一步 —— router-view 区域永久空白，只有 F5 能重置。
  *
- * ★ 为什么这个脚本必须自己带灵敏度验证：
+ * [注] 为什么这个脚本必须自己带灵敏度验证：
  *   「页面不白屏」是一个极易造假的结论。判据一旦只写
  *   「量一下main 的 clientHeight > 0」，那么
  *     - main 为空但有 min-height 时会报「有内容」
@@ -28,9 +28,9 @@ const VIEWPORT = { width: 375, height: 812, deviceScaleFactor: 3, mobile: true }
 
 /** 路由切换序列：用户报的就是这几条。
  *
- *  ★ /publish 放最后：它是全屏表单页(MainLayout.vue 里 hideTabBar 为true)，
+ *  [注] /publish 放最后：它是全屏表单页(MainLayout.vue 里 hideTabBar 为true)，
  *    没有 TabBar，点完它就没法再用 TabBar 导航去下一个页面。
- *  ★ /notify 不在 TabBar 里(通知入口是顶栏铃铛，见 TopBar.vue)，
+ *  [注] /notify 不在 TabBar 里(通知入口是顶栏铃铛，见 TopBar.vue)，
  *    所以它靠 history.back() 回列表页继续。
  */
 const ROUTES = [
@@ -99,7 +99,7 @@ async function launch() {
 /**
  * 量「router-view 区域是否有实质内容」，而不是只看高度。
  *
- * ★ 这里踩过一次坑：自检跑出 kids=undefined text=undefined，
+ * [注] 这里踩过一次坑：自检跑出 kids=undefined text=undefined，
  *   原因是未登录时首页根本不渲染 <main>，MEASURE 返回 found:false，
  *   于是四个用例全部落在 found:false 分支——
  *   **判据自己失效了，而输出看起来只是「多了一个 undefined」**。
@@ -145,7 +145,7 @@ async function loginAndInject(send) {
 }
 
 async function gotoRoute(send, path) {
-  /* ★ 第一版用 history.pushState + popstate 手动改 URL，结果 6 个路由全部报
+  /* [注] 第一版用 history.pushState + popstate 手动改 URL，结果 6 个路由全部报
    *   「找不到 main/.content 容器」——因为 vue-router 并不知道 URL 变了，
    *   它不会重新解析路由，页面根本没离开登录页。
    *   换句话说第一版测的是「一个从没导航过的页面」，量测毫无意义。
@@ -169,7 +169,7 @@ async function gotoRoute(send, path) {
       }
       // ② /notify 不在 TabBar 里（通知入口是顶栏铃铛，见 TopBar.vue），
       //    但它仍是用户真实路径，所以点铃铛进去，而不是放弃检查。
-      //    ★ 必须用「导航后 URL 是否符合期望」来判定成败，
+      //    [注] 必须用「导航后 URL 是否符合期望」来判定成败，
       //      不能只看「点了一下」—— 点了但没跳过去也算失败。
       const bell = document.querySelector('.topbar a[href="/notify"], .topbar__bell, [aria-label*="通知"], [aria-label*="消息"]');
       if (bell && norm(target) === '/notify') {
@@ -207,7 +207,7 @@ async function run() {
       if (!v || !v.found) { console.log(`  [FAIL] ${r.name.padEnd(12)} 找不到 main/.content 容器`); bad++; continue }
       const ok = v.hasContent
 
-      /* ★ 关键硬断言：URL 必须真的变了。
+      /* [注] 关键硬断言：URL 必须真的变了。
        *   第二版在这里报了假绿：Chat / Notify / Home(回) 三行显示的 url 全是
        *   /publish、kids 全是 41 —— 页面压根没导航过，量的是同一个页面，
        *   而「那个页面有内容」所以判 ok。三行假 PASS。
@@ -215,18 +215,39 @@ async function run() {
        *   「有内容」和「这是正确的那个页面」是两件事，必须分开判。
        */
       const urlOk = v.url === r.path
+      /**
+       * 两个失败原因**都要**累加 bad,缺一个结论就会与逐行输出矛盾。
+       *
+       * 实测踩过:这里原本只累加 `!urlOk`,漏了 `!ok`(白屏)。
+       * 于是注入 out-in 后屏幕上 4 行 `[FAIL] kids=0 text=0`,
+       * 最后一行却打印「结论: PASS」——**白屏没被算进 bad**。
+       *
+       * 「逐行说 FAIL」和「总结说 PASS」同时出现时,
+       * 唯一的解释是累加逻辑漏了一项,而不是其中一行看错了。
+       */
       if (!urlOk) bad++
-      if (ok && !urlOk) bad++
+      if (!ok) bad++
       const flag = ok && urlOk ? ' ok ' : 'FAIL'
-      console.log(`  [${flag}] ${r.name.padEnd(12)} 期望=${r.path.padEnd(12)} 实际=${String(v.url).padEnd(12)} kids=${String(v.kids).padEnd(5)} text=${String(v.text).padEnd(5)} nav=${how === 'NO_NAV_EL' ? '★没点上' : how}`)
-      if (!urlOk) console.log(`         ★ URL 没变——这不是「页面正常」，是「根本没导航成功」。量测结果无效。`)
+      console.log(`  [${flag}] ${r.name.padEnd(12)} 期望=${r.path.padEnd(12)} 实际=${String(v.url).padEnd(12)} kids=${String(v.kids).padEnd(5)} text=${String(v.text).padEnd(5)} nav=${how === 'NO_NAV_EL' ? '没点上' : how}`)
+      if (!urlOk) console.log(`         [注意] URL 没变——这不是「页面正常」，是「根本没导航成功」。量测结果无效。`)
     }
 
     console.log(`\n控制台致命错误: ${consoleErrors.length} 条`)
-    for (const e of consoleErrors.slice(0, 8)) console.log('   ★', e.replace(/\n/g, ' ').slice(0, 150))
+    for (const e of consoleErrors.slice(0, 8)) console.log('   [错误]', e.replace(/\n/g, ' ').slice(0, 150))
 
     const pass = bad === 0 && consoleErrors.length === 0
     console.log(`\n结论: ${pass ? 'PASS 无白屏、无致命错误' : `FAIL（${bad} 个白屏 / ${consoleErrors.length} 条致命错误）`}`)
+    /**
+     * 退出码必须跟着结论走。
+     *
+     * 实测踩过:把 `mode="out-in"` 注回去后,输出里有 4 行 `[FAIL] kids=0 text=0`,
+     * 但最后一行仍打印「结论: PASS」——**因为只改了打印,没改 exitCode**。
+     * 那样 CI 跑完是绿的,门禁形同不存在,而「屏幕上明明有 4 个 FAIL」。
+     *
+     * 打印给人看,退出码给机器判。两个都要,否则就是「报全部通过」和
+     * 「检查项根本没在跑」长得一样。
+     */
+    if (!pass) process.exitCode = 1
     process.exitCode = pass ? 0 : 1
   } finally {
     try { ws.close() } catch {}
@@ -242,7 +263,7 @@ async function selfTest() {
     await send('Page.navigate', { url: `${BASE}/` })
     await sleep(3000)
 
-    // ★ 自检不依赖登录态：先在 body 里造一个 main 作为量测容器，
+    // [注] 自检不依赖登录态：先在 body 里造一个 main 作为量测容器，
     //   否则未登录时页面根本不渲染 main，四个用例全落在 found:false 分支，
     //   判据等于没被测过（这是我第一版的 bug，frontend-2 测出来的）。
     await send('Runtime.evaluate', {
@@ -274,7 +295,7 @@ async function selfTest() {
       if (!ok) bad++
       console.log(`  [${ok ? ' ok ' : 'FAIL'}] ${c.label.padEnd(44)} 期望=${c.expect.padEnd(5)} 实际=${got.padEnd(5)} kids=${v?.kids} text=${v?.text} media=${v?.media}${v?.why ? ' why=' + v.why : ''}`)
     }
-    console.log(`\n自检 ${bad === 0 ? '全部符合预期 ✅' : `有 ${bad} 项判据本身不可靠 ❌`}`)
+    console.log(`\n自检 ${bad === 0 ? '全部符合预期' : `有 ${bad} 项判据本身不可靠`}`)
     process.exitCode = bad === 0 ? 0 : 1
   } finally {
     try { ws.close() } catch {}
