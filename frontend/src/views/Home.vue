@@ -1,6 +1,14 @@
 <template>
   <div class="home">
     <div class="home-inner">
+      <!--
+        认证状态提示条(驳回 / 审核中)。
+        放在**筛选条之上、Tab 之上**:被驳回是「你的账号有问题」级别的信息,
+        夹在 feed 中间会被用户的下滑手势立刻扫掉,而且它描述的是账号不是内容 ——
+        与下面「关注/全部」这个内容维度不是一回事,不该被 Tab 框住。
+      -->
+      <VerifyNotice />
+
       <!-- 关注 / 全部 tab(A1:读 feed_item 的写扩散收件箱) -->
       <el-tabs v-model="tab" class="feed-tabs">
         <el-tab-pane label="关注" name="following" />
@@ -85,8 +93,10 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import { ChatLineSquare } from '@element-plus/icons-vue'
 import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
+import { useVerifyStatus } from '@/composables/useVerifyStatus'
 
 const router = useRouter()
 const tab = ref('following') // 默认"关注"
@@ -95,6 +105,9 @@ const cursor = ref(null)
 const hasMore = ref(true)
 const loading = ref(false)
 let observer = null
+
+// 认证状态是模块级单例,这里拿到的 load 与个人主页那边是同一个函数
+const { load: loadVerifyStatus } = useVerifyStatus()
 const sentinelEl = ref(null)
 
 // 搜索 + 筛选/排序(全部 tab)
@@ -180,6 +193,9 @@ function setupObserver() {
 }
 
 onMounted(async () => {
+  // 与 feed 并行发起,不 await:认证状态是附加信息,不该拖慢首屏。
+  // 失败也不影响本页(useVerifyStatus 内部吞掉,不抛)。
+  loadVerifyStatus()
   await loadFeed(true)
   nextTick(setupObserver)
 })

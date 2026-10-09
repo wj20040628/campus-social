@@ -81,5 +81,6 @@ declare module 'vue' {
     UnreadDot: typeof import('./src/components/mobile/UnreadDot.vue')['default']
     UnreadPanel: typeof import('./src/components/admin/UnreadPanel.vue')['default']
     UserList: typeof import('./src/components/UserList.vue')['default']
+    VerifyNotice: typeof import('./src/components/common/VerifyNotice.vue')['default']
   }
 }

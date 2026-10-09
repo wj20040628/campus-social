@@ -56,6 +56,9 @@
           <button type="button" class="p-blocked__undo" @click="unblock">解除拉黑</button>
         </p>
 
+        <!-- 认证状态提示条(仅本人主页)。组件内部自行判断要不要渲染 -->
+        <VerifyNotice v-if="isMe" />
+
         <!--
           三统计:栅格一律 CSS Grid(设计 §1.2)。
           可点项是<button>、不可点的「动态」是 <div>(设计 §5)——
@@ -160,10 +163,12 @@ import { ChatLineSquare, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
+import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import ProfileHead from '@/components/profile/ProfileHead.vue'
 import { useProfileData } from '@/composables/useProfileData'
 import { useProfileRelations } from '@/composables/useProfileRelations'
+import { useVerifyStatus } from '@/composables/useVerifyStatus'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { useIsMobile } from '@/composables/useBreakpoint'
@@ -200,6 +205,9 @@ const {
 
 const tab = ref('posts')
 const verifyOpen = ref(false)
+
+// 本人主页才拉认证状态:看别人的主页时拉了也白拉(还多一跳)
+const { load: loadVerifyStatus } = useVerifyStatus()
 
 /**
  * el-avatar 的 :size 是属性,媒体查询改不动(设计 §7)。
@@ -280,7 +288,9 @@ watch(targetId, () => {
 })
 
 onMounted(async () => {
-  // 字典与资料并发拉,不串行 —— 串行会让首屏多等一个往返
+  // 字典与资料并发拉,不串行 —— 串行会让首屏多等一个往返。
+  // 认证状态一并并发:只在本人主页拉(看别人主页时这条提示不出现)
+  if (isMe.value) loadVerifyStatus()
   await Promise.all([dict.ensureLoaded(), load(), loadRelation().catch(() => {})])
 })
 </script>
