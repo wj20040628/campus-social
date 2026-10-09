@@ -97,6 +97,23 @@
   background: var(--ys-border-soft);
 }
 
+/*
+ * Tab 热区高度。
+ *
+ * Element Plus 的 .el-tabs__item 默认只有 40px 高，低于 --ys-touch-min(44px)，
+ * 违反 AC-15。这个违规一直隐形：门禁的 verify-mobile 只量用户页，
+ * 8 条路由里没有后台页，所以「量不到」被当成了「没问题」。
+ * 后台页纳入量测后（AdminVerify 那一轮补的 ADMIN_ROUTES）才暴露。
+ *
+ * 只撑热区不改字号 —— 视觉密度保持原样，差别是手指落点大了 4px。
+ * 用 min-height 而不是 height：内容多的 tab 仍可向下撑开。
+ */
+.review-admin__tabs :deep(.el-tabs__item) {
+  min-height: var(--ys-touch-min);
+  display: flex;
+  align-items: center;
+}
+
 /* ---------------- 机审队列 ---------------- */
 
 .task-list {
