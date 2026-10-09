@@ -28,13 +28,22 @@ VO_DIR = os.path.join(ROOT, 'backend', 'src', 'main', 'java', 'com', 'campus', '
 OPENAPI = os.path.join(ROOT, 'docs', 'api', 'openapi.yaml')
 
 # 已知差异。每条必须写清「为什么」与「谁负责补」，不允许无理由挂起。
-KNOWN_GAPS = {
-    'CommentVO': {
-        'contract_only': ['children', 'childrenOverflowCount'],
-        'reason': 'B-1 评论子树，本轮后端实现中。契约已定（57e20e1），'
-                  '上限 20/节点、超限不得静默截断。',
-        'owner': 'backend',
-    },
+#
+# 2026-10-08 清空：CommentVO.children / childrenOverflowCount 已由后端实现
+# （CommentTreeAssembler，真机实测一级带 3 条回复、溢出分页两页无漏行），
+# 豁免继续留着会把「已修完」伪装成「还在做」，正是本脚本该抓的一类假绿。
+KNOWN_GAPS = {}
+
+# VO 类名 -> 契约 schema 名。默认按同名匹配，契约用领域前缀而 Java 用 VO 后缀时走这里。
+#
+# 为什么需要它：脚本按「类名 == schema 名」匹配，匹配不上就`continue` 跳过，
+# 于是那个 VO 的字段一致性从来没被检查过——它出现在下方「契约未定义」清单里，
+# 但那份清单是非阻塞提示，不会让 CI 变红。
+#实测灵敏度：把 StudentNoParsedVO.majorCode 改名成 majorCodeTYPO
+# （契约里明确要求存在、前端必读的字段），本脚本仍输出「结果: 无不一致」。
+# 加映射后同一注入立刻被抓。类名不合约定≠ 免检。
+SCHEMA_ALIAS = {
+    'StudentNoParsedVO': 'AdminVerifyStudentNoParsed',
 }
 
 
@@ -87,7 +96,7 @@ def main():
 
     for f in vo_files:
         name = f[:-5]
-        schema = schemas.get(name)
+        schema = schemas.get(SCHEMA_ALIAS.get(name, name))
         if schema is None:
             continue  # 契约未定义该 VO：本轮不视为不一致，单独在下方汇总
         jf = java_fields(os.path.join(VO_DIR, f))
@@ -141,7 +150,10 @@ def main():
         print('!! KNOWN_GAPS 里有已失效条目（字段已补齐或 VO 已改名）: %s' % ', '.join(sorted(stale)))
         mismatches += 1
 
-    undef = sorted(f[:-5] for f in vo_files if f[:-5] not in schemas)
+    # 已被 SCHEMA_ALIAS 映射走的 VO 不算「契约未定义」——
+    # 它已经在上面按契约 schema 比对过了，继续列进来等于把已检的报成未检。
+    undef = sorted(f[:-5] for f in vo_files
+                   if f[:-5] not in schemas and f[:-5] not in SCHEMA_ALIAS)
     if undef:
         print()
         print('契约未定义这些 VO（非阻塞，但契约号称唯一准绳，建议补）:')

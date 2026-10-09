@@ -75,6 +75,10 @@ public final class BusinessHttpStatus {
         // 「整帖没了(退页)」与「这条回复没了(置灰)」,两种前端处理方式不同
         MAPPING.put(ResultCode.COMMENT_NOT_FOUND, HttpStatus.NOT_FOUND);
         MAPPING.put(ResultCode.POST_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+        // 学号核验待审项不存在/已被处置:404。前端收到后刷新待审列表即可,
+        // 与「帖子/评论不存在」同为404,不需要第三种处理分支
+        MAPPING.put(ResultCode.VERIFY_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     private BusinessHttpStatus() {

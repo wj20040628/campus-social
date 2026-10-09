@@ -95,6 +95,58 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE user SET status = #{status}, update_time = NOW() WHERE id = #{userId}")
     int updateAccountStatus(@Param("userId") Long userId, @Param("status") int status);
 
+    // ---------------------------------------------------------------- 学号核验审核（admin）
+
+    /**
+     * 待审的学号核验（verify_status = 2），Cursor 游标分页。
+     *
+     * <p><b>游标与排序键必须同向</b>：这里是 {@code ORDER BY update_time DESC, id DESC}
+     * 配 {@code id < cursor}，与 {@code selectAdminList}（举报列表）同构。
+     * 排序键含 update_time 而游标只用 id，是因为 update_time 会撞同一秒——
+     * 用它当游标会漏行或重复行；id 单调唯一，是唯一可靠的游标键。
+     * 两者的组合之所以成立，是因为 id DESC 与 update_time DESC 在
+     * 「后提交的 id 更大」这个前提下同向。
+     *
+     * <p>只取审核需要的 6 列：OD-19 要求后台在 375px 手机上可用，
+     * 而管理员判断真伪只需要学号、院系年级、昵称，其余列不下发。
+     *
+     * <p><b>列名必须起别名对齐 VO 属性名</b>：{@code map-underscore-to-camel-case}
+     * 只能把 {@code student_no} 映射成 {@code studentNo}，
+     * 但 {@code id -> userId} 和 {@code update_time -> submittedAt}
+     * 是语义改名而非下划线转换，规则管不到。
+     * 不起别名时两列会静默变成 null——列表照常返回、userId 全是空，
+     * 而 nextCursor 恰好取自 userId，于是分页永远拉不满第二页且看不出报错。
+     */
+    @Select("<script>"
+            + "SELECT id AS user_id, nickname, student_no, dept, grade, "
+            + "update_time AS submitted_at FROM user "
+            + "WHERE verify_status = 2 AND is_deleted = 0 AND status = 0 "
+            + "<if test='cursor != null'> AND id &lt; #{cursor} </if>"
+            + "ORDER BY update_time DESC, id DESC LIMIT #{limit}"
+            + "</script>")
+    List<com.campus.social.vo.AdminVerifyPendingItemVO> selectPendingVerify(
+            @Param("cursor") Long cursor, @Param("limit") int limit);
+
+    /**
+     * 通过学号核验：2 → 1，乐观锁。
+     *
+     * <p>WHERE 里带 {@code verify_status = 2} 而不是复用
+     * {@link #markVerified}（它的条件只是 {@code <> 1}，会把 0 未认证、
+     * 3 已驳回的账号也一起置成已认证）。审核端点必须只认「正在审核中」这一种输入状态，
+     * 否则一个误点就会给根本没提交过学号的人发认证。
+     *
+     * <p>影响行数 0 = 已被他人处置或状态不符，由 service 层回 404，
+     * 与「乐观锁防两个管理员并发处置同一条」是同一件事。
+     */
+    @Update("UPDATE user SET verify_status = 1, update_time = NOW() "
+            + "WHERE id = #{userId} AND verify_status = 2")
+    int approveVerify(@Param("userId") long userId);
+
+    /** 驳回学号核验：2 → 3，同样只认「审核中」这一种输入状态 */
+    @Update("UPDATE user SET verify_status = 3, update_time = NOW() "
+            + "WHERE id = #{userId} AND verify_status = 2")
+    int rejectVerify(@Param("userId") long userId);
+
     // ---------------------------------------------------------------- F11 引导
 
     /**
