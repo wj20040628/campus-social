@@ -146,6 +146,17 @@ const routes = [
 
       /* ---- 后台:手机端同样可用(OD-19) ---- */
       {
+        /*
+          学号核验审核。
+          独立页而不是 AdminReview 的第四个 Tab —— 理由写在 AdminVerify.vue
+          头部(行数门禁 + 身份处置与内容处置语义不同 + 契约分属两个 tag)。
+        */
+        path: 'admin/verify',
+        name: 'verify',
+        component: () => import('@/views/AdminVerify.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '学号核验', back: true },
+      },
+      {
         path: 'admin/review',
         name: 'review',
         component: () => import('@/views/AdminReview.vue'),

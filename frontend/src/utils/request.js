@@ -82,8 +82,25 @@ request.interceptors.response.use(
         })
     }
 
-    // 其他错误
-    ElMessage.error(error.response?.data?.message || error.message || '网络错误')
+    /**
+     * 其他错误。
+     *
+     * `suppressStatuses` 是给调用方的定向静默开关(axios 会把自定义 config
+     * 原样带到 error.config 上)。用法:
+     *   request.post(url, body, { suppressStatuses: [404] })
+     *
+     * 为什么需要:学号核验审核里 404 VERIFY_NOT_FOUND(1044) 的含义是
+     * 「这条已经被别的设备处置过了」,它不是故障,处理动作是「从列表里去掉」。
+     * 而全局这条红色 toast 会先弹一遍,调用方再弹一次「该申请已被处理」,
+     * 管理员看到两条互相矛盾的提示。
+     *
+     * 为什么按 status 精确关而不是整个请求静音:同一个端点仍然可能 500/网络断,
+     * 那两种必须出红色 toast。只关 404,其余照旧走全局提示。
+     */
+    const suppress = error.config?.suppressStatuses
+    if (!Array.isArray(suppress) || !suppress.includes(status)) {
+      ElMessage.error(error.response?.data?.message || error.message || '网络错误')
+    }
     return Promise.reject(error)
   }
 )

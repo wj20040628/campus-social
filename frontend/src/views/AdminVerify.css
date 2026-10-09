@@ -1,0 +1,330 @@
+/* ==========================================================================
+ * AdminVerify · 学号核验审核页
+ * OD-19:后台页在 375px 视口必须可用。卡片按「学号 -> 年级对照 -> 昵称院系」
+ * 排:管理员第一眼看的是那串数字,其次才是人。
+ * ========================================================================== */
+
+.verify-admin {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+.verify-admin__state {
+  margin: auto;
+  padding: var(--ys-space-6) var(--ys-gutter-phone);
+}
+
+.verify-admin__list {
+  margin: 0;
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  list-style: none;
+}
+
+/* 不套 el-card:卡片盒子 + 投影在移动端笨重,描边 + 圆角够了 */
+.vcard {
+  padding: var(--ys-space-5);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface);
+}
+
+.vcard + .vcard {
+  margin-top: var(--ys-space-4);
+}
+
+/* ---------------- 行 1:学号 ---------------- */
+
+/*
+  14 位数字是本页的主体内容,不是「一行文字里的一个字段」。
+  三条硬约束:等宽数字(逐位对齐,便于比对)、不换行、不截断。
+  white-space:nowrap + overflow:hidden 是一对 —— 只写 nowrap 不写 hidden,
+  长学号会把卡片撑宽,375px 下直接产生横向滚动。
+*/
+.vcard__no {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+  line-height: var(--ys-lh-lg);
+  letter-spacing: var(--ys-ls-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.vcard__no-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+/*
+  「无法解析」标签用中性灰,不用 warning 色。
+  理由:它不是「危险警告」,是「这项数据缺失」。挂成黄/橙色会让管理员
+  以为这条有问题必须处理,而契约的意思恰恰相反 —— 提示只是提示,
+  放行权仍在管理员手上(approve/reject 永不因解析结果被禁用)。
+*/
+.vcard__tag {
+  flex-shrink: 0;
+  padding: 2px var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  white-space: nowrap;
+}
+
+/* ---------------- 行 2:年级对照 ---------------- */
+
+/*
+  解析出的年级与自填年级并排。这一行是本页的核心价值:
+  管理员在这里一眼看到「学号说 25 级,本人填 23 级」这种矛盾。
+  分隔符用「/」而不是「·」——「·」在下方昵称行已经出现过一次,
+  同一张卡片里两种含义相同的分隔符会让人误读成同一组字段。
+*/
+.vcard__grades {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-3) 0 0;
+}
+
+.vcard__parsed,
+.vcard__claimed {
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+}
+
+/* 解析结果跟学号同族(等宽),一眼看出它是从学号里来的,不是用户自己说的 */
+.vcard__parsed {
+  font-family: var(--ys-font-mono);
+  font-weight: var(--ys-weight-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--ys-fg);
+}
+
+/* 自填值:次要信息。它是待验证的证词,不是结论 */
+.vcard__claimed {
+  color: var(--ys-meta);
+}
+
+.vcard__vs {
+  color: var(--ys-border-control);
+  font-size: var(--ys-text-xs);
+}
+
+/* ---------------- 行 3:昵称 · 院系 ---------------- */
+
+.vcard__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-3) 0 0;
+}
+
+.vcard__nick {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  overflow-wrap: anywhere;
+}
+
+.vcard__dept {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  overflow-wrap: anywhere;
+}
+
+.vcard__time {
+  margin: var(--ys-space-1) 0 0;
+  font-family: var(--ys-font-mono);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 处置区 ---------------- */
+
+.vcard__actions {
+  margin-top: var(--ys-space-4);
+  padding-top: var(--ys-space-4);
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.vcard__reason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-1);
+  margin-bottom: var(--ys-space-3);
+}
+
+.vcard__reason-label {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+.vcard__reason input {
+  /* iOS Safari 下 <16px 聚焦会放大页面且不自动缩回 */
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  color: var(--ys-fg);
+}
+
+.vcard__reason input:focus-visible {
+  outline: 2px solid var(--ys-focus-ring);
+  outline-offset: 1px;
+}
+
+/* 两列网格而不是 flex:flex 下两个按钮会被内容宽度推开,长短文案不等宽 */
+.vcard__btns {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--ys-space-2);
+}
+
+.vcard__btn {
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  cursor: pointer;
+  transition:
+    opacity var(--ys-motion-instant) var(--ys-ease-out),
+    background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.vcard__btn:active:not(:disabled) {
+  opacity: 0.7;
+}
+
+.vcard__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 通过是本页的主操作:实底 + success。驳回是描边,与它视觉上分主次 */
+.vcard__btn--pass {
+  border-color: var(--ys-success);
+  background: var(--ys-success);
+  color: var(--ys-accent-on);
+}
+
+.vcard__btn--reject {
+  border-color: var(--ys-danger);
+  color: var(--ys-danger);
+}
+
+.vcard__btn--danger {
+  border-color: var(--ys-danger);
+  background: var(--ys-danger);
+  color: var(--ys-accent-on);
+}
+
+/* ---------------- 骨架屏 ---------------- */
+
+.verify-admin__skeletons {
+  margin: 0;
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  list-style: none;
+}
+
+.verify-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-5) 0;
+}
+
+.verify-skeleton + .verify-skeleton {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.verify-skeleton__no {
+  height: 24px;
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  animation: av-shimmer 1.4s var(--ys-ease-linear) infinite;
+}
+
+.verify-skeleton__line {
+  height: 14px;
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  animation: av-shimmer 1.4s var(--ys-ease-linear) infinite;
+}
+
+.verify-skeleton__line--short {
+  width: 55%;
+}
+
+@keyframes av-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------------- 哨兵 / 提示 ---------------- */
+
+.verify-admin__sentinel {
+  flex-shrink: 0;
+  padding: var(--ys-space-3);
+  padding-bottom: calc(var(--ys-space-3) + var(--ys-safe-bottom));
+  text-align: center;
+}
+
+.verify-admin__hint {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* ---------------- 桌面端 ---------------- */
+
+@media (min-width: 1024px) {
+  .verify-admin {
+    min-height: 0;
+    max-width: var(--ys-container-max);
+    margin: 0 auto;
+    padding: var(--ys-space-5) var(--ys-gutter-desktop);
+  }
+
+  /* 桌面端两列:学号审核是批量浏览,一列要滚很久 */
+  .verify-admin__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ys-space-4);
+    padding: var(--ys-space-5) 0;
+  }
+
+  .vcard + .vcard {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verify-skeleton__no,
+  .verify-skeleton__line {
+    animation: none;
+  }
+}

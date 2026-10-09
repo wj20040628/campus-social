@@ -7,6 +7,7 @@ import request from '@/utils/request'
  *   /review/pending  /review/processed  /review/{id}/approve  /review/{id}/reject
  *   /review/mine    /report
  *   /admin/reports   /admin/reports/{id}/handle
+ *   /admin/verify/pending  /admin/verify/{userId}/approve  /admin/verify/{userId}/reject
  *
  * 举报端点是 F4 上线门槛项:AC-14 要求「管理员在 375px 视口能完成举报处置」,
  * 但 SPEC §5.1 把端点写在 G1 段落下 —— 不接就等于 AC-14 无解。
@@ -108,6 +109,57 @@ export function handleReport(id, body) {
   return request.post(`/admin/reports/${id}/handle`, body)
 }
 
+/* ---------------- 学号核验审核(管理员,上线阻塞项) ---------------- */
+
+/**
+ * 待审学号核验列表(游标分页)。
+ *
+ * 契约 openapi.yaml:218 `/admin/verify/pending`,游标语义与机审队列不同:
+ * 这里是 `cursor` + 响应里的 `nextCursor`,机审队列是 `lastId`。
+ * 两个名字不能混 —— 传错名字后端拿到 null,静默返回第一页,
+ * 于是「上拉加载更多」会反复追加同一页 20 条。
+ *
+ * 第一页不传 cursor(不是传 null):后端 `@RequestParam(required=false) Long cursor`
+ * 收到空串会 400。
+ *
+ * @param {number|null} cursor 上一页最后一条的 userId
+ * @param {number} size
+ * @returns {Promise<{list: Array, nextCursor: number|null, hasMore: boolean}>}
+ */
+export function pendingVerify(cursor, size = 20) {
+  const params = { size }
+  if (cursor !== undefined && cursor !== null) params.cursor = cursor
+  return request.get('/admin/verify/pending', { params })
+}
+
+/**
+ * 通过学号核验(verify_status 2 → 1)。
+ *
+ * `suppressStatuses: [404]` 见 utils/request.js:
+ * 404 VERIFY_NOT_FOUND(1044) 表示「这条已被别的设备处置过」,
+ * 调用方要把它翻译成人话,不能让全局红条先弹一遍。
+ *
+ * @param {number} userId
+ * @returns {Promise<{message: string}>}
+ */
+export function approveVerify(userId) {
+  return request.post(`/admin/verify/${userId}/approve`, null, { suppressStatuses: [404] })
+}
+
+/**
+ * 驳回学号核验(verify_status 2 → 3)。
+ *
+ * reason 契约上限 200 字、必填(openapi §AdminVerifyRejectRequest)。
+ * 上限不在前端截断 —— 输入框 maxlength=200 已经卡住,再截一次会让管理员
+ * 以为自己写满了实际被悄悄砍掉。
+ *
+ * @param {number} userId
+ * @param {string} reason 驳回理由,1~200 字
+ */
+export function rejectVerify(userId, reason) {
+  return request.post(`/admin/verify/${userId}/reject`, { reason }, { suppressStatuses: [404] })
+}
+
 export default {
   pending,
   processed,
@@ -117,4 +169,7 @@ export default {
   submitReport,
   adminReports,
   handleReport,
+  pendingVerify,
+  approveVerify,
+  rejectVerify,
 }

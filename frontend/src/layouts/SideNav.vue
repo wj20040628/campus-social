@@ -34,6 +34,15 @@
 
       <!-- 管理员项:isAdmin 为 false 时整块不渲染,不给用户一个点进去才被拒的入口 -->
       <template v-if="userStore.isAdmin">
+        <!--
+          学号核验排第一,不是按字母也不是按开发顺序:
+          认证是其他一切能力的前置(没过认证的用户不能搭话、不能发公告),
+          一堆人卡在「审核中」时它是管理员唯一有盼头的那件事。
+        -->
+        <el-menu-item index="/admin/verify">
+          <el-icon><Postcard /></el-icon>
+          <span>学号核验</span>
+        </el-menu-item>
         <el-menu-item index="/admin/review">
           <el-icon><DocumentChecked /></el-icon>
           <span>内容审核</span>
@@ -55,7 +64,7 @@
 import { computed } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
-  Bell, DocumentChecked, List,
+  Bell, DocumentChecked, List, Postcard,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -67,6 +76,7 @@ const userStore = useUserStore()
 
 const activeMenu = computed(() => {
   const p = props.routePath
+  if (p.startsWith('/admin/verify')) return '/admin/verify'
   if (p.startsWith('/admin/announcement')) return '/admin/announcement'
   if (p.startsWith('/admin/review')) return '/admin/review'
   if (p.startsWith('/admin/audit')) return '/admin/audit'

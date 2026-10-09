@@ -30,6 +30,12 @@ const SELF_TEST = process.argv.includes('--self-test')
  * `/login` `/register`,量出来的是重定向后的页面,已修正。
  * 但**注入 token 后再访问这两个页会被守卫踢回 Home**(见 ensureOn 的告警),
  * 所以这两个路由放在注入前测。
+ *
+ * admin 路由**必须单列**,不能混进上面这张表:它们 requiresAdmin,
+ * 而注入的是普通用户 alice(role≠1)—— 守卫会把她踢回 Home,
+ * 于是量到的是首页,并给出一堆「无横向滚动、无小热区」的**假通过**。
+ * 「量的是别的页面」比「没量」更危险,因为它看起来是绿的。
+ * 管理员路由走 injectAdmin() 换成 role=1 的身份单独跑。
  */
 const ROUTES = [
   { path: '/login/form', name: 'Login' },
@@ -40,6 +46,12 @@ const ROUTES = [
   { path: '/chat', name: 'Chat' },
   { path: '/publish', name: 'Publish' },
   { path: '/post/1', name: 'PostDetail' },
+]
+
+/** 管理员路由(OD-19:后台页在 375px 视口必须可用) */
+const ADMIN_ROUTES = [
+  { path: '/admin/verify', name: 'AdminVerify' },
+  { path: '/admin/review', name: 'AdminReview' },
 ]
 
 function get(url) {
@@ -126,6 +138,38 @@ try {
       + `localStorage.setItem('refresh_token', ${JSON.stringify(tokenRes.data.refreshToken || '')});`,
   })
   console.log(`已注入 alice 的 token（uid 2）`)
+
+  /**
+   * 换成管理员身份,量 ADMIN_ROUTES。
+   *
+   * isAdmin 的判据是 `userStore.userInfo?.role === 1`,而 userInfo **只从
+   * localStorage 的 user_info 读**(stores/user.js:12),不随 token 一起注入。
+   * 所以必须同时写两个键:access_token 换成管理员的,
+   * user_info 补一条 role=1 —— 只换 token 的话守卫照样踢回 Home。
+   *
+   * 管理员账号取 admin@campus.test:实测后端 seed 里 role=1 的就这一个,
+   * 换别的名字会拿到 role=null,那样量到的又是首页。
+   */
+  async function injectAdmin() {
+    const res = await fetch('http://127.0.0.1:18080/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'admin@campus.test', password: 'admin123' }),
+    }).then((r) => r.json())
+    const adminToken = res?.data?.accessToken
+    if (!adminToken) throw new Error('拿不到管理员 token:' + JSON.stringify(res).slice(0, 200))
+    // 先访问一次让 SPA 建 store,再写 localStorage 并整页刷新
+    await send('Page.navigate', { url: BASE + '/' })
+    await sleep(1000)
+    await send('Runtime.evaluate', {
+      expression:
+        `localStorage.setItem('access_token', ${JSON.stringify(adminToken)});`
+        + `localStorage.setItem('refresh_token', ${JSON.stringify(res.data.refreshToken || '')});`
+        // role=1 是 isAdmin 的唯一判据;其余字段只为了让 store 的 nickname getter 不炸
+        + `localStorage.setItem('user_info', JSON.stringify({ id: 1, username: 'admin@campus.test', nickname: '管理员', role: 1 }));`,
+    })
+    console.log('已注入管理员身份（role=1）')
+  }
 
   /** 量测前先确认真的停在该路由上，否则量的是重定向后的页面 */
   async function ensureOn(route) {
@@ -448,6 +492,65 @@ try {
     results.push({ route: r.path, name: r.name, onRoute, ...(val || { error: JSON.stringify(res.result).slice(0, 200) }) })
   }
 
+  // 管理员路由:先换身份,再量。不换身份量到的会是首页(见 ADMIN_ROUTES 注释)
+  await injectAdmin()
+
+  /**
+   * 学号核验页的额外取证。
+   *
+   * 为什么单独一段而不是并进 MEASURE:MEASURE 是**通用**判据(横向滚动、
+   * 热区、单栏),而这一页要回答的是「14 位学号到底有没有被截断」「三种解析
+   * 分支分别渲染了什么」—— 这些是**该页专属**的事实,不是通用判据。
+   * 混进 MEASURE 会让另外 9 个路由背上一个用不上的分支。
+   *
+   * 判据:
+   *   截断 = scrollWidth > clientWidth + 1。offsetWidth 不算 ——
+   *   overflow:hidden 的元素 offsetWidth 恒等于可见宽度,量不出被藏掉的部分。
+   */
+  const DUMP_VERIFY = `(() => {
+    const cards = [...document.querySelectorAll('.vcard')].map((c) => {
+      const no = c.querySelector('.vcard__no');
+      const r = no.getBoundingClientRect();
+      const st = getComputedStyle(no);
+      return {
+        text: (c.textContent || '').replace(/\\s+/g, ' ').trim(),
+        studentNo: no.textContent.trim(),
+        noTruncated: no.scrollWidth > no.clientWidth + 1,
+        noScrollW: no.scrollWidth, noClientW: no.clientWidth,
+        noFontSize: st.fontSize, noFontFamily: st.fontFamily.split(',')[0],
+        noTabular: st.fontVariantNumeric, noWhiteSpace: st.whiteSpace,
+        noRectW: Math.round(r.width * 10) / 10,
+        hasTag: !!c.querySelector('.vcard__tag'),
+        tagText: (c.querySelector('.vcard__tag')?.textContent || '').trim(),
+        parsed: (c.querySelector('.vcard__parsed')?.textContent || '').trim(),
+        claimed: (c.querySelector('.vcard__claimed')?.textContent || '').trim(),
+        btns: [...c.querySelectorAll('.vcard__btn')].map((b) => {
+          const br = b.getBoundingClientRect();
+          return {
+            t: b.textContent.trim(),
+            w: Math.round(br.width * 10) / 10, h: Math.round(br.height * 10) / 10,
+            disabled: b.disabled,
+          };
+        }),
+      };
+    });
+    return { count: cards.length, cards };
+  })()`
+
+  for (const r of ADMIN_ROUTES) {
+    await send('Page.navigate', { url: BASE + r.path })
+    await sleep(1800)
+    const onRoute = await ensureOn(r.path)
+    const res = await send('Runtime.evaluate', { expression: MEASURE, returnByValue: true })
+    const val = res.result?.result?.value
+    const row = { route: r.path, name: r.name, onRoute, ...(val || { error: JSON.stringify(res.result).slice(0, 200) }) }
+    if (r.path === '/admin/verify' && onRoute) {
+      const d = await send('Runtime.evaluate', { expression: DUMP_VERIFY, returnByValue: true })
+      row.verify = d.result?.result?.value || null
+    }
+    results.push(row)
+  }
+
   console.log(`视口 ${VIEWPORT.width}x${VIEWPORT.height}  deviceScaleFactor=${VIEWPORT.deviceScaleFactor}`)
   console.log('')
   for (const r of results) {
@@ -477,6 +580,16 @@ try {
     }
     console.log(`  <44px 的可点元素: ${r.smallCount} 个`)
     for (const s of r.small || []) console.log(`    ${s.tag}.${s.cls}  ${s.w}x${s.h}  "${s.text}"`)
+    if (r.verify) {
+      console.log(`  学号核验页实渲染 ${r.verify.count} 张卡片:`)
+      for (const c of r.verify.cards) {
+        console.log(`    · ${c.studentNo}  [${c.noFontSize} ${c.noFontFamily} ${c.noTabular} ${c.noWhiteSpace}]`
+          + `  截断=${c.noTruncated ? '★是' : '否'}(scrollW=${c.noScrollW}/clientW=${c.noClientW}/rectW=${c.noRectW})`)
+        console.log(`      解析行="${c.parsed}"  自填行="${c.claimed}"  标签="${c.tagText || '(无)'}"`)
+        console.log(`      按钮: ${c.btns.map((b) => `${b.t} ${b.w}x${b.h}${b.disabled ? '(禁用)' : ''}`).join('  ')}`)
+        console.log(`      全文: ${c.text}`)
+      }
+    }
     console.log('')
   }
   }
