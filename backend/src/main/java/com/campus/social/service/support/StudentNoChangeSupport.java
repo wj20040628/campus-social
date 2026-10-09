@@ -38,6 +38,9 @@ public class StudentNoChangeSupport {
      */
     private static final int VERIFY_REJECTED = 3;
 
+    /** verify_status = 2（审核中）。与 {@code resubmitAfterReject} 的 SQL 里的字面量必须一致 */
+    private static final int VERIFY_PENDING = 2;
+
     private final UserMapper userMapper;
 
     /**
@@ -78,6 +81,28 @@ public class StudentNoChangeSupport {
     /**
      * 3 → 2，重新进待审队列。
      *
+     * <p><b>关键：必须同步内存对象的 verifyStatus</b>。
+     * 调用链是 {@code AuthServiceImpl.updateProfile}：
+     * <pre>
+     *   apply(...)              <- 本方法在这里把 DB 的 verify_status 写成 2
+     *   userMapper.updateById(user)  <- 随后把整个实体写回
+     * </pre>
+     * MyBatis-Plus 默认 {@code NOT_NULL} 更新策略：实体里非 null 的字段都会进 SET。
+     * 若内存对象仍是 {@code verifyStatus=3}，这行updateById 就会把刚写进去的 2
+     * <b>覆盖回 3</b> —— 接口返回 200、student_no 也是新值，唯独状态没变，
+     * 用户看到「已保存」却发现提示条还挂着、进不了待审队列，
+     * 就是本轮要修的那个死循环本身。
+     *
+     * <p><b>为什么不在 updateById 之前绕开它</b>（另两种方案都试过取舍）：
+     * <ul>
+     *   <li>给 {@code verifyStatus} 加 {@code @TableField(updateStrategy = NEVER)}
+     *       —— 会让**所有** updateById 都不再更新该字段，将来若有别处依赖
+     *       「改资料顺带更新认证状态」会静默失效，且这个副作用发生在实体上、全局可见。
+     *   <li>学号变更时跳过 updateById 走独立 UPDATE —— 把一条 UPDATE 拆成两条，
+     *       多一次往返，且「昵称头像与学号」不再原子，中途失败会留下半更新状态。
+     * </ul>
+     * 同步内存对象是三者里唯一保持单条 SQL、且副作用局限在本方法内的做法。
+     *
      * <p><b>旧驳回理由就此失效，且不需要额外删除 audit_log</b>：
      * {@code CampusVerifyServiceImpl.status()} 只在 {@code verifyStatus == 3}
      * 时才去读 {@code verify_reject} 记录，状态一变它自然读不到。
@@ -89,6 +114,8 @@ public class StudentNoChangeSupport {
         // WHERE 带 verify_status = 3：已认证(1) 与审核中(2) 都不会被拽回队列。
         // 这是本轮最要紧的边界，已认证用户改个昵称资料不该被重新拉回审核。
         userMapper.resubmitAfterReject(user.getId(), newStudentNo);
+        // 与上面的 SQL 保持一致，否则紧随其后的 updateById 会把状态覆盖回去。
+        user.setVerifyStatus(VERIFY_PENDING);
         log.info("verify resubmitted by profile edit: user={}, oldStudentNo={}, newStudentNo={}",
                 user.getId(), oldStudentNo, newStudentNo);
     }
