@@ -39,6 +39,7 @@ const GATES = [
   { name: 'verify-openapi', file: 'scripts/verify-openapi.py', cwd: PROJECT, exec: 'python scripts/verify-openapi.py', what: '契约可解析 + $ref 零悬空' },
   { name: 'verify-contract', file: 'scripts/verify-contract.py', cwd: PROJECT, exec: 'python scripts/verify-contract.py', what: '契约与 Java VO 字段一致' },
   { name: 'verify-datetime-format', file: 'scripts/verify-datetime-format.py', cwd: PROJECT, exec: 'python scripts/verify-datetime-format.py', what: '日期字段带 date-time' },
+  { name: 'verify-studentno-parse', file: 'scripts/verify-studentno-parse.py', cwd: PROJECT, exec: 'python scripts/verify-studentno-parse.py', what: '学号解析规则与 5 个真实样本一致' },
 ]
 
 console.log('='.repeat(72))
@@ -66,10 +67,14 @@ console.log('')
 console.log('逐条执行（在 frontend/ 目录下）：')
 for (const g of GATES) console.log(`  cd ${g.cwd === ROOT ? 'frontend' : '项目根'} && ${g.exec}`)
 console.log('')
-console.log('或一条命令跑全部（由 npm 串联，见 package.json 的 check:all）：')
+console.log('或一条命令跑全部（由 Python 执行器串联，任何一条失败都不中断其余门禁）：')
 console.log('  npm run check:all')
 console.log('')
 console.log('★ 为何不由本脚本执行：本机沙箱禁止 node拉起子进程')
 console.log('  （spawnSync 任何命令都返回 status=null），实测会得到')
-console.log('  「8 个门禁全FAIL 且无输出」——那是假失败，不是真问题。')
+console.log('  「所有门禁全FAIL 且无输出」——那是假失败，不是真问题。')
+console.log('  python 的 subprocess 不受此限制，所以执行器是 scripts/run-all-gates.py。')
+console.log('')
+console.log('★ 本清单与 scripts/run-all-gates.py 的 GATES 必须一致：')
+console.log('  本脚本只校验「脚本存在」，执行器负责真正跑。改一处请同步另一处。')
 process.exit(0)

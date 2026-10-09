@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "check": "npm run check:list",
+    "check:all": "python ../scripts/run-all-gates.py",
     "check:list": "node scripts/check-all.mjs",
     "check:sfc": "node scripts/check-sfc.mjs",
     "check:tpl": "node scripts/check-template-refs.mjs",

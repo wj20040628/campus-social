@@ -3654,6 +3654,59 @@ components:
           type: string
           format: date-time
           description: 提交时间（user.update_time），倒序排序键
+        studentNoParsed:
+          $ref: '#/components/schemas/AdminVerifyStudentNoParsed'
+
+    AdminVerifyStudentNoParsed:
+      type: object
+      required: [parsed]
+      description: |
+        学号前 10 位的解析结果。规则经 5 个真实样本 + 教育部本科专业目录交叉验证：
+
+          位 1-2   入学年份后两位
+          位 3-6   教育部专业类代码（0809 计算机类 / 0802 机械类 / 0818 交通运输类）
+          位 7-8   专业类内专业序号，与位 3-6 合起来是 6 位专业代码
+                   （080901 计算机科学与技术 / 080910T 数据科学与大数据技术
+                     / 080214T 智能车辆工程 / 081801 交通运输）
+          位 9-10  班级
+          位 11 起 流水号
+
+        位 11 起的流水号长度未确认（已知样本里 23 级为 4 位、24/25 级为 3 位），
+        因此**只解析前 10 位**，尾部不解析、不校验长度。
+
+        专业名反查（专业代码 → 专业名称）需要「本校专业代码白名单」，尚未建表，
+        故本对象**只回代码不回专业名**。调用方禁止自行拼接或猜测专业名称。
+      properties:
+        parsed:
+          type: boolean
+          description: |
+            false 表示学号无法解析（不是纯数字、总长不在 12-14 位、或前 10 位不匹配）。
+            此时其余四个字段一律为 null。**调用方必须显式处理这个分支，
+            不允许用任何默认值或兜底逻辑填补** —— 展示错误的解析结果
+            比展示「无法解析」危害更大，它会让管理员做出错误判断。
+        entranceYear:
+          type: integer
+          nullable: true
+          example: 2025
+          description: 2000 + 位 1-2，即入学年份。不做「年份是否合理」的判断
+        majorClassCode:
+          type: string
+          nullable: true
+          example: '0802'
+          description: 位 3-6，教育部专业类代码
+        majorCode:
+          type: string
+          nullable: true
+          example: '080214'
+          description: |
+            位 3-8，教育部 6 位本科专业代码。**不含特设专业的 T 后缀**：
+            教育部目录里智能车辆工程记作 080214T、数据科学与大数据技术记作 080910T，
+            而学号里只有数字，查表时须剥掉 T 再匹配。
+        classNo:
+          type: string
+          nullable: true
+          example: '02'
+          description: 位 9-10 班级。注意保留前导零，必须按字符串处理
 
     AdminVerifyPageData:
       type: object
