@@ -7,7 +7,13 @@
     "dev": "vite",
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
-    "check": "node scripts/check-sfc.mjs && node scripts/check-template-refs.mjs && node scripts/check-composable-exports.mjs"
+    "check": "npm run check:list",
+    "check:list": "node scripts/check-all.mjs",
+    "check:sfc": "node scripts/check-sfc.mjs",
+    "check:tpl": "node scripts/check-template-refs.mjs",
+    "check:composables": "node scripts/check-composable-exports.mjs",
+    "check:undef": "node scripts/check-undefined-identifiers.mjs",
+    "check:frontend": "python scripts/verify-frontend.py"
   },
   "dependencies": {
     "@element-plus/icons-vue": "2.3.2",
