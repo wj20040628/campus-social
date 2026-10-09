@@ -47,6 +47,8 @@ public class AuthServiceImpl implements AuthService {
     private final StringRedisTemplate redis;
     private final VerifyCodeService verifyCodeService;
     private final com.campus.social.service.AuditService auditService;
+    /** 改学号的唯一校验与核验状态迁移，见该类的javadoc（本轮修的死循环） */
+    private final com.campus.social.service.support.StudentNoChangeSupport studentNoChangeSupport;
 
     /** refresh:{userId} = jti */
     private static final String REFRESH_KEY = "refresh:";
@@ -242,6 +244,12 @@ public class AuthServiceImpl implements AuthService {
      * <p><b>院系与年级不在此处改</b>：它们已改为字典 id（见 {@code UpdateProfileDTO} 注释），
      * 走 {@code POST /user/school-profile} 或 {@code POST /onboarding/complete}。
      * 保留自由文本入口会让展示名称与 dept_id 失配，污染 AC-14 的匹配依据。
+     *
+     * <p><b>改学号会连带推进核验状态</b>：这是本轮修的死循环。
+     * 原先这里只改 {@code student_no} 不碰 {@code verify_status}，
+     * 于是被驳回（3）的用户即使改了学号，状态仍停在 3，
+     * 新学号永远进不了待审队列，而管理员一个人在校园里不会知道有人在等他。
+     * 前端提示条的「去改学号」按钮点了等于没点。
      */
     @Override
     @Transactional
@@ -254,15 +262,11 @@ public class AuthServiceImpl implements AuthService {
         String oldNickname = user.getNickname();
         String oldStudentNo = user.getStudentNo();
         String oldAvatar = user.getAvatarUrl();
-        // 学号变更需唯一校验
-        if (studentNo != null && !studentNo.isBlank() && !studentNo.equals(user.getStudentNo())) {
-            Long dup = userMapper.selectCount(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                            .eq(User::getStudentNo, studentNo));
-            if (dup > 0) {
-                throw new BusinessException(STUDENT_NO_EXISTS, "该学号已被其他账号绑定");
-            }
-            user.setStudentNo(studentNo);
+        // 学号变更需唯一校验；且被驳回的用户换了学号要重新进待审队列。
+        // 判定细节见 StudentNoChangeSupport（那边写清了为什么这么判）。
+        if (studentNo != null && !studentNo.isBlank()
+                && !studentNo.equals(user.getStudentNo())) {
+            studentNoChangeSupport.apply(user, studentNo, oldStudentNo);
         }
         if (nickname != null)
             user.setNickname(nickname);

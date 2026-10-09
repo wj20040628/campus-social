@@ -91,6 +91,27 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE user SET verify_status = #{status}, update_time = NOW() WHERE id = #{userId}")
     int updateVerifyStatus(@Param("userId") Long userId, @Param("status") int status);
 
+    /**
+     * 驳回后改资料触发重新核验：3 → 2，且**必须换一个新学号**。
+     *
+     * <p><b>为什么学号是入参而不是沿用旧值</b>：原学号正是被驳回的原因
+     * （已被人占用 / 与学籍不符），沿用它重排队列等于让管理员再看一遍
+     * 同一个必然再被驳回的申请，纯粹浪费人工。强制换号把这个判断
+     * 交给用户——他最清楚自己哪个学号是对的。
+     *
+     * <p><b>WHERE 带 verify_status = 3</b>：这是本轮最要紧的边界。
+     * 没有它，已认证（1）的用户改个昵称资料就会被拉回待审队列，
+     * 而管理员一个人在校园里根本不知道有人在等他 —— 那是比死循环更糟的故障
+     * （已认证用户会突然失去发公告与搭话权限，且无提示）。
+     * 状态 0/2 也一并被这个条件挡掉：0 是「还没开始」，不该被资料改动推进；
+     * 2 已在队列里，重复推进无意义。
+     *
+     * <p>影响行数 0 = 状态不是 3（没被驳回），由 service 层据此决定要不要补审计。
+     */
+    @Update("UPDATE user SET verify_status = 2, student_no = #{studentNo}, update_time = NOW() "
+            + "WHERE id = #{userId} AND verify_status = 3")
+    int resubmitAfterReject(@Param("userId") Long userId, @Param("studentNo") String studentNo);
+
     /** 封禁/解封(举报处置 action=ban)。status:0正常 1冻结 */
     @Update("UPDATE user SET status = #{status}, update_time = NOW() WHERE id = #{userId}")
     int updateAccountStatus(@Param("userId") Long userId, @Param("status") int status);
