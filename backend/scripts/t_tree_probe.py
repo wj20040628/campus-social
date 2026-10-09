@@ -48,7 +48,15 @@ for c in mine:
             c2.get("id"), c2.get("level"), c2.get("parentId"), len(ch2)))
         for c3 in ch2:
             print("      L3 id=%s level=%s parentId=%s" % (c3.get("id"),c3.get("level"),c3.get("parentId")))
-    if ch and any((c2.get("children") or []) for c2 in ch):
-        print("  >>> 三级确实挂上了")
+    lv = [(c2.get("level"), c2.get("id")) for c2 in ch]
+    has3 = any(l == 3 for l, _ in lv)
+    if has3:
+        # ★ 不要按「三级必须挂在二级 children 里」判定。
+        #   openapi 规定 level=3 的 parentId 填「其一级祖先的id」，
+        #   数据库里已无「三级回复了哪条二级」的信息（二级与三级 parentId 同值），
+        #   契约因此把二三级平铺进同一个 children，由前端按 level 决定缩进
+        #   （MAX_RENDER_DEPTH=3 与 MAX_VISUAL_DEPTH=2 是两个独立约束）。
+        #   判据应是「level=3 的评论出现在响应里」，不是「它嵌在二级里面」。
+        print("  >>> level=3 已返回（%s），契约要求与二级同层平铺，符合" % lv)
     else:
-        print("  >>> !! 三级丢失")
+        print("  >>> !! 响应里没有 level=3 的评论，这才是真丢失")
