@@ -76,6 +76,37 @@
   color: var(--ys-meta);
 }
 
+/* 新建群聊入口:紧跟在「群组 N」后面,始终可点(空群时也显示) */
+.grp__add {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-left: var(--ys-space-1);
+  border: none;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-size: var(--ys-text-lg);
+  line-height: 1;
+  font-family: var(--ys-font-body);
+  cursor: pointer;
+}
+
+.grp__add:active {
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+}
+
+/* 空群引导:没有群时给一句提示,而不是留一段空白 */
+.grp__empty {
+  margin: 0;
+  padding: var(--ys-space-3) var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
 .grp__caret {
   transition: transform var(--ys-motion-fast) var(--ys-ease-out);
 }

@@ -24,6 +24,7 @@ declare module 'vue' {
     CodeForm: typeof import('./src/components/auth/CodeForm.vue')['default']
     CommentComposer: typeof import('./src/components/post/CommentComposer.vue')['default']
     CommentRow: typeof import('./src/components/post/CommentRow.vue')['default']
+    CreateGroupSheet: typeof import('./src/components/chat/CreateGroupSheet.vue')['default']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']

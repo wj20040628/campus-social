@@ -5,13 +5,18 @@
       quota 为 null 时**整条不渲染** —— 拉取失败时给「今天还能打招呼 4 次」
       是撒谎,用户按 4 行事结果第 5 次被拒,会认定是 bug。
     -->
-    <div v-if="quota !== null" class="quota">
+    <!--
+      方案 A:平时完全不显示,只剩 ≤2 次时才出现黄色提示条(见 Chat.vue.md §1.1)。
+      这样平时列表干净,快用完时给预期,不至于发到一半突然被拒以为坏了。
+      quota 为 null(拉取失败)时整条不渲染——撒谎说"还能 4 次"比不显示更糟。
+    -->
+    <div v-if="quota !== null && quota <= 2" class="quota">
       <span class="quota__text">
         今天还能主动打招呼
         <span class="quota__num ys-num">{{ quota }}</span>
         次
       </span>
-      <el-tooltip content="每个新同学每天 5 次,同一个同学每天 20 条" placement="top">
+      <el-tooltip content="每天可向有限个新同学主动搭话，对同一陌生人也有限制" placement="top">
         <button type="button" class="quota__why" aria-label="额度规则说明">规则</button>
       </el-tooltip>
     </div>
@@ -106,13 +111,23 @@
         </ul>
       </section>
 
-      <!-- 群组分组:头像改方形(--ys-radius-lg),与私信的圆形区分 -->
-      <section v-if="groups.length" class="grp">
+      <!--
+        群组分组:头像改方形(--ys-radius-lg),与私信的圆形区分。
+        **整段始终渲染** —— 新建群聊入口要靠它触达;空群时不放空列表,
+        只显示标题 + 「＋」按钮 + 一句引导,否则没人告诉用户「群从哪来」。
+      -->
+      <section class="grp">
         <h2 class="grp__head">
           <span class="grp__name">群组</span>
           <span class="grp__count ys-num">{{ groups.length }}</span>
+          <button
+            type="button"
+            class="grp__add"
+            aria-label="新建群聊"
+            @click="$emit('create-group')"
+          >＋</button>
         </h2>
-        <ul>
+        <ul v-if="groups.length">
           <li
             v-for="g in groups"
             :key="g.id"
@@ -132,6 +147,7 @@
             </button>
           </li>
         </ul>
+        <p v-else class="grp__empty">还没有群，点右上角＋建一个</p>
       </section>
     </template>
   </div>
@@ -161,7 +177,7 @@ const props = defineProps({
   activeKind: { type: String, default: 'dm' },
 })
 
-defineEmits(['open', 'open-group', 'browse', 'ignore-stranger', 'ignore-all-stranger'])
+defineEmits(['open', 'open-group', 'browse', 'ignore-stranger', 'ignore-all-stranger', 'create-group'])
 
 const strangerOpen = ref(false)
 

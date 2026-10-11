@@ -73,6 +73,19 @@
               </button>
             </template>
 
+            <!--
+              桌面端 hover 入口(仅 hover 设备显示,CSS 控制):长按是移动端方案,
+              桌面鼠标没有长按习惯,给一个「⋯」让撤回/引用/看主页可被找到。
+              点击直接打开操作面板,等价于长按。
+            -->
+            <button
+              v-if="m.fromMe && !m.recalled"
+              type="button"
+              class="bbubble__menu"
+              aria-label="更多操作"
+              @click.stop="onLongPress(m)"
+            >⋯</button>
+
             <div class="bbubble__foot">
               <span class="bbubble__time ys-num">{{ m.createTime }}</span>
               <span v-if="m.failed" class="bbubble__state">未发出</span>

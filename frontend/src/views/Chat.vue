@@ -8,9 +8,15 @@
     本文件只做路由分支与编排 —— 原 1072 行的 Chat.vue 拆成了 4 个文件。
   -->
   <div class="chat">
-    <!-- ============ 手机:列表页 ============ -->
+    <!--
+      ============ 会话列表 ============
+      手机:仅 /chat 列表路由渲染(单栏路由切换);
+      桌面:**双栏的左栏,必须渲染** —— 早前 v-if 只写了 isListRoute(手机条件),
+      桌面双栏布局在、CSS 在,列表组件却永远不挂载,左栏一片空白,
+      用户只能靠去别人主页点「发私信」才能进聊天(Chat.vue.md §1 桌面双栏设计被架空)。
+    -->
     <ChatConvList
-      v-if="isListRoute"
+      v-if="isListRoute || isDesktop"
       class="chat__list"
       :convs="convs"
       :groups="groups"
@@ -21,6 +27,7 @@
       :active-kind="currentKind"
       @open="openConv"
       @open-group="openGroup"
+      @create-group="createGroupOpen = true"
       @browse="router.push('/circles')"
     />
 
@@ -59,6 +66,9 @@
         <button type="button" class="chat__blank-btn" @click="router.push('/search')">找人</button>
       </div>
     </div>
+
+    <!-- 建群操作表:从会话列表「＋」进入,创建后拉群并打开 -->
+    <CreateGroupSheet v-model="createGroupOpen" @created="onGroupCreated" />
   </div>
 </template>
 
@@ -85,6 +95,7 @@ import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { useChatCore } from '@/composables/useChatCore'
 import ChatConvList from '@/components/chat/ChatConvList.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
+import CreateGroupSheet from '@/components/chat/CreateGroupSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,9 +103,12 @@ const isMobile = useIsMobile()
 
 const draft = ref('')
 const sending = ref(false)
-const listLoading = ref(true)
+/** 路由跳转引发的临时列表加载(打开会话前等列表就绪的那段时间) */
+const routeLoading = ref(false)
 const sourceTitle = ref('')
 const threadRef = ref(null)
+/** 建群操作表开关(ChatConvList 的「＋」触发) */
+const createGroupOpen = ref(false)
 
 /** 键盘弹起时把最新一条滚进可视区。iOS 上 window.resize 不触发,见 useKeyboardViewport */
 const { kbHeight } = useKeyboardViewport((kb) => {
@@ -116,6 +130,14 @@ const {
   historyLoading, historyError, headTitle, hasActive, canRecall,
   openConv: coreOpenConv, openGroup: coreOpenGroup, doRecall,
 } = core
+
+/**
+ * 列表骨架 = 首屏加载(core 内部三并发,结束后自己关) || 路由跳转加载。
+ * 此前 listLoading 是个孤立 ref(true),只有带参路由的 watch 会关它——
+ * 普通 /chat 没人关,列表永远卡骨架屏。桌面端此前列表组件根本不渲染,
+ * 这个洞被上一个 bug 盖住了,修好挂载问题后它才露出来。
+ */
+const listLoading = computed(() => core.initialLoading.value || routeLoading.value)
 
 const isDesktop = computed(() => !isMobile.value)
 const isListRoute = computed(() => isMobile.value && route.name === 'chat')
@@ -148,7 +170,7 @@ watch(
   [() => route.params.kind, () => route.params.id, isMobile],
   async ([kind, id]) => {
     if (!kind || !id) return
-    listLoading.value = true
+    routeLoading.value = true
     const deadline = Date.now() + 1200
     while (!convs.value.length && !groups.value.length && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 60))
@@ -165,7 +187,7 @@ watch(
       const ok = await core.openConvByPeerId(Number(id))
       if (!ok) router.replace('/chat')
     }
-    listLoading.value = false
+    routeLoading.value = false
   },
   { immediate: true },
 )
@@ -175,9 +197,9 @@ watch(
   () => route.query.to,
   async (to) => {
     if (!to || route.name === 'chatThread') return
-    listLoading.value = true
+    routeLoading.value = true
     await core.openConvByPeerId(Number(to))
-    listLoading.value = false
+    routeLoading.value = false
   },
   { immediate: true },
 )
@@ -199,6 +221,15 @@ function openGroup(g) {
     return
   }
   coreOpenGroup(g)
+}
+
+/* ---------------- 建群完成:刷新群列表并打开新群 ---------------- */
+
+async function onGroupCreated(groupId) {
+  await core.loadGroups()
+  const g = groups.value.find((x) => String(x.id) === String(groupId))
+  if (g) openGroup(g)
+  else ElMessage.error('群已创建，但没在列表里找到它，回列表看看')
 }
 
 /* ---------------- 发送 ---------------- */

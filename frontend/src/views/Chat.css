@@ -68,10 +68,18 @@
    *   左 --ys-aside-w(320px,原硬编码 280px 在 1024 下余量不够)
    *   右 flex:1
    * 高度扣掉顶栏:会话窗自己撑满剩余高度,内部消息区再 flex:1 滚动。
+   *
+   * **必须同时扣掉 MainLayout .content 的上下 padding(桌面 24+48px)**:
+   * 早前只扣了 topbar(56px),.chat 比 content 可用区高出 72px,
+   * 底部输入区被推到视口之外——用户看不到发送按钮(实测截图确认)。
+   * 这是一处与父容器的耦合:改 .content 的桌面 padding 时这里要同步。
    */
   .chat {
     flex-direction: row;
-    height: calc(100dvh - var(--ys-topbar-h));
+    height: calc(100dvh - var(--ys-topbar-h) - var(--ys-space-6) - var(--ys-space-12));
+    /* 基础样式有 min-height:100dvh(手机单栏用),不改它 height 会被顶掉——
+       实测只差 2px 时输入区照样在视口外。 */
+    min-height: 0;
     background: var(--ys-surface);
     border: 1px solid var(--ys-border);
     border-radius: var(--ys-radius-xl);

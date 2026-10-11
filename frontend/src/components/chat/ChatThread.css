@@ -159,6 +159,7 @@
 }
 
 .bbubble {
+  position: relative;
   max-width: 72%;
   padding: var(--ys-space-2) var(--ys-space-3);
   border-radius: var(--ys-radius-xl);
@@ -169,6 +170,36 @@
   color: var(--ys-fg);
   /* 长按热区 = 气泡本身,最小高 44px */
   min-height: var(--ys-touch-min);
+}
+
+/* 桌面 hover「⋯」入口:长按是移动端方案,鼠标用户没有长按习惯,
+   给一个可见的更多操作按钮让撤回/引用/看主页可被找到。
+   仅 hover 设备显示(touch 设备仍走长按,不增干扰)。 */
+.bbubble__menu {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: calc(-1 * var(--ys-space-6));
+  transform: translateY(-50%);
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ys-border);
+  border-radius: 50%;
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .bbubble:hover .bbubble__menu,
+  .bbubble__menu:focus-visible {
+    display: inline-flex;
+  }
 }
 
 .brow--me .bbubble {

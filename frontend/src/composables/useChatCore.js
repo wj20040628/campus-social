@@ -62,6 +62,8 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   const strangerList = ref([])
   /** 破冰额度:今天还能主动打招呼几次(AC-04) */
   const quotaLeft = ref(null)
+  /** 首屏列表加载(会话+群聊+额度三并发)是否仍在进行 */
+  const initialLoading = ref(true)
 
   const fmt = (t) => (t ? dayjs(t).format('MM-DD HH:mm') : '')
   const scrollBottom = () => onNeedScrollBottom?.()
@@ -96,9 +98,19 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   /* ---------------- 打开会话 ---------------- */
 
   async function openConvByPeerId(peerId) {
+    // 先等列表就绪(最多 1.2s):直接进 /chat?to=X 时列表请求可能还在飞。
+    // 现成会话在列表里的话,优先走 openConv —— 它带真 convId、会 markRead 清未读。
+    const deadline = Date.now() + 1200
+    while (!convs.value.length && !groups.value.length && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 60))
+    }
     const exist = convs.value.find((c) => c.peer?.id === peerId)
     if (exist) return openConv(exist)
-    // 没有现成会话:拉对方资料占位,发第一条时后端 upsert 建 conv
+    // 没有现成会话:拉对方资料占位,发第一条时后端 upsert 建 conv。
+    // **占位分支也必须拉历史**:历史接口按 peerId 查、与 convId 无关,
+    // 这里不拉的话,从主页「发私信」进来的双方都只能看到空会话——
+    // 对方明明有未读消息却显示「还没有消息」(实测:消息已落库、未读已计数,
+    // 但 /chat?to=X 直进占位分支导致历史被跳过)。
     try {
       const peer = await userCard(peerId)
       currentKind.value = 'dm'
@@ -107,6 +119,8 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
       currentConvId.value = 0
       messages.value = []
       historyError.value = false
+      markRead(peerId).catch(() => {})
+      await loadHistory()
     } catch {
       ElMessage.error('打开会话失败,回列表重试')
       return false
@@ -222,8 +236,11 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   onMounted(async () => {
     for (const [type, fn] of HANDLERS) ws.on(type, fn)
     ws.connect('/ws/chat')
-    // 三个列表请求并发,互不依赖;任一失败不阻断其余两个
+    // 三个列表请求并发,互不依赖;任一失败不阻断其余两个。
+    // 结束后关 initialLoading:此前这个状态只在 useChatCore 内部,
+    // Chat.vue 的 listLoading 没人关,普通 /chat 会永远卡骨架屏。
     await Promise.allSettled([loadConvs(), loadGroups(), loadQuota()])
+    initialLoading.value = false
   })
 
   onBeforeUnmount(() => {
@@ -253,6 +270,7 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     messages,
     strangerList,
     quotaLeft,
+    initialLoading,
     currentKind,
     currentConv,
     currentConvId,

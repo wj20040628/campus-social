@@ -83,9 +83,11 @@ export function useChatSends(ctx) {
     }
   }
 
-  /** 8s 内、非撤回、我发的消息才可撤。服务端同样判窗口,前端判只是为了不给出无效按钮 */
+  /** 120s 内、非撤回、我发的消息才可撤(与后端 RECALL_WINDOW_SECONDS 对齐)。
+   *  sendTs 来自服务器 createTime(历史消息)或本地发送时刻(刚发出),前端只用来
+   *  不给出注定无效的按钮,真正的拦截在服务端。 */
   const canRecall = (m) =>
-    m.fromMe && !m.recalled && m.sendTs && Date.now() - m.sendTs < 8000
+    m.fromMe && !m.recalled && m.sendTs && Date.now() - m.sendTs < 120000
 
   async function doRecall(m) {
     if (m._recallBusy) return

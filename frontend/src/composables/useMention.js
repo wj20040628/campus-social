@@ -21,6 +21,7 @@ export function useMention(inputRef, myId, content) {
   let seq = 0             // 防竞态序号
   let loaded = false      // 推荐人是否已拉过
   const cache = []        // 推荐人缓存(敲 @ 空字时复用)
+  let blurTimer = null    // onBlur 的延迟关闭定时器
 
   /** 推荐人:我关注的 + 粉丝(去重,关注优先) */
   async function loadRecommended() {
@@ -50,13 +51,16 @@ export function useMention(inputRef, myId, content) {
     }
   }
 
-  /** 光标前最近的 @ 后到光标的内容 = 关键字;没有 @ 或 @ 后面跨行了就关浮层 */
+  /** 光标前最近的 @ 后到光标的内容 = 关键字;没有 @ 或 @ 提及已结束就关浮层 */
   function onInput() {
     const el = inputRef.value?.textarea
     const pos = el ? el.selectionStart : content.value.length
     const before = content.value.slice(0, pos)
     const at = before.lastIndexOf('@')
-    if (at === -1 || before.slice(at + 1).includes('\n')) {
+    // @ 后面一旦出现**任意空白**(空格/换行),这个 @ 提及就已结束:
+    // 昵称不含空格,空格之后是普通正文,不得再当作搜索词
+    // (否则「@WJ 你快看这个帖子」会把整句当关键字搜,弹出「没搜到这个人」)。
+    if (at === -1 || /\s/.test(before.slice(at + 1))) {
       mentionOpen.value = false
       return
     }
@@ -84,8 +88,18 @@ export function useMention(inputRef, myId, content) {
       })
   }
 
-  /** @ 按钮:关 → 开推荐面板;开 → 关(再点一次收起) */
+  /**
+   * @ 按钮:关 → 开推荐面板;开 → 关(再点一次收起)。
+   *
+   * **必须先取消 onBlur 挂着的延迟关闭**。时序:点按钮的瞬间 textarea 失焦
+   * → onBlur 定时器 150ms 后关浮层 → click 才到 toggle 把浮层打开
+   * → 150ms 后定时器触发又把它关了。浮层开了即关,用户感知就是
+   * 「点了没反应」。候选列表的 @mousedown.prevent 只保护了点候选项,
+   * 保护不了点 @ 按钮本身(按钮没有 prevent,textarea 是真失焦)。
+   */
   function toggle() {
+    clearTimeout(blurTimer)
+    blurTimer = null
     if (mentionOpen.value) {
       mentionOpen.value = false
       return
@@ -127,7 +141,8 @@ export function useMention(inputRef, myId, content) {
 
   /** 失焦略延迟关浮层,让候选项的 @mousedown 先触发 */
   function onBlur() {
-    setTimeout(() => { mentionOpen.value = false }, 150)
+    clearTimeout(blurTimer)
+    blurTimer = setTimeout(() => { mentionOpen.value = false }, 150)
   }
 
   function reset() {
