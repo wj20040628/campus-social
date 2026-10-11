@@ -33,7 +33,9 @@
 
   <ReportSheet
     :model-value="reportOpen"
-    :post-id="postId"
+    :target-type="2"
+    :target-id="postId"
+    sheet-title="举报这篇帖子"
     :submit-fn="submitReport"
     @update:model-value="emit('update:reportOpen', $event)"
   />
@@ -79,7 +81,7 @@ const emit = defineEmits([
   'update:moreOpen',
   'update:reportOpen',
   'update:verifyOpen',
-  /** 去认证 → 父组件跳 /onboarding */
+  /** 去认证 → 父组件跳 /settings(学号 + 学校归属的认证入口,不是引导页) */
   'go-verify',
   /** 拉黑成功 → 父组件跳首页(拉黑后留在详情页没意义,用户看不到变化) */
   'author-hidden',
@@ -120,7 +122,7 @@ async function hideAuthor() {
   }
 }
 
-/** 去认证。引导页第 1 步就是认证,所以出口是 /onboarding 而不是独立的认证页 */
+/** 去认证。学号核验在设置页(/settings),不是引导页——引导只填院系年级,不填学号 */
 function goVerify() {
   emit('update:verifyOpen', false)
   emit('go-verify')

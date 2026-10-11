@@ -60,15 +60,24 @@ export const SCHOOL_PROFILE_PAYLOAD = {
   gradeId: DICT_FIELDS.gradeId,
 }
 
-/** 引导第 1 步的本地表单形状。与请求体键名一致,避免映射层 */
+/**
+ * 引导第 1 步的本地表单形状。与请求体键名一致,避免映射层。
+ *
+ * studentNo / nameTail 是**学号核验**字段(选填):引导第 1 步顺路填了就能
+ * 一步完成认证,不填也不阻塞(之后可在设置页补)。两者都不参与
+ * /onboarding/complete 的请求体(见 useOnboardingFlow.persist 只取前三键),
+ * 只用于第 1 步额外触发 POST /user/verify/student-no。
+ */
 export const IDENTITY_MODEL = {
   schoolId: null,
   deptId: null,
   gradeId: null,
+  studentNo: null,
+  nameTail: null,
 }
 
-/** MVP 单校。schoolId 恒为 1,后端 SchoolProfileRequest 也是这个默认值 */
-export const SCHOOLS = [{ id: 1, name: '友声大学' }]
+/** MVP 单校:schoolId 恒为 1,后端 SchoolProfileRequest 也是这个默认值 */
+export const SCHOOLS = [{ id: 1, name: '黄河交通学院' }]
 
 /**
  * 字典拉取失败时的**离线兜底**。
@@ -77,23 +86,24 @@ export const SCHOOLS = [{ id: 1, name: '友声大学' }]
  * 用户仍然只能选一个**固定选项**,写回去的仍然是 id,不会产生新的自由文本。
  * 也就是说:后端字典没上线时,同院系推荐(AC-14)照样不会漏人。
  *
- * 与 migration_v1.sql 的种子数据同源。后端上线后自动不用了。
+ * 与字典表的种子数据同源(黄河交通学院招生网 2026 年公示的招生学院)。
+ * 后端上线后自动不用了。
  */
 export const FALLBACK_DEPTS = [
-  '计算机科学与技术学院',
-  '软件工程学院',
-  '电子信息工程学院',
-  '机械工程学院',
-  '经济管理学院',
-  '外国语学院',
-  '新闻传播学院',
-  '数学与统计学院',
-  '物理与材料学院',
-  '医学院',
+  '智慧交通与智能建造工程学院',
+  '智能车辆与新能源工程学院',
+  '智能制造与电气工程学院',
+  '人工智能学院',
+  '数字经济与智慧管理学院',
+  '马克思主义学院',
+  '艺术与设计学院',
 ].map((name, i) => ({ id: i + 1, name }))
 
-/** 年级(Onboarding.vue.md §1.1 指定 2022-2026 级)。展示层会补「级」字 */
-export const FALLBACK_GRADES = ['2022', '2023', '2024', '2025', '2026']
+/**
+ * 年级兜底(2026 年在校生:本科四年/大专三年,2023 级是最老的大四,
+ * 2023 级之前均已毕业离校)。展示层会补「级」字。
+ */
+export const FALLBACK_GRADES = ['2023', '2024', '2025', '2026']
   .map((y) => ({ id: Number(y), name: `${y}级`, enrollYear: Number(y) }))
 
 /** 引导总步数,进度条 aria-valuemax 用它 */
@@ -105,7 +115,7 @@ export const TOTAL_STEPS = 3
  * 后端把上限调到 8,前端还按 5 拦,用户会卡在选不满 5 个。
  */
 export const FALLBACK_MIN_SELECT = 3
-export const FALLBACK_MAX_SELECT = 5
+export const FALLBACK_MAX_SELECT = 12
 
 /**
  * 年级展示名的统一算法。

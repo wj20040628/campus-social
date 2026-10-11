@@ -46,6 +46,22 @@
             <el-button type="primary" :loading="saving" @click="save">保存</el-button>
           </el-form-item>
         </el-form>
+
+        <el-divider content-position="left">消息与隐私</el-divider>
+
+        <div class="settings__switch-row">
+          <div class="settings__switch-text">
+            <div class="settings__switch-label">允许陌生人给我发消息</div>
+            <p class="settings__switch-hint">
+              关闭后，未关注你的人无法主动给你发私信（你仍可主动找别人）。
+            </p>
+          </div>
+          <el-switch
+            v-model="strangerMsg"
+            :loading="strangerSaving"
+            @change="onStrangerMsgChange"
+          />
+        </div>
       </el-card>
     </div>
   </div>
@@ -60,9 +76,10 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { Upload } from '@element-plus/icons-vue'
-import { me as meApi } from '@/api/auth'
+import { me as meApi, setStrangerMsg } from '@/api/auth'
 import { upload } from '@/api/feed'
 import { saveSchoolProfile, readIdentity } from '@/api/dict'
+import { verifyStatus } from '@/api/verify'
 import request from '@/utils/request'
 import { resolveUrl } from '@/utils/resolve'
 import { IDENTITY_MODEL, SCHOOLS, DICT_FIELDS } from '@/constants/schoolDict'
@@ -76,6 +93,9 @@ const dict = useDictStore()
 const saving = ref(false)
 const schoolSaving = ref(false)
 const identitySaved = ref(false)
+/** 允许陌生人发消息开关(默认开) */
+const strangerMsg = ref(true)
+const strangerSaving = ref(false)
 /** 后端 1040/1041 判定的无效字段,透传给 SchoolFields */
 const identityInvalid = ref({})
 
@@ -92,9 +112,23 @@ const identityOriginal = ref({ ...IDENTITY_MODEL })
 async function load() {
   const me = await meApi()
   form.nickname = me.nickname || ''
-  // 原实现漏了 studentNo 的回填,导致只要点保存就把学号清空 —— 静默数据丢失
-  form.studentNo = me.studentNo || ''
+  /**
+   * 学号**必须从 /user/verify/status 拿**,不能期待 /user/me:
+   * UserVO 同时用于关注列表 / 搜索等多人场景,后端刻意不在里面放学号(隐私),
+   * 所以 me.studentNo 恒为空 —— 学号框只剩 placeholder,用户以为「已经有了」
+   * 直接点保存,实际提交空字符串,后端不触发核验(WJ 实测踩的就是这个)。
+   */
+  let studentNo = ''
+  try {
+    const vs = await verifyStatus()
+    studentNo = vs?.studentNo || ''
+  } catch {
+    /* 认证状态拉不到不影响其它字段:学号留空,用户可手动填 */
+  }
+  form.studentNo = studentNo
   form.avatarUrl = me.avatarUrl || ''
+  // 陌生人开关:后端默认 1(开),只有明确为 false 时才视为关
+  strangerMsg.value = me.strangerMsgEnabled !== false
 
   // 存量用户可能只有自由文本没有 id,此时用字典反查补一个 id,
   // 补不上就留 null(用户自己重选一次即可),不猜
@@ -173,6 +207,20 @@ async function save() {
   }
 }
 
+/** 陌生人开关独立保存:切换即时落库,不走「保存」按钮 */
+async function onStrangerMsgChange(val) {
+  strangerSaving.value = true
+  try {
+    await setStrangerMsg(val)
+    ElMessage.success(val ? '已允许陌生人发消息' : '已关闭，陌生人无法主动找你')
+  } catch {
+    // 失败回滚开关状态,避免 UI 与后端不一致
+    strangerMsg.value = !val
+  } finally {
+    strangerSaving.value = false
+  }
+}
+
 onMounted(async () => {
   // 先确保字典到位再 load:readIdentity 的 id 反查依赖字典,
   // 顺序反了会先渲染成「无学院」再跳一下
@@ -225,5 +273,28 @@ onMounted(async () => {
 
 .settings__upload {
   margin-left: var(--ys-space-3);
+}
+
+.settings__switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ys-space-4);
+  padding: var(--ys-space-2) 0;
+}
+
+.settings__switch-label {
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.settings__switch-hint {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+  max-width: 42ch;
 }
 </style>

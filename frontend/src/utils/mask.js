@@ -42,9 +42,12 @@ export function displayName(u) {
  */
 export function isIdentityVerified(user) {
   if (!user) return false
-  const hasId = !!(user.schoolId && user.deptId && user.gradeId)
-  const hasName = !!(user.dept || user.grade)
-  return hasId || hasName
+  // 直接信后端的 verified 字段(按 verify_status 计算,实测 /user/me 与
+  // /user/{id} 均正确下发)。早前 UserVO 不带这个字段,当时用
+  // 「有 dept/grade 就算认证」的空壳判据兜底 —— 那会把**字典化之前
+  // 填过自由文本院系的老用户**误判成已认证(WJ 实测:主页亮「已认证」,
+  // verify_status 实为 0,发一条私信被护栏拦下)。后端字段已补齐,判据归位。
+  return user.verified === true
 }
 
 export default { maskUsername, displayName, isIdentityVerified }

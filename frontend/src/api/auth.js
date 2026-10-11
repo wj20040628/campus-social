@@ -32,6 +32,11 @@ export function userCard(id) {
   return request.get(`/user/${id}`)
 }
 
+/** 设置「允许陌生人给我发消息」开关(enabled=true 开 / false 关) */
+export function setStrangerMsg(enabled) {
+  return request.put('/user/stranger-msg', {}, { params: { enabled } })
+}
+
 /** @ 提及候选:昵称/用户名前缀匹配,返回普通可用用户(排除自己),限 20 */
 export function mentionCandidates(kw = '') {
   const q = kw ? `?kw=${encodeURIComponent(kw)}` : ''

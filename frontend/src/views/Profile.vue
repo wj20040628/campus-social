@@ -48,6 +48,7 @@
           @follow="toggleFollowAndCount"
           @chat="onChatClick"
           @settings="goSettings"
+          @report="onReportClick"
         />
 
         <!-- 拉黑关系提示(设计 §3 权限态)。给出解除出口,不能只告知 -->
@@ -148,6 +149,15 @@
         <button type="button" class="vfy__btn" @click="goVerify">去认证</button>
       </div>
     </ActionSheet>
+
+    <!-- 举报该用户 -->
+    <ReportSheet
+      v-model="reportOpen"
+      :target-type="1"
+      :target-id="targetId"
+      sheet-title="举报这个用户"
+      :submit-fn="submitReport"
+    />
   </div>
 </template>
 
@@ -166,6 +176,7 @@ import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
 import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import ProfileHead from '@/components/profile/ProfileHead.vue'
+import ReportSheet from '@/components/post/ReportSheet.vue'
 import { useProfileData } from '@/composables/useProfileData'
 import { useProfileRelations } from '@/composables/useProfileRelations'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
@@ -173,6 +184,7 @@ import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { unblacklist } from '@/api/relation'
+import { submitReport } from '@/api/review'
 import { capCount as cap } from '@/composables/usePostDetail'
 import { displayName, isIdentityVerified } from '@/utils/mask'
 import PostCard from '@/components/PostCard.vue'
@@ -205,6 +217,7 @@ const {
 
 const tab = ref('posts')
 const verifyOpen = ref(false)
+const reportOpen = ref(false)
 
 // 本人主页才拉认证状态:看别人的主页时拉了也白拉(还多一跳)
 const { load: loadVerifyStatus } = useVerifyStatus()
@@ -261,7 +274,7 @@ function onChatClick() {
 
 function goVerify() {
   verifyOpen.value = false
-  router.push('/onboarding')
+  router.push('/settings')
 }
 
 function goDetail(id) {
@@ -270,6 +283,11 @@ function goDetail(id) {
 
 function goSettings() {
   router.push('/settings')
+}
+
+/** 点「举报」打开举报操作表(目标类型 1=用户) */
+function onReportClick() {
+  reportOpen.value = true
 }
 
 /**

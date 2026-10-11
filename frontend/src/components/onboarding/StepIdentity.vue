@@ -20,6 +20,28 @@
       show-field-error
       @select="touch"
     />
+
+    <!-- 学号核验(选填):填了学号+姓名后两位,第 1 步就会顺路提交核验,
+         不填也不阻塞(之后在设置页补)。学号规则:13~14 位数字,
+         班级只能 0X,最后两位是班内排名(≤70)。 -->
+    <div class="step1__verify">
+      <p class="step1__verify-title">校内认证（选填）</p>
+      <p class="step1__verify-sub">填了学号和姓名后两位，就能直接完成认证，不用再跑去设置页</p>
+      <el-input
+        v-model="form.studentNo"
+        placeholder="学号，如 23080901060536"
+        maxlength="14"
+        class="step1__input"
+        @input="onStudentNoInput"
+      />
+      <el-input
+        v-model="form.nameTail"
+        placeholder="姓名后两位，如「张三」填「三」"
+        maxlength="4"
+        class="step1__input"
+      />
+      <p v-if="studentNoHint" class="step1__verify-hint">{{ studentNoHint }}</p>
+    </div>
   </div>
 </template>
 
@@ -29,7 +51,7 @@
  * 父组件持有它,因为**每一步**都要把当前归属带给 /onboarding/complete
  * (Onboarding.vue.md §7:每步都调,不是只在最后调)。
  */
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import SchoolFields from '@/components/common/SchoolFields.vue'
 
 const form = defineModel({ type: Object, required: true })
@@ -54,6 +76,19 @@ const touched = ref({ dept: false, grade: false })
 
 function touch(key) {
   if (key in touched.value) touched.value = { ...touched.value, [key]: true }
+}
+
+/** 学号格式的即时提示(宽松:非空才提示,精确校验在后端) */
+const studentNoHint = computed(() => {
+  const sn = (form.value.studentNo || '').trim()
+  if (!sn) return ''
+  if (!/^\d+$/.test(sn)) return '学号需为纯数字'
+  if (sn.length !== 13 && sn.length !== 14) return '学号需为 13~14 位数字'
+  return ''
+})
+
+function onStudentNoInput() {
+  // 占位:让 @input 有语义,提示由 computed 驱动
 }
 
 defineExpose({
@@ -92,5 +127,35 @@ defineExpose({
   font-size: var(--ys-text-sm);
   line-height: var(--ys-lh-sm);
   color: var(--ys-muted);
+}
+
+.step1__verify {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+}
+
+.step1__verify-title {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+.step1__verify-sub {
+  margin: 0 0 var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
+.step1__input :deep(.el-input__inner) {
+  font-size: var(--ys-text-md);
+}
+
+.step1__verify-hint {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
 }
 </style>

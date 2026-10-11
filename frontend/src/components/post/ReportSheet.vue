@@ -1,11 +1,11 @@
 <template>
   <!--
-    举报操作表(PostDetail.vue.md §1 行 1)
-    挂在 PostDetail 的「更多」上。两级:先选原因类型,再选「其他」时补一句说明。
+    举报操作表(通用)。两级:先选原因类型,再选「其他」时补一句说明。
     「其他」这一档是硬要求 —— 举报原因只有 5 类,一定会遇到 5 类都不沾的,
     没有兜底用户就只能乱选一档,管理员拿到的 reasonType 是错的。
+    通过 targetType / targetId 复用,既举报帖子(PostSheets)也举报用户(Profile)。
   -->
-  <ActionSheet :model-value="modelValue" title="举报这篇帖子" @update:model-value="$emit('update:modelValue', $event)">
+  <ActionSheet :model-value="modelValue" :title="sheetTitle" @update:model-value="$emit('update:modelValue', $event)">
     <p class="rp__hint">管理员会看到你选的原因。恶意举报会影响你在校园里的信用。</p>
 
     <button
@@ -70,8 +70,12 @@ const REASONS = [
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
+  /** 被举报对象类型:1用户 2帖子 3评论 4聊天消息 5搭子 */
+  targetType: { type: Number, required: true },
   /** 被举报对象 id */
-  postId: { type: [Number, String], default: null },
+  targetId: { type: [Number, String], default: null },
+  /** 弹窗标题,按对象类型不同 */
+  sheetTitle: { type: String, default: '举报' },
   /** 注入的提交函数,便于测试与复用 */
   submitFn: { type: Function, required: true },
 })
@@ -104,13 +108,13 @@ function pick(r) {
 }
 
 async function doSubmit() {
-  if (submitting.value || !props.postId) return
+  if (submitting.value || !props.targetId) return
   submitting.value = true
   error.value = ''
   try {
     const data = await props.submitFn({
-      targetType: TARGET.POST,
-      targetId: props.postId,
+      targetType: props.targetType,
+      targetId: props.targetId,
       reasonType: picked.value,
       // 只在有内容时带上,避免提交一个空串让后端的 maxLength 校验白跑一趟
       ...(reasonText.value.trim() ? { reasonText: reasonText.value.trim() } : {}),

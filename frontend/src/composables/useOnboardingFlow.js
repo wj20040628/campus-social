@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import * as api from '@/api/onboarding'
+import { submitStudentNo } from '@/api/verify'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { SCHOOL_PROFILE_PAYLOAD } from '@/constants/schoolDict'
@@ -92,6 +93,13 @@ export function useOnboardingFlow(deps) {
     try {
       await persist()
       if (deps.step.value === 1) {
+        // 学号核验(选填):第 1 步顺路填了学号+姓名后两位就提交核验,
+        // 让「认证」一步到位;失败(格式错/重复)抛错停在当前步,不吞。
+        const sn = (deps.identity.value.studentNo || '').trim()
+        const tail = (deps.identity.value.nameTail || '').trim()
+        if (sn) {
+          await submitStudentNo({ studentNo: sn, nameTail: tail })
+        }
         deps.goto(2)
         deps.loadTags()
       } else if (deps.step.value === 2) {

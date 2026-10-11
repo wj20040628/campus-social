@@ -106,13 +106,15 @@ export function useProfileData(targetId, myId, dict) {
   )
 
   /**
-   * AC-12 徽章判据。复用 identity 的兜底结果,不另起一套 `verified` 判断 ——
-   * 两处判据早晚会漂移(这次就漂了:徽章写 user.verified 恒假,
-   * 归属行写 id 判据恒真,于是所有新用户都被推去引导页)。
+   * AC-12 徽章判据。**直接用后端下发的 user.verified**(按 verify_status 计算,
+   * /user/me 与 /user/{id} 均正确填充)。
+   *
+   * 早前的漂移史:徽章写 user.verified 恒假(后端当时没填),改成
+   * 「有 dept/grade 名就算认证」后徽章亮了 —— 但那会把字典化之前填过
+   * 自由文本院系的老用户误判成已认证(WJ 实测:verify_status=0 却亮徽章,
+   * 发私信被护栏拦下,用户以为「这号已经认证了」)。后端字段补齐后判据归位。
    */
-  const verified = computed(
-    () => !!(identity.value.deptName || identity.value.gradeName),
-  )
+  const verified = computed(() => user.value?.verified === true)
 
   return {
     user, posts, myReviews, loadFailed, postsFailed,

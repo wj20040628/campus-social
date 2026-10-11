@@ -35,7 +35,7 @@
           已认证<template v-if="user.schoolName"> · {{ user.schoolName }}</template>
         </span>
         <span v-else class="p-badge p-badge--off">未认证</span>
-        <router-link v-if="isMe && !verified" to="/onboarding" class="p-verify-link">
+        <router-link v-if="isMe && !verified" to="/settings" class="p-verify-link">
           去认证
         </router-link>
       </div>
@@ -63,6 +63,13 @@
         <el-button @click="$emit('chat')">
           <el-icon><ChatDotRound /></el-icon> 发私信
         </el-button>
+        <!--
+          举报用户入口(AC-05 闭环):看别人主页时给一个「举报」出口。
+          与发私信同级,但不抢视觉重点——用纯文字按钮,不填色。
+        -->
+        <el-button class="p-report" text @click="$emit('report')">
+          <el-icon><WarningFilled /></el-icon> 举报
+        </el-button>
       </template>
     </div>
   </div>
@@ -73,7 +80,7 @@
  * 身份头。**纯展示 + 抛事件**:关注与私信的真实行为在 Profile.vue,
  * 因为它们要联动粉丝计数、未认证弹窗与路由,放进子组件会多一层双向耦合。
  */
-import { CircleCheck, ChatDotRound, Plus } from '@element-plus/icons-vue'
+import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 
@@ -96,7 +103,7 @@ defineProps({
   avatarSize: { type: Number, default: 56 },
 })
 
-defineEmits(['follow', 'chat', 'settings'])
+defineEmits(['follow', 'chat', 'settings', 'report'])
 </script>
 
 <style scoped>
