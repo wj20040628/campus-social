@@ -33,8 +33,8 @@ import static com.campus.social.common.ResultCode.*;
 @RequiredArgsConstructor
 public class GroupServiceImpl implements GroupService {
 
-    /** 撤回窗口(秒):与单聊 RECALL_WINDOW_SECONDS 及前端 canRecall 的 8s 对齐 */
-    private static final int RECALL_WINDOW_SECONDS = 8;
+    /** 撤回窗口(秒):与单聊 RECALL_WINDOW_SECONDS 及前端 canRecall 对齐 */
+    private static final int RECALL_WINDOW_SECONDS = 120;
 
     private final GroupMapper groupMapper;
     private final GroupMemberMapper groupMemberMapper;

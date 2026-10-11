@@ -74,7 +74,7 @@ public class ChatController {
         return Result.ok(quotaService.snapshot(me, peerId));
     }
 
-    /** 撤回消息:仅发送方、仅 60s 内 */
+    /** 撤回消息:仅发送方、仅 120s 内 */
     @DeleteMapping("/message/{id}")
     public Result<Void> recall(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);

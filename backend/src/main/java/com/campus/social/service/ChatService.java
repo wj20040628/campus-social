@@ -30,7 +30,7 @@ public interface ChatService {
     void markRead(long me, long peerId);
 
     /**
-     * 撤回消息:仅发送方、仅 60s 内、仅未撤回。
+     * 撤回消息:仅发送方、仅 120s 内、仅未撤回。
      * 置 is_recalled=1 + WS 推 chat_recalled 给 receiver(receiver 端置灰)。
      * 幂等:已撤回直接返(不报错),重复撤不影响。
      */

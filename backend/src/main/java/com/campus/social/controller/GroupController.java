@@ -88,7 +88,7 @@ public class GroupController {
         return Result.ok(Map.of("msgId", msgId));
     }
 
-    /** 撤回群消息:仅发送方、8s 窗口 */
+    /** 撤回群消息:仅发送方、120s 窗口 */
     @DeleteMapping("/message/{msgId}")
     public Result<Void> recall(@PathVariable("msgId") long msgId, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);

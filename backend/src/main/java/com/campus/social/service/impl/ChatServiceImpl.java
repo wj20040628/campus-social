@@ -236,8 +236,8 @@ public class ChatServiceImpl implements ChatService {
                 .build();
     }
 
-    /** 撤回窗口(秒):与前端 canRecall 的 8s 对齐 */
-    private static final int RECALL_WINDOW_SECONDS = 8;
+    /** 撤回窗口(秒):与前端 canRecall 对齐。120s 是微信/QQ 同档,8s 等于没有撤回 */
+    private static final int RECALL_WINDOW_SECONDS = 120;
 
     private ChatMessageVO toMsgVo(ChatMessage m, long me, java.util.Map<Long, ChatMessage> replyById) {
         boolean recalled = m.getIsRecalled() != null && m.getIsRecalled() == 1;
