@@ -6,6 +6,9 @@ import com.campus.social.dto.ReportSubmitDTO;
 import com.campus.social.entity.Report;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ReportMapper;
+import com.campus.social.mapper.PostMapper;
+import com.campus.social.mapper.CommentMapper;
+import com.campus.social.mapper.ChatMessageMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
 import com.campus.social.service.ReportService;
@@ -60,6 +63,9 @@ public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
     private final BanService banService;
     private final AuditService auditService;
+    private final PostMapper postMapper;
+    private final CommentMapper commentMapper;
+    private final ChatMessageMapper chatMessageMapper;
 
     @Override
     @Transactional
@@ -150,16 +156,65 @@ public class ReportServiceImpl implements ReportService {
             throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
         }
         LocalDateTime bannedUntil = banService.ban(targetUserId, banDays);
+        // 举报的是内容(帖子/评论/消息)时,只封作者不够——被举报的色情/广告内容
+        // 若不一并下架,举报就形同虚设。故成立时同步下架对应内容。
+        // 举报对象是用户(targetType=1)时无内容可下架,这里是空操作。
+        String takedown = takedownContent(report);
         auditService.record(adminId, AUDIT_BAN, "report", report.getId(),
-                "封禁用户 " + targetUserId + "，天数 " + banDays + "，备注 " + dto.getHandleNote(), "");
-        log.info("report ban: report={}, targetUser={}, days={}, admin={}",
-                report.getId(), targetUserId, banDays, adminId);
+                "封禁用户 " + targetUserId + "，天数 " + banDays
+                        + (takedown == null ? "" : "，下架内容(" + takedown + ")")
+                        + "，备注 " + dto.getHandleNote(), "");
+        log.info("report ban: report={}, targetUser={}, days={}, takedown={}, admin={}",
+                report.getId(), targetUserId, banDays, takedown, adminId);
         return ReportHandleVO.builder()
                 .reportId(report.getId())
                 .status(STATUS_CONFIRMED)
                 .action(ACTION_BAN)
                 .bannedUntil(bannedUntil)
                 .build();
+    }
+
+    /**
+     * 举报成立时,按 targetType 把被举报内容一并下架/隐藏。
+     *
+     * <p>仅封作者、不下架内容,是举报系统最常见的「判了等于没判」:
+     * 用户举报一条色情帖,管理员判成立→作者被封,但那条帖子和它的评论照常展示,
+     * 举报人下次还看得到,系统公信力直接归零。
+     *
+     * <p>返回被下架内容的简短描述(用于审计与日志);无内容可下架时返回 null。
+     */
+    private String takedownContent(Report report) {
+        return switch (report.getTargetType()) {
+            case 2 -> { // 帖子:status 1→2 下架(与机审驳回同口径)
+                var post = postMapper.selectById(report.getTargetId());
+                if (post != null && !Integer.valueOf(2).equals(post.getStatus())) {
+                    post.setStatus(2);
+                    postMapper.updateById(post);
+                    yield "帖子#" + post.getId();
+                }
+                yield post == null ? "帖子(已删)" : null;
+            }
+            case 3 -> { // 评论:直接软删 + 置下架态
+                var c = commentMapper.selectById(report.getTargetId());
+                if (c != null && !Integer.valueOf(1).equals(c.getIsDeleted())) {
+                    c.setIsDeleted(1);
+                    c.setStatus(2);
+                    commentMapper.updateById(c);
+                    yield "评论#" + c.getId();
+                }
+                yield c == null ? "评论(已删)" : null;
+            }
+            case 4 -> { // 聊天消息:软删隐藏(私聊内容只在双方会话里,下架即隐藏)
+                var m = chatMessageMapper.selectById(report.getTargetId());
+                if (m != null && !Integer.valueOf(1).equals(m.getIsDeleted())) {
+                    m.setIsDeleted(1);
+                    chatMessageMapper.updateById(m);
+                    yield "消息#" + m.getId();
+                }
+                yield m == null ? "消息(已删)" : null;
+            }
+            default -> null; // 1用户 / 5搭子:无内容可下架
+        };
     }
 
     /** 驳回：举报不成立 */
