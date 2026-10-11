@@ -171,16 +171,22 @@ public interface UserMapper extends BaseMapper<User> {
     // ---------------------------------------------------------------- F11 引导
 
     /**
-     * 引导完成的乐观锁幂等写（ARCHITECTURE §3 Q10.2 第 2 道防线）。
-     * {@code AND onboarding_step <> 3} 让这条 UPDATE 本身成为幂等键：
-     * InnoDB 下同行 UPDATE 天然互斥，影响行数=0 即说明已被并发请求或历史请求完成。
+     * 引导资料的全量幂等覆盖写。
+     *
+     * <p>早前这里带 {@code AND onboarding_step <> 3} 当幂等键,但前端是
+     * 「每一步都调 complete」(Onboarding §7):第 1 步写完 identity 就把 step
+     * 推到 3,第 2 步的 tags、第 3 步的 follows 会被这个条件吞掉(affected=0
+     * 走 duplicate 短路),永远存不上——前端三步走完标签仍是空的。
+     *
+     * <p>去掉条件后,幂等性由「同数据重复写结果不变」保证;并发下同行 UPDATE
+     * 仍由 InnoDB 行锁串行化,最后一次写胜出,数据一致。
      *
      * <p>与 {@link #updateSchoolProfile} 同口径：id 与名称快照在同一条 UPDATE 内写入。
      */
     @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
             + "grade_id = #{gradeId}, grade = #{grade}, "
             + "onboarding_step = 3, update_time = NOW() "
-            + "WHERE id = #{userId} AND onboarding_step <> 3")
+            + "WHERE id = #{userId}")
     int completeOnboarding(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
             @Param("deptId") Long deptId, @Param("dept") String dept,
             @Param("gradeId") Long gradeId, @Param("grade") String grade);

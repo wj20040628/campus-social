@@ -74,14 +74,13 @@ public class OnboardingServiceImpl implements OnboardingService {
     @Override
     @Transactional
     public OnboardingCompleteVO complete(long userId, OnboardingCompleteDTO dto) {
-        User me = requireUser(userId);
+        requireUser(userId);
 
-        // 幂等第 1 道防线（ARCHITECTURE §3 Q10.2）：快速路径，命中即返回不写任何数据。
-        // 放在参数校验之前——重复提交时即便带了过期的 tagIds 也不该报错，
-        // 用户点两次「完成」是常态，第二次不该被当成请求错误。
-        if (isDone(me)) {
-            return duplicateResult(userId);
-        }
+        // 早前这里有 isDone(me) 快速短路(ARCHITECTURE §3 Q10.2):onboarding_step=3
+        // 直接返回 duplicate。但前端是「每一步都调 complete」(§7,防中途中断丢数据):
+        // 第 1 步写完 identity 就把 step 推到 3,第 2 步的 tags、第 3 步的 follows
+        // 会被短路吞掉,永远存不上。幂等性改由「全量覆盖写」保证——
+        // 相同数据重复提交结果不变,重复点「完成」无害。
 
         Long schoolId = dto.getSchoolId() == null ? campus.getSchoolId() : dto.getSchoolId();
         requireSchool(schoolId);
@@ -101,8 +100,15 @@ public class OnboardingServiceImpl implements OnboardingService {
             return duplicateResult(userId);
         }
 
-        List<Long> tagIds = validateTagCount(dto.getTagIds());
-        tagService.replaceTagsInTx(userId, tagIds);
+        // 空 tags = 本步未涉及标签(前端第 1 步还没有标签):跳过校验且不覆盖已有标签。
+        // 非空才走「3-8 个」的业务校验并全量替换。
+        List<Long> tagIds = dto.getTagIds();
+        if (tagIds != null && !tagIds.isEmpty()) {
+            tagIds = validateTagCount(tagIds);
+            tagService.replaceTagsInTx(userId, tagIds);
+        } else {
+            tagIds = List.of();
+        }
         int followed = followSupport.followAll(userId, dto.getFollowUserIds());
 
         log.info("onboarding completed: user={}, tags={}, followed={}", userId, tagIds.size(), followed);
@@ -180,10 +186,6 @@ public class OnboardingServiceImpl implements OnboardingService {
             throw new BusinessException(ResultCode.USER_FROZEN, "账号已冻结");
         }
         return me;
-    }
-
-    private boolean isDone(User me) {
-        return Integer.valueOf(STEP_DONE).equals(me.getOnboardingStep());
     }
 
     /** 重复提交的回执：tagCount 回当前实际值而非 0，否则前端会以为标签被清空了 */

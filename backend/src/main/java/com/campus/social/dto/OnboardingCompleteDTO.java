@@ -40,12 +40,15 @@ public class OnboardingCompleteDTO {
     /**
      * 选中的兴趣标签。
      *
-     * <p>{@code min = 3} / {@code max = 8} 取自 openapi 契约的形状约束（违规回 400）。
-     * 「最少选几个」的业务值由 campus.onboarding-min-tags 配置，service 层再判一次回 422——
-     * 运营把配置从 3 调到 5 时无须改 DTO，两端也不会因为只改一处而漂移。
+     * <p>前端是「每一步都调 complete」的设计(Onboarding §7,防中途中断丢数据):
+     * 第 1 步提交时还没有标签,这里必须允许 null/空 —— 形状护栏只管
+     * 「给了就最多 8 个」;「至少选几个」的业务校验在 service 层,
+     * 且只在 tags 非空时执行(空 = 本步未涉及标签,不覆盖已有标签)。
+     *
+     * <p>早前这里有 {@code @NotNull + @Size(min=3)},导致第 1 步点「下一步」
+     * 就被「兴趣标签需选择 3 到 8 个」拦死,引导根本走不下去(实测截图确认)。
      */
-    @NotNull(message = "请至少选择兴趣标签")
-    @Size(min = 3, max = 8, message = "兴趣标签需选择 3 到 8 个")
+    @Size(max = 12, message = "兴趣标签最多选择 12 个")
     private List<Long> tagIds;
 
     /** 批量关注的用户 id，可为空 */
