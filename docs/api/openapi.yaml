@@ -2936,6 +2936,16 @@ components:
           enum: [0, 1]
           nullable: true
           description: 0 普通用户 / 1 管理员
+        strangerMsgEnabled:
+          type: boolean
+          nullable: true
+          description: |
+            我是否接收陌生人消息（AC-05 护栏开关）。
+            **只在「我的资料」出口（`GET /user/me` 与 `PUT /user/profile`）有值**：
+            这是隐私偏好，不应出现在他人卡片（{@code UserVoAssembler.of}）上，
+            他人卡片的 UserVO 此字段为 null。
+            默认开启（DB 为 1 或 NULL 时视为 true）。
+            前端判据：`me.strangerMsgEnabled !== false`（null/undefined 视为开）。
         createTime: { type: string, format: date-time, nullable: true }
 
     PostCreatedResponse:

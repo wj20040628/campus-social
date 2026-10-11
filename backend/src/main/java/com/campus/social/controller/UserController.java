@@ -38,6 +38,13 @@ public class UserController {
                 dto.getAvatarUrl(), dto.getStudentNo()));
     }
 
+    /** 设置「允许陌生人给我发消息」开关(AC-05 护栏偏好) */
+    @PutMapping("/stranger-msg")
+    public Result<UserVO> setStrangerMsg(@RequestParam("enabled") boolean enabled, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(authService.setStrangerMsgEnabled(me, enabled));
+    }
+
     /** 用户卡片(公开,看他人主页用) */
     @GetMapping("/{id}")
     public Result<UserVO> card(@PathVariable("id") long id) {

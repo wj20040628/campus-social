@@ -77,6 +77,8 @@ public final class UserVoAssembler {
                 .unreadNotifyCount(user.getUnreadNotifyCount())
                 .followerCount(user.getFollowerCount())
                 .followingCount(user.getFollowingCount())
+                .strangerMsgEnabled(user.getStrangerMsgEnabled() == null
+                        || user.getStrangerMsgEnabled() == 1)
                 .build();
     }
 

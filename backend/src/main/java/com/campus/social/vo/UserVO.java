@@ -49,5 +49,12 @@ public class UserVO {
     private Boolean verified;
     /** 0普通用户 1管理员 */
     private Integer role;
+    /**
+     * 是否允许陌生人给自己发消息（AC-05 护栏开关）。
+     *
+     * <p>只在「我的资料」(ofPrivate) 暴露：这是隐私偏好，
+     * 不应出现在他人卡片上。默认 1（开启）。
+     */
+    private Boolean strangerMsgEnabled;
     private LocalDateTime createTime;
 }

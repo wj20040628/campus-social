@@ -42,6 +42,14 @@ public interface AuthService {
      */
     UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo);
 
+    /**
+     * 设置「是否允许陌生人给自己发消息」开关（AC-05 护栏偏好）。
+     *
+     * <p>与 {@link #updateProfile} 拆开：这是单一布尔偏好，单独端点语义更清晰，
+     * 也避免和昵称/头像/学号那套字段混在同一个 DTO 里互相牵连。
+     */
+    UserVO setStrangerMsgEnabled(long userId, boolean enabled);
+
     /** 发送邮箱/手机验证码(注册/登录/绑定) */
     String sendCode(SendCodeDTO dto);
 }

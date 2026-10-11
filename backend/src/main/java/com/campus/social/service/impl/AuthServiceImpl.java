@@ -264,8 +264,15 @@ public class AuthServiceImpl implements AuthService {
         String oldAvatar = user.getAvatarUrl();
         // 学号变更需唯一校验；且被驳回的用户换了学号要重新进待审队列。
         // 判定细节见 StudentNoChangeSupport（那边写清了为什么这么判）。
+        //
+        // 第二个分支是补的洞:学号**没变**但 verify_status=0(从未提交过核验)
+        // 的用户,只判「与旧值不同」会永远走不到 apply —— 他填过一次学号、
+        // 学号已落库,再点保存判定「没变化」,状态永远 0、主页永远「去认证」
+        // (WJ 实测:学号存上了,状态纹丝不动)。已认证(1)/审核中(2)不在此列,
+        // 不会被重新拉回队列。
         if (studentNo != null && !studentNo.isBlank()
-                && !studentNo.equals(user.getStudentNo())) {
+                && (!studentNo.equals(user.getStudentNo())
+                    || Integer.valueOf(0).equals(user.getVerifyStatus()))) {
             studentNoChangeSupport.apply(user, studentNo, oldStudentNo);
         }
         if (nickname != null)
@@ -283,6 +290,27 @@ public class AuthServiceImpl implements AuthService {
             diff.append("头像:已更换; ");
         if (diff.length() > 0) {
             auditService.record(userId, "update_profile", "user", userId, "改资料: " + diff.toString().trim(), null);
+        }
+        return toVo(user);
+    }
+
+    /**
+     * 设置陌生人搭话开关。只动 {@code stranger_msg_enabled} 一列，
+     * 不走 {@link #updateProfile}（那里会连带触发学号核验流转，开关不该捅到那条链）。
+     */
+    @Override
+    @Transactional
+    public UserVO setStrangerMsgEnabled(long userId, boolean enabled) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_CANCELLED);
+        }
+        Integer next = enabled ? 1 : 0;
+        if (!next.equals(user.getStrangerMsgEnabled())) {
+            user.setStrangerMsgEnabled(next);
+            userMapper.updateById(user);
+            auditService.record(userId, "set_stranger_msg", "user", userId,
+                    "允许陌生人发消息: " + enabled, null);
         }
         return toVo(user);
     }
