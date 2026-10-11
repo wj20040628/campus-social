@@ -8,15 +8,26 @@
    「DB 中 relation 表【无】新增记录」，AC-09 明写「announcement_read
    无重复行」。这两条只能查库。
 
-用法：先起后端(18080)，再 python backend/scripts/t_e2e.py
+用法：先起后端(18081)，再 python backend/scripts/t_e2e.py
 """
-import json, sys, io, urllib.request, urllib.error, subprocess
+import json, sys, io, os, urllib.request, urllib.error, subprocess
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-BASE = "http://127.0.0.1:18080"
+# 读 .env 的小助手:DB 密码从环境变量 / 根目录 .env 取,绝不写进源码。
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _env
+MYSQL_PASSWORD = _env.require("MYSQL_PASSWORD")
+
+BASE = "http://127.0.0.1:18081"
+# ★ DB 断言必须打在「后端实际连的那个库」上。
+#   2026-10-09 迁移演练时踩过：API 起在 8.4(3307)，而这里没传 -P，
+#   mysql.exe 默认连 3306(9.0) —— 已读记录插在 8.4，脚本去 9.0 查得 0 行，
+#   把「断言连错库」误报成「幂等失败」。
+#   换库演练时改 DB_PORT 一处即可；回 3306 时改回来。
+DB_PORT = "3307"
 MYSQL = r"F:\MySQL\MySQL Server 9.0\bin\mysql.exe"
-DB = ["-uroot", "-p062828", "campus_social_v2", "-N", "-B", "-e"]
+DB = ["-uroot", "-p" + MYSQL_PASSWORD, "-P" + DB_PORT, "campus_social_v2", "-N", "-B", "-e"]
 
 PASS, FAIL = [], []
 

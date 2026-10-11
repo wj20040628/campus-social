@@ -140,12 +140,12 @@ campus:
   # 为空时所有域名都会被拒(1032),这是刻意设计:宁可不认证,不可错认证。
   email-domain-whitelist: ${CAMPUS_EMAIL_DOMAIN_WHITELIST:}
   # F3 免好友搭话护栏
-  daily-new-peer-limit: 5      # 每天最多向 5 个新对象发起首条
-  per-peer-daily-limit: 20     # 对同一陌生人每天最多 20 条
+  daily-new-peer-limit: 8     # 每天最多向 8 个新对象发起首条
+  per-peer-daily-limit: 15     # 对同一陌生人每天最多 15 条
   # F11 引导
   onboarding-min-tags: 3
-  onboarding-max-tags: 5
-  max-tags: 8
+  onboarding-max-tags: 12
+  max-tags: 12
 
 # ------------------------------------------------------------
 # AI 内容机审(LLM):直接接真实 LLM API

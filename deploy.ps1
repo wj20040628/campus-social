@@ -2,7 +2,7 @@
 # 本地/内网部署一键启动脚本(Windows PowerShell)
 # 用法(在本目录执行):
 #   powershell -ExecutionPolicy Bypass -File .\deploy.ps1
-# 前提:本机已装 MySQL(root/062828,库 campus_social_v2)+ Redis(6379)
+# 前提:本机已装 MySQL(root,库 campus_social_v2)+ Redis(6379),密码见 .env
 #       后端已 mvn 打包(target/campus-social-1.0.0.jar)
 # ============================================================
 

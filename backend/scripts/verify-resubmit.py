@@ -16,6 +16,12 @@ BASE = "http://127.0.0.1:18080"
 MYSQL = r"F:\MySQL\MySQL Server 9.0\bin\mysql.exe"
 REDIS = r"D:/Redis-x64-5.0.14.1/redis-cli.exe"
 
+# DB 密码从环境变量 / 根目录 .env 取,绝不写进源码(与 t_e2e.py 同一约定)。
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _env
+MYSQL_PASSWORD = _env.require("MYSQL_PASSWORD")
+
 
 def api(path, method="GET", body=None, tok=None):
     headers = {"Content-Type": "application/json; charset=utf-8"}
@@ -39,7 +45,7 @@ def q(where_col, val):
     sql = ("SELECT CONCAT(id,'|',student_no,'|',verify_status) FROM user "
            "WHERE %s='%s' LIMIT 1" % (where_col, val))
     out = subprocess.run(
-        [MYSQL, "--default-character-set=utf8mb4", "-uroot", "-p062828",
+        [MYSQL, "--default-character-set=utf8mb4", "-uroot", "-p" + MYSQL_PASSWORD,
          "-P3306", "campus_social_v2", "-N", "-B", "-e", sql],
         capture_output=True, text=True).stdout.strip()
     if not out:
