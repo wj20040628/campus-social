@@ -156,4 +156,16 @@ function isActive(path) {
     transition: none;
   }
 }
+
+/*
+ * 桌面(≥1024px):隐藏移动端 TabBar,导航交给左侧 SideNav。
+ * MainLayout 的注释承诺了「桌面显侧栏、隐 TabBar」,这里补上隐藏规则。
+ * 断点值取自 design-tokens.json 的 breakpoint.lg(1024),与 MainLayout 一致。
+ */
+@media (min-width: 1024px) {
+  .tabbar {
+    display: none;
+  }
+}
+
 </style>

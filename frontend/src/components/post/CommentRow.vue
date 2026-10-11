@@ -157,7 +157,10 @@ const isLong = ref(false)
 const overflowState = computed(() => {
   const of = props.overflowOf
   if (!of) return null
-  const s = of.stateOf(props.node.id)
+  // 传下来的是 stateOf **函数本身**(PostComments 解构后直接绑定),
+  // 所以这里直接调用;早期写成 of.stateOf(id) —— 函数上没有这个方法,
+  // TypeError 打断整棵评论子树的渲染,评论区/输入框全部消失。
+  const s = of(props.node.id)
   const hasOverflow = Number(props.node.childrenOverflowCount) > 0
   return s || hasOverflow ? s || { loading: false, error: '', done: false } : null
 })

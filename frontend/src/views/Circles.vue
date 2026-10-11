@@ -262,7 +262,7 @@ function onCreateClick() {
 
 function goVerify() {
   verifyOpen.value = false
-  router.push('/onboarding')
+  router.push('/settings')
 }
 
 function goDetail(id) {

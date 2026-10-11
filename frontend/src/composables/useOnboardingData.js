@@ -3,6 +3,30 @@ import * as api from '@/api/onboarding'
 import { FALLBACK_MIN_SELECT, FALLBACK_MAX_SELECT } from '@/constants/schoolDict'
 
 /**
+ * 标签分类的中文名。与后端 TagServiceImpl.CATEGORY_NAMES 同源(1-5 固定值):
+ * /onboarding/tags 返回**平铺**数组({id,name,category}),StepTags 期望
+ * 分组结构({category,categoryName,tags[]}),这里做一次转换。
+ * 早前直接把平铺数组塞给 groups,g.tags 是 undefined → 标签区整片空白。
+ */
+const TAG_CATEGORY_NAMES = { 1: '兴趣', 2: '游戏', 3: '运动', 4: '学习', 5: '生活' }
+
+function groupTagsByCategory(flat) {
+  const byCat = new Map()
+  for (const t of flat) {
+    if (!t || t.id == null) continue
+    if (!byCat.has(t.category)) {
+      byCat.set(t.category, {
+        category: t.category,
+        categoryName: TAG_CATEGORY_NAMES[t.category] || '其他',
+        tags: [],
+      })
+    }
+    byCat.get(t.category).tags.push(t)
+  }
+  return [...byCat.values()].sort((a, b) => a.category - b.category)
+}
+
+/**
  * 引导页第 2/3 步的数据加载(标签 + 推荐人/圈子)。
  *
  * 从 Onboarding.vue 抽出:这两块各有独立失败语义(第 2 步失败要整步跳过,
@@ -26,7 +50,7 @@ export function useOnboardingData(onTagEmpty) {
     tagFailed.value = false
     try {
       const data = await api.tags(60)
-      tagGroups.value = data?.tags || data?.list || []
+      tagGroups.value = groupTagsByCategory(data?.tags || data?.list || [])
       // min/max 由后端下发,只兜底不覆盖
       minSelect.value = data?.minSelect || FALLBACK_MIN_SELECT
       maxSelect.value = data?.maxSelect || FALLBACK_MAX_SELECT

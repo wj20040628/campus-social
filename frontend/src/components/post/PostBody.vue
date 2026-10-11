@@ -63,8 +63,12 @@ defineProps({
   mediaList: { type: Array, default: () => [] },
   /** 图片 URL 列表,给 el-image 的预览用(视频不进预览列表) */
   imgList: { type: Array, default: () => [] },
-  /** 1 / 2 / 3,决定网格列数 */
-  cols: { type: Number, default: 1 },
+  /**
+   * 网格列数语义:one / two / three(usePostMedia 的 mediaCols 返回值)。
+   * 早前误声明成 Number,传入 'three' 会触发「Expected Number, got String」
+   * 的 Vue 类型告警(值仍能拼进 media-grid--three 类名,不影响渲染,但告警常驻)。
+   */
+  cols: { type: String, default: 'one' },
   /** 图片在 mediaList 里的真实下标 —— 预览列表只含图片,不等于 i */
   imgIndex: { type: Function, required: true },
 })

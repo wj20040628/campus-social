@@ -131,7 +131,7 @@
       :post-id="post?.id"
       :author-id="authorId"
       :is-author="isAuthor"
-      @go-verify="router.push('/onboarding')"
+      @go-verify="router.push('/settings')"
       @author-hidden="router.push('/')"
     />
   </div>

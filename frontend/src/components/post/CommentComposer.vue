@@ -27,8 +27,8 @@
 
     <!-- @ 提及浮层：横排头像条，移动端 40px（设计 §1.2） -->
     <div v-if="mentionOpen" class="cc__mention">
-      <ul v-if="list.length" class="cc__mention-strip">
-        <li v-for="u in list" :key="u.id">
+      <ul v-if="mentionList.length" class="cc__mention-strip">
+        <li v-for="u in mentionList" :key="u.id">
           <button type="button" class="cc__mention-cell" @mousedown.prevent="pick(u)">
             <el-avatar :size="40" :src="resolveUrl(u.avatarUrl)" />
             <span class="cc__mention-name">{{ displayName(u) }}</span>
@@ -60,6 +60,7 @@
         class="cc__at"
         :class="{ 'cc__at--on': mentionOpen }"
         :aria-label="mentionOpen ? '收起提及列表' : '提及同学'"
+        @mousedown.prevent
         @click="toggle"
       >
         <span class="cc__at-glyph" aria-hidden="true">@</span>
