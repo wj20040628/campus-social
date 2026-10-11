@@ -1,6 +1,7 @@
 package com.campus.social.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -9,12 +10,17 @@ import lombok.Data;
  *
  * <p>与校园邮箱认证的差别：邮箱是自证（域名能收信即证明归属），
  * 学号是「提交待核验」，无法在请求内判定真伪，必须进人工队列。
+ *
+ * <p>格式护栏：学号编码规则由 5 个真实样本锁定——前 2 位入学年、
+ * 3-6 位专业类代码、7-8 位专业序号、9-10 位班级、11+ 位流水号(3~4 位)，
+ * 总长 13~14 位纯数字。这里只拦「明显乱填」，年份是否在有效范围由
+ * service 层按当前年份动态校验(见 CampusVerifyServiceImpl#submitStudentNo)。
  */
 @Data
 public class StudentNoVerifyDTO {
 
     @NotBlank(message = "学号不能为空")
-    @Size(min = 6, max = 32, message = "学号需6 到 32 位")
+    @Pattern(regexp = "^\\d{13,14}$", message = "学号需为 13~14 位数字")
     private String studentNo;
 
     /**

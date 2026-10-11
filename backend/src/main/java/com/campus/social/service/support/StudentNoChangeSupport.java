@@ -38,10 +38,15 @@ public class StudentNoChangeSupport {
      */
     private static final int VERIFY_REJECTED = 3;
 
+    /** verify_status = 1（已认证）。自动通过时用，与 UserMapper#approveVerify 的目标值一致 */
+    private static final int VERIFY_OK = 1;
+
     /** verify_status = 2（审核中）。与 {@code resubmitAfterReject} 的 SQL 里的字面量必须一致 */
     private static final int VERIFY_PENDING = 2;
 
     private final UserMapper userMapper;
+    /** 自动通过判定:与提交学号接口共用,避免设置页用户排队、引导页秒过的双标 */
+    private final StudentNoAutoPassSupport autoPass;
 
     /**
      * 处理一次学号变更。
@@ -51,10 +56,31 @@ public class StudentNoChangeSupport {
      * @param oldStudentNo 旧学号，仅用于日志
      */
     public void apply(User user, String studentNo, String oldStudentNo) {
-        requireUnused(studentNo);
+        // 排除自己:学号未变更时也会走到这里(见 AuthServiceImpl#updateProfile),
+        // 不排除会把自己那条记录当成「已被占用」而误报 409。
+        requireUnused(studentNo, user.getId());
         user.setStudentNo(studentNo);
         if (Integer.valueOf(VERIFY_REJECTED).equals(user.getVerifyStatus())) {
             resubmit(user, studentNo, oldStudentNo);
+        } else if (Integer.valueOf(0).equals(user.getVerifyStatus())) {
+            // 从未提交过核验的用户(verify_status=0)在设置页填学号 = 提交核验申请:
+            // 否则改学号只是存字段,verify_status 永远 0,主页永远显示「去认证」,
+            // 用户以为保存无效(WJ 实测:student_no 存上了,状态纹丝不动)。
+            // markVerifyPending 无状态前置条件,直接 0 -> 2。
+            // 与 resubmit 同理:内存对象必须同步,否则紧随其后的 updateById
+            // 会把状态覆盖回去(上一轮死循环 bug 的同款坑)。
+            userMapper.markVerifyPending(user.getId(), studentNo);
+            if (autoPass.canAutoPass(studentNo, user)) {
+                // 院系与学号大类对得上 → 直接置已认证,与提交接口同待遇
+                userMapper.approveVerify(user.getId());
+                user.setVerifyStatus(VERIFY_OK);
+                log.info("verify auto approved by profile edit: user={}, studentNo={}",
+                        user.getId(), studentNo);
+            } else {
+                user.setVerifyStatus(VERIFY_PENDING);
+            }
+            log.info("verify submitted by profile edit: user={}, studentNo={}",
+                    user.getId(), studentNo);
         }
     }
 
@@ -70,9 +96,17 @@ public class StudentNoChangeSupport {
      * <p>{@code uk_student_no} 是库级单列唯一索引，这里是应用层的提前拦截：
      * 让它回一条能读懂的业务错误，而不是把底层的 DuplicateKeyException 冒到前端。
      */
-    private void requireUnused(String studentNo) {
+    /**
+     * 学号唯一性校验。
+     *
+     * @param selfId 当前用户 id,**必须排除自己**:学号未变更时也会走到这里,
+     *               不排除会把自己那条记录当成「已被占用」而误报 409。
+     */
+    private void requireUnused(String studentNo, long selfId) {
         Long dup = userMapper.selectCount(
-                new LambdaQueryWrapper<User>().eq(User::getStudentNo, studentNo));
+                new LambdaQueryWrapper<User>()
+                        .eq(User::getStudentNo, studentNo)
+                        .ne(User::getId, selfId));
         if (dup != null && dup > 0) {
             throw new BusinessException(STUDENT_NO_EXISTS, "该学号已被其他账号绑定");
         }

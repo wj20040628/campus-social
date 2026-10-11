@@ -48,6 +48,16 @@ public class CampusProperties {
     /** 兴趣标签上限（PUT /user/tags 与引导共用） */
     private int maxTags = 8;
 
+    /**
+     * 学号「自动通过」开关:格式校验 + 院系交叉校验都通过时直接置已认证,
+     * 不进人工队列。
+     *
+     * <p>默认开:让合规的真实用户秒过,不为极少数编造学号的人让所有人排队。
+     * 关掉即退回「全部人工核验」。自动通过的每条都落 audit_log(动作
+     * verify_auto_approve),管理员可事后抽查并驳回,控制权不丢。
+     */
+    private boolean autoApproveStudentNo = true;
+
     public String getSchoolName() {
         return schoolName;
     }
@@ -110,6 +120,14 @@ public class CampusProperties {
 
     public void setMaxTags(int maxTags) {
         this.maxTags = maxTags;
+    }
+
+    public boolean isAutoApproveStudentNo() {
+        return autoApproveStudentNo;
+    }
+
+    public void setAutoApproveStudentNo(boolean autoApproveStudentNo) {
+        this.autoApproveStudentNo = autoApproveStudentNo;
     }
 
     /** 解析域名白名单为小写 Set，便于大小写不敏感匹配 */

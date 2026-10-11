@@ -25,4 +25,8 @@ public class StudentNoVerifyVO implements Serializable {
 
     /** 人工核验的预期时长（小时），供前端文案 */
     private Integer estimatedHours;
+
+    /** true = 格式与院系交叉校验一致,已自动通过(未经人工)。前端据此改写提示文案 */
+    @Builder.Default
+    private boolean autoApproved = false;
 }

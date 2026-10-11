@@ -17,7 +17,10 @@ import com.campus.social.service.AuditService;
 import com.campus.social.service.CampusVerifyService;
 import com.campus.social.service.DictService;
 import com.campus.social.service.VerifyCodeService;
+import com.campus.social.service.support.StudentNoAutoPassSupport;
+import com.campus.social.util.StudentNoParser;
 import com.campus.social.vo.SchoolProfileVO;
+import com.campus.social.vo.StudentNoParsedVO;
 import com.campus.social.vo.StudentNoVerifyVO;
 import com.campus.social.vo.VerifyStatusVO;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +31,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Year;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import static com.campus.social.common.ResultCode.BAD_REQUEST;
 import static com.campus.social.common.ResultCode.CAMPUS_EMAIL_NOT_ALLOWED;
 import static com.campus.social.common.ResultCode.CONFLICT;
 import static com.campus.social.common.ResultCode.SCHOOL_PROFILE_INCOMPLETE;
@@ -58,6 +67,30 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
     private static final String ACTION_STUDENT_NO_SUBMIT = "verify_student_no_submit";
     private static final String ACTION_VERIFY_PASS = "verify_approve";
 
+    /**
+     * 学号编码规则(由 5 个真实样本锁定,用户确认):
+     * <pre>
+     *   位 1-2   入学年份            23 -> 2023
+     *   位 3-6   专业大类编码        0809=计算机类 0802=机械类 0818=交通运输类
+     *   位 7-8   专业位号            类内序号
+     *   位 9-10  班级                只可能是 0X(01~09,没有超过 9 个班)
+     *   位 11-12 固定标识            23 级是「05」两位(14 位学号);
+     *                                24/25/26 级是「5」一位(13 位学号),含义待查
+     *   最后 2 位 班内排名           最大不超过 70
+     * </pre>
+     * 用 {@code 0?5} 同时表达两种:14 位匹配「05」、13 位匹配「5」。
+     * 与 {@link StudentNoParser}(解析展示用)不同:这里参与提交拦截,
+     * 班级/排名/固定标识是用户确认的硬约束,必须挡在人工队列之外。
+     */
+    private static final Pattern STUDENT_NO_FORMAT =
+            Pattern.compile("^(\\d{2})(\\d{4})(\\d{2})(0[1-9])0?5(\\d{2})$");
+
+    /** 班内排名上限:用户明确「最后两个数字最大不超过 70」 */
+    private static final int MAX_CLASS_RANK = 70;
+
+    /** 自动通过审计动作。与管理员手动通过的 verify_approve 区分,便于事后抽查 */
+    private static final String ACTION_VERIFY_AUTO_APPROVE = "verify_auto_approve";
+
     /** verify_status */
     private static final int VERIFY_NONE = 0;
     private static final int VERIFY_OK = 1;
@@ -75,6 +108,8 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
     private final AuditService auditService;
     private final DictService dictService;
     private final CampusProperties campus;
+    /** 自动通过判定。与设置页改学号(StudentNoChangeSupport)共用同一把尺子 */
+    private final StudentNoAutoPassSupport autoPass;
     private final StringRedisTemplate redis;
 
     @Override
@@ -178,6 +213,22 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         String studentNo = dto.getStudentNo().trim();
         String nameTail = dto.getNameTail().trim();
 
+        // 精确格式校验(班级 0X / 固定标识 5 / 排名 ≤70 / 年份在有效范围)。
+        // DTO 的 @Pattern 只拦「非 13~14 位纯数字」,这里拦编码规则与业务边界——
+        // 否则「班级写成 10」「排名 99」这种明显乱填会进人工队列浪费审核时间。
+        Matcher m = STUDENT_NO_FORMAT.matcher(studentNo);
+        if (!m.matches()) {
+            throw new BusinessException(BAD_REQUEST, "学号格式不正确，请核对后重试");
+        }
+        int entranceYear = 2000 + Integer.parseInt(m.group(1));
+        int currentYear = Year.now().getValue();
+        if (entranceYear < currentYear - 3 || entranceYear > currentYear) {
+            throw new BusinessException(BAD_REQUEST, "学号入学年份不在有效范围");
+        }
+        if (Integer.parseInt(m.group(5)) > MAX_CLASS_RANK) {
+            throw new BusinessException(BAD_REQUEST, "学号班内排名超出范围");
+        }
+
         // student_no 是 UNIQUE，主防线：同一学号不能被两个账号提交
         try {
             userMapper.markVerifyPending(userId, studentNo);
@@ -190,6 +241,24 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         auditService.record(userId, ACTION_STUDENT_NO_SUBMIT, "user", userId,
                 "学号:" + studentNo + " 姓名后缀:" + nameTail, "");
         log.info("student no submitted: user={}, studentNo={}", userId, studentNo);
+
+        /*
+         * 自动通过(格式 + 院系交叉校验都过):不再让真实用户排队等人工。
+         * 先落待审再立刻置已认证 —— approveVerify 的 WHERE 只认状态 2,
+         * 走状态机才与管理员手动通过留下同样的审计与状态轨迹。
+         */
+        if (autoPass.canAutoPass(studentNo, me)) {
+            int affected = userMapper.approveVerify(userId);
+            if (affected > 0) {
+                auditService.record(userId, ACTION_VERIFY_AUTO_APPROVE, "user", userId,
+                        "学号:" + studentNo + " 渠道:自动通过(格式与院系交叉校验一致)", "");
+                log.info("student no auto approved: user={}, studentNo={}", userId, studentNo);
+                return StudentNoVerifyVO.builder()
+                        .verifyStatus(VERIFY_OK)
+                        .autoApproved(true)
+                        .build();
+            }
+        }
 
         return StudentNoVerifyVO.builder()
                 .verifyStatus(VERIFY_PENDING)
@@ -215,6 +284,10 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
                 .canStrangerChat(verified)
                 .canPublishAnnouncement(verified)
                 .profileComplete(dictService.hasDept(me) && dictService.hasGrade(me))
+                // 本人学号:设置页靠它回填学号框 —— 否则回填为空、框里只剩
+                // placeholder,用户以为「学号已经有了」直接点保存,实际提交的是
+                // 空字符串,后端不触发核验(WJ 实测:点保存无数次状态纹丝不动)。
+                .studentNo(me.getStudentNo())
                 .build();
     }
 
