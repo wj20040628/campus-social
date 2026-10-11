@@ -5,7 +5,6 @@ import com.campus.social.entity.ActivitySignup;
 import com.campus.social.mapper.ActivityMapper;
 import com.campus.social.mapper.ActivitySignupMapper;
 import com.campus.social.service.ActivityService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,9 +34,8 @@ class ActivitySignupConcurrencyIntegrationTest {
 
     private final long circleless = -1L; // 无圈子活动
 
-    @AfterEach
+    /** 尽力清理,失败不影响断言。两个 @Test 各自在 finally 里调本方法(传自己造的活动 id)。 */
     void cleanup(long activityId) {
-        // 尽力清理,失败不影响断言
         try {
             signupMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ActivitySignup>()
                     .eq(ActivitySignup::getActivityId, activityId));
