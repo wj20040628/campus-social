@@ -76,8 +76,8 @@ Web 优先，App 后置，小程序本轮不做。必须真跑起来给本校同
 
 | ID | 问题 | 证据 | 修复方向 |
 |---|---|---|---|
-| TD-01 | CORS 全开 `allowedOriginPatterns("*")` | `WebMvcConfig.java:59-66` | 收窄为实际域名白名单，从环境变量注入 |
-| TD-02 | WebSocket `setAllowedOrigins("*")` | `WebSocketConfig.java:29` | 同上，收窄为具体 origin |
+| TD-01 | ~~CORS 全开 `allowedOriginPatterns("*")`~~ **已修** | `CorsProperties.java` 读 `CORS_ALLOWED_ORIGINS`(env)>`app.cors.allowed-origins`(yml)>localhost 兜底,且过滤掉 `*`,任何情况不回落通配符;`WebMvcConfig.java:112-119` `allowedOriginPatterns(resolveOrigins())` 消费该白名单 | 上线前用 env 注入真实 origin |
+| TD-02 | ~~WebSocket `setAllowedOrigins("*")`~~ **已修** | 与 CORS 同源:`WebSocketConfig.java:44` `setAllowedOrigins(corsProperties.resolveOrigins().toArray(...))`,不再硬编码 `*` | 同上,CORS 与 WS 读同一个变量 |
 | TD-03 | 对外 URL 无版本前缀：后端路由是 `/auth/login`，靠 Nginx rewrite 剥 `/api` | `AuthController.java:20` + `nginx.conf` 的 `rewrite ^/api/(.*)$ /$1` | 对外契约统一 `/api/v1/*`，由 Nginx 做版本路由（见 ADR-008 说明的不完美性与取舍） |
 | TD-04 | 本地 Redis 5.0.14.1 与 `docker-compose.yml` 的 `redis:7-alpine` 版本分裂 | `docker-compose.yml:36` | 代码按 5.0 语义写（最严基线），生产跑 7.x 向下兼容。禁用清单见 §6.3 |
 | TD-05 | 本地 MySQL 9.0（Innovation，**EOL 2024-10-15**），生产需 8.4 LTS；9.0→8.4 属降级，官方要求逻辑 dump+load | `F:\MySQL\MySQL Server 9.0`；MySQL 官方发布模型文档 | 本地加装 MySQL 8.4 LTS 实例（端口 3307），dev 与生产同主版本 |
@@ -86,6 +86,8 @@ Web 优先，App 后置，小程序本轮不做。必须真跑起来给本校同
 | TD-08 | 前端出现硬编码颜色值 | `frontend/src/views/Login.vue:171`、`Register.vue:148`、`Chat.vue:1027`（`styles/tokens.css:26` 是 token 定义处，合规） | 全部改为引用 `tokens.css` 的变量 |
 | TD-09 | 无健康检查端点（无 actuator），Nginx/运维无法探活 | `backend/pom.xml` 无 actuator 依赖 | 加 `spring-boot-starter-actuator`，只暴露 `/actuator/health` 且不对公网开放 |
 | TD-10 | 无 CI：无 GitHub Actions / 无构建门禁 | `.github/` 仅有 modernization 脚本 | 至少加一条 `mvn -B clean package` + `npm run build` 的流水线 |
+
+> **注（pre-push 钩子 vs TD-10）**：`scripts/git-hooks/pre-push`（经 `git config core.hooksPath scripts/git-hooks` 激活）是**本地 push 前轻量把关**，每次 push 自动跑 `run-all-gates.py` 的 9 条门禁；它**不替代** TD-10 指的那条 CI 流水线（`mvn clean package` + `npm run build`），二者口径不同、互补。策略 A：门禁 OOM/缺命令/超时（rc 134/-1/-2）只告警放行，真逻辑错（rc 1 等）才拦 push；逃生口 `SKIP_GATES=1 git push …`。已知 `check-sfc` 在本机 OOM(rc=134)，属环境类，正常 push 会放行。
 | TD-21 | **Element Plus 按需引入被全量引入架空**：`main.js` 全量注册 + `vite.config.js` 同时配 unplugin 按需 + `manualChunks` 强制整包成 chunk | `main.js:3-6`、`vite.config.js:20-35` | 删 `main.js` 的 `app.use(ElementPlus)` 与 `element-plus/dist/index.css`；`manualChunks` 去掉 `element-plus` 项。0.3 人日。**不修则移动端首屏预算不可能达标**（见 §3 Q8.8） |
 | TD-22 | 前端**零响应式**：18 个 SFC 共 5172 行，无一处 `@media` | `grep -l "@media" frontend/src/**/*.vue` 无结果 | 见 §3 Q8 完整方案 |
 | TD-23 | `100vh` 在移动端被地址栏遮挡 | `Chat.vue:695`、`Login.vue:167`、`Register.vue:144`、`MainLayout.vue:139,142` | 统一改 `100dvh` |
@@ -1035,8 +1037,8 @@ chat_conversation (已存在，不改动结构)
 - [ ] 垂直越权：非管理员访问 admin 端点返 403（`NOT_ADMIN`）
 
 **网络安全**
-- [ ] CORS `allowedOriginPatterns` 收窄为实际域名（**TD-01，当前是 `*`**）
-- [ ] WebSocket `setAllowedOrigins` 收窄为实际域名（**TD-02，当前是 `*`**）
+- [x] CORS `allowedOriginPatterns` 收窄为实际域名（**TD-01 已修**:`CorsProperties` 从 env/yml 注入白名单、无 `*` 回落）
+- [x] WebSocket `setAllowedOrigins` 收窄为实际域名（**TD-02 已修**:`WebSocketConfig:44` 与 CORS 同源读 `CorsProperties`）
 - [ ] 云安全组只放行 **22 / 80 / 443**；3306 / 6379 / 8080 **绝不对公网开放**
 - [ ] Nginx 80 → 443 强制跳转；TLS 1.2+，禁用 TLS 1.0/1.1
 - [ ] MySQL / Redis 只监听 127.0.0.1

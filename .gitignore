@@ -46,3 +46,23 @@ backend/scripts/*.log
 
 # 本机端口探测产物:SERVER__PORT 之类的环境变量快照
 backend/scripts/env_*.txt
+
+# E2E 验收产物(根目录):内含可直接用的 access/refresh JWT,绝不入库
+# .e2e-tokens.json   POST /auth/login-code 的响应体快照
+# .e2e-shots/        verify-mobile 的 375px 视口截图
+# .e2e-env/          验收用的 node_modules + 临时包
+# *.mjs.py 单文件脚本
+.e2e-tokens.json
+.e2e-shots/
+.e2e-env/
+.e2e-patrol.py
+.e2e-repro-p0.py
+e2e_verify_fixes.py
+
+# Maven 构建日志(调试产物,不入库)
+backend/mvn_out.txt
+backend/pkg_out.txt
+
+# python 字节码缓存
+__pycache__/
+*.pyc

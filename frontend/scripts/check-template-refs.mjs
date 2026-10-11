@@ -17,8 +17,21 @@
  *    这是刻意的:宁可多报一条让人看一眼,不要静默漏掉真问题。
  */
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse } from '@vue/compiler-sfc'
+
+/**
+ * ROOT/SRC 定位:与 check-sfc / check-composable-exports / check-undefined-identifiers
+ * 同口径 —— 按脚本所在目录算,不依赖调用方 CWD。
+ *
+ * 旧写法 `walk('src')` 假设 CWD=frontend/,从 frontend/ 之外(如项目根)直接
+ * `node frontend/scripts/check-template-refs.mjs` 会 ENOENT。
+ * `run-all-gates.py` 的 step 是从项目根调 node 的,必须脚本自带定位。
+ */
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
+const ROOT = join(SCRIPT_DIR, '..')
+const SRC = join(ROOT, 'src')
 
 /** Vue/EP 在本项目里可全局或自动导入的名字 */
 const GLOBALS = new Set([
@@ -141,10 +154,11 @@ function collectExprs(tpl) {
   return exprs
 }
 
-const files = walk('src')
+const files = walk(SRC)
 let suspect = 0
 
 for (const file of files) {
+  const rel = file.replace(/\\/g, '/').replace(ROOT.replace(/\\/g, '/') + '/', '')
   const source = readFileSync(file, 'utf8')
   const { descriptor } = parse(source, { filename: file })
   if (!descriptor.template) continue
@@ -169,7 +183,7 @@ for (const file of files) {
 
   if (missing.size) {
     suspect += 1
-    console.log(`- ${file}\n    模板引用但 script 未声明: ${[...missing].join(', ')}`)
+    console.log(`- ${rel}\n    模板引用但 script 未声明: ${[...missing].join(', ')}`)
   }
 }
 

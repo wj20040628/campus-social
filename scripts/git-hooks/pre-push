@@ -1,0 +1,91 @@
+#!/bin/sh
+# pre-push 钩子(策略 A:环境类失败只告警放行,真逻辑错才拦 push)
+# ------------------------------------------------------------------
+# 由 git config core.hooksPath scripts/git-hooks 激活后,每次 push 自动触发。
+#
+# 语义(策略 A):
+#   - 全量跑 scripts/run-all-gates.py 的 9 条门禁(import 当模块,不重复实现)。
+#   - 某门禁失败时按其退出码分流:
+#       rc ∈ {134, -1, -2} → 环境类(OOM / 命令不存在 / 超时)→ 只告警、放行(exit 0)
+#       其它非零(rc=1 等) → 真逻辑错 → 拦 push(exit 1)
+#   - 逃生口:SKIP_GATES=1 git push …  直接放行,不跑门禁。
+#
+# 与 TD-10(无 CI)的关系:本钩子是本地 push 前轻量把关,不替代 CI。
+# check-sfc 在本机 OOM(rc=134)属已知环境类,本次会放行,不影响正常 push。
+
+set -u
+
+# 逃生口
+if [ "${SKIP_GATES:-0}" = "1" ]; then
+    echo "[pre-push] SKIP_GATES=1 已设置,跳过门禁。"
+    exit 0
+fi
+
+# 定位仓库根(不依赖调用时 CWD)
+root="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$root" ]; then
+    echo "[pre-push] 找不到 git 仓库根,放行(非 git 环境)。"
+    exit 0
+fi
+
+# pre-push 的 stdin 是「remote_name remote_url / 每行 ref」,本目的跑整库门禁、
+# 与推哪条 ref 无关,故直接吞掉 stdin 跑全量,避免 git 因钩子没读 stdin 而报错。
+cat > /dev/null 2>&1 || true
+
+GATE_ROOT="$root" python - "$root" <<'PY'
+import importlib.util
+import os
+import sys
+
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location(
+    "run_all_gates", os.path.join(root, "scripts", "run-all-gates.py"))
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+results = m.run_all(quiet=True)  # [(name, ok, code, out)]
+
+# 环境类失败退出码:134(V8 OOM abort)、-1(命令不存在)、-2(超时)
+ENV_RC = {134, -1, -2}
+TAIL = 12
+
+env_fail, logic_fail = [], []
+for name, ok, code, out in results:
+    if ok:
+        continue
+    (env_fail if code in ENV_RC else logic_fail).append((name, code, out))
+
+passed = [r for r in results if r[1]]
+print("=" * 72)
+print("[pre-push] 门禁结果:共 %d 条,通过 %d,环境类未决 %d,真逻辑错 %d"
+      % (len(results), len(passed), len(env_fail), len(logic_fail)))
+print("=" * 72)
+
+if env_fail:
+    print("\n-- 环境类未决(不拦,请留意) --")
+    for name, code, out in env_fail:
+        reason = {134: "OOM(内存不够,非代码错)", -1: "命令不存在", -2: "超时(>600s)"}.get(
+            code, "环境类(退出码 %s)" % code)
+        print("  * %s — %s" % (name, reason))
+        lines = [l for l in out.strip().splitlines() if l.strip()]
+        for line in lines[-3:]:
+            print("      " + line)
+
+if logic_fail:
+    print("\n-- 真逻辑错(拦 push) --")
+    for name, code, out in logic_fail:
+        print("\n--- FAIL %s(退出码 %s)---" % (name, code))
+        lines = [l for l in out.strip().splitlines() if l.strip()]
+        for line in lines[-TAIL:]:
+            print("    " + line)
+
+if logic_fail:
+    print("\n[pre-push] 存在真逻辑错,已拦 push。修复后重推;或 SKIP_GATES=1 git push … 强制放行。")
+    sys.exit(1)
+
+if env_fail:
+    print("\n[pre-push] 仅环境类未决,放行。")
+else:
+    print("\n[pre-push] 全部通过,放行。")
+sys.exit(0)
+PY

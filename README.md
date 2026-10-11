@@ -79,10 +79,33 @@ mvn spring-boot:run
 ```
 
 关键配置在 `backend/src/main/resources/application.yml`:
-- `MYSQL_HOST` / `MYSQL_USER` / `MYSQL_PASSWORD`(默认 127.0.0.1/root/root)
+- `MYSQL_HOST` / `MYSQL_USER` / `MYSQL_PASSWORD`(默认 127.0.0.1/root,密码走 .env,源码不留默认值)
 - `REDIS_HOST` / `REDIS_PORT`
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`(至少 64 字节,生产用强随机)
 - `UPLOAD_DIR`(默认 ./uploads,相对路径,不写本机绝对路径)
+
+#### 密钥管理约定（重要）
+
+**原则：凭据只进 `.env`，源码一律 `${ENV:}` 引用，默认值留空。**
+
+- 根目录 `.env`（已入 `.gitignore`，绝不入库）是本机真值的唯一存放处；
+  模板在 `.env.example`，**只列变量名 + 占位说明，不写真值**。
+  首次使用：`cp .env.example .env` 再填真值。
+- `application-local.yml`（同样 gitignored，不进仓库）里所有凭据段都是
+  `${MYSQL_PASSWORD:}` / `${JWT_ACCESS_SECRET:}` 这种「带空默认」的引用，
+  **绝不**把密钥写进 `local` 文件的默认值里。原因：把默认值填成真实密钥
+  等于又把它写回源码，一旦误提交 `.gitignore` 形同虚设。
+- 本地跑之前先 `export` 对应变量（或 `source` `.env`，视 shell 而定）；
+  生产用 `docker compose --env-file .env up` 注入。
+- 部署 / 脚本里的注释不得再出现明文密码；`deploy.ps1` 早期注释写死过的
+  root 密码已被清除；`backend/scripts/t_e2e.py` / `verify-resubmit.py` 的 DB
+  密码改读环境变量 `MYSQL_PASSWORD`（经 `backend/scripts/_env.py` 从根目录
+  `.env` 加载，值绝不写进源码）。
+
+> 曾发生的泄露：`application-local.yml` 里明文落过 MySQL root 密码、SMTP
+> 授权码、LLM key，`deploy.ps1` / `t_e2e.py` 也写死过 root 密码。现已全部
+> 改为 `.env` 引用，但**这些旧值仍应作废轮换**（改库密码、重发 SMTP 授权码、
+> 平台吊销旧 LLM key），因为它们在 git 历史或本地磁盘里出现过。
 
 ### 3. 启动前端
 
@@ -176,3 +199,14 @@ ws://host/ws/notify?access_token=xxx
 - 热度分 MVP 即时 ±1,完整公式 `(like+2*comment)/(age_hours+2)^1.5` 由 HotScoreTask 重算(未实现)
 - 搜索为 `LIKE`,量大后上 ES
 - 媒体存本地磁盘;生产建议迁对象存储(OSS/COS/MinIO)
+
+## git pre-push 钩子(策略 A:环境类放行、真错拦截)
+
+每次 `git push` 前自动跑 `scripts/run-all-gates.py` 的 9 条门禁,真逻辑错才拦 push,机器环境类失败(OOM/缺命令/超时)只告警放行。
+
+- **激活(一次性)**:`git config core.hooksPath scripts/git-hooks`(钩子本体在 `scripts/git-hooks/pre-push`,受版本控制)。
+- **逃生口**:`SKIP_GATES=1 git push …` 跳过门禁直接推(本机 OOM 反复卡手时用)。
+- **自测**:`sh scripts/git-hooks/self-test.sh` 证明分流逻辑正确(rc=134→环境不拦、rc=1→拦,不假绿)。
+- **已知**:`check-sfc` 在本机 OOM(rc=134)属环境类,正常 push 会放行,不会卡住。
+- 与 `docs/ARCHITECTURE.md` TD-10(无 CI)的关系:本钩子是本地 push 前轻量把关,不替代 CI 流水线(`mvn clean package` + `npm run build`),二者互补。
+
