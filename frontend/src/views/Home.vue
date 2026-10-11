@@ -88,7 +88,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+/**
+ * 首页 Feed。**name 必须是 'Home'**:MainLayout 用 <KeepAlive include="Home">
+ * 缓存本页 —— 没有显式 name,include 匹配不到(文件名推断不参与 include 匹配),
+ * 缓存失效,「退出帖子回到原位置」随之落空。
+ */
+defineOptions({ name: 'Home' })
+
+import { ref, onMounted, onActivated, onDeactivated, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
@@ -97,6 +104,7 @@ import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import { ChatLineSquare } from '@element-plus/icons-vue'
 import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
+import { feedDirty } from '@/composables/useFeedRefresh'
 
 const router = useRouter()
 const tab = ref('following') // 默认"关注"
@@ -198,6 +206,36 @@ onMounted(async () => {
   loadVerifyStatus()
   await loadFeed(true)
   nextTick(setupObserver)
+})
+
+/**
+ * keep-alive 激活(从帖子/发布页返回时触发,不再走 onMounted)。
+ * 纯浏览返回:恢复离开时的滚动位置,数据原样保留(见下)。
+ * 内容变更返回(发帖/编辑/删帖):重拉第一页,此时清列表跳顶符合预期。
+ */
+const savedScrollY = ref(0)
+
+/** 组件进入 keep-alive 缓存前,记下当前滚动位置(供 onActivated 恢复) */
+onDeactivated(() => {
+  savedScrollY.value = window.scrollY || window.pageYOffset || 0
+})
+
+onActivated(() => {
+  if (feedDirty.value) {
+    feedDirty.value = false
+    loadFeed(true)
+    return
+  }
+  // 纯浏览返回:恢复离开时的滚动位置。不依赖 vue-router 的 savedPosition
+  // (它与 keep-alive + Transition 动画的配合时机不可靠,实测「返回位置不太准」),
+  // 组件自己记住最准 —— 数据在缓存里原样保留,高度与离开时一致,直接回填即可。
+  if (savedScrollY.value > 0) {
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, savedScrollY.value)
+      })
+    })
+  }
 })
 
 onBeforeUnmount(() => {

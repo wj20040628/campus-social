@@ -42,19 +42,22 @@ const routes = [
         path: 'publish',
         name: 'publish',
         component: () => import('@/views/Publish.vue'),
-        meta: { requiresAuth: true, title: '发一条', back: true, hideTabBar: true },
+        // ownTop:Publish 自带「< 发动态」顶栏(编辑模式的取消就是它),
+        // 不加 ownTop 会叠出双顶栏双返回(实测截图确认)。
+        meta: { requiresAuth: true, title: '发一条', back: true, hideTabBar: true, ownTop: true },
       },
       {
         path: 'post/:id',
         name: 'postDetail',
         component: () => import('@/views/PostDetail.vue'),
-        meta: { requiresAuth: true, title: '帖子详情', back: true, hideTabBar: true },
+        // ownTop:PostDetail 自带「< 帖子详情 + 更多(...)」顶栏,理由同上。
+        meta: { requiresAuth: true, title: '帖子详情', back: true, hideTabBar: true, ownTop: true },
       },
       {
         path: 'post/:id/edit',
         name: 'postEdit',
         component: () => import('@/views/Publish.vue'),
-        meta: { requiresAuth: true, title: '改一下', back: true, hideTabBar: true },
+        meta: { requiresAuth: true, title: '改一下', back: true, hideTabBar: true, ownTop: true },
       },
 
       /* ---- 会话:列表页与单栏会话页分成两条路由(SPEC §9 AC-16) ---- */
@@ -190,6 +193,19 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  /**
+   * 滚动恢复:后退/前进(browser back 或页面返回键)时回到离开时的位置,
+   * 新导航回顶部。
+   *
+   * 例外:后退到首页(name==='home')时返回 false 不插手 —— 首页由 keep-alive
+   * 缓存,滚动位置交给 Home 组件自己的 onDeactivated/onActivated 自管
+   * (savedPosition 与缓存组件的配合时机不可靠,实测返回位置不准,且会与
+   * Home 自管恢复互相覆盖)。新导航到首页(savedPosition 为空)仍回顶部。
+   */
+  scrollBehavior(to, from, savedPosition) {
+    if (to.name === 'home' && savedPosition) return false
+    return savedPosition || { top: 0 }
+  },
 })
 
 // 全局守卫:未登录跳登录页,带 returnUrl;管理员页面校验权限

@@ -7,6 +7,7 @@ import {
   detail, like, unlike, deletePost,
   comments as commentsApi, comment as commentApi,
 } from '@/api/feed'
+import { markFeedDirty } from '@/composables/useFeedRefresh'
 
 /**
  * 帖子详情页的**有副作用**那一半(PostDetail.vue.md)
@@ -133,6 +134,7 @@ export function usePostDetailActions(route, router) {
     try {
       await deletePost(route.params.id)
       ElMessage.success('已删除')
+      markFeedDirty() // 首页 keep-alive 缓存里还有这篇,标脏让返回时重拉
       router.push('/')
     } catch {
       /* request.js 已弹错,停在原地让用户重试 */

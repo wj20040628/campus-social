@@ -45,9 +45,16 @@
               机制:out-in 要等旧组件 leave 完才挂新的,靠 transitionend 推进;
               组件在 leave 阶段抛错时收不到该事件,新组件永不挂载。
               去掉后组件抛错不再阻断挂载 —— 用户看到可用的错误页,而不是整片空白。
+
+              KeepAlive 只缓存 Home(必须显式 name,见 Home.vue 头注释):
+              从帖子返回时 feed 不重新挂载,配合 router scrollBehavior 的
+              savedPosition 实现「退出帖子回到刚才的位置」。内容变更(发帖/
+              编辑/删帖)后由 useFeedRefresh 的脏标记触发重拉,不会看到旧数据。
             -->
             <Transition name="ys-fade">
-              <component :is="Component" />
+              <KeepAlive include="Home">
+                <component :is="Component" />
+              </KeepAlive>
             </Transition>
           </router-view>
         </main>

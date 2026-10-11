@@ -269,6 +269,26 @@
 }
 
 @media (min-width: 1024px) {
+  /*
+   * 桌面端布局修正:移动端是「编辑器吃满剩余高度 + 发布栏吸底」的沉浸式,
+   * 但桌面端 foot 已改成 static(不吸底),若 .pub 仍 min-height:100dvh 且
+   * 编辑器 flex:1 拉伸,正文下方会凭空多出几百 px 空白,把话题框和发布按钮
+   * 推到首屏之外(实测截图确认)。桌面端应让高度随内容,编辑器给固定高度。
+   */
+  .pub {
+    min-height: auto;
+  }
+
+  .pub__body,
+  .pub__editor {
+    flex: 0 0 auto;
+  }
+
+  .pub__editor :deep(.el-textarea__inner) {
+    height: 180px;
+    min-height: 180px;
+  }
+
   .pub__foot {
     position: static;
     transform: none;

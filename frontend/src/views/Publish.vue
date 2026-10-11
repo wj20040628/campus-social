@@ -143,6 +143,7 @@ import { createPost, updatePost, detail } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
 import { useMediaUpload, parseTopics } from '@/composables/useMediaUpload'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
+import { markFeedDirty } from '@/composables/useFeedRefresh'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
@@ -264,11 +265,13 @@ async function submit() {
     if (isEdit.value) {
       const data = await updatePost(editingId.value, { content: content.value, media, topics })
       ElMessage.success(data.status === 0 ? '已保存，命中敏感词重回审核' : '已保存')
+      markFeedDirty() // 编辑会改内容/话题,首页列表缓存需重拉
       router.push(`/post/${data.id}`)
     } else {
       await createPost({ content: content.value, media, topics })
       // AC-06:命中敏感词时后端给 status=0(审核中),要明确告诉用户「发出去了但还在审」
       ElMessage.success('发出去了，等别人来搭话吧')
+      markFeedDirty() // 新帖必须出现在首页,keep-alive 缓存不能拦着
       router.push('/')
     }
   } catch {
