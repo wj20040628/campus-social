@@ -103,10 +103,11 @@
   color: var(--ys-danger);
 }
 
+/* 主按钮:全圆角胶囊(A 方向主动作语言,与 GreetButton/发布钮同形) */
 .auth-submit {
   width: 100%;
   min-height: var(--ys-touch-min);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
 }
 
 /* 验证码行:输入 flex:1 + 按钮最小宽 104px,一行两列 */
@@ -124,6 +125,7 @@
   white-space: nowrap;
   min-width: 104px;
   min-height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-full);
 }
 
 /* 字段下方的补充说明。不是错误,用 meta 色 */

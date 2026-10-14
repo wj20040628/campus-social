@@ -124,8 +124,8 @@ const memberText = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ys-surface-2);
-  color: var(--ys-muted);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
   font-size: var(--ys-text-xl);
 }
 
@@ -207,26 +207,34 @@ const memberText = computed(() => {
   height: 16px;
 }
 
-/* 「退出」:与「加入」同形的危险色胶囊,位置对齐,点下去不整行跳走 */
+/*
+ * 「退出」默认安静态:灰字 + 软描边,不抢注意力;hover 才给危险色。
+ * 理由:退出是低频破坏性操作。一排红按钮会把「加入」的青色稀释掉,
+ * 也让「我加了哪些圈」的浏览变吵。红色留给真的要退的那一刻,
+ * 且 hover 同时给文字/描边/底色三个信号,不是只变一个字色。
+ */
 .crow__leave {
   flex-shrink: 0;
   min-width: 72px;
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-3);
-  border: 1px solid var(--ys-danger);
+  border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-full);
   background: transparent;
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);
-  color: var(--ys-danger);
+  color: var(--ys-muted);
   cursor: pointer;
   transition:
     background-color var(--ys-motion-fast) var(--ys-ease-out),
-    border-color var(--ys-motion-fast) var(--ys-ease-out);
+    border-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
 .crow__leave:hover:not(:disabled) {
+  border-color: var(--ys-danger);
   background: var(--ys-danger-soft);
+  color: var(--ys-danger);
 }
 
 .crow__leave:active:not(:disabled) {
@@ -237,5 +245,35 @@ const memberText = computed(() => {
   border-color: var(--ys-border-control);
   color: var(--ys-meta);
   cursor: not-allowed;
+}
+
+/*
+ * 桌面端(>=1024px):行变卡片。
+ * 移动端是「发丝线分隔的全宽行」(信息密度优先,设计 §1.1);
+ * 桌面端进了 4 列网格后,行式分隔线会变成每张卡顶部一条突兀的横线,
+ * 所以这里恢复卡片形态:白底 + 暖描边 + 轻影 + 16px 圆角 ——
+ * 与 PostCard 同一套卡片语言(A 方向),hover 只升影不改色。
+ */
+@media (min-width: 1024px) {
+  .crow {
+    min-height: 88px;
+    padding: var(--ys-space-3) var(--ys-space-4);
+    border: 1px solid var(--ys-border);
+    border-radius: var(--ys-radius-xl);
+    background: var(--ys-surface);
+    box-shadow: var(--ys-shadow-1);
+    transition:
+      box-shadow var(--ys-motion-fast) var(--ys-ease-out),
+      border-color var(--ys-motion-fast) var(--ys-ease-out);
+  }
+  .crow:hover {
+    border-color: var(--ys-border-control);
+    box-shadow: var(--ys-shadow-2);
+  }
+  /* 卡片里按钮不再贴边,留出呼吸;加入/退出收窄到 88px 防拉伸 */
+  .crow__join,
+  .crow__leave {
+    min-width: 88px;
+  }
 }
 </style>

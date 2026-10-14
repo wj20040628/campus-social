@@ -4,7 +4,7 @@
   margin: 0 auto;
   background: var(--ys-surface);
   border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-xl);
+  border-radius: var(--ys-radius-2xl);
   overflow: hidden;
 }
 

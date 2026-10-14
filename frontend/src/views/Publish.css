@@ -121,7 +121,7 @@
 
 .pub__chips li {
   padding: 0 var(--ys-space-2);
-  border-radius: var(--ys-radius-md);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-accent-soft);
   font-size: var(--ys-text-sm);
   line-height: 24px;
@@ -201,7 +201,7 @@
   width: var(--ys-touch-min);
   height: var(--ys-touch-min);
   border: 0;
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   background: none;
   color: var(--ys-fg-2);
   cursor: pointer;
@@ -212,12 +212,13 @@
   background: var(--ys-surface-2);
 }
 
+/* 发布主按钮:全圆角胶囊(A 方向主动作语言,与 GreetButton 同形) */
 .pub__submit {
   flex: 1;
   max-width: 200px;
   min-height: var(--ys-touch-min);
   border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-accent);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);
@@ -284,9 +285,25 @@
     flex: 0 0 auto;
   }
 
+  /*
+   * A 方向(2026-10-15):桌面端把「正文 + 话题」包成一张白纸卡。
+   * 原来是表单一根到底:label、输入框、计数器直接坐在灰底上,
+   * 页面下方拖几百 px 空白(用户截图第 3 张的问题)。
+   * 成卡之后:书写区是有边界的一块「纸」,高度也放大到 280px,
+   * 桌面端写长动态不用在 180px 的小窗里憋。
+   */
+  .pub__body {
+    background: var(--ys-surface);
+    border: 1px solid var(--ys-border);
+    border-radius: var(--ys-radius-2xl);
+    box-shadow: var(--ys-shadow-1);
+    padding: var(--ys-space-6) 0 var(--ys-space-5);
+    margin-top: var(--ys-space-6);
+  }
+
   .pub__editor :deep(.el-textarea__inner) {
-    height: 180px;
-    min-height: 180px;
+    height: 280px;
+    min-height: 280px;
   }
 
   .pub__foot {
@@ -294,6 +311,7 @@
     transform: none;
     justify-content: flex-end;
     border-top: 0;
+    margin-top: var(--ys-space-4);
   }
 
   /* 桌面端媒体按钮恢复带文字 */

@@ -1,177 +1,173 @@
 <template>
-  <el-card class="post-card" shadow="hover" @click="$emit('click', post)">
-    <div class="post-head">
-      <el-avatar
-        :size="40"
-        :src="resolveUrl(post.author?.avatarUrl)"
-        class="post-avatar"
-        @click.stop="goAuthor"
-      />
-      <div class="post-user" @click.stop="goAuthor">
-        <div class="post-nick">{{ post.author ? displayName(post.author) : '匿名' }}</div>
-        <div class="post-time">{{ post.createTime }}</div>
-      </div>
-      <el-tag v-if="post.status === 0" type="warning" size="small">审核中</el-tag>
-      <el-tag v-else-if="post.status === 2" type="danger" size="small">已驳回</el-tag>
-      <el-tag v-else-if="post.circleId" type="info" size="small">圈子</el-tag>
-      <el-tag v-if="post.isTop" type="danger" effect="plain" size="small">置顶</el-tag>
-    </div>
+  <!--
+    A 方向(温暖人文)feed 卡片,2026-10-14 重写。要点:
+    自绘卡片(圆角 18 + 暖描边,走 token);无头像用彩色首字母圆;
+    点赞/评论是可点胶囊,点赞接现有 like/unlike;搭话复用 GreetButton;
+    图片自适应网格(1 图 16:10,2 图双列,3 图以上三列),并修掉旧版
+    video 的 poster 误用视频地址的 bug。props/emits 契约不变。
+  -->
+  <article class="pc" @click="$emit('click', post)">
+    <header class="pc__head">
+      <span class="pc__ava" @click.stop="goAuthor">
+        <InitialAvatar :size="40" :src="post.author?.avatarUrl ? resolveUrl(post.author.avatarUrl) : ''" :seed="post.author?.id" :name="post.author ? displayName(post.author) : ''" />
+      </span>
+      <span class="pc__who" @click.stop="goAuthor">
+        <span class="pc__name">{{ post.author ? displayName(post.author) : '匿名' }}</span>
+        <span class="pc__time ys-num">{{ post.createTime }}</span>
+      </span>
+      <span v-if="post.circleId" class="pc__ctag">圈子</span>
+      <span v-if="post.status === 0" class="pc__tag pc__tag--warn">审核中</span>
+      <span v-else-if="post.status === 2" class="pc__tag pc__tag--danger">已驳回</span>
+      <span v-if="post.isTop" class="pc__tag pc__tag--top">置顶</span>
+    </header>
 
-    <div class="post-body">
-      <p class="post-text">{{ post.content }}</p>
-      <div v-if="post.topics?.length" class="post-topics">
-        <el-tag
-          v-for="t in post.topics"
-          :key="t"
-          size="small"
-          type="primary"
-          effect="plain"
-          class="topic-tag"
-          @click.stop="goTopic(t)"
-        >
-          #{{ t }}
-        </el-tag>
+    <div class="pc__body">
+      <p class="pc__text">{{ post.content }}</p>
+      <div v-if="post.topics?.length" class="pc__topics">
+        <button v-for="t in post.topics" :key="t" type="button" class="pc__tpic" @click.stop="goTopic(t)">#{{ t }}</button>
       </div>
-      <div v-if="mediaList.length" class="post-media">
+      <div v-if="mediaList.length" class="pc__media" :class="'pc__media--n' + Math.min(mediaList.length, 3)">
         <template v-for="(m, i) in mediaList" :key="i">
-          <el-image
-            v-if="m.type === 'img'"
-            :src="resolveUrl(m.url)"
-            :preview-src-list="imgList"
-            :initial-index="i"
-            fit="cover"
-            class="post-img"
-            loading="lazy"
-          />
-          <video v-else :src="resolveUrl(m.url)" controls class="post-video" :poster="resolveUrl(m.url)"></video>
+          <el-image v-if="m.type === 'img'" :src="resolveUrl(m.url)" :preview-src-list="imgList" :initial-index="i" fit="cover" class="pc__img" loading="lazy" @click.stop />
+          <video v-else :src="resolveUrl(m.url)" controls class="pc__video" @click.stop></video>
         </template>
       </div>
     </div>
 
-    <div class="post-foot">
-      <span class="post-meta"><el-icon><Star /></el-icon> {{ post.likeCount || 0 }}</span>
-      <span class="post-meta"><el-icon><ChatLineRound /></el-icon> {{ post.commentCount || 0 }}</span>
-      <span class="post-meta"><el-icon><View /></el-icon> {{ post.viewCount || 0 }}</span>
-    </div>
-  </el-card>
+    <footer class="pc__foot">
+      <button type="button" class="pc__act" :class="{ 'pc__act--on': post.liked }" :aria-pressed="post.liked ? 'true' : 'false'" :aria-label="post.liked ? '取消点赞' : '点赞'" @click.stop="toggleLike">
+        <el-icon :size="15"><StarFilled v-if="post.liked" /><Star v-else /></el-icon>
+        <span class="ys-num">{{ post.likeCount || 0 }}</span>
+      </button>
+      <button type="button" class="pc__act" aria-label="看评论" @click.stop="goDetail">
+        <el-icon :size="15"><ChatLineRound /></el-icon>
+        <span class="ys-num">{{ post.commentCount || 0 }}</span>
+      </button>
+      <span class="pc__view" aria-label="浏览量">
+        <el-icon :size="15"><View /></el-icon>
+        <span class="ys-num">{{ post.viewCount || 0 }}</span>
+      </span>
+      <!-- 自己的帖子不渲染搭话;userInfo 未加载完时可能短暂露出,刷新即修正 -->
+      <GreetButton v-if="post.author?.id && post.author.id !== userStore.userInfo?.id" :peer-id="post.author.id" class="pc__greet" @need-verify="onNeedVerify" @error="onGreetError" />
+    </footer>
+  </article>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Star, ChatLineRound, View } from '@element-plus/icons-vue'
+import { Star, StarFilled, ChatLineRound, View } from '@element-plus/icons-vue'
+import GreetButton from '@/components/post/GreetButton.vue'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
+import { like, unlike } from '@/api/feed'
+import { useUserStore } from '@/stores/user'
+import { ElMessage } from '@/utils/feedback'
 
-const router = useRouter()
-const props = defineProps({
-  post: { type: Object, required: true },
-})
+const props = defineProps({ post: { type: Object, required: true } })
 defineEmits(['click', 'topic'])
 
-function goAuthor() {
-  if (props.post.author?.id) router.push(`/user/${props.post.author.id}`)
+const router = useRouter()
+const userStore = useUserStore()
+
+function goDetail() { router.push(`/post/${props.post.id}`) }
+function goAuthor() { if (props.post.author?.id) router.push(`/user/${props.post.author.id}`) }
+function goTopic(name) { router.push(`/topic/${encodeURIComponent(name)}`) }
+
+/** feed 内直接点赞。乐观更新 + 失败回滚,与 usePostDetailActions.toggleLike 同逻辑:
+ *  回滚恢复改之前的旧值,不做「减一」推算 —— 后端可能有并发点赞,真值以服务端为准 */
+async function toggleLike() {
+  const wasLiked = !!props.post.liked
+  const wasCount = Number(props.post.likeCount) || 0
+  props.post.liked = !wasLiked
+  props.post.likeCount = Math.max(0, wasCount + (wasLiked ? -1 : 1))
+  try {
+    if (wasLiked) await unlike(props.post.id)
+    else await like(props.post.id)
+  } catch {
+    props.post.liked = wasLiked
+    props.post.likeCount = wasCount
+    ElMessage.error('没点上,网络好像断了')
+  }
 }
 
-// 点话题标签 → 话题落地页
-function goTopic(name) {
-  router.push(`/topic/${encodeURIComponent(name)}`)
-}
+/** GreetButton 回执:未认证给可操作的提示,发送失败给一句人话 */
+function onNeedVerify() { ElMessage.warning('先完成学号认证才能搭话,去「我的 - 编辑资料」') }
+function onGreetError() { ElMessage.error('没搭上,对方可能关了陌生人消息') }
 
 const mediaList = computed(() => {
   if (!props.post.media) return []
-  // media 可能是 JSON 字符串或已解析
   let m = props.post.media
   if (typeof m === 'string') {
     try { m = JSON.parse(m) } catch { return [] }
   }
   return Array.isArray(m) ? m : []
 })
-
-const imgList = computed(() =>
-  mediaList.value.filter((x) => x.type === 'img').map((x) => resolveUrl(x.url))
-)
+const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').map((x) => resolveUrl(x.url)))
 </script>
 
 <style scoped>
-.post-card {
+.pc {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-2xl);
+  box-shadow: var(--ys-shadow-1);
+  padding: var(--ys-space-4);
   cursor: pointer;
-  transition: box-shadow 0.2s;
+  transition: box-shadow var(--ys-motion-fast) var(--ys-ease-out), border-color var(--ys-motion-fast) var(--ys-ease-out);
 }
-.post-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.pc:hover { border-color: var(--ys-border-control); box-shadow: var(--ys-shadow-2); }
+
+.pc__head { display: flex; align-items: center; gap: var(--ys-space-2); }
+.pc__ava { flex: none; cursor: pointer; display: inline-flex; }
+.pc__who { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; }
+.pc__name { font-size: 15px; font-weight: var(--ys-weight-semibold); line-height: 1.3; color: var(--ys-fg); }
+.pc__name:hover { color: var(--ys-accent); }
+.pc__time { font-size: var(--ys-text-xs); color: var(--ys-meta); margin-top: 1px; }
+
+/* 圈子标签:辅色橙胶囊;置顶用暖墨徽章(官方感),不用彩色描边 */
+.pc__ctag, .pc__tag { flex: none; font-size: 11px; line-height: 1; padding: 5px 10px; border-radius: var(--ys-radius-full); }
+.pc__ctag { color: var(--ys-accent-2); background: var(--ys-accent-2-soft); }
+.pc__tag--warn { color: var(--ys-warning); background: var(--ys-warning-soft); }
+.pc__tag--danger { color: var(--ys-danger); background: var(--ys-danger-soft); }
+.pc__tag--top { color: var(--ys-accent-on); background: var(--ys-fg); }
+
+.pc__body { margin-top: var(--ys-space-3); }
+.pc__text { margin: 0; font-size: var(--ys-text-md); line-height: var(--ys-lh-md); color: var(--ys-fg); white-space: pre-wrap; }
+.pc__topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--ys-space-2); }
+.pc__tpic {
+  border: 0; font-family: var(--ys-font-body); font-size: var(--ys-text-xs);
+  color: var(--ys-accent); background: var(--ys-accent-soft);
+  border-radius: var(--ys-radius-full); padding: 4px 10px; cursor: pointer;
 }
-.post-user .post-nick {
-  font-weight: 600;
-  font-size: 15px;
+.pc__tpic:hover { color: var(--ys-accent-hover); }
+
+.pc__media { display: grid; gap: 6px; margin-top: var(--ys-space-3); }
+.pc__media--n1 { grid-template-columns: 1fr; }
+.pc__media--n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pc__media--n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pc__media--n1 .pc__img { aspect-ratio: 16 / 10; }
+.pc__media--n2 .pc__img, .pc__media--n3 .pc__img { aspect-ratio: 1; }
+.pc__img { width: 100%; border-radius: var(--ys-radius-lg); display: block; }
+.pc__video { grid-column: 1 / -1; width: 100%; max-height: 360px; border-radius: var(--ys-radius-lg); background: #000; }
+
+.pc__foot {
+  display: flex; align-items: center; gap: var(--ys-space-2);
+  margin-top: var(--ys-space-3); padding-top: var(--ys-space-3);
+  border-top: 1px solid var(--ys-border-soft);
 }
-.post-user .post-time {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+/* 互动胶囊:默认暖纸底,点赞激活换青浅底 + 青字;min-height 保 44px 触摸目标 */
+.pc__act {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: var(--ys-touch-min); padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border); border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2); font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm); color: var(--ys-fg-2); cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out), color var(--ys-motion-fast) var(--ys-ease-out), border-color var(--ys-motion-fast) var(--ys-ease-out);
 }
-.post-avatar,
-.post-user {
-  cursor: pointer;
-}
-.post-avatar:hover {
-  opacity: 0.85;
-}
-.post-user .post-nick:hover {
-  color: var(--el-color-primary);
-}
-.post-body {
-  margin: 12px 0;
-}
-.post-text {
-  margin: 0;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-.post-topics {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.topic-tag {
-  cursor: pointer;
-}
-.topic-tag:hover {
-  opacity: 0.8;
-}
-.post-media {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-.post-img {
-  width: 180px;
-  height: 180px;
-  border-radius: 8px;
-}
-.post-video {
-  width: 100%;
-  max-width: 360px;
-  border-radius: 8px;
-}
-.post-foot {
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  padding-top: 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-.post-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.post-meta .el-icon {
-  font-size: 15px;
-  color: var(--el-text-color-secondary);
-}
+.pc__act:hover { border-color: var(--ys-border-control); }
+.pc__act--on { color: var(--ys-accent); background: var(--ys-accent-soft); border-color: var(--ys-accent); }
+.pc__view { display: inline-flex; align-items: center; gap: 5px; font-size: var(--ys-text-sm); color: var(--ys-meta); padding: 0 var(--ys-space-1); }
+.pc__greet { margin-left: auto; }
 </style>

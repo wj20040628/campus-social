@@ -172,13 +172,19 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/*
+ * 变量纪律:本文件原写法混用 --el-* 与 --card-radius。
+ * --el-* 虽经 Bridge 最终指向 --ys-*,但业务代码直接写 --el-* 违反
+ * design-tokens.css 头部硬规则 2(要改 EP 表现改 Bridge,不改业务侧),
+ * 且下一任改样式的人会不知道该追哪一层。统一收回 --ys-*。
+ */
 .notify-inner {
   max-width: 680px;
   margin: 0 auto;
   padding: 20px;
 }
 .notify-inner .el-card {
-  border-radius: var(--card-radius);
+  border-radius: var(--ys-radius-xl);
 }
 .n-head {
   display: flex;
@@ -201,19 +207,20 @@ onBeforeUnmount(() => {
 }
 .n-skeleton {
   padding: 12px 4px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--ys-border-soft);
 }
 .n-item {
   display: flex;
   gap: 12px;
   padding: 14px 12px;
   margin: 0 -12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--ys-border-soft);
   cursor: pointer;
-  border-radius: var(--card-radius);
+  border-radius: var(--ys-radius-lg);
 }
+/* 未读:青浅底 + 左侧 3px 青条。不用灰底 —— 未读是全页最重要的状态 */
 .n-item.unread {
-  background: var(--el-color-primary-light-9);
+  background: var(--ys-accent-soft);
   position: relative;
 }
 .n-item.unread::before {
@@ -224,7 +231,7 @@ onBeforeUnmount(() => {
   bottom: 14px;
   width: 3px;
   border-radius: 2px;
-  background: var(--el-color-primary);
+  background: var(--ys-accent);
 }
 .n-item:hover {
   opacity: 0.85;
@@ -240,7 +247,7 @@ onBeforeUnmount(() => {
 }
 .n-time {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--ys-meta);
   margin-top: 4px;
 }
 .n-badge {

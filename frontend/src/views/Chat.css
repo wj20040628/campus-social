@@ -53,7 +53,7 @@
 .chat__blank-btn {
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-6);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   border: 1px solid var(--ys-accent);
   background: var(--ys-accent);
   color: var(--ys-accent-on);

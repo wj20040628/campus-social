@@ -206,4 +206,14 @@ defineEmits(['follow', 'chat', 'settings', 'report'])
   display: flex;
   gap: var(--ys-space-2);
 }
+
+/*
+ * A 方向(2026-10-15):操作区按钮统一胶囊形。
+ * EP 默认圆角是 --el-border-radius-base(8px);关注/发私信/编辑资料
+ * 都是主动作,和 GreetButton、发布钮同形才像一家。
+ * 用 :deep 是因为 el-button 的根节点在组件内部,scoped 选择器打不进去。
+ */
+.p-actions :deep(.el-button) {
+  border-radius: var(--ys-radius-full);
+}
 </style>

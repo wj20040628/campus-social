@@ -64,6 +64,18 @@
 
         <MediaGrid :cells="cells" @remove="removeMedia" @retry="retryMedia" />
 
+        <!--
+          行 6:字数条。**紧贴正文区**,不放到话题框后面 ——
+          放在那里视觉上会被读成「话题的字数」,而它数的是正文(5000 上限)。
+          接近上限变色,到上限给一句可执行的提示。
+        -->
+        <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
+          {{ content.length }} / {{ MAX_LEN }}
+        </p>
+        <p v-if="atLimit" class="pub__count-tip" role="status">
+          到 {{ MAX_LEN }} 字了，删一点再发
+        </p>
+
         <label class="pub__label" for="pub-topic">话题</label>
         <el-input
           id="pub-topic"
@@ -77,14 +89,6 @@
           <!-- 超过 5 个只留前 5 个,多的用「+N」提示还有多少 -->
           <li v-if="topicOverflow > 0" class="pub__chips-more">+{{ topicOverflow }}</li>
         </ul>
-
-        <!-- 行 6:字数条。接近上限变色,到上限给一句可执行的提示 -->
-        <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
-          {{ content.length }} / {{ MAX_LEN }}
-        </p>
-        <p v-if="atLimit" class="pub__count-tip" role="status">
-          到 {{ MAX_LEN }} 字了，删一点再发
-        </p>
       </main>
 
       <!-- 错误提示贴操作栏上方。**正文与图片全部保留**(Publish.vue.md §3) -->

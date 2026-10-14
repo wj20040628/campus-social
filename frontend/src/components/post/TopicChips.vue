@@ -69,7 +69,7 @@ const overflow = computed(() => Math.max(0, clean.value.length - MAX_SHOWN))
   display: inline-flex;
   align-items: center;
   border: none;
-  border-radius: var(--ys-radius-md);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-accent-soft);
   color: var(--ys-accent);
   font-family: var(--ys-font-body);

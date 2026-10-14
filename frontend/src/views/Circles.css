@@ -175,8 +175,15 @@
 
 /*
   桌面端从行式切回卡片网格。
-  移动端的单列由 .crow 自身撑满,这里只负责 ≥1024px 的网格。
+  移动端的单列由 .crow 自身撑满,这里只负责 >=1024px 的网格。
+  max-width 900 与工具条对齐:不封顶的话 1440px 屏上四张卡会被
+  1fr 拉到 300px 宽一张,卡片里只有两行字,空旷得不像卡片。
 */
+.circle-rows {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
 @media (min-width: 1024px) {
   .circle-rows {
     display: grid;

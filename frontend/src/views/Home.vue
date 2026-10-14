@@ -1,6 +1,12 @@
 <template>
   <div class="home">
-    <div class="home-inner">
+    <!--
+      >=1280px 时双栏:主栏(feed)+ 右栏 HomeAside(公告速览/热搜/推荐圈子)。
+      右栏只在 isWide 时渲染,组件内不做断点判断 —— 断点归 Home 管,
+      右栏组件保持「给什么渲染什么」的哑组件。
+    -->
+    <div class="home-inner" :class="{ 'home-inner--wide': isWide }">
+     <div class="home-main">
       <!--
         认证状态提示条(驳回 / 审核中)。
         放在**筛选条之上、Tab 之上**:被驳回是「你的账号有问题」级别的信息,
@@ -53,17 +59,15 @@
           </el-input>
 
           <template v-if="tab === 'all'">
-            <el-select v-model="sortBy" class="feed-filter" @change="onFilterChange">
-              <el-option label="按时间" value="time" />
-              <el-option label="按点赞量" value="like" />
-              <el-option label="按评论数" value="comment" />
-              <el-option label="按浏览量" value="view" />
-            </el-select>
-
-            <el-select v-model="sortOrder" class="feed-order" @change="onFilterChange">
-              <el-option label="倒序" value="desc" />
-              <el-option label="正序" value="asc" />
-            </el-select>
+            <!--
+              排序:「最新 / 最热」分段控件,替掉旧的两个下拉(按时间 + 倒序)。
+              两个下拉表达一个语义,用户要逐字读完才知道怎么选;分段一眼可见。
+              最热 = 按点赞量倒序,沿用旧 feed 接口的 by=like&order=desc。
+            -->
+            <div class="seg" role="group" aria-label="排序方式">
+              <button type="button" class="seg__btn" :class="{ 'seg__btn--on': sortMode === 'new' }" :aria-pressed="sortMode === 'new' ? 'true' : 'false'" @click="setSort('new')">最新</button>
+              <button type="button" class="seg__btn" :class="{ 'seg__btn--on': sortMode === 'hot' }" :aria-pressed="sortMode === 'hot' ? 'true' : 'false'" @click="setSort('hot')">最热</button>
+            </div>
           </template>
         </div>
       </div>
@@ -107,6 +111,8 @@
           </div>
         </template>
       </div>
+     </div>
+     <HomeAside v-if="isWide" :posts="posts" class="home-aside" />
     </div>
   </div>
 </template>
@@ -119,20 +125,29 @@
  */
 defineOptions({ name: 'Home' })
 
-import { ref, onMounted, onActivated, onDeactivated, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onActivated, onDeactivated, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import VerifyNotice from '@/components/common/VerifyNotice.vue'
+import HomeAside from '@/components/HomeAside.vue'
 import { ChatLineSquare, Promotion, CaretRight } from '@element-plus/icons-vue'
 import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
-import { useIsMobile } from '@/composables/useBreakpoint'
+import { useBreakpoint, BREAKPOINTS } from '@/composables/useBreakpoint'
 import { feedDirty } from '@/composables/useFeedRefresh'
 
 const router = useRouter()
-const isMobile = useIsMobile()
+
+/**
+ * 断点:xl(1280px)是右栏的开关。小于 1280 时右栏整个不渲染(v-if),
+ * 不是 CSS 隐藏 —— 隐藏元素仍会被 Tab 键走到(MainLayout 同款理由)。
+ */
+const { width } = useBreakpoint()
+const isMobile = computed(() => width.value < BREAKPOINTS.lg)
+const isWide = computed(() => width.value >= BREAKPOINTS.xl)
+
 const tab = ref('following') // 默认"关注"
 const posts = ref([])
 const cursor = ref(null)
@@ -144,10 +159,9 @@ let observer = null
 const { load: loadVerifyStatus } = useVerifyStatus()
 const sentinelEl = ref(null)
 
-// 搜索 + 筛选/排序(全部 tab)
+// 排序模式:new=最新(默认,可无限刷) / hot=最热(按点赞,只看第一页)
 const searchQ = ref('')
-const sortBy = ref('time')    // time | like | comment | view
-const sortOrder = ref('desc') // desc | asc
+const sortMode = ref('new')
 
 function normalize(list) {
   return (list || []).map((p) => ({
@@ -183,11 +197,11 @@ async function loadFeed(reset = false) {
       cursor.value = data.hasMore ? data.nextCursor : null
       hasMore.value = data.hasMore
     } else {
-      // 全部 tab:非默认筛选(非 time/desc)只看第一页,不叠加无限刷
-      const filtered = sortBy.value !== 'time' || sortOrder.value !== 'desc'
+      // 全部 tab:「最热」是非默认筛选,只看第一页,不叠加无限刷(同旧逻辑)
+      const filtered = sortMode.value !== 'new'
       const data = await feedApi(filtered ? (reset ? null : cursor.value) : cursor.value, 20, {
-        by: sortBy.value,
-        order: sortOrder.value,
+        by: sortMode.value === 'hot' ? 'like' : 'time',
+        order: 'desc',
       })
       posts.value = !filtered && cursor.value && !reset
         ? [...posts.value, ...normalize(data.list)]
@@ -203,8 +217,10 @@ async function loadFeed(reset = false) {
   }
 }
 
-// 筛选/排序变化 → 重置拉第一页
-function onFilterChange() {
+/** 排序切换:最新 / 最热。点当前项不重拉 */
+function setSort(mode) {
+  if (sortMode.value === mode) return
+  sortMode.value = mode
   loadFeed(true)
 }
 
@@ -308,6 +324,16 @@ onBeforeUnmount(() => {
   margin: 0 auto;
   padding: 20px;
 }
+/*
+ * >=1280px 双栏:主栏自适应 + 右栏 var(--ys-aside-w)(320px,token 里
+ * 早就定义但一直没页面用,这次首页第一个用上)。1280 写字面量:
+ * 没有 postcss-custom-media 时 @media(--ys-bp-xl) 会被浏览器静默丢弃,
+ * 值取自 design-tokens.json 的 breakpoint.xl。
+ */
+@media (min-width: 1280px) {
+  .home-inner--wide { max-width: 1024px; display: grid; grid-template-columns: minmax(0, 1fr) var(--ys-aside-w); gap: var(--ys-space-6); align-items: start; }
+  .home-aside { position: sticky; top: var(--ys-space-6); }
+}
 /* 公告入口横幅:仅在移动端出现(桌面侧栏已有入口),宽度贴 home-inner,热区 ≥44px */
 .home-ann {
   display: flex;
@@ -387,16 +413,23 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 10px;
   margin-bottom: 16px;
+  align-items: center;
 }
 .feed-search {
   flex: 1;
 }
-.feed-filter {
-  width: 130px;
+/*
+ * 分段控件(最新/最热):暖纸底槽 + 白色激活胶囊。
+ * 按钮 min-height 走 --ys-touch-min(44px):排序是高频操作,拇指要够大。
+ */
+.seg { flex: none; display: flex; gap: 2px; padding: 3px; background: var(--ys-surface-2); border-radius: var(--ys-radius-full); }
+.seg__btn {
+  border: 0; background: transparent; border-radius: var(--ys-radius-full);
+  min-height: var(--ys-touch-min); padding: 0 var(--ys-space-4);
+  font-family: var(--ys-font-body); font-size: var(--ys-text-sm); color: var(--ys-muted); cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out), color var(--ys-motion-fast) var(--ys-ease-out);
 }
-.feed-order {
-  width: 100px;
-}
+.seg__btn--on { background: var(--ys-surface); color: var(--ys-accent); font-weight: var(--ys-weight-semibold); box-shadow: var(--ys-shadow-1); }
 .feed-list {
   display: flex;
   flex-direction: column;

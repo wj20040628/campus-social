@@ -63,20 +63,29 @@
   padding: var(--ys-space-4) var(--ys-gutter-phone);
 }
 
+/*
+ * 操作条按钮 = 胶囊,与 feed 卡片底部同一套语言(A 方向):
+ * 暖纸底 + 暖描边 + 全圆角;点赞激活换青浅底青字。
+ * 旧版是「无底无边的文字按钮,hover 才出灰底」—— 详情页一屏就一个
+ * 主操作,分量不够,且和 feed 卡片不像一家。改胶囊后两处一致。
+ */
 .ops__btn {
   display: inline-flex;
   align-items: center;
   gap: var(--ys-space-1);
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-3);
-  border: 0;
-  border-radius: var(--ys-radius-lg);
-  background: none;
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
   font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
+  font-size: var(--ys-text-sm);
   color: var(--ys-fg-2);
   cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
 /* 计数是纯展示(评论数不可点),不能继承 button 的手型 */
@@ -85,15 +94,23 @@
 }
 
 .ops__btn:hover {
-  background: var(--ys-surface-2);
+  border-color: var(--ys-border-control);
 }
 
 .ops__btn--on {
   color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+  border-color: var(--ys-accent);
 }
 
+/* 删除保持危险字色但不给红底:作者专属、低频,红字已是足够信号 */
 .ops__btn--danger {
   color: var(--ys-danger);
+}
+
+.ops__btn--danger:hover {
+  border-color: var(--ys-danger);
+  background: var(--ys-danger-soft);
 }
 
 .ops__count {
