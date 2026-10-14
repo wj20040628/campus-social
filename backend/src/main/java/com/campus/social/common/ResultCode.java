@@ -93,6 +93,15 @@ public enum ResultCode {
      */
     VERIFY_NOT_FOUND(1044, "该学号核验申请不存在或已不在审核中"),
 
+    // 1047 起:校园限时活动集市(mkt)
+    MKT_NOT_FOUND(1047, "活动不存在或已下架"),
+    MKT_NOT_OWNER(1048, "仅发布者本人可操作该活动"),
+    MKT_CATEGORY_INVALID(1049, "一级分类不合法"),
+    MKT_TITLE_INVALID(1050, "标题长度需在 15-25 字符之间"),
+    MKT_CONTENT_INVALID(1051, "详情需在 1-500 字之间"),
+    MKT_EXPIRE_INVALID(1052, "投放截止时间不合法(需为未来且单次不超过 12 小时)"),
+    MKT_REACTIVATE_LIMIT(1053, "24 小时内重新激活次数已达上限"),
+
     // 频率类:复用 HTTP 429 段(枚举内本就混排 4xx 与 1xxx)
     TOO_MANY_REQUESTS(429, "操作过于频繁,请稍后再试");
 

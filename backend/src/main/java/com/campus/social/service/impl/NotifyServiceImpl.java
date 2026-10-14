@@ -98,6 +98,7 @@ public class NotifyServiceImpl implements NotifyService {
             case 7: return "你的内容已通过审核";
             case 8: return "你的内容未通过审核";
             case 9: return "在评论中@了你";
+            case 10: return "在你的集市活动下留言了";
             default: return "";
         }
     }

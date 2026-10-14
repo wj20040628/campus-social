@@ -15,6 +15,10 @@
         <el-icon><ChatDotSquare /></el-icon>
         <span>圈子</span>
       </el-menu-item>
+      <el-menu-item index="/mkt">
+        <el-icon><OfficeBuilding /></el-icon>
+        <span>集市</span>
+      </el-menu-item>
       <el-menu-item index="/publish">
         <el-icon><EditPen /></el-icon>
         <span>发动态</span>
@@ -64,7 +68,7 @@
 import { computed } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
-  Bell, DocumentChecked, List, Postcard,
+  Bell, DocumentChecked, List, Postcard, OfficeBuilding,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -85,6 +89,7 @@ const activeMenu = computed(() => {
   if (p.startsWith('/announcement')) return '/announcement'
   if (p.startsWith('/circles')) return '/circles'
   if (p.startsWith('/activity')) return '/circles'
+  if (p.startsWith('/mkt')) return '/mkt'
   if (p.startsWith('/publish')) return '/publish'
   if (p.startsWith('/post')) return '/'
   if (p.startsWith('/user')) return '/'

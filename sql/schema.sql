@@ -280,6 +280,49 @@ CREATE TABLE IF NOT EXISTS `activity_signup` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='活动报名';
 
 -- ------------------------------------------------------------
+-- 校园限时活动集市(mkt)
+-- 与既有 activity/activity_signup(圈子签到活动) 完全并行, 语义不同:
+-- 这里是「一条限时投放的帖子」, 广场可见 + 详情页公共留言区。
+-- 无审核流程, 无对外联系方式入口。广场可见性 = 纯查询过滤(无定时任务):
+--   soft_delete=0 AND is_enable=1 AND is_full=0 AND expire_time>NOW()
+-- 排序永远按 last_launch_time 倒序(最近激活), 不做热度排序。
+-- 时间统一东八区(GMT+8)。重激活 24h/3 次限流走 Redis, 不落表。
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `mkt_activity` (
+    `id`               BIGINT       NOT NULL AUTO_INCREMENT,
+    `user_id`          BIGINT       NOT NULL COMMENT '发布者',
+    `category`         VARCHAR(32)  NOT NULL COMMENT '一级分类(9选1)',
+    `sub_tag`          VARCHAR(64)  NULL COMMENT '子关键词(可选)',
+    `title`            VARCHAR(64)  NOT NULL COMMENT '15-25 字符',
+    `content`          TEXT         NOT NULL COMMENT '1-500 字',
+    `target_num`       INT          NULL COMMENT '期望人数(纯展示,无自动报名/计数)',
+    `price`            DECIMAL(10,2) NULL COMMENT '0=免费',
+    `location`         VARCHAR(128) NULL,
+    `is_enable`        TINYINT      NOT NULL DEFAULT 1 COMMENT '手动开关 1开 0暂停',
+    `expire_time`      DATETIME     NOT NULL COMMENT '投放截止时间',
+    `is_full`          TINYINT      NOT NULL DEFAULT 0 COMMENT '手动满员标记',
+    `create_time`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '首次创建,固定不变',
+    `last_launch_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最近一次激活/重投放,广场排序键',
+    `soft_delete`      TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_launch` (`last_launch_time`),
+    KEY `idx_user` (`user_id`),
+    KEY `idx_category` (`category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='校园限时活动集市';
+
+-- 集市活动留言(硬绑 mkt_activity, 不复用 post 的 comment)
+CREATE TABLE IF NOT EXISTS `mkt_comment` (
+    `id`            BIGINT       NOT NULL AUTO_INCREMENT,
+    `activity_id`   BIGINT       NOT NULL,
+    `user_id`       BIGINT       NOT NULL,
+    `content`       TEXT         NOT NULL,
+    `create_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_deleted`    TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_act` (`activity_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='集市活动留言';
+
+-- ------------------------------------------------------------
 -- 敏感词
 -- level: 1替换 2拒发
 -- 应用层构建 DFA 字典缓存 + 定时刷新
@@ -447,4 +490,12 @@ ALTER TABLE `review_task`
 INSERT IGNORE INTO `sensitive_word` (`word`, `level`) VALUES
     ('测试违禁词', 2),
     ('示例敏感词A', 2),
-    ('示例敏感词B', 1);
+    ('示例敏感词B', 1),
+    -- 集市活动禁发：商业/代做/代考/违规跑腿/赌博/烟酒（level 2 拒发）
+    ('商业广告', 2),
+    ('有偿代做', 2),
+    ('代考', 2),
+    ('代写作业', 2),
+    ('赌博', 2),
+    ('烟酒', 2),
+    ('违规跑腿', 2);

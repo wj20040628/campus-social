@@ -81,6 +81,31 @@
   background: var(--ys-accent-hover);
 }
 
+/* 集市入口:与「创建圈子」同排,样式降一级(描边而非实底),视觉权重让给主操作 */
+.circles__mkt {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.circles__mkt:hover {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg);
+}
+
 /* 手机端只留 44x44 图标:搜索框 + 三个按钮在 375px 下会把输入框挤到装不下字 */
 .circles__create-text {
   display: none;
@@ -141,6 +166,9 @@
     display: inline;
   }
   .circles__create {
+    padding: 0 var(--ys-space-4);
+  }
+  .circles__mkt {
     padding: 0 var(--ys-space-4);
   }
 }

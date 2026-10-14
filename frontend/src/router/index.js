@@ -116,6 +116,27 @@ const routes = [
         component: () => import('@/views/ActivityDetail.vue'),
         meta: { requiresAuth: true, title: '活动详情', back: true },
       },
+
+      /* ---- 校园限时活动集市（mkt）：广场+我的发布 / 发布页 / 详情 ---- */
+      {
+        path: 'mkt',
+        name: 'mkt',
+        component: () => import('@/views/MktPlaza.vue'),
+        meta: { requiresAuth: true, title: '集市' },
+      },
+      {
+        path: 'mkt/publish',
+        name: 'mktPublish',
+        component: () => import('@/views/MktPublish.vue'),
+        // ownTop:发布页自带「< 发布活动」顶栏 + 吸底提交栏,与 Publish 同理由。
+        meta: { requiresAuth: true, title: '发布集市活动', back: true, hideTabBar: true, ownTop: true },
+      },
+      {
+        path: 'mkt/:id',
+        name: 'mktDetail',
+        component: () => import('@/views/MktDetail.vue'),
+        meta: { requiresAuth: true, title: '活动详情', back: true, hideTabBar: true },
+      },
       {
         path: 'search',
         name: 'search',

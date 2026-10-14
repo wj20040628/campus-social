@@ -42,6 +42,20 @@
         <el-icon :size="20"><Plus /></el-icon>
         <span class="circles__create-text">创建圈子</span>
       </button>
+      <!--
+        集市入口(校园限时活动集市)。手机 TabBar 是 PRD 锁定的 5 项不可动,
+        桌面 SideNav 已有「集市」菜单;这里给圈子页一个次级入口,
+        让没看侧栏的用户也能到达广场(计划 §手动验证 全链路起点)。
+      -->
+      <button
+        type="button"
+        class="circles__mkt"
+        aria-label="去集市广场"
+        @click="router.push('/mkt')"
+      >
+        <el-icon :size="20"><OfficeBuilding /></el-icon>
+        <span class="circles__create-text">集市</span>
+      </button>
     </div>
 
     <!-- 首屏骨架:6 条圈子行(48px 方块 + 两行文字条) -->
@@ -222,7 +236,7 @@
  */
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, WarningFilled, OfficeBuilding } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
