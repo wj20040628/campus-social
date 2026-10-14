@@ -65,6 +65,16 @@
   background: var(--ys-surface-2);
 }
 
+.cd__banned {
+  padding: var(--ys-space-3) var(--ys-space-4);
+  margin-bottom: var(--ys-space-4);
+  border: 1px solid var(--ys-danger);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-danger-soft);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-sm);
+}
+
 .cd__gate-text,
 .cd__act-hint {
   font-size: var(--ys-text-sm);
@@ -82,5 +92,34 @@
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-sm);
   cursor: pointer;
+}
+
+/* 吧主级操作条:紧贴 PostCard 底部,role<=2 可见 */
+.cd__post-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--ys-border-soft);
+  border-top: none;
+  border-radius: 0 0 var(--ys-radius-md) var(--ys-radius-md);
+  background: var(--ys-surface-2);
+}
+
+.cd__post-actions button {
+  flex: none;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-xs);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cd__post-actions button:hover {
+  border-color: var(--ys-accent);
+  color: var(--ys-accent);
 }
 

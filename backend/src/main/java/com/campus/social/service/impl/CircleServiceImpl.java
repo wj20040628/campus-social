@@ -7,6 +7,7 @@ import com.campus.social.entity.*;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.*;
 import com.campus.social.service.CircleService;
+import com.campus.social.service.CircleAdminService;
 import com.campus.social.vo.CircleVO;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
@@ -29,10 +30,16 @@ public class CircleServiceImpl implements CircleService {
     private final CircleMemberMapper circleMemberMapper;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    /** 官方名保护:建圈撞预留名直接拦(运营后台维护 reserved_circle_name) */
+    private final CircleAdminService circleAdminService;
 
     @Override
     @Transactional
     public long createCircle(long owner, CircleDTO dto) {
+        // 官方名保护:撞预留名直接拦(在重名检查之前,文案区分)
+        if (circleAdminService.isReservedName(dto.getName())) {
+            throw new BusinessException(CIRCLE_NAME_RESERVED, "该圈子名已被系统预留,无法创建");
+        }
         // 名称唯一(逻辑删除外)
         LambdaQueryWrapper<Circle> qw = new LambdaQueryWrapper<Circle>()
                 .eq(Circle::getName, dto.getName());
@@ -129,10 +136,13 @@ public class CircleServiceImpl implements CircleService {
 
     @Override
     public CursorPage<PostVO> circlePosts(long circleId, Long lastId, int size, long viewerId) {
+        // 置顶优先:is_top 降序(置顶帖排最前),同状态内按 id 倒序;
+        // 置顶/非置顶是两组,游标跨组时用 lastId 作为 id 上界近似(置顶组量小,可接受)
         LambdaQueryWrapper<Post> qw = new LambdaQueryWrapper<Post>()
                 .eq(Post::getCircleId, circleId)
                 .eq(Post::getStatus, 1)
                 .lt(lastId != null, Post::getId, lastId)
+                .orderByDesc(Post::getIsTop)
                 .orderByDesc(Post::getId)
                 .last("LIMIT " + (size + 1));
         List<Post> rows = postMapper.selectList(qw);
@@ -153,6 +163,7 @@ public class CircleServiceImpl implements CircleService {
                     .hotScore(p.getHotScore())
                     .circleId(p.getCircleId())
                     .createTime(p.getCreateTime())
+                    .isTop(p.getIsTop() != null && p.getIsTop() == 1)
                     .build();
         }).toList();
 
@@ -163,12 +174,18 @@ public class CircleServiceImpl implements CircleService {
     private CircleVO toVo(Circle c, long viewerId) {
         UserVO ovo = UserVoAssembler.of(userMapper.selectById(c.getOwnerId()));
 
+        int myRole = 0; // 0=非成员
         boolean joined = false;
+        boolean myBanned = false;
         if (viewerId > 0) {
-            LambdaQueryWrapper<CircleMember> qw = new LambdaQueryWrapper<CircleMember>()
+            CircleMember me = circleMemberMapper.selectOne(new LambdaQueryWrapper<CircleMember>()
                     .eq(CircleMember::getCircleId, c.getId())
-                    .eq(CircleMember::getUserId, viewerId);
-            joined = circleMemberMapper.selectCount(qw) > 0;
+                    .eq(CircleMember::getUserId, viewerId));
+            if (me != null) {
+                joined = true;
+                myRole = me.getRole() == null ? 3 : me.getRole();
+                myBanned = circleAdminService.isBanned(c.getId(), viewerId);
+            }
         }
         return CircleVO.builder()
                 .id(c.getId())
@@ -179,6 +196,8 @@ public class CircleServiceImpl implements CircleService {
                 .status(c.getStatus())
                 .createTime(c.getCreateTime())
                 .joined(joined)
+                .myRole(myRole)
+                .myBanned(myBanned)
                 .build();
     }
 }

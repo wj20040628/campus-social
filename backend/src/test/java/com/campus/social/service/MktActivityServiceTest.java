@@ -118,17 +118,22 @@ class MktActivityServiceTest {
     /* ---------------- create 校验 ---------------- */
 
     @Test
-    void create_rejectsTitleShorterThan15() {
+    void create_derivesMainTextFromCategoryAndGame() {
         MktActivityDTO dto = fixTitle();
-        dto.setTitle("短标题");
-        assertThrows(BusinessException.class, () -> service.create(OWNER, dto));
+        // 前端不再采集独立标题,主文案 = 「分类 · 游戏」
+        dto.setCategory("游戏组队");
+        dto.setSubTag("王者荣耀");
+        Long id = service.create(OWNER, dto);
+        MktActivityVO vo = service.detail(id, OTHER);
+        assertEquals("游戏组队 · 王者荣耀", vo.getMainText());
     }
 
     @Test
-    void create_rejectsTitleLongerThan25() {
+    void create_acceptsOmittedTitle() {
         MktActivityDTO dto = fixTitle();
-        dto.setTitle("这是一段非常非常非常非常非常长的活动标题超过上限应该被拦下来拒绝提交处理结果");
-        assertThrows(BusinessException.class, () -> service.create(OWNER, dto));
+        dto.setTitle(null); // 标题已改可选,缺省用「分类 · 游戏」当主文案
+        Long id = service.create(OWNER, dto);
+        assertNotNull(id);
     }
 
     @Test
@@ -216,11 +221,14 @@ class MktActivityServiceTest {
     }
 
     @Test
-    void reactivate_refreshesLastLaunchTime() {
+    void reactivate_refreshesLastLaunchTime() throws InterruptedException {
         MktActivityDTO dto = fixTitle();
         Long id = service.create(OWNER, dto);
         createdId = id;
         MktActivity before = mktMapper.selectById(id);
+
+        // 等 1s,保证 create 与 reactivate 落在不同的 DB 秒,避免同秒 isAfter 误判
+        Thread.sleep(1100);
 
         MktReactivDTO r = new MktReactivDTO();
         r.setNewExpire(LocalDateTime.now().plusHours(3));

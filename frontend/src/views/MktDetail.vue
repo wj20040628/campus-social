@@ -41,10 +41,9 @@
       </div>
 
       <template v-else-if="act">
-        <!-- 块 2:大标签栏:一级分类 + 子关键词 -->
+        <!-- 块 2:大标签栏:一级分类 + 倒计时(游戏已并入下方主文案) -->
         <div class="md__tags">
           <span class="md__cat">{{ act.category }}</span>
-          <span v-if="act.subTag" class="md__sub">{{ act.subTag }}</span>
           <span
             class="md__timer"
             :class="{ 'md__timer--warn': timerWarn, 'md__timer--expired': timerExpired }"
@@ -53,8 +52,8 @@
           </span>
         </div>
 
-        <!-- 块 3:大号标题(完整,不截断) -->
-        <h2 class="md__h">{{ act.title }}</h2>
+        <!-- 块 3:大号主文案「分类 · 游戏」(完整,不截断) -->
+        <h2 class="md__h">{{ act.mainText || act.title }}</h2>
 
         <!-- 块 4:📝完整详情正文(全展开,{{ }} 渲染) -->
         <div class="md__content">{{ act.content }}</div>
@@ -317,14 +316,6 @@ onMounted(load)
   color: var(--ys-accent-2);
   font-size: var(--ys-text-sm);
   font-weight: var(--ys-weight-medium);
-}
-
-.md__sub {
-  padding: 4px var(--ys-space-3);
-  border-radius: var(--ys-radius-md);
-  background: var(--ys-surface-2);
-  color: var(--ys-fg-2);
-  font-size: var(--ys-text-sm);
 }
 
 .md__timer {

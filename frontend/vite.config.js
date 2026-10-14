@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import vueDevTools from 'vite-plugin-vue-devtools'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
@@ -9,6 +10,9 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   plugins: [
     vue(),
+    // 浏览器 Vue DevTools 扩展的数据源:dev 期起后,Chrome/Edge F12 的 Vue 标签
+    // 可「点页面上的元素 → 跳源码组件」/「选组件 → 高亮 DOM」。只注入 dev,不进 build。
+    vueDevTools(),
     // Element Plus 按需引入:扫模板里的 <el-xxx> 自动 import 组件 + 其样式,
     // 替代 main.js 的整包 app.use(ElementPlus)(TD-21)。
     // 同时 AutoImport 自动引入 ElMessage/ElMessageBox 等 API(免手写 import)。

@@ -9,39 +9,63 @@
       -->
       <VerifyNotice />
 
-      <!-- 关注 / 全部 tab(A1:读 feed_item 的写扩散收件箱) -->
-      <el-tabs v-model="tab" class="feed-tabs">
-        <el-tab-pane label="关注" name="following" />
-        <el-tab-pane label="全部" name="all" />
-      </el-tabs>
+      <!--
+        公告入口(仅移动端):手机端唯一能进 /announcement 的路径 —— 桌面侧栏
+        有「公告」项,但移动端侧栏 display:none,TabBar 五入口被 PRD 锁死不能加,
+        顶栏已砍到只剩铃铛。故在首页 feed 之上放一条可点横幅,点开进公告列表。
+        桌面端隐藏(侧栏已提供入口,避免重复)。
+      -->
+      <button
+        v-if="isMobile"
+        type="button"
+        class="home-ann"
+        @click="router.push('/announcement')"
+      >
+        <el-icon class="home-ann__icon" :size="18"><Promotion /></el-icon>
+        <span class="home-ann__text">公告 · 查看最新通知</span>
+        <el-icon class="home-ann__chev"><CaretRight /></el-icon>
+      </button>
 
-      <!-- 搜索 + 筛选/排序 工具条(仅"全部"tab 有筛选;关注 tab 只看关注的人) -->
-      <div class="feed-tools">
-        <el-input
-          v-model="searchQ"
-          placeholder="搜索帖子 / 用户 / 圈子"
-          class="feed-search"
-          clearable
-          @keyup.enter="doSearch"
-        >
-          <template #append>
-            <el-button @click="doSearch">搜索</el-button>
+      <!--
+        ③ 首页「关注/全部 tab + 搜索/筛选条」包成粘性工具条 .feed-bar。
+        手机端:下滑收起(transform: translateY(-100%)),上滑拉回;VerifyNotice 留在上方不动。
+        桌面端 feedBarHidden 恒 false,普通流。
+      -->
+      <div class="feed-bar" :class="{ 'feed-bar--hidden': feedBarHidden }">
+        <!-- 关注 / 全部 tab(A1:读 feed_item 的写扩散收件箱) -->
+        <el-tabs v-model="tab" class="feed-tabs">
+          <el-tab-pane label="关注" name="following" />
+          <el-tab-pane label="全部" name="all" />
+        </el-tabs>
+
+        <!-- 搜索 + 筛选/排序 工具条(仅"全部"tab 有筛选;关注 tab 只看关注的人) -->
+        <div class="feed-tools">
+          <el-input
+            v-model="searchQ"
+            placeholder="搜索帖子 / 用户 / 圈子"
+            class="feed-search"
+            clearable
+            @keyup.enter="doSearch"
+          >
+            <template #append>
+              <el-button @click="doSearch">搜索</el-button>
+            </template>
+          </el-input>
+
+          <template v-if="tab === 'all'">
+            <el-select v-model="sortBy" class="feed-filter" @change="onFilterChange">
+              <el-option label="按时间" value="time" />
+              <el-option label="按点赞量" value="like" />
+              <el-option label="按评论数" value="comment" />
+              <el-option label="按浏览量" value="view" />
+            </el-select>
+
+            <el-select v-model="sortOrder" class="feed-order" @change="onFilterChange">
+              <el-option label="倒序" value="desc" />
+              <el-option label="正序" value="asc" />
+            </el-select>
           </template>
-        </el-input>
-
-        <template v-if="tab === 'all'">
-          <el-select v-model="sortBy" class="feed-filter" @change="onFilterChange">
-            <el-option label="按时间" value="time" />
-            <el-option label="按点赞量" value="like" />
-            <el-option label="按评论数" value="comment" />
-            <el-option label="按浏览量" value="view" />
-          </el-select>
-
-          <el-select v-model="sortOrder" class="feed-order" @change="onFilterChange">
-            <el-option label="倒序" value="desc" />
-            <el-option label="正序" value="asc" />
-          </el-select>
-        </template>
+        </div>
       </div>
 
       <div class="feed-list">
@@ -101,12 +125,14 @@ import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import VerifyNotice from '@/components/common/VerifyNotice.vue'
-import { ChatLineSquare } from '@element-plus/icons-vue'
+import { ChatLineSquare, Promotion, CaretRight } from '@element-plus/icons-vue'
 import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
+import { useIsMobile } from '@/composables/useBreakpoint'
 import { feedDirty } from '@/composables/useFeedRefresh'
 
 const router = useRouter()
+const isMobile = useIsMobile()
 const tab = ref('following') // 默认"关注"
 const posts = ref([])
 const cursor = ref(null)
@@ -206,6 +232,7 @@ onMounted(async () => {
   loadVerifyStatus()
   await loadFeed(true)
   nextTick(setupObserver)
+  setupFeedBarScroll()
 })
 
 /**
@@ -218,9 +245,39 @@ const savedScrollY = ref(0)
 /** 组件进入 keep-alive 缓存前,记下当前滚动位置(供 onActivated 恢复) */
 onDeactivated(() => {
   savedScrollY.value = window.scrollY || window.pageYOffset || 0
+  window.removeEventListener('scroll', onWinScroll)
 })
 
+/*
+ * ③ 首页工具条「下滑收起 / 上滑拉回」(仅手机端)。
+ * Home 在 <KeepAlive include="Home"> 里,body 级滚动,监听 window.scroll。
+ * 下滑(往下刷帖)收起 .feed-bar,上滑(回看)拉回;近顶强制拉回。
+ * 桌面端 isMobile=false,不监听,feedBarHidden 恒 false。
+ */
+const feedBarHidden = ref(false)
+let lastWinScrollTop = 0
+
+function setupFeedBarScroll() {
+  if (!isMobile.value) return
+  window.addEventListener('scroll', onWinScroll, { passive: true })
+}
+
+function onWinScroll() {
+  if (!isMobile.value) return
+  const st = window.scrollY || 0
+  // 往上滑 或 已近顶 → 拉回
+  if (st - lastWinScrollTop < 0 || st < 40) {
+    feedBarHidden.value = false
+  } else if (st > 80) {
+    // 往下刷帖 → 收起
+    feedBarHidden.value = true
+  }
+  lastWinScrollTop = st
+}
+
 onActivated(() => {
+  // 手机端从 keep-alive 重新激活时,恢复工具条滚动监听(onDeactivated 已摘除)
+  setupFeedBarScroll()
   if (feedDirty.value) {
     feedDirty.value = false
     loadFeed(true)
@@ -239,6 +296,7 @@ onActivated(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onWinScroll)
   observer?.disconnect()
   observer = null
 })
@@ -250,8 +308,63 @@ onBeforeUnmount(() => {
   margin: 0 auto;
   padding: 20px;
 }
+/* 公告入口横幅:仅在移动端出现(桌面侧栏已有入口),宽度贴 home-inner,热区 ≥44px */
+.home-ann {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-2) var(--ys-space-4);
+  margin-bottom: var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.home-ann:hover {
+  border-color: var(--ys-accent);
+  color: var(--ys-fg);
+}
+.home-ann__icon { flex: none; color: var(--ys-accent); }
+.home-ann__text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: var(--ys-text-sm);
+  font-family: var(--ys-font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-ann__chev {
+  flex: none;
+  font-size: 14px;
+  color: var(--ys-muted);
+}
+@media (min-width: 1024px) {
+  .home-ann { display: none; }
+}
 .feed-tabs {
   margin-bottom: 8px;
+}
+/*
+ * ③ 首页工具条(tab + 搜索/筛选条)「下滑收起 / 上滑拉回」。
+ * feedBarHidden 仅在手机端由 window.scroll 驱动(桌面恒 false)。
+ * 收起=translateY(-100%),贴顶隐藏;拉回=归位。
+ * sticky:让上滑拉回时工具条贴住顶部(而不是滚出视口后留在原处)。
+ */
+.feed-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--ys-bg);
+  transition: transform 0.25s var(--ys-ease-out, ease-out);
+}
+.feed-bar--hidden {
+  transform: translateY(-100%);
 }
 /*
  * 「关注 / 全部」两个 tab 的可点区:375px 实测 48x40,高度差 AC-15 的 44px 4 个像素。

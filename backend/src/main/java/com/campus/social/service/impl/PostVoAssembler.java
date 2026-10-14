@@ -120,6 +120,7 @@ public class PostVoAssembler {
                 .circleId(p.getCircleId())
                 .createTime(p.getCreateTime())
                 .liked(isLiked(p.getId(), viewerId))
+                .isTop(p.getIsTop() != null && p.getIsTop() == 1)
                 .build();
     }
 

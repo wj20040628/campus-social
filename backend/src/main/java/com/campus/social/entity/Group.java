@@ -29,6 +29,9 @@ public class Group implements Serializable {
 
     private Long lastMsgId;
 
+    /** 群公告(群主可设/清,空=无)。MVP 单行文本,展示在群信息头 */
+    private String announcement;
+
     /** 1正常 0解散 */
     private Integer status;
 

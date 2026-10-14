@@ -5,6 +5,10 @@ import com.campus.social.entity.CircleMember;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
 
 @Mapper
 public interface CircleMemberMapper extends BaseMapper<CircleMember> {
@@ -16,4 +20,15 @@ public interface CircleMemberMapper extends BaseMapper<CircleMember> {
      */
     @Delete("DELETE FROM circle_member WHERE circle_id = #{circleId} AND user_id = #{userId} AND role = #{role}")
     int hardDelete(@Param("circleId") long circleId, @Param("userId") long userId, @Param("role") int role);
+
+    /** 圈内封禁:置 ban_status / ban_until(东八区,NULL=长期);解除时 until 传 null */
+    @Update("UPDATE circle_member SET ban_status = #{ban}, ban_until = #{until}, update_time = NOW() "
+            + "WHERE circle_id = #{circleId} AND user_id = #{userId} AND is_deleted = 0")
+    int setBan(@Param("circleId") long circleId, @Param("userId") long userId,
+               @Param("ban") int ban, @Param("until") LocalDateTime until);
+
+    /** 成员角色调整(任命/取消圈管理、移交圈主时翻转 role) */
+    @Update("UPDATE circle_member SET role = #{role}, update_time = NOW() "
+            + "WHERE circle_id = #{circleId} AND user_id = #{userId} AND is_deleted = 0")
+    int setRole(@Param("circleId") long circleId, @Param("userId") long userId, @Param("role") int role);
 }

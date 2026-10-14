@@ -36,9 +36,14 @@
         <el-icon :size="20"><Plus /></el-icon>
       </button>
 
+      <!--
+        「找人」只留桌面:feed 内已有搜索框、/search 页是主入口,移动端顶栏
+        再塞一个找人与它们重叠,且移动端顶栏右侧只保留铃铛(全局未读,必须置顶栏)。
+        桌面 ≥1024 空间够、侧栏已占左边,顶栏保留 发动态/找人/铃铛/头像。
+      -->
       <button
         type="button"
-        class="topbar__icon-btn"
+        class="topbar__icon-btn topbar__search"
         aria-label="找人"
         @click="router.push('/search')"
       >
@@ -237,6 +242,11 @@ function onUserCommand(cmd) {
  */
 @media (max-width: 1023px) {
   .topbar__publish {
+    display: none;
+  }
+
+  /* 「找人」只留桌面:移动端 feed 已有搜索框、/search 是主入口,顶栏右侧只留铃铛 */
+  .topbar__search {
     display: none;
   }
 }

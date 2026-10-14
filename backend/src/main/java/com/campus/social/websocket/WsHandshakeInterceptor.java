@@ -1,8 +1,11 @@
 package com.campus.social.websocket;
 
+import com.campus.social.entity.User;
+import com.campus.social.mapper.UserMapper;
 import com.campus.social.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -25,9 +28,12 @@ import java.util.Map;
  *   失败返回 false + 写 401 响应,前端识别后调 /auth/refresh 再重连
  */
 @Component
+@RequiredArgsConstructor
 public class WsHandshakeInterceptor implements HandshakeInterceptor {
 
     public static final String ATTR_USER_ID = "wsUserId";
+
+    private final UserMapper userMapper;
 
     @Override
     public boolean beforeHandshake(
@@ -38,20 +44,28 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
 
         String token = extractToken(request);
         if (token == null || token.isBlank()) {
-            reject(response, "缺少 access_token");
+            reject(response, "missing_token");
             return false;
         }
         Claims claims = JwtUtil.parseAccess(token);
         if (claims == null) {
-            reject(response, "access_token 无效或已过期");
+            reject(response, "invalid_or_expired");
             return false;
         }
         try {
             Long userId = Long.parseLong(claims.getSubject());
+            // 封禁/注销状态校验:access token 有 15 分钟有效期,
+            // 封禁/注销后该 token 在到期前仍能建连并收 broadcast。
+            // 握手前查一次 user.status,非正常状态直接拒绝。
+            User u = userMapper.selectById(userId);
+            if (u == null || u.getStatus() == null || u.getStatus() != 0) {
+                reject(response, "user_disabled");
+                return false;
+            }
             attributes.put(ATTR_USER_ID, userId);
             return true;
         } catch (NumberFormatException e) {
-            reject(response, "token 损坏");
+            reject(response, "malformed_token");
             return false;
         }
     }
@@ -88,10 +102,14 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
         return null;
     }
 
-    /** 浏览器 WS 握手只看状态码,无需 JSON body */
-    private void reject(ServerHttpResponse response, String reason) {
+    /**
+     * 浏览器 WS 握手只看 401 状态码,不会读任何 header —— 前端靠它触发
+     * refresh 重连。X-WS-Auth-Error 仅作服务端调试用,值必须是 ASCII:
+     * HTTP 响应头按 ISO-8859-1 编码,写中文会让 Tomcat 抛
+     * IllegalArgumentException 并丢弃整个头(见历史 WARN)。
+     */
+    private void reject(ServerHttpResponse response, String code) {
         response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        // 可选:把原因写到 header,便于调试
-        response.getHeaders().set("X-WS-Auth-Error", reason);
+        response.getHeaders().set("X-WS-Auth-Error", code);
     }
 }

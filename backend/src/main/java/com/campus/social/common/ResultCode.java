@@ -93,6 +93,13 @@ public enum ResultCode {
      */
     VERIFY_NOT_FOUND(1044, "该学号核验申请不存在或已不在审核中"),
 
+    // 群成员数已达上限(拉人被拒)。与 ACTIVITY_FULL(1015)同语义:资源有容量、满了拒新增。
+    // 单列一个码:活动满员 vs 群满员,调用方提示文案不同("名额已满"/"群已满员")。
+    GROUP_FULL(1045, "群成员已满,无法继续拉人"),
+
+    // 群主禁言中:被禁言成员发群消息被拒(群主永不被禁言,见 sendGroupMessage 拦截)
+    GROUP_MUTED(1046, "你已被群主禁言,无法发言"),
+
     // 1047 起:校园限时活动集市(mkt)
     MKT_NOT_FOUND(1047, "活动不存在或已下架"),
     MKT_NOT_OWNER(1048, "仅发布者本人可操作该活动"),
@@ -101,6 +108,10 @@ public enum ResultCode {
     MKT_CONTENT_INVALID(1051, "详情需在 1-500 字之间"),
     MKT_EXPIRE_INVALID(1052, "投放截止时间不合法(需为未来且单次不超过 12 小时)"),
     MKT_REACTIVATE_LIMIT(1053, "24 小时内重新激活次数已达上限"),
+
+    // 1054 起:圈子「圈管理/吧主级权限」+「官方名保护」
+    CIRCLE_NAME_RESERVED(1054, "该圈子名已被系统预留,无法创建"),
+    CIRCLE_MEMBER_BANNED(1055, "你已被圈主/圈管理封禁,无法在此圈子操作"),
 
     // 频率类:复用 HTTP 429 段(枚举内本就混排 4xx 与 1xxx)
     TOO_MANY_REQUESTS(429, "操作过于频繁,请稍后再试");

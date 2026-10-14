@@ -21,4 +21,12 @@ public interface GroupReadMapper extends BaseMapper<GroupRead> {
     /** 某群所有成员 id(推群已读回执给"我发给谁、谁读到了"用) */
     @Select("SELECT user_id FROM group_read WHERE group_id = #{groupId} AND is_deleted = 0")
     java.util.List<Long> readersOf(@Param("groupId") Long groupId);
+
+    /** 物理删某成员在某群的水位行(踢人/退群后该人不再算群成员,水位无意义;软删留行会锁 uk_gr) */
+    @Delete("DELETE FROM group_read WHERE group_id = #{groupId} AND user_id = #{userId}")
+    int deleteByGroupAndUser(@Param("groupId") Long groupId, @Param("userId") Long userId);
+
+    /** 物理删某群全部水位行(解散时用) */
+    @Delete("DELETE FROM group_read WHERE group_id = #{groupId}")
+    int deleteByGroup(@Param("groupId") Long groupId);
 }

@@ -36,11 +36,22 @@
     >
       加入
     </button>
-    <span v-else class="crow__joined">
-      <!-- 图标 + 文字双通道:不能只靠底色差异表达「已加入」(设计 §5) -->
-      <CircleCheck class="crow__joined-icon" aria-hidden="true" />
-      已加入
-    </span>
+    <!--
+      已加入:直接给「退出」按钮(仅普通成员 myRole=3)。圈主/圈管理(1/2)
+      退圈后端必 422,显示灰色「已加入」不可点。
+      @click.stop 截断冒泡,不触发整行的 open 跳详情。
+    -->
+    <button
+      v-else-if="circle.myRole === 3"
+      type="button"
+      class="crow__leave"
+      :aria-label="`退出 ${circle.name}`"
+      :disabled="leaving"
+      @click.stop="$emit('leave', circle)"
+    >
+      {{ leaving ? '退出中' : '退出' }}
+    </button>
+  
   </div>
 </template>
 
@@ -51,9 +62,11 @@ import { resolveUrl } from '@/utils/resolve'
 
 const props = defineProps({
   circle: { type: Object, required: true },
+  /** 该圈退圈请求进行中:「退圈」按钮进入「退出中」态并禁点 */
+  leaving: { type: Boolean, default: false },
 })
 
-defineEmits(['open', 'join'])
+defineEmits(['open', 'join', 'leave'])
 
 /**
  * 成员数 999+ 封顶(设计 §3 内容超长)。
@@ -75,6 +88,9 @@ const memberText = computed(() => {
   min-height: 72px;
   padding: var(--ys-space-3) var(--ys-gutter-phone);
   border-top: 1px solid var(--ys-border-soft);
+  /* 桌面端进 grid(Circles.css .circle-rows)时,列宽由 grid 控制;
+     不设 min-width:auto 会撑到内容最宽,三行卡片挤成一排互相重叠 */
+  min-width: 0;
 }
 
 .crow__open {
@@ -189,5 +205,37 @@ const memberText = computed(() => {
 .crow__joined-icon {
   width: 16px;
   height: 16px;
+}
+
+/* 「退出」:与「加入」同形的危险色胶囊,位置对齐,点下去不整行跳走 */
+.crow__leave {
+  flex-shrink: 0;
+  min-width: 72px;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-danger);
+  border-radius: var(--ys-radius-full);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-danger);
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.crow__leave:hover:not(:disabled) {
+  background: var(--ys-danger-soft);
+}
+
+.crow__leave:active:not(:disabled) {
+  opacity: 0.7;
+}
+
+.crow__leave:disabled {
+  border-color: var(--ys-border-control);
+  color: var(--ys-meta);
+  cursor: not-allowed;
 }
 </style>

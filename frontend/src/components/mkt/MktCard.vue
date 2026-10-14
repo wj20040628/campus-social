@@ -20,10 +20,9 @@
       class="mktcard__open"
       @click="$emit('open', activity.id)"
     >
-      <!-- 顶行:一级标签 chip + 子关键词 ｜ 右对齐倒计时 -->
+      <!-- 顶行:一级标签 chip ｜ 右对齐倒计时 -->
       <div class="mktcard__top">
         <span class="mktcard__cat">{{ activity.category }}</span>
-        <span v-if="activity.subTag" class="mktcard__sub">{{ activity.subTag }}</span>
         <span
           v-if="variant === 'plaza' && timerText"
           class="mktcard__timer"
@@ -33,8 +32,8 @@
         </span>
       </div>
 
-      <!-- 标题单行省略 + 内容预览单行 -->
-      <p class="mktcard__title">{{ activity.title }}</p>
+      <!-- 主文案「分类 · 游戏」单行省略 + 内容预览单行 -->
+      <p class="mktcard__title">{{ activity.mainText || activity.title }}</p>
       <p class="mktcard__preview">{{ activity.content }}</p>
 
       <!-- 信息行:📍地点 ｜ 💰价格(0 免费)｜ 👥期望人数(缺的隐藏) -->
@@ -217,16 +216,6 @@ const priceText = (() => {
   color: var(--ys-accent-2);
   font-size: var(--ys-text-xs);
   font-weight: var(--ys-weight-medium);
-}
-
-.mktcard__sub {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
 }
 
 .mktcard__timer {

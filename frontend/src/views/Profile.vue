@@ -77,7 +77,7 @@
             <span class="p-stat__label">{{ s.label }}</span>
           </button>
           <div class="p-stat">
-            <span class="p-stat__num">{{ cap(posts.length) }}</span>
+            <span class="p-stat__num">{{ cap(user?.postCount ?? 0) }}</span>
             <span class="p-stat__label">动态</span>
           </div>
         </div>
@@ -213,6 +213,7 @@ const {
   relStatus, followLoading, followers, following,
   loadingFollowers, loadingFollowing,
   loadRelation, toggleFollow, onTabChange,
+  loadFollowers, loadFollowing,
 } = useProfileRelations(targetId)
 
 const tab = ref('posts')
@@ -282,7 +283,8 @@ function goDetail(id) {
 }
 
 function goSettings() {
-  router.push('/settings')
+  // 桌面:直接进编辑资料页;移动:跳「我的」概览(保持现状,链路里那个下拉项才进编辑页)
+  router.push(isMobile.value ? '/settings' : '/settings/profile')
 }
 
 /** 点「举报」打开举报操作表(目标类型 1=用户) */
@@ -303,6 +305,8 @@ function switchTab(name) {
 watch(targetId, () => {
   user.value = null
   load()
+  // 切人时粉丝/关注列表与关系状态一起重拉,避免残留上一个用户的数据
+  loadRelation().catch(() => {})
 })
 
 onMounted(async () => {
@@ -310,6 +314,9 @@ onMounted(async () => {
   // 认证状态一并并发:只在本人主页拉(看别人主页时这条提示不出现)
   if (isMe.value) loadVerifyStatus()
   await Promise.all([dict.ensureLoaded(), load(), loadRelation().catch(() => {})])
+  // 粉丝/关注列表进主页就预拉(和头部计数同源),消除「点 tab 才拉、空态抢跑」的时序竞态
+  loadFollowers()
+  loadFollowing()
 })
 </script>
 

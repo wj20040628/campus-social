@@ -68,8 +68,8 @@ export function useMktOwnerActions(reloadMy) {
         ElMessage.warning('投放时长需在 1–12 小时之间')
         return
       }
-      const newExpire = dayjs().add(hours, 'hour')
-      await mkt.mktReactivate(activity.id, newExpire.toISOString())
+      const newExpire = dayjs().add(hours, 'hour').format('YYYY-MM-DDTHH:mm:ss')
+      await mkt.mktReactivate(activity.id, newExpire)
       ElMessage.success('已重新激活')
       await reloadMy()
     } catch (e) {

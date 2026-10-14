@@ -127,9 +127,18 @@
             @click="$emit('create-group')"
           >＋</button>
         </h2>
-        <ul v-if="groups.length">
+        <!-- 群搜索:纯本地过滤我加入的群名,不发网络请求 -->
+        <input
+          v-if="groups.length"
+          v-model="groupKw"
+          type="search"
+          class="grp__search"
+          placeholder="搜索群聊"
+          aria-label="搜索群聊"
+        />
+        <ul v-if="filteredGroups.length">
           <li
-            v-for="g in groups"
+            v-for="g in filteredGroups"
             :key="g.id"
             class="crow"
             :class="{ 'is-active': activeKind === 'group' && activeId === g.id }"
@@ -147,6 +156,7 @@
             </button>
           </li>
         </ul>
+        <p v-else-if="groups.length" class="grp__empty">没有叫「{{ groupKw }}」的群</p>
         <p v-else class="grp__empty">还没有群，点右上角＋建一个</p>
       </section>
     </template>
@@ -180,6 +190,14 @@ const props = defineProps({
 defineEmits(['open', 'open-group', 'browse', 'ignore-stranger', 'ignore-all-stranger', 'create-group'])
 
 const strangerOpen = ref(false)
+const groupKw = ref('')
+
+/** 群搜索:本地过滤我加入的群名(大小写不敏感) */
+const filteredGroups = computed(() => {
+  const kw = groupKw.value.trim().toLowerCase()
+  if (!kw) return props.groups
+  return props.groups.filter((g) => (g.name || '').toLowerCase().includes(kw))
+})
 
 const allEmpty = computed(
   () =>

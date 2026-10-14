@@ -29,6 +29,8 @@ public class UserVO {
     private Long gradeId;
     private Integer followerCount;
     private Integer followingCount;
+    /** 该用户发的动态数(按 author_id 现查 post 表,他人主页「动态」数字用) */
+    private Integer postCount;
     private Integer unreadNotifyCount;
     /**
      * 是否已通过校内认证（AC-12 徽章判据）。

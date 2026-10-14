@@ -1,0 +1,202 @@
+/* ==========================================================================
+ * AdminCircles · 圈子官方名保护 + 管理员处置
+ * 两个 Tab:圈子处置(移交/封禁/解封)、预留名(增删 reserved_circle_name)。
+ * 移动端 375px 可用(token 取自 design-tokens.css)。
+ * ========================================================================== */
+
+.ac {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+.ac__state {
+  margin: auto;
+  padding: var(--ys-space-6) var(--ys-gutter-phone);
+}
+
+/* ---------------- 分段控件(自绘,不套 el-tabs) ---------------- */
+.ac__tabs {
+  position: sticky;
+  top: var(--ys-topbar-h);
+  z-index: var(--ys-z-sticky);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  padding: 0 var(--ys-gutter-phone);
+  background: var(--ys-bg);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.ac__tab {
+  position: relative;
+  min-height: var(--ys-touch-min);
+  background: none;
+  border: none;
+  color: var(--ys-muted);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.ac__tab.is-on {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-semibold);
+}
+
+.ac__tab-ind {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 50%;
+  height: 3px;
+  background: var(--ys-accent);
+  border-radius: 2px;
+  transition: transform 0.2s;
+}
+
+.ac__body {
+  flex: 1 1 auto;
+  padding: var(--ys-space-4) var(--ys-gutter-phone) var(--ys-space-12);
+}
+
+/* ---------------- 列表行 ---------------- */
+.ac__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ac__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface);
+}
+
+.ac__row + .ac__row {
+  margin-top: var(--ys-space-3);
+}
+
+.ac__cid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ac__cname {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac__cmeta {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+.ac__cacts {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.ac__btn {
+  flex: none;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-xs);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ac__btn:hover:not(:disabled) {
+  border-color: var(--ys-accent);
+  color: var(--ys-accent);
+}
+
+.ac__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ac__btn--warn:hover:not(:disabled) {
+  border-color: var(--ys-danger);
+  color: var(--ys-danger);
+}
+
+.ac__btn--primary {
+  background: var(--ys-accent);
+  border-color: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-weight: var(--ys-weight-medium);
+}
+
+.ac__btn--primary:hover:not(:disabled) {
+  background: var(--ys-accent-hover);
+  color: var(--ys-accent-on);
+}
+
+.ac__hint {
+  margin-top: var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.ac__link {
+  background: none;
+  border: none;
+  color: var(--ys-accent);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---------------- 预留名 Tab:新增表单 ---------------- */
+.ac__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+  margin-bottom: var(--ys-space-4);
+}
+
+.ac__input {
+  flex: 1 1 140px;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  color: var(--ys-fg);
+  font-size: var(--ys-text-sm);
+}
+
+.ac__input:focus {
+  outline: none;
+  border-color: var(--ys-accent);
+}
+
+.ac__input--note {
+  flex: 1 1 100px;
+}
+
+@media (max-width: 480px) {
+  .ac__input,
+  .ac__input--note {
+    flex-basis: 100%;
+  }
+}

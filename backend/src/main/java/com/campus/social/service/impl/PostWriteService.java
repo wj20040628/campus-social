@@ -59,6 +59,8 @@ public class PostWriteService {
     private final FeedFanoutService fanout;
     /** 话题绑定与 media 校验,已抽出 */
     private final PostTopicBinder topicBinder;
+    /** 圈内封禁拦截:发帖时查 ban_status */
+    private final com.campus.social.service.CircleAdminService circleAdminService;
 
     @Transactional
     public long create(long authorId, CreatePostDTO dto) {
@@ -221,6 +223,10 @@ public class PostWriteService {
                 .eq(CircleMember::getCircleId, circleId)
                 .eq(CircleMember::getUserId, authorId));
         if (memberCount != 0) {
+            // 圈内封禁拦截:普通成员被封禁则无法发帖(圈主/圈管理恒不拦,见 isBanned)
+            if (circleAdminService.isBanned(circleId, authorId)) {
+                throw new BusinessException(CIRCLE_MEMBER_BANNED, "你已被圈主/圈管理封禁,无法在此圈子操作");
+            }
             return;
         }
         Circle c = circleMapper.selectById(circleId);

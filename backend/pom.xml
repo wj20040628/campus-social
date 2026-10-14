@@ -126,6 +126,14 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- JUnit Platform Launcher(surefire fork JVM 需要它驱动 JUnit 5 引擎;
+             spring-boot-starter-test 不传递此依赖,显式补上) -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

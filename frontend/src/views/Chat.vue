@@ -49,6 +49,15 @@
           :block="block"
           :sending="sending"
           :can-recall="canRecall"
+          :group-info="groupInfo"
+          :on-add="(ids) => onAddMembers(ids)"
+          :on-kick="onKick"
+          :on-leave-group="onLeaveGroup"
+          :on-transfer="onTransfer"
+          :on-rename="onRename"
+          :on-set-announcement="onSetAnnouncement"
+          :on-mute-member="onMuteMember"
+          :on-mute-all="onMuteAll"
           @send="onSend"
           @recall="doRecall"
           @quote="replyToMsg = $event"
@@ -127,8 +136,11 @@ const core = useChatCore({
 const {
   convs, groups, strangerList, quotaLeft,
   messages, replyToMsg, currentKind, currentConvId,
+  groupInfo, mutedMe,
   historyLoading, historyError, headTitle, hasActive, canRecall,
   openConv: coreOpenConv, openGroup: coreOpenGroup, doRecall,
+  onAddMembers, onKick, onLeaveGroup, onTransfer, onRename, onSetAnnouncement,
+  onMuteMember, onMuteAll, loadMutedMe,
 } = core
 
 /**
@@ -150,8 +162,13 @@ const peerId = computed(() => core.currentConv.value?.peer?.id || null)
  * 此时不阻断。误阻断(明明能发却发不出去)比漏阻断(发出去才被拒)伤害大得多。
  * 对方关闭陌生人消息(AC-05)需要后端在会话详情里下发该字段,
  * 当前 openapi 的 ConversationVO 无此字段,故本轮不做前端判定(见交付 advisory)。
+ * 群禁言:群聊 + 我被群主禁言(mutedMe)→ 阻断输入,后端 GROUP_MUTED(1046) 兜底。
  */
 const block = computed(() => {
+  // 群禁言优先显示(更具体):群聊且我被禁言
+  if (currentKind.value === 'group' && mutedMe.value) {
+    return { text: '你已被群主禁言,无法发言', tone: 'danger' }
+  }
   const q = quotaLeft.value
   if (q !== null && q <= 0) {
     return { text: '今天打招呼的次数用完了,明天再来', tone: 'danger' }

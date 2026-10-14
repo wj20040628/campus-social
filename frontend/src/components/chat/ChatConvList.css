@@ -107,6 +107,29 @@
   color: var(--ys-muted);
 }
 
+/* 群搜索框:只出现在群组分组里,纯本地过滤。触控高度不小于 36px */
+.grp__search {
+  display: block;
+  width: calc(100% - var(--ys-space-4) * 2);
+  margin: 0 var(--ys-space-4) var(--ys-space-2);
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-soft);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+}
+.grp__search::placeholder {
+  color: var(--ys-muted);
+}
+.grp__search:focus {
+  outline: none;
+  border-color: var(--ys-accent);
+  box-shadow: 0 0 0 2px var(--ys-accent-soft);
+}
+
 .grp__caret {
   transition: transform var(--ys-motion-fast) var(--ys-ease-out);
 }

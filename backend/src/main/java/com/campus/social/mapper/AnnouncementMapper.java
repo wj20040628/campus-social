@@ -40,11 +40,17 @@ public interface AnnouncementMapper extends BaseMapper<Announcement> {
      *
      * <p>故拆成两条流：置顶流本来就是「少量置顶」这一产品语义下的有界集合，
      * 每页全量取回；游标只作用于普通流（严格 id 倒序），语义单一且不会漏行。
+     *
+     * <p>置顶流同样要遵守 {@code category} 过滤：选中「活动」却把「教务/社团」
+     * 的置顶混进来,就是用户看到的「分类筛不准」。若该分类没有置顶,置顶流返回
+     * 空,普通流照常取数,不会漏普通公告。
      */
-    @Select(COLUMNS + FRONT_WHERE
-            + " AND a.is_top = 1 AND a.top_expire_time > NOW() "
-            + " ORDER BY a.publish_time DESC, a.id DESC LIMIT #{limit}")
-    List<AnnouncementRow> selectPinnedFront(@Param("schoolId") Long schoolId, @Param("limit") int limit);
+    @Select("<script>" + COLUMNS + FRONT_WHERE
+            + " AND a.is_top = 1 AND a.top_expire_time &gt; NOW() "
+            + "<if test='category != null'> AND a.category = #{category} </if>"
+            + " ORDER BY a.publish_time DESC, a.id DESC LIMIT #{limit}</script>")
+    List<AnnouncementRow> selectPinnedFront(@Param("schoolId") Long schoolId,
+            @Param("category") Integer category, @Param("limit") int limit);
 
     /**
      * 普通（非置顶）公告流首页，严格 id 倒序，与游标口径一致。

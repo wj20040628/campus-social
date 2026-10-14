@@ -124,8 +124,10 @@
             v-for="c in joinedCircles"
             :key="`j-${c.id}`"
             :circle="c"
+            :leaving="isLeaving(c)"
             @open="goDetail"
             @join="joinCircle"
+            @leave="leaveCircle"
           />
         </div>
       </section>
@@ -140,8 +142,10 @@
             v-for="c in visibleCircles"
             :key="c.id"
             :circle="c"
+            :leaving="isLeaving(c)"
             @open="goDetail"
             @join="joinCircle"
+            @leave="leaveCircle"
           />
         </div>
       </section>
@@ -251,7 +255,7 @@ const {
   keyword, searching, searchFailed, results, isSearching,
   joinedCircles, visibleCircles,
   showCreate, newName, creating, createError,
-  openCreate, load, runSearch, clearSearch, joinCircle, create,
+  openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving, create,
 } = useCircles()
 
 let observer = null

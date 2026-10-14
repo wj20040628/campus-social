@@ -36,8 +36,17 @@
         <span>通知</span>
       </el-menu-item>
 
-      <!-- 管理员项:isAdmin 为 false 时整块不渲染,不给用户一个点进去才被拒的入口 -->
-      <template v-if="userStore.isAdmin">
+      <!--
+        管理员项:isAdmin 为 false 时整块不渲染,不给用户一个点进去才被拒的入口。
+        收进 el-sub-menu「管理后台」子菜单:桌面侧栏 hover 展开,
+        管理员一眼看到分组,不占主列高度(避免 6 普通 + 4 管理平铺一屏滚到底)。
+        el-menu 内部不能塞裸 div,用 el-sub-menu 包一层。
+      -->
+      <el-sub-menu v-if="userStore.isAdmin" index="__admin__">
+        <template #title>
+          <el-icon><Lock /></el-icon>
+          <span>管理后台</span>
+        </template>
         <!--
           学号核验排第一,不是按字母也不是按开发顺序:
           认证是其他一切能力的前置(没过认证的用户不能搭话、不能发公告),
@@ -59,7 +68,11 @@
           <el-icon><List /></el-icon>
           <span>操作日志</span>
         </el-menu-item>
-      </template>
+        <el-menu-item index="/admin/circles">
+          <el-icon><Collection /></el-icon>
+          <span>圈子处置</span>
+        </el-menu-item>
+      </el-sub-menu>
     </el-menu>
   </aside>
 </template>
@@ -68,7 +81,7 @@
 import { computed } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
-  Bell, DocumentChecked, List, Postcard, OfficeBuilding,
+  Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -84,6 +97,7 @@ const activeMenu = computed(() => {
   if (p.startsWith('/admin/announcement')) return '/admin/announcement'
   if (p.startsWith('/admin/review')) return '/admin/review'
   if (p.startsWith('/admin/audit')) return '/admin/audit'
+  if (p.startsWith('/admin/circles')) return '/admin/circles'
   if (p.startsWith('/chat')) return '/chat'
   if (p.startsWith('/notify')) return '/notify'
   if (p.startsWith('/announcement')) return '/announcement'

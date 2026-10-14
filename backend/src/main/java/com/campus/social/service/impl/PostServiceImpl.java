@@ -68,6 +68,8 @@ public class PostServiceImpl implements PostService {
     private final PostWriteService writeService;
     /** 写扩散,发帖与审核通过共用 */
     private final FeedFanoutService fanout;
+    /** 圈内封禁拦截:点赞前查 ban_status */
+    private final com.campus.social.service.CircleAdminService circleAdminService;
 
     // ---------------------------------------------------------------- 发动态
 
@@ -188,6 +190,10 @@ public class PostServiceImpl implements PostService {
         Post post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
+        }
+        // 圈内封禁拦截:帖子属某圈且点赞者被圈内封禁 → 拒(圈主/圈管理恒不拦,见 isBanned)
+        if (post.getCircleId() != null && circleAdminService.isBanned(post.getCircleId(), userId)) {
+            throw new BusinessException(CIRCLE_MEMBER_BANNED, "你已被圈主/圈管理封禁,无法在此圈子操作");
         }
         // 幂等:已赞不重复
         LambdaQueryWrapper<Like> qw = new LambdaQueryWrapper<Like>()

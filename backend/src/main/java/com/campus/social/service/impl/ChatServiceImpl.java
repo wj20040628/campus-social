@@ -16,6 +16,7 @@ import com.campus.social.vo.ChatMessageVO;
 import com.campus.social.vo.ChatSendVO;
 import com.campus.social.vo.ConversationVO;
 import com.campus.social.vo.UserVO;
+import com.campus.social.websocket.WsAfterCommit;
 import com.campus.social.websocket.WsPushService;
 import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatMessageMapper msgMapper;
     private final UserMapper userMapper;
     private final WsPushService wsPush;
+    private final WsAfterCommit wsAfterCommit;
     private final ChatGuardService chatGuardService;
 
     @Override
@@ -129,17 +131,20 @@ public class ChatServiceImpl implements ChatService {
         m.setIsRecalled(0);
         m.setReplyToId(replyToId);
         msgMapper.insert(m);
+        // lambda 捕获需 effectively final:取 insert 后的 msgId / convId 副本
+        long finalMsgId = m.getId();
+        long finalConvId = convId;
 
         // 接收方未读 +1:未读记在"没读的那个人(接收方)"头上,不是发送方
         // me 是发送方:若 me==a,则接收方 toUserId==b → 加 unread_b;反之加 unread_a
         if (a == me) {
-            convMapper.touchUnreadB(convId, 1, m.getId());
+            convMapper.touchUnreadB(convId, 1, finalMsgId);
         } else {
-            convMapper.touchUnreadA(convId, 1, m.getId());
+            convMapper.touchUnreadA(convId, 1, finalMsgId);
         }
 
-// WS 推给接收方
-        wsPush.pushChat(toUserId, convId, m.getId(), content, me);
+// WS 推给接收方(延迟到事务提交后,防回滚幽灵消息)
+        wsAfterCommit.run(() -> wsPush.pushChat(toUserId, finalConvId, finalMsgId, content, me));
         log.debug("chat send: {} -> {} conv={} replyTo={} stranger={}",
                 me, toUserId, convId, replyToId, guard.getIsStranger());
 
@@ -170,8 +175,8 @@ public class ChatServiceImpl implements ChatService {
         }
         m.setIsRecalled(1);
         msgMapper.updateById(m);
-        // WS 推撤回给 receiver(receiver 端把气泡置灰)
-        wsPush.pushChatRecalled(m.getReceiverId(), m.getConvId(), m.getId(), me);
+        // WS 推撤回给 receiver(receiver 端把气泡置灰;延迟到事务提交后,防回滚幽灵消息)
+        wsAfterCommit.run(() -> wsPush.pushChatRecalled(m.getReceiverId(), m.getConvId(), m.getId(), me));
         log.info("chat recalled: msg={}, sender={}", msgId, me);
     }
 
@@ -194,7 +199,8 @@ public class ChatServiceImpl implements ChatService {
         if (!toRead.isEmpty()) {
             msgMapper.markSenderMessagesRead(toRead);
             // 在线则实时推已读回执给 peer;不在线的,下次它拉 history 时 status 已是 1
-            wsPush.pushChatRead(peerId, convId, me);
+            // 延迟到事务提交后,防回滚幽灵消息
+            wsAfterCommit.run(() -> wsPush.pushChatRead(peerId, convId, me));
         }
     }
 

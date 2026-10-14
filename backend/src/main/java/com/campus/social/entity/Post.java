@@ -33,6 +33,9 @@ public class Post implements Serializable {
 
     private Double hotScore;
 
+    /** 圈内置顶 0否1是(圈内列表置顶帖排最前) */
+    private Integer isTop;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

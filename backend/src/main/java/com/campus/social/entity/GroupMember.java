@@ -21,6 +21,9 @@ public class GroupMember implements Serializable {
     /** 1群主 2成员 */
     private Integer role;
 
+    /** 是否被群主禁言 0否 1是(群主恒 0) */
+    private Integer muted;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

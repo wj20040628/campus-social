@@ -21,7 +21,12 @@ export function useRemainingCountdown(target) {
   let timer = null
 
   const endMs = computed(() => {
-    const t = target?.value !== undefined ? target.value : target
+    // target 可能是: 裸值 / ref / 返回值的普通函数(卡片、详情页传 () => x.expireTime)。
+    // 之前只处理 ref,普通函数会被原样塞给 dayjs(函数)→ invalid → null,
+    // 导致广场卡片倒计时永远空、详情页恒显「已到期」。函数在这里显式求值。
+    let t = target
+    if (typeof t === 'function') t = t()
+    else if (t?.value !== undefined) t = t.value
     const d = dayjs(t)
     return d.isValid() ? d.valueOf() : null
   })

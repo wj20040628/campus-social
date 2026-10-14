@@ -34,4 +34,27 @@ public interface GroupMemberMapper extends BaseMapper<GroupMember> {
             "<foreach collection='userIds' item='i' open='(' close=')' separator=','>#{i}</foreach>" +
             "</script>")
     int hardDeleteByGroupAndUsers(@Param("groupId") Long groupId, @Param("userIds") Collection<Long> userIds);
+
+    /** 改某成员在群里的角色(1群主 2成员)。群主转让/降权时用,不动关系行本身 */
+    @Update("UPDATE group_member SET role = #{role}, update_time = NOW() " +
+            "WHERE group_id = #{groupId} AND user_id = #{userId} AND is_deleted = 0")
+    int updateRole(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("role") int role);
+
+    /** 设/清某成员被禁言(群主用):1=禁言 0=解除。群主自己不应被调 */
+    @Update("UPDATE group_member SET muted = #{muted}, update_time = NOW() " +
+            "WHERE group_id = #{groupId} AND user_id = #{userId} AND is_deleted = 0")
+    int setMuted(@Param("groupId") Long groupId, @Param("userId") Long userId, @Param("muted") int muted);
+
+    /** 全员禁言/解除(群主用):除群主外全部成员 muted 置值,幂等可重放 */
+    @Update("UPDATE group_member SET muted = #{muted}, update_time = NOW() " +
+            "WHERE group_id = #{groupId} AND user_id <> #{ownerId} AND is_deleted = 0")
+    int setAllMuted(@Param("groupId") Long groupId, @Param("ownerId") Long ownerId, @Param("muted") int muted);
+
+    /** 某成员在该群的 muted(0/1);行不存在(非成员)返回 null */
+    @Select("SELECT muted FROM group_member WHERE group_id = #{groupId} AND user_id = #{userId} AND is_deleted = 0")
+    Integer mutedOf(@Param("groupId") Long groupId, @Param("userId") Long userId);
+
+    /** 某群每个成员的 muted 映射(群信息头名单回填用,避免 N+1)。返回行含 user_id + muted */
+    @Select("SELECT user_id, muted FROM group_member WHERE group_id = #{groupId} AND is_deleted = 0")
+    List<GroupMember> memberMutedRows(@Param("groupId") Long groupId);
 }

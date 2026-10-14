@@ -32,7 +32,8 @@ class UploadSignatureTest {
 
     @BeforeAll
     static void bootUp() throws Exception {
-        svc = new UploadServiceImpl();
+        // uploadFileMapper 传 null:本测试只走魔数/扩展名/落盘逻辑,不触及 DB
+        svc = new UploadServiceImpl(null);
         tmpRoot = java.nio.file.Files.createTempDirectory("upload-sig-test");
         setField(svc, "absUploadRoot", tmpRoot);
         setField(svc, "maxImageBytes", 7864320L);
@@ -64,28 +65,28 @@ class UploadSignatureTest {
         // PHP 脚本伪装 .jpg:攻击者最常见的载荷
         BusinessException e1 = assertThrows(BusinessException.class, () ->
                 svc.upload(mf("evil.jpg", "image/jpeg",
-                        "<?php system($_GET['cmd']); ?>\n".getBytes("US-ASCII")), "image"));
+                        "<?php system($_GET['cmd']); ?>\n".getBytes("US-ASCII")), "image", 1L));
         assertTrue(e1.getMessage().contains(".jpg"));
 
         // HTML 伪装 .mp4
         assertThrows(BusinessException.class, () ->
                 svc.upload(mf("evil.mp4", "video/mp4",
-                        "<html><script>alert(1)</script></html>".getBytes("US-ASCII")), "video"));
+                        "<html><script>alert(1)</script></html>".getBytes("US-ASCII")), "video", 1L));
 
         // 跨类伪装:GIF 头套 .png
         assertThrows(BusinessException.class, () ->
-                svc.upload(mf("evil.png", "image/png", "GIF89a".getBytes("US-ASCII")), "image"));
+                svc.upload(mf("evil.png", "image/png", "GIF89a".getBytes("US-ASCII")), "image", 1L));
 
         // 纯 shell 脚本:.sh 不在扩展名白名单,直接被挡
         assertThrows(BusinessException.class, () ->
                 svc.upload(mf("shell.sh", "text/x-shellscript",
-                        "#!/bin/sh\nrm -rf /".getBytes("US-ASCII")), "image"));
+                        "#!/bin/sh\nrm -rf /".getBytes("US-ASCII")), "image", 1L));
     }
 
     @Test
     void emptyFileRejected() {
         BusinessException e = assertThrows(BusinessException.class, () ->
-                svc.upload(mf("empty.jpg", "image/jpeg", new byte[0]), "image"));
+                svc.upload(mf("empty.jpg", "image/jpeg", new byte[0]), "image", 1L));
         assertEquals("文件为空", e.getMessage());
     }
 
@@ -95,7 +96,7 @@ class UploadSignatureTest {
                 mf("photo.jpg", "image/jpeg",
                         new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10,
                                    'J', 'F', 'I', 'F', 0x00, 0x01, 0x02, 0x03}),
-                "image");
+                "image", 1L);
         assertTrue(rel.startsWith("/uploads/"), "应返回 /uploads/… 相对路径,实际 " + rel);
         assertTrue(rel.endsWith(".jpg"));
         // 落盘校验:文件确实存在于临时目录下
@@ -112,7 +113,7 @@ class UploadSignatureTest {
     private void assertOk(String ext, byte[] head) throws UnsupportedEncodingException {
         boolean video = ext.equals("mp4") || ext.equals("webm") || ext.equals("mkv");
         String kind = video ? "video" : "image";
-        String rel = svc.upload(mf("real-" + ext + "." + ext, mimeOf(ext), head), kind);
+        String rel = svc.upload(mf("real-" + ext + "." + ext, mimeOf(ext), head), kind, 1L);
         assertTrue(rel.endsWith("." + ext), "返回路径应保留 .%s 后缀,实际 %s".formatted(ext, rel));
     }
 

@@ -18,6 +18,8 @@ public class GroupVO {
     /** 群主卡片 */
     private UserVO owner;
     private int memberCount;
+    /** 群公告(可空,空=无)。列表卡片不展示,留作群信息头来源;与 GroupMemberInfoVO 同口径 */
+    private String announcement;
     /** 我加入的群:当前用户侧未读(水位后非我发的条数) */
     private int myUnread;
     private Long lastMsgId;

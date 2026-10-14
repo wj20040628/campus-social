@@ -180,7 +180,8 @@
 @media (min-width: 1024px) {
   .circle-rows {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    /* 一行 4 个、列宽自适应。窄的 1024px 桌面放不下时自然掉成 2 列,仍一行不叠 */
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
     gap: var(--ys-space-4);
   }
 }

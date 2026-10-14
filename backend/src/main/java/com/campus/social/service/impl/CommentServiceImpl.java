@@ -63,12 +63,19 @@ public class CommentServiceImpl {
     private final PostNotifySupport notifySupport;
     /** 读侧树组装：作者/被回复人/点赞态全部批量取，避免逐条查 */
     private final CommentTreeAssembler treeAssembler;
+    /** 圈内封禁拦截:评论前查 ban_status */
+    private final com.campus.social.service.CircleAdminService circleAdminService;
 
     @Transactional
     public long comment(long postId, CreateCommentDTO dto, long userId) {
         Post post = postMapper.selectById(postId);
         if (post == null || post.getStatus() != 1) {
             throw new BusinessException(POST_NOT_FOUND, "帖子不可评论");
+        }
+        // 圈内封禁拦截:帖子属某圈且评论者被圈内封禁 → 拒(圈主/圈管理恒不拦,见 isBanned)
+        if (post.getCircleId() != null && circleAdminService.isBanned(post.getCircleId(), userId)) {
+            throw new BusinessException(com.campus.social.common.ResultCode.CIRCLE_MEMBER_BANNED,
+                    "你已被圈主/圈管理封禁,无法在此圈子操作");
         }
         // 评论也过敏感词
         String content = dto.getContent();

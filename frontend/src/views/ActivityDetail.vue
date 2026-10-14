@@ -39,7 +39,7 @@
             >
               立即报名
             </el-button>
-            <el-text v-if="!act.canSignup" type="info">该活动当前不可报名</el-text>
+            <el-text v-if="!act.canSignup" type="info">{{ signupBlockedReason(act) }}</el-text>
           </template>
         </div>
       </el-card>
@@ -77,6 +77,22 @@ function actStatusText(s) {
 }
 function actStatusTag(s) {
   return ['primary', 'warning', 'success', 'info', 'danger'][s] || 'info'
+}
+
+/** 不可报名时的原因,按 status 细分,不笼统一句「不可报名」 */
+function signupBlockedReason(a) {
+  switch (Number(a?.status)) {
+    case 1:
+      return '名额已报满,关注下一场'
+    case 2:
+      return '活动已开打,报名通道关闭'
+    case 3:
+      return '活动已结束'
+    case 4:
+      return '活动已被取消'
+    default:
+      return '该活动当前不可报名'
+  }
 }
 
 async function load() {

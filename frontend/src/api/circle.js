@@ -26,6 +26,43 @@ export function circlePosts(id, lastId, size = 20) {
   return request.get(`/circle/${id}/posts?${q}`)
 }
 
+// 圈管理 / 吧主级权限(需 role<=2 圈内成员,或圈主)
+export function topPost(id, postId) {
+  return request.post(`/circle/${id}/post/${postId}/top`)
+}
+
+export function untopPost(id, postId) {
+  return request.delete(`/circle/${id}/post/${postId}/top`)
+}
+
+export function takedownPost(id, postId) {
+  return request.post(`/circle/${id}/post/${postId}/takedown`)
+}
+
+export function movePost(id, postId, toCircleId) {
+  return request.post(`/circle/${id}/post/${postId}/move`, { toCircleId })
+}
+
+export function appointAdmin(id, userId) {
+  return request.post(`/circle/${id}/member/${userId}/admin`)
+}
+
+export function revokeAdmin(id, userId) {
+  return request.delete(`/circle/${id}/member/${userId}/admin`)
+}
+
+export function banMember(id, userId, until) {
+  return request.post(`/circle/${id}/member/${userId}/ban`, until ? { until } : {})
+}
+
+export function unbanMember(id, userId) {
+  return request.post(`/circle/${id}/member/${userId}/unban`)
+}
+
+export function circleMembers(id) {
+  return request.get(`/circle/${id}/members`)
+}
+
 // 活动
 export function createActivity(dto) {
   return request.post('/activity', dto)
@@ -54,6 +91,8 @@ export function search(q, type = 'all', size = 20) {
 
 export default {
   createCircle, list, detail, join, leave, circlePosts,
+  topPost, untopPost, takedownPost, movePost,
+  appointAdmin, revokeAdmin, banMember, unbanMember, circleMembers,
   createActivity, activitiesByCircle, activityDetail, signup, cancelSignup,
   search,
 }

@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS `post` (
     `view_count`      INT          NOT NULL DEFAULT 0 COMMENT '浏览量,进详情 +1',
     `circle_id`       BIGINT       NULL,
     `hot_score`       DOUBLE       NOT NULL DEFAULT 0,
+    `is_top`          TINYINT      NOT NULL DEFAULT 0 COMMENT '圈内置顶 0否1是(圈内列表置顶帖排最前)',
     `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT      NOT NULL DEFAULT 0,
@@ -233,13 +234,29 @@ CREATE TABLE IF NOT EXISTS `circle_member` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
     `circle_id`       BIGINT   NOT NULL,
     `user_id`         BIGINT   NOT NULL,
-    `role`            TINYINT  NOT NULL DEFAULT 3 COMMENT '1creator 2admin 3member',
+    `role`            TINYINT  NOT NULL DEFAULT 3 COMMENT '1圈主 2圈管理 3成员',
+    `ban_status`      TINYINT  NOT NULL DEFAULT 0 COMMENT '圈内封禁 0正常 1封禁',
+    `ban_until`       DATETIME NULL COMMENT '封禁到期(东八区),NULL=长期;到点查询时动态解除',
     `create_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT  NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_cm` (`circle_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='圈子成员';
+
+-- ------------------------------------------------------------
+-- 预留官方圈名(运营维护):建圈时撞名直接拦,占用的旧圈由管理员移交/封禁
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `reserved_circle_name` (
+    `id`            BIGINT       NOT NULL AUTO_INCREMENT,
+    `name`          VARCHAR(64)  NOT NULL,
+    `note`          VARCHAR(128) NULL COMMENT '预留原因/说明',
+    `create_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`    TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_rname` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预留官方圈名';
 
 -- ------------------------------------------------------------
 -- 活动
@@ -422,6 +439,7 @@ CREATE TABLE IF NOT EXISTS `group` (
     `owner_id`      BIGINT       NOT NULL COMMENT '群主(user.id)',
     `member_count`  INT          NOT NULL DEFAULT 1,
     `last_msg_id`   BIGINT       NULL,
+    `announcement`  TEXT         NULL COMMENT '群公告(群主可设/清,空=无)',
     `status`        TINYINT      NOT NULL DEFAULT 1 COMMENT '1正常 0解散',
     `create_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -436,6 +454,7 @@ CREATE TABLE IF NOT EXISTS `group_member` (
     `group_id`   BIGINT   NOT NULL,
     `user_id`    BIGINT   NOT NULL,
     `role`       TINYINT  NOT NULL DEFAULT 2 COMMENT '1群主 2成员',
+    `muted`      TINYINT  NOT NULL DEFAULT 0 COMMENT '是否被群主禁言 0否 1是(群主恒 0)',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted` TINYINT  NOT NULL DEFAULT 0,
@@ -473,6 +492,20 @@ CREATE TABLE IF NOT EXISTS `group_read` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_gr` (`group_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群已读水位';
+
+-- 上传文件归属:记录「哪个用户上传了哪个 url」,头像/群头像引用文件时校验归属,
+-- 防任意登录用户引用他人上传文件 URL 当自己头像(越权)。
+-- url 由 UUID 命名天然唯一,不再设唯一键(软删后同名 url 可能重传)。
+CREATE TABLE IF NOT EXISTS `upload_file` (
+    `id`          BIGINT      NOT NULL AUTO_INCREMENT,
+    `user_id`     BIGINT      NOT NULL COMMENT '上传者 id',
+    `url`         VARCHAR(512) NOT NULL COMMENT '相对访问 URL,如 /uploads/20261013/xxx.mp4',
+    `kind`        VARCHAR(16) NOT NULL COMMENT 'image | video',
+    `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_owner` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='上传文件归属';
 
 -- ------------------------------------------------------------
 -- 审核任务 AI 机审列(在既有 review_task 上加)

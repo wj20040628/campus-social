@@ -9,6 +9,7 @@ import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuthService;
+import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
@@ -49,6 +50,8 @@ public class AuthServiceImpl implements AuthService {
     private final com.campus.social.service.AuditService auditService;
     /** 改学号的唯一校验与核验状态迁移，见该类的javadoc（本轮修的死循环） */
     private final com.campus.social.service.support.StudentNoChangeSupport studentNoChangeSupport;
+    /** 头像归属校验:设置头像时,若引用的是本服务 /uploads 文件则必须确属该用户上传 */
+    private final UploadService uploadService;
 
     /** refresh:{userId} = jti */
     private static final String REFRESH_KEY = "refresh:";
@@ -81,13 +84,20 @@ public class AuthServiceImpl implements AuthService {
         REFRESH_CAS_SCRIPT = new DefaultRedisScript<>(lua, Long.class);
     }
 
-    /** 校验旧 jti,匹配则滚动写入 newJti,返回 true;重用以吊销,返回 false */
-    private boolean rotateRefreshJti(long userId, String oldJti, String newJti) {
+    /**
+     * 校验旧 jti,匹配则滚动写入 newJti。
+     *
+     * @return 1=滚动成功;0=旧 jti 不匹配(重用攻击,已全吊销);-1=无记录(key 自然过期或从未写过)
+     */
+    private int rotateRefreshJti(long userId, String oldJti, String newJti) {
         Long result = redis.execute(
                 REFRESH_CAS_SCRIPT,
                 List.of(REFRESH_KEY + userId),
                 oldJti, newJti, String.valueOf(REFRESH_TTL.toSeconds()));
-        return result != null && result == 1L;
+        if (result == null) {
+            return -1;
+        }
+        return result.intValue();
     }
 
     @Override
@@ -197,8 +207,13 @@ public class AuthServiceImpl implements AuthService {
         String newRefresh = JwtUtil.issueRefresh(userId, newJti);
 
         // 原子 CAS:旧 jti 匹配才滚动写入新 jti(杜绝并发同 jti 双花绕过 rotation)
-        if (!rotateRefreshJti(userId, oldJti, newJti)) {
-            // 重用(-1 无记录 / 0 不匹配,已被 DEL)→ 全吊销
+        int cas = rotateRefreshJti(userId, oldJti, newJti);
+        if (cas != 1) {
+            // -1:无记录(refresh token 自然过期/已登出)→ 正常失效,重新登录即可
+            //  0:旧 jti 不匹配(重用攻击,已被 DEL 全吊销)→ 安全事件
+            if (cas == -1) {
+                throw new BusinessException(REFRESH_TOKEN_INVALID, "refresh token 已失效,请重新登录");
+            }
             throw new BusinessException(REFRESH_TOKEN_REUSED, "refresh token 已被吊销,请重新登录");
         }
 
@@ -277,8 +292,13 @@ public class AuthServiceImpl implements AuthService {
         }
         if (nickname != null)
             user.setNickname(nickname);
-        if (avatarUrl != null)
+        if (avatarUrl != null) {
+            // 归属校验:引用 /uploads 文件必须是本人上传的;老数据/外部图床放行
+            if (!uploadService.isAvatarAllowed(avatarUrl, userId)) {
+                throw new BusinessException(BAD_REQUEST, "头像必须是您自己上传的图片");
+            }
             user.setAvatarUrl(avatarUrl);
+        }
         userMapper.updateById(user);
         // 审计:改资料,记 "字段: 旧值 → 新值" 的 diff(只记有实际变化的字段,避免噪声)
         StringBuilder diff = new StringBuilder();

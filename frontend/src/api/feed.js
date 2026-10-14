@@ -77,6 +77,12 @@ export function myPosts(lastId, size = 20) {
   return request.get(`/post/mine?${q}`)
 }
 
+/** 某用户发的动态(他人主页「动态」tab 用)。按 author_id 现查,非登录人绑死 */
+export function userPosts(userId, lastId, size = 20) {
+  const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
+  return request.get(`/user/${userId}/posts?${q}`)
+}
+
 export function upload(file, kind = 'image') {
   const fd = new FormData()
   fd.append('file', file)
@@ -88,5 +94,5 @@ export function upload(file, kind = 'image') {
 
 export default {
   createPost, detail, deletePost, feed, feedFollowing, topicFeed, hot,
-  like, unlike, comment, comments, commentChildren, myPosts, upload,
+  like, unlike, comment, comments, commentChildren, myPosts, userPosts, upload,
 }

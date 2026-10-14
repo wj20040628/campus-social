@@ -43,9 +43,34 @@ public interface PostMapper extends BaseMapper<Post> {
             "WHERE p.is_deleted = 0")
     int reconcileComments();
 
+    /** 圈内置顶:置单帖 is_top(0/1) */
+    @Update("UPDATE post SET is_top = #{isTop}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
+    int setIsTop(@Param("postId") long postId, @Param("isTop") int isTop);
+
+    /** 同圈其它置顶归 0(保证圈内同时只有 1 个置顶;传 keepPostId 跳过自己) */
+    @Update("UPDATE post SET is_top = 0, update_time = NOW() "
+            + "WHERE circle_id = #{circleId} AND is_top = 1 AND id <> #{keepPostId} AND is_deleted = 0")
+    int clearTopInCircle(@Param("circleId") long circleId, @Param("keepPostId") long keepPostId);
+
+    /** 圈管理下架:status=2(软,作者可自查),非物理删 */
+    @Update("UPDATE post SET status = 2, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
+    int takedown(@Param("postId") long postId);
+
+    /** 移帖:改归属圈(toCircleId 为 null=移回广场) */
+    @Update("UPDATE post SET circle_id = #{toCircleId}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
+    int moveCircle(@Param("postId") long postId, @Param("toCircleId") Long toCircleId);
+
     /** 物理删除帖子(绕过 @TableLogic),级联数据在 service 里清 */
     @Delete("DELETE FROM post WHERE id = #{postId}")
     int hardDelete(@Param("postId") Long postId);
+
+    /**
+     * 某用户发的动态数(他人主页头部「动态」数字用)。
+     * 口径与 PostFeedQueryService.myPosts 一致:status IN (0,1,2) 且未删。
+     * 现查 post 表而非依赖冗余计数列 —— 列漂移时列表是对的、头部也会跟着对。
+     */
+    @Select("SELECT COUNT(*) FROM post WHERE author_id = #{authorId} AND status IN (0,1,2) AND is_deleted = 0")
+    int countByAuthor(@Param("authorId") Long authorId);
 
     /**
      * 帖子全文搜索(MATCH/AGAINST,中文走 ngram 分词器)。

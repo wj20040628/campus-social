@@ -20,6 +20,12 @@ public class CircleMember implements Serializable {
     /** 1creator 2admin 3member */
     private Integer role;
 
+    /** 圈内封禁 0正常 1封禁 */
+    private Integer banStatus;
+
+    /** 封禁到期(东八区),NULL=长期;到点查询时动态解除 */
+    private LocalDateTime banUntil;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

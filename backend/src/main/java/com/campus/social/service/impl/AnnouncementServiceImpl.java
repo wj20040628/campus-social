@@ -57,7 +57,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
         // 置顶流：只在第一页取。翻页时置顶项已在第一页出现过，重复展示会错位。
         if (cursor == null) {
-            List<AnnouncementRow> pinned = announcementMapper.selectPinnedFront(schoolId, PINNED_FETCH_LIMIT);
+            // 置顶流也要走 category 过滤 —— 选「活动」不该冒出「教务」的置顶
+            List<AnnouncementRow> pinned = announcementMapper.selectPinnedFront(schoolId, category, PINNED_FETCH_LIMIT);
             rows.addAll(pinned);
             int remain = limit - pinned.size();
             if (remain > 0) {

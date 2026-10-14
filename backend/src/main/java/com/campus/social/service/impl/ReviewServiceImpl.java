@@ -21,6 +21,7 @@ import com.campus.social.service.ReviewService;
 import com.campus.social.vo.ReviewTaskVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.mapper.NotifyMapper;
+import com.campus.social.websocket.WsAfterCommit;
 import com.campus.social.websocket.WsPushService;
 import com.campus.social.assembler.UserVoAssembler;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final NotifyService notifyService;
     private final NotifyMapper notifyMapper;
     private final WsPushService wsPush;
+    private final WsAfterCommit wsAfterCommit;
     private final AuditService auditService;
     private final ObjectMapper om;
     private final SensitiveWordFilter sensitive;
@@ -179,7 +181,7 @@ public class ReviewServiceImpl implements ReviewService {
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(authorId, 1);
-        wsPush.pushNotify(authorId, n.getId(), type, post.getId(), reviewerId);
+        wsAfterCommit.run(() -> wsPush.pushNotify(authorId, n.getId(), type, post.getId(), reviewerId));
     }
 
     private ReviewTaskVO toVo(ReviewTask task) {

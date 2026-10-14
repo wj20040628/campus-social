@@ -62,8 +62,14 @@ export function useProfileRelations(targetId) {
   }
 
   /**
-   * 列表惰性加载:第一次切到该 Tab 才拉,之后有缓存就不重复。
-   * 并发去重靠 loading 标记 —— 快速来回切 Tab 会连发多个请求。
+   * 列表随主页一起预拉(不再惰性等点 Tab)。
+   *
+   * 原先:进主页默认停在「动态」tab,粉丝/关注列表要等你点那个 tab 才发请求;
+   * 点过去时请求还没回来,UserList 先按 [] 渲染空态「还没关注任何人」,
+   * 刷新后重新触发拉取才显示 —— 用户看到的是「明明有、却不显示」,得刷一次才好。
+   *
+   * 现在:切人时(路由复用)跟 loadRelation 一起并发预拉两个列表,
+   * 进主页那一刻数据就到位,空态不再抢跑。并发去重仍靠 loading + 有缓存早退。
    */
   async function loadFollowers() {
     if (loadingFollowers.value || followers.value.length) return
@@ -87,7 +93,7 @@ export function useProfileRelations(targetId) {
     }
   }
 
-  /** 点 Tab 头触发。只补当前那一个,不并发拉两个 */
+  /** 点 Tab 头触发。列表已在进主页时预拉,这里只兜底补拉(失败/没缓存) */
   function onTabChange(name) {
     if (name === 'followers') loadFollowers()
     if (name === 'following') loadFollowing()
@@ -100,11 +106,12 @@ export function useProfileRelations(targetId) {
     following.value = []
   }
 
-  // 路由复用时组件不重建,靠 watch 重置并重拉关系。
-  // 列表**不**跟着重拉:它们是惰性加载的,用户没点那个 Tab 就不该发请求
+  // 路由复用时组件不重建,靠 watch 重置,并重拉关系 + 预拉两个列表(并发)。
   watch(targetId, () => {
     reset()
     loadRelation().catch(() => {})
+    loadFollowers()
+    loadFollowing()
   })
 
   return {

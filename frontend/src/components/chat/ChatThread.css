@@ -2,6 +2,13 @@
 /*
  * 高度用 100dvh:100vh 在移动端不含地址栏回缩高度,
  * 底部输入区会被浏览器栏压掉一半。
+ *
+ * 路由 ownTop 关掉全站顶栏后,会话页 .th 是唯一全高容器:
+ *   .th(100dvh) = 顶栏(.th__bar,flex:none) + 群头/来源条(flex:none,仅群聊)
+ *               + 消息列表(.th__list,flex:1,min-height:0,吸收剩余高)
+ *               + 引用条/输入区(flex:none,贴底)
+ * 这样输入区常驻贴底可见,不会像「叠在全站顶栏(56px)之上」那样被推出视口,
+ * 滚底时 scrollHeight 才是真实值。
  */
 .th {
   display: flex;
@@ -9,6 +16,57 @@
   height: 100dvh;
   min-height: 0;
   background: var(--ys-bg);
+}
+
+/* 行 0:会话顶栏(自绘,替代全站顶栏) */
+.th__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  min-height: var(--ys-topbar-h);
+  padding: 0 var(--ys-space-2);
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border);
+  z-index: var(--ys-z-sticky);
+}
+.th__bar-back {
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+.th__bar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.th__bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  flex: none;
+}
+.th__bar-act {
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ys-fg-2);
+  cursor: pointer;
+  border-radius: var(--ys-radius-lg);
 }
 
 .src {
@@ -64,6 +122,22 @@
 .block--warning {
   background: var(--ys-warning-soft);
   color: var(--ys-warning);
+}
+
+/*
+ * ② 群信息头(桌面 + 手机都常显)。
+ * 早前的「下滑收起 / 上滑拉回」用 transform:translateY(-120px) 平移收起,
+ * 但 **常驻的 transform(即使 translateY(0))会创建层叠上下文**,把
+ * GroupHead 里 absolute 定位的群管理菜单(.gh__menu)困在 .gh-wrap 内部,
+ * 消息列表(.th__list)与输入区(.input,z-index:1100)在其外层 →
+ * 菜单弹出后被消息盖住。改为常显后不再需要 transform,
+ * 去掉它,.gh__menu 恢复正常层叠、能盖住消息列表。
+ * (成员名单仍走 ActionSheet,position:fixed + z-index:1220,不受影响。)
+ */
+.gh-wrap {
+  flex: none;
+  position: relative;
+  z-index: var(--ys-z-sticky);
 }
 
 .th__list {

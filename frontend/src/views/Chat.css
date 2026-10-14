@@ -97,8 +97,22 @@
     flex: 1;
   }
 
-  /* 桌面无软键盘,不需要键盘位移 */
+  /*
+   * 会话页(chatThread)路由 ownTop:true 关掉全站顶栏、自绘 .th__bar,
+   * 且 .content--immersive 桌面 padding:0 → 内容区就是 100dvh。
+   * 此分支(列表页,仍显示全站顶栏)保留「扣顶栏」的扣减;
+   * 会话页则按 100dvh 全高算(见下方 .content--immersive 覆盖),
+   * 否则 .th(100dvh) 塞进 100dvh-128px 的 .chat 会被 overflow:hidden 裁掉输入区。
+   */
   .chat__thread :deep(.input) {
     transform: none;
+  }
+}
+
+/* 桌面:会话页(ownTop, 无全站顶栏, 内容区 100dvh)—— .chat 撑满, 顶栏由 .th 自绘 */
+@media (min-width: 1024px) {
+  .content--immersive .chat {
+    height: 100dvh;
+    min-height: 0;
   }
 }

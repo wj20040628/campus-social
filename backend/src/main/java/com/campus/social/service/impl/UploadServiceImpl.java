@@ -1,8 +1,11 @@
 package com.campus.social.service.impl;
 
 import cn.hutool.core.io.FileUtil;
+import com.campus.social.entity.UploadFile;
 import com.campus.social.exception.BusinessException;
+import com.campus.social.mapper.UploadFileMapper;
 import com.campus.social.service.UploadService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -35,7 +38,10 @@ import static com.campus.social.common.ResultCode.*;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class UploadServiceImpl implements UploadService {
+
+    private final UploadFileMapper uploadFileMapper;
 
     @Value("${upload.dir:./uploads}")
     private String baseDir;
@@ -65,7 +71,7 @@ public class UploadServiceImpl implements UploadService {
     }
 
     @Override
-    public String upload(MultipartFile file, String kind) {
+    public String upload(MultipartFile file, String kind, long userId) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(BAD_REQUEST, "文件为空");
         }
@@ -105,8 +111,42 @@ public class UploadServiceImpl implements UploadService {
         }
         // 返回相对路径,前端拼 origin(铁律:不写死域名/端口)
         String rel = "/uploads/" + day + "/" + fileName;
-        log.info("upload ok: kind={}, size={}, absPath={}, rel={}", kind, file.getSize(), targetDir.resolve(fileName), rel);
+
+        // 记录归属:头像/群头像引用该文件时校验「确属该用户上传」,
+        // 堵住引用他人文件的越权。userId 由 controller 注入(当前登录人)。
+        UploadFile uf = new UploadFile();
+        uf.setUserId(userId);
+        uf.setUrl(rel);
+        uf.setKind(kind);
+        uf.setIsDeleted(0);
+        // mapper 为 null 时(单测场景)跳过落库,纯签名/落盘校验不受影响
+        if (uploadFileMapper != null) {
+            uploadFileMapper.insert(uf);
+        }
+
+        log.info("upload ok: kind={}, size={}, absPath={}, rel={}, owner={}", kind, file.getSize(), targetDir.resolve(fileName), rel, userId);
         return rel;
+    }
+
+    @Override
+    public boolean isAvatarAllowed(String avatarUrl, long me) {
+        // 只有 /uploads 前缀的 URL 需要校验归属 —— 外部图床/老数据没有 upload_file 记录,放行
+        String path = null;
+        try {
+            path = new java.net.URL(avatarUrl).getPath();
+        } catch (Exception e) {
+            // 非绝对 URL(相对 /uploads/...) → 直接把原串当路径用
+            path = avatarUrl;
+        }
+        if (path == null || !path.startsWith("/uploads/")) {
+            return true; // 非本服务上传目录,无归属记录,放行
+        }
+        // 查归属:返回 null = 老数据/无记录 → 放行;非 null 且 ≠ me → 拒
+        Long owner = uploadFileMapper.ownerOf(path);
+        if (owner == null) {
+            return true; // 无记录,兼容老数据
+        }
+        return owner == me;
     }
 
     private String extOf(String name) {

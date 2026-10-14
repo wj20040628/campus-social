@@ -14,6 +14,7 @@
       <el-tag v-if="post.status === 0" type="warning" size="small">审核中</el-tag>
       <el-tag v-else-if="post.status === 2" type="danger" size="small">已驳回</el-tag>
       <el-tag v-else-if="post.circleId" type="info" size="small">圈子</el-tag>
+      <el-tag v-if="post.isTop" type="danger" effect="plain" size="small">置顶</el-tag>
     </div>
 
     <div class="post-body">

@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.dto.CreatePostDTO;
@@ -66,7 +67,7 @@ public class PostController {
             @RequestParam(value = "topic", required = false) String topic,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.feed(me, lastId, size, by, order, topic));
+        return Result.ok(postService.feed(me, lastId, PageSize.clamp(size), by, order, topic));
     }
 
     /** 探索页(热门) */
@@ -76,7 +77,7 @@ public class PostController {
             @RequestParam(value = "lastHotScore", required = false) Long lastHotScore,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.hot(size, lastHotScore, me != null ? me : 0L));
+        return Result.ok(postService.hot(PageSize.clamp(size), lastHotScore, me != null ? me : 0L));
     }
 
     /** 话题落地页:某话题下所有帖子 */
@@ -87,7 +88,7 @@ public class PostController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.feedByTopic(topic, lastId, size, me != null ? me : 0L));
+        return Result.ok(postService.feedByTopic(topic, lastId, PageSize.clamp(size), me != null ? me : 0L));
     }
 
     /** 关注的人的帖子(读 feed_item 收件箱,写扩散闭环) */
@@ -100,7 +101,7 @@ public class PostController {
         if (me == null) {
             return Result.fail(401, "请先登录");
         }
-        return Result.ok(postService.feedFollowing(me, lastId, size));
+        return Result.ok(postService.feedFollowing(me, lastId, PageSize.clamp(size)));
     }
 
     /** 点赞(幂等) */
@@ -137,7 +138,7 @@ public class PostController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.comments(id, lastId, size, me != null ? me : 0L));
+        return Result.ok(postService.comments(id, lastId, PageSize.clamp(size), me != null ? me : 0L));
     }
 
     /**
@@ -154,7 +155,7 @@ public class PostController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.commentChildren(id, commentId, lastId, size, me != null ? me : 0L));
+        return Result.ok(postService.commentChildren(id, commentId, lastId, PageSize.clamp(size), me != null ? me : 0L));
     }
 
     /** 某用户发的帖子 */
@@ -164,6 +165,6 @@ public class PostController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.myPosts(me, lastId, size));
+        return Result.ok(postService.myPosts(me, lastId, PageSize.clamp(size)));
     }
 }

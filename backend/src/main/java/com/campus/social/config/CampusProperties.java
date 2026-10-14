@@ -49,6 +49,12 @@ public class CampusProperties {
     private int maxTags = 8;
 
     /**
+     * 单个群的最大成员数(拉人时校验)。校园场景 500 足够,
+     * 防群被拉成超大群导致写扩散/未读计数膨胀。配置可改,不必发版。
+     */
+    private int groupMaxMembers = 500;
+
+    /**
      * 学号「自动通过」开关:格式校验 + 院系交叉校验都通过时直接置已认证,
      * 不进人工队列。
      *
@@ -120,6 +126,14 @@ public class CampusProperties {
 
     public void setMaxTags(int maxTags) {
         this.maxTags = maxTags;
+    }
+
+    public int getGroupMaxMembers() {
+        return groupMaxMembers;
+    }
+
+    public void setGroupMaxMembers(int groupMaxMembers) {
+        this.groupMaxMembers = groupMaxMembers;
     }
 
     public boolean isAutoApproveStudentNo() {

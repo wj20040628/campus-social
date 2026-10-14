@@ -75,7 +75,6 @@ function goBack() {
 const form = reactive({
   category: '',
   subTag: '',
-  title: '',
   content: '',
   launchHours: 6,
   customHours: null,
@@ -84,14 +83,13 @@ const form = reactive({
   location: '',
   // 校验错误文案(贴字段,不弹 toast)
   categoryError: '',
-  titleError: '',
   contentError: '',
   durError: '',
   error: '',
 })
 
 function clearErrors() {
-  form.categoryError = form.titleError = form.contentError = form.durError = form.error = ''
+  form.categoryError = form.contentError = form.durError = form.error = ''
 }
 
 /** 自填时长覆盖快捷选项;范围 1–12 */
@@ -110,9 +108,6 @@ function validate() {
   clearErrors()
   let ok = true
   if (!form.category) { form.categoryError = '先选个一级分类'; ok = false }
-  if (form.title.trim().length < 15 || form.title.trim().length > 25) {
-    form.titleError = '标题要 15–25 个字'; ok = false
-  }
   if (form.content.trim().length < 1) { form.contentError = '详情写点什么'; ok = false }
   if (!isEdit.value) {
     const h = effectiveHours()
@@ -120,7 +115,7 @@ function validate() {
       form.durError = `投放时长填 1–${MAX_LAUNCH_HOURS} 小时`; ok = false
     }
   }
-  if (hasBannedWord(form.title + '\n' + form.content)) {
+  if (hasBannedWord(form.content)) {
     form.error = '内容疑似含违规词,换个说法或删掉;提交时平台也会再查一遍'
     ok = false
   }
@@ -138,7 +133,6 @@ async function submit() {
       await mkt.editMkt(editId.value, {
         category: form.category,
         subTag: form.subTag || null,
-        title: form.title.trim(),
         content: form.content.trim(),
         targetNum: form.targetNum,
         price: form.price,
@@ -148,11 +142,13 @@ async function submit() {
       router.replace(`/mkt/${editId.value}`)
     } else {
       const hours = effectiveHours()
-      const expireTime = dayjs().add(hours, 'hour').toISOString()
+      // 后端 expireTime 是 naive LocalDateTime(东八区),不是带时区的 Instant。
+      // 必须按本地(东八)墙钟时间序列化,不能用 toISOString()(那会发 UTC,被后端
+      // 当 naive 读 → 短时长落在过去被拒,12h 也会实际少投 8h)。
+      const expireTime = dayjs().add(hours, 'hour').format('YYYY-MM-DDTHH:mm:ss')
       const id = await mkt.createMkt({
         category: form.category,
         subTag: form.subTag || null,
-        title: form.title.trim(),
         content: form.content.trim(),
         targetNum: form.targetNum,
         price: form.price,
@@ -177,7 +173,6 @@ onMounted(async () => {
     const d = await mkt.mktDetail(editId.value)
     form.category = d.category
     form.subTag = d.subTag || ''
-    form.title = d.title
     form.content = d.content
     form.targetNum = d.targetNum ?? 0
     form.price = d.price ?? 0

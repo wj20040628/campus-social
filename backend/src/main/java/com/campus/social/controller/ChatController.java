@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.ChatSendDTO;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -32,7 +33,7 @@ public class ChatController {
             @RequestParam(value = "size", defaultValue = "30") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(chatService.conversations(me, lastId, size));
+        return Result.ok(chatService.conversations(me, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/history")
@@ -42,7 +43,7 @@ public class ChatController {
             @RequestParam(value = "size", defaultValue = "30") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(chatService.history(me, peerId, lastId, size));
+        return Result.ok(chatService.history(me, peerId, lastId, PageSize.clamp(size)));
     }
 
     /**

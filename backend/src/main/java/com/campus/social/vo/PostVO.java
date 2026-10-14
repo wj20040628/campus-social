@@ -32,4 +32,6 @@ public class PostVO {
     private LocalDateTime createTime;
     /** 当前用户是否已赞 */
     private boolean liked;
+    /** 圈内置顶 */
+    private boolean isTop;
 }

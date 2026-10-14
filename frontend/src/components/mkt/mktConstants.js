@@ -17,4 +17,13 @@ export const DURATION_OPTIONS = [1, 3, 6, 12]
 /** 单次投放时长上限(小时),校验与后端一致。 */
 export const MAX_LAUNCH_HOURS = 12
 
-export default { CATEGORIES, DURATION_OPTIONS, MAX_LAUNCH_HOURS }
+/**
+ * 热门游戏(仅当一级分类 = 游戏组队 时可选)。
+ * 选中的游戏写入 subTag,卡片/详情主文案展示为「游戏组队 · <游戏>」。
+ */
+export const HOT_GAMES = [
+  '王者荣耀', '和平精英', '三角洲行动', 'PUBG', '原神',
+  '英雄联盟', '永劫无间', '暗区突围', '蛋仔派对', '金铲铲之战',
+]
+
+export default { CATEGORIES, DURATION_OPTIONS, MAX_LAUNCH_HOURS, HOT_GAMES }

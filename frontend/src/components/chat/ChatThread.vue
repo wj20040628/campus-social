@@ -4,6 +4,41 @@
     唯一负责「键盘弹起时输入框不被吞掉」的地方。
   -->
   <div class="th">
+    <!--
+      行 0:会话顶栏(路由 ownTop 关掉全站顶栏后,这里自绘)。
+      单聊=对方昵称,群聊=群名(与全站顶栏同源:都读 headTitle)。
+      右侧搜索/铃铛与全站顶栏对齐。返回:手机 history.back,桌面同。
+    -->
+    <div class="th__bar" role="banner">
+      <button
+        type="button"
+        class="th__bar-back"
+        aria-label="返回上一页"
+        @click="goBack"
+      >
+        <el-icon :size="22"><Back /></el-icon>
+      </button>
+      <div class="th__bar-title" :title="peerName">{{ peerName || '会话' }}</div>
+      <div class="th__bar-actions">
+        <button
+          type="button"
+          class="th__bar-act"
+          aria-label="找人"
+          @click="router.push('/search')"
+        >
+          <el-icon :size="20"><Search /></el-icon>
+        </button>
+        <button
+          type="button"
+          class="th__bar-act"
+          aria-label="通知"
+          @click="router.push('/notify')"
+        >
+          <el-icon :size="20"><Bell /></el-icon>
+        </button>
+      </div>
+    </div>
+
     <!-- 行 2:来源上下文条。这是「不加好友也能聊」的由头,不可删 -->
     <div v-if="sourceTitle" class="src">
       <el-icon :size="16" class="src__pin"><Top /></el-icon>
@@ -11,6 +46,26 @@
       <button type="button" class="src__close" aria-label="收起来源" @click="$emit('close-source')">
         <el-icon :size="16"><Close /></el-icon>
       </button>
+    </div>
+
+    <!--
+      ② 群信息头(仅群聊)。**桌面 + 手机都常显**:群头固定在消息区上方,
+      不随滚动收起/隐藏。早前的「下滑收起 / 上滑拉回」已移除 —— 用户反馈
+      手机端收起后群头找不回来,桌面端也要求常显,统一为恒显。
+    -->
+    <div v-if="kind === 'group' && groupInfo" class="gh-wrap">
+      <GroupHead
+        :group="groupInfo"
+        :info="groupInfo"
+        :on-add="onAdd"
+        :on-kick="onKick"
+        :on-leave-group="onLeaveGroup"
+        :on-transfer="onTransfer"
+        :on-rename="onRename"
+        :on-set-announcement="onSetAnnouncement"
+        :on-mute-member="onMuteMember"
+        :on-mute-all="onMuteAll"
+      />
     </div>
 
     <!-- 权限提示(AC-04/05/06)。三种各有具体文案,不弹 toast -->
@@ -130,7 +185,7 @@
         :autosize="{ minRows: 1, maxRows: 4 }"
         :disabled="!!blockReason"
         aria-label="消息输入框"
-        placeholder="按 Enter 发送,Shift+Enter 换行"
+        :placeholder="inputPlaceholder"
         @keydown.enter.exact.prevent="send"
       />
       <button
@@ -178,9 +233,13 @@
  * 用 pointerdown/pointerup 而不是 touchstart —— 前者在桌面也能触发,
  * 开发时不用为了测长按切到手机。
  */
-import { ref, computed, onBeforeUnmount } from 'vue'
-import { Top, Close, Promotion, RefreshLeft, Paperclip, User } from '@element-plus/icons-vue'
+import { ref, computed, onBeforeUnmount, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { Top, Close, Promotion, RefreshLeft, Paperclip, User, Back, Search, Bell } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import GroupHead from './GroupHead.vue'
+
+const router = useRouter()
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -196,6 +255,19 @@ const props = defineProps({
   block: { type: Object, default: null },
   sending: { type: Boolean, default: false },
   canRecall: { type: Function, default: () => false },
+  // 群聊相关(GroupHead 用)
+  /** 群信息头(GroupMemberInfoVO);null=单聊或加载中 */
+  groupInfo: { type: Object, default: null },
+  onAdd: { type: Function, default: () => {} },
+  onKick: { type: Function, default: () => {} },
+  onLeaveGroup: { type: Function, default: () => {} },
+  onTransfer: { type: Function, default: () => {} },
+  onRename: { type: Function, default: () => {} },
+  onSetAnnouncement: { type: Function, default: () => {} },
+  /** 禁言某成员:透传 useChatCore.onMuteMember(userId, muted) */
+  onMuteMember: { type: Function, default: () => {} },
+  /** 禁言全员:透传 useChatCore.onMuteAll(muted) */
+  onMuteAll: { type: Function, default: () => {} },
 })
 
 const emit = defineEmits([
@@ -226,6 +298,14 @@ const draft = computed({
 
 const blockReason = computed(() => props.block?.text || '')
 const blockTone = computed(() => props.block?.tone || 'danger')
+
+/** 输入框占位符:群聊时带群名(回应「发消息栏不知道在哪个群」),单聊保持通用 */
+const inputPlaceholder = computed(() => {
+  if (props.kind === 'group' && props.groupInfo?.name) {
+    return `在「${props.groupInfo.name}」按 Enter 发送`
+  }
+  return '按 Enter 发送,Shift+Enter 换行'
+})
 
 const sheetTitle = computed(() =>
   props.kind === 'group' ? '这条群消息' : `发给 ${props.peerName || 'TA'} 的消息`,
@@ -259,6 +339,49 @@ function scrollBottom() {
   const el = listEl.value
   if (!el) return
   el.scrollTop = el.scrollHeight
+}
+
+/**
+ * ① 进会话/切会话:messages 变化即滚到最新(最下)。
+ * 手机端每个会话是独立路由、ChatThread 会**重挂载** —— 必须 immediate,
+ * 否则挂载时已有 messages(列表先于会话加载)不会触发,停在上部。
+ * flush:'post' 保证 DOM 已更新;再 rAF 等布局稳定(scrollHeight 才准)。
+ */
+watch(
+  () => props.messages,
+  (m) => {
+    if (m?.length) scheduleScrollBottom()
+  },
+  { flush: 'post', immediate: true },
+)
+
+/** 历史加载完成(loading true→false)时滚底:这是切会话/进群最稳的时机 */
+watch(
+  () => props.historyLoading,
+  (loading, prev) => {
+    if (prev && !loading && !props.historyError && props.messages?.length) {
+      scheduleScrollBottom()
+    }
+  },
+)
+
+/** 下一帧再滚:让新气泡渲染 + 布局完成,scrollHeight 才是完整值 */
+function scheduleScrollBottom() {
+  requestAnimationFrame(scrollBottom)
+}
+
+/*
+ * ② 群信息头:桌面 + 手机都常显。
+ * 早前的「下滑收起 / 上滑拉回」(headPinned / onListScroll / scroll 监听)已删除:
+ * 手机端收起后群头找不回来、群管理面板又被消息盖住,统一改为恒显,
+ * 群头固定在消息区上方,不再随滚动平移。
+ */
+
+/* ---------------- 返回:顶栏 ←(路由 ownTop,自绘顶栏) ---------------- */
+// 手机端会话是独立路由,history.back 回列表页;桌面无列表页,back 回上一条。
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.replace('/chat')
 }
 
 /* ---------------- 长按 ---------------- */

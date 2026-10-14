@@ -1,5 +1,6 @@
 package com.campus.social.controller;
 
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.entity.Circle;
 import com.campus.social.entity.Post;
@@ -47,6 +48,7 @@ public class SearchController {
             throw new com.campus.social.exception.BusinessException(
                     com.campus.social.common.ResultCode.BAD_REQUEST, "搜索词不能为空");
         }
+        size = PageSize.clamp(size);
         // 帖子:FULLTEXT(ngram 中文分词)+ LIKE 兜底(短词/特殊字符场景)
         // 用户/圈子:数据量小,维持 LIKE
         String keyword = "%" + q.trim() + "%";

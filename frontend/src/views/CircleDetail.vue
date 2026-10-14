@@ -24,15 +24,31 @@
       v-else-if="error"
       variant="error"
       title="圈子没拉出来"
-      description="可能是网络断了,点一下重试"
+      :description="errorMsg || '可能是网络断了,点一下重试'"
       action-label="重试"
       :icon="WarningFilled"
       @action="load()"
     />
 
     <template v-else-if="circle">
-      <!-- 行 2:圈子头 -->
-      <CircleHeader :circle="circle" :joining="joining" @join="join" />
+      <!-- 行 2:圈子头(圈主/圈管理露「管理」入口;成员露「退出圈子」) -->
+      <CircleHeader
+        :circle="circle"
+        :joining="joining"
+        :leaving="leaving"
+        @join="join"
+        @leave="leave"
+        @manage="showManage = true"
+      />
+
+      <!-- 圈管理面板:成员处置(封禁/解禁/任命)。仅 myRole<=2 可见 -->
+      <CircleManagePanel
+        v-if="canManage"
+        v-model:visible="showManage"
+        :circle-id="circleId"
+        :my-role="circle.myRole"
+        :me="meId"
+      />
 
       <!--
         行 3:自绘分段控件(不用 el-tabs):
@@ -57,8 +73,13 @@
 
       <!-- 行 4+5:帖子 Tab -->
       <div v-show="tab === 'posts'" role="tabpanel" class="cd__body">
+        <!-- 圈内被封禁(软封禁):保留查看,禁发帖。写口后端 422 CIRCLE_MEMBER_BANNED -->
+        <div v-if="canCreate && banned" class="cd__banned" role="alert">
+          你已被圈主/圈管理封禁,暂时无法在这个圈子发帖、评论、点赞。仅保留查看。
+        </div>
+
         <CircleComposer
-          v-if="canCreate"
+          v-else-if="canCreate"
           ref="composerRef"
           v-model:content="postContent"
           v-model:media="postMedia"
@@ -78,12 +99,18 @@
           <button type="button" class="cd__gate-btn" @click="join">加入圈子</button>
         </div>
 
-        <PostCard
-          v-for="p in posts"
-          :key="p.id"
-          :post="p"
-          @click="router.push(`/post/${p.id}`)"
-        />
+        <div v-for="p in posts" :key="p.id">
+          <PostCard
+            :post="p"
+            @click="router.push(`/post/${p.id}`)"
+          />
+          <!-- 吧主级操作条:仅 myRole<=2 且该帖为圈帖时露出 -->
+          <div v-if="canManage && p.circleId" class="cd__post-actions">
+            <button type="button" @click="act.top(p)">{{ p.isTop ? '取消置顶' : '置顶' }}</button>
+            <button type="button" @click="act.takedown(p)">下架</button>
+            <button type="button" @click="act.move(p, null)">移出该圈</button>
+          </div>
+        </div>
 
         <!-- 空态:必须有可点行动按钮(AC-19)。原 el-empty 默认描述违反此条 -->
         <StateBlock
@@ -138,11 +165,14 @@ import {
 import {
   detail as detailApi,
   join as joinApi,
+  leave as leaveApi,
   circlePosts,
   activitiesByCircle,
 } from '@/api/circle'
-import { ElMessage } from '@/utils/feedback'
+import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { useCircleWrites } from '@/composables/useCircleWrites'
+import { useCircleAdminActions } from '@/composables/useCircleAdminActions'
+import { useUserStore } from '@/stores/user'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
@@ -150,6 +180,7 @@ import CircleHeader from '@/components/circle/CircleHeader.vue'
 import CircleComposer from '@/components/circle/CircleComposer.vue'
 import CircleActivities from '@/components/circle/CircleActivities.vue'
 import ActivityForm from '@/components/circle/ActivityForm.vue'
+import CircleManagePanel from '@/components/circle/CircleManagePanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,10 +197,13 @@ const tab = ref('posts')
 
 const loading = ref(true)
 const error = ref(false)
+/** detail 接口业务错误(422/403)的 message,贴进错误态描述说清原因 */
+const errorMsg = ref('')
 const notFound = ref(false)
 const postsLoading = ref(false)
 const actsLoading = ref(false)
 const joining = ref(false)
+const leaving = ref(false)
 
 const composerRef = ref(null)
 
@@ -177,6 +211,21 @@ const composerRef = ref(null)
 const canCreate = computed(() => !!circle.value?.joined)
 
 const circleId = computed(() => route.params.id)
+
+// ---------------- 圈管理 / 吧主级权限(role<=2) ----------------
+const showManage = ref(false)
+const userStore = useUserStore()
+const meId = computed(() => userStore.userInfo?.id || 0)
+/** myRole:1 圈主 / 2 圈管理;3 成员 / 0 非成员无管理入口 */
+const canManage = computed(() => {
+  const r = Number(circle.value?.myRole)
+  return r === 1 || r === 2
+})
+/** 圈内被封禁(软封禁):保留查看,禁发帖/评论/点赞。写口后端 422 */
+const banned = computed(() => !!circle.value?.myBanned)
+/** 帖子操作:置顶/下架/移帖,成功后重载圈内帖子 */
+const act = useCircleAdminActions(circleId, loadPosts, null)
+
 
 async function load() {
   loading.value = true
@@ -190,9 +239,13 @@ async function load() {
       return
     }
   } catch (e) {
-    // 404 与网络错误分开:前者是「圈子没了」,后者是「没加载出来」
+    // 404 与网络错误分开:前者是「圈子没了」,后者是「没加载出来」。
+    // 业务错误(422/403)的 message 也带出来,让错误态说清原因,而不是只会「重试」
     if (e?.response?.status === 404) notFound.value = true
-    else error.value = true
+    else {
+      error.value = true
+      errorMsg.value = e?.response?.data?.message || ''
+    }
     return
   } finally {
     loading.value = false
@@ -241,6 +294,31 @@ async function join() {
     ElMessage.error('没加上,网络好像断了')
   } finally {
     joining.value = false
+  }
+}
+
+/** 退出圈子(仅普通成员 role=3)。确认后物理删成员行 + 成员数 -1。 */
+async function leave() {
+  try {
+    await ElMessageBox.confirm(
+      `确定退出「${circle.value.name}」?退出后不再显示在该圈,可随时再加入。`,
+      '退出圈子',
+      { type: 'warning', confirmButtonText: '退出', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  leaving.value = true
+  try {
+    await leaveApi(circleId.value)
+    circle.value.joined = false
+    circle.value.myRole = 0
+    ElMessage.success('已退出圈子')
+    await loadPosts() // 退圈后发帖权限没了,发帖框会切到「加入」态
+  } catch {
+    ElMessage.error('退出失败,再试一次')
+  } finally {
+    leaving.value = false
   }
 }
 

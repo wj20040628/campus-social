@@ -71,7 +71,10 @@ const routes = [
         path: 'chat/t/:kind/:id',
         name: 'chatThread',
         component: () => import('@/views/Chat.vue'),
-        meta: { requiresAuth: true, title: '会话', back: true, hideTabBar: true },
+        // ownTop:true = 会话页自绘顶栏(显示对方/群名),不渲染全站顶栏。
+        // 全站顶栏标题是路由 meta 写死的「会话」,看不出在和谁聊;
+        // 会话页顶栏内容与聊天数据同源(ChatThread 自绘),见 ChatThread.vue .th__bar。
+        meta: { requiresAuth: true, title: '会话', back: true, hideTabBar: true, ownTop: true },
       },
 
       {
@@ -97,6 +100,14 @@ const routes = [
         name: 'settings',
         component: () => import('@/views/Settings.vue'),
         meta: { requiresAuth: true, title: '我的' },
+      },
+      {
+        // 「我的」页概览卡「编辑资料」进的独立资料页。ownTop:自绘顶栏(返回+编辑资料),
+        // 不叠全站顶栏;hideTabBar 让表单独占底部,不被 TabBar 挤高度。
+        path: 'settings/profile',
+        name: 'settingsProfile',
+        component: () => import('@/views/SettingsProfile.vue'),
+        meta: { requiresAuth: true, title: '编辑资料', back: true, hideTabBar: true, ownTop: true },
       },
       {
         path: 'circles',
@@ -197,6 +208,16 @@ const routes = [
         name: 'adminAnnouncement',
         component: () => import('@/views/AdminAnnouncement.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, title: '公告管理', back: true, hideTabBar: true },
+      },
+      {
+        /*
+          圈子官方名保护 + 管理员处置(两个 Tab:圈子处置 / 预留名)。
+          移交圈主 / 封禁圈子 / 维护 reserved_circle_name。
+        */
+        path: 'admin/circles',
+        name: 'adminCircles',
+        component: () => import('@/views/AdminCircles.vue'),
+        meta: { requiresAuth: true, requiresAdmin: true, title: '圈子处置', back: true },
       },
       {
         // 公告编辑器:全屏页面而非抽屉(标题+正文+分类+置顶,字段多抽屉装不下)。

@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import dayjs from 'dayjs'
 import { me as meApi, userCard } from '@/api/auth'
-import { myPosts as myPostsApi } from '@/api/feed'
+import { myPosts as myPostsApi, userPosts as userPostsApi } from '@/api/feed'
 import { mine as myReviewsApi } from '@/api/review'
 import { readIdentity } from '@/api/dict'
 
@@ -43,15 +43,13 @@ export function useProfileData(targetId, myId, dict) {
         loadMyReviews()
       } else {
         /**
-         * 他人:只有卡片。后端 `GET /post/mine` 取的是**登录人**(AuthInterceptor.ATTR_USER_ID),
-         * 没有任何「某用户发的帖子」端点 —— 所以不能传 targetId 去查,
-         * 那样请求会带着登录人的身份发出去,返回的是**我的**动态,
-         * 挂在别人的主页上比空列表更糟(张冠李戴,用户看不出错在哪)。
-         * 结果就是:他人主页的「动态」这一格显示 0,点开是空态。
-         * 这条缺口已在交付报告里列给后端(需要 GET /user/{id}/posts)。
+         * 他人:卡片 + 其发的动态。
+         * 动态走新端点 GET /user/{id}/posts(按 author_id 现查 post 表),
+         * 不再用 /post/mine(绑死登录人,传 targetId 会张冠李戴)。
+         * 审核记录是私有的,看别人主页不拉。
          */
         user.value = await userCard(targetId.value)
-        posts.value = []
+        await loadPosts()
         myReviews.value = []
       }
     } catch {
@@ -62,11 +60,14 @@ export function useProfileData(targetId, myId, dict) {
   /**
    * 动态列表。**不抛** —— 失败只置 postsFailed,
    * 让身份头继续显示,否则一次列表请求失败会把整个主页变成「用户不见了」。
+   * 自己走 /post/mine,他人走 /user/{id}/posts。
    */
   async function loadPosts() {
     postsFailed.value = false
     try {
-      const data = await myPostsApi(null, 50)
+      const data = myId.value === targetId.value
+        ? await myPostsApi(null, 50)
+        : await userPostsApi(targetId.value, null, 50)
       posts.value = normalize(data?.list)
     } catch {
       postsFailed.value = true

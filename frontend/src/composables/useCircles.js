@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
-import { ElMessage } from '@/utils/feedback'
-import { list as listApi, join as joinApi, createCircle as createApi, search as searchApi } from '@/api/circle'
+import { ElMessage, ElMessageBox } from '@/utils/feedback'
+import { list as listApi, join as joinApi, leave as leaveApi, createCircle as createApi, search as searchApi } from '@/api/circle'
 import { useUserStore } from '@/stores/user'
 import { isIdentityVerified } from '@/utils/mask'
 
@@ -42,7 +42,9 @@ export function useCircles() {
   /** 当前要渲染的列表。搜索态下只有搜索结果,不做「我加入的/全部」分组 */
   const rows = computed(() => (isSearching.value ? results.value : circles.value))
 
-  /** 「我加入的」分组。空则整组隐藏(模板 v-if),不留空分组头 */
+  /**
+   * 「我加入的」分组。空则整组隐藏(模板 v-if),不留空分组头
+   */
   const joinedCircles = computed(() => circles.value.filter((c) => c.joined))
 
   /** 「全部圈子」里要排除已在上方出现过的,否则同一个圈子一屏出现两次 */
@@ -124,6 +126,38 @@ export function useCircles() {
     }
   }
 
+  /** 退圈(仅普通成员 myRole=3)。确认后物理删成员行,本行 joined 翻 false 回「加入」态。 */
+  const leavingCircleId = ref(null)
+
+  function isLeaving(c) {
+    return c && leavingCircleId.value === c.id
+  }
+
+  async function leaveCircle(c) {
+    try {
+      await ElMessageBox.confirm(
+        `确定退出「${c.name}」?退出后不再显示在该圈,可随时再加入。`,
+        '退出圈子',
+        { type: 'warning', confirmButtonText: '退出', cancelButtonText: '取消' },
+      )
+    } catch {
+      return
+    }
+    leavingCircleId.value = c.id
+    try {
+      await leaveApi(c.id)
+      c.joined = false
+      c.myRole = 0
+      ElMessage.success('已退出圈子')
+      // 本地翻 joined 后,该圈子会从「我加入的」分组移出(分组按 c.joined 过滤),
+      // 成员数也 -1。不用重拉整页 —— 列表数据已在内存里
+    } catch {
+      ElMessage.error('退出失败,再试一次')
+    } finally {
+      leavingCircleId.value = null
+    }
+  }
+
   async function create() {
     const name = newName.value.trim()
     if (!name || creating.value) return
@@ -151,6 +185,6 @@ export function useCircles() {
     keyword, searching, searchFailed, results, isSearching, rows,
     joinedCircles, visibleCircles,
     showCreate, newName, creating, createError,
-    openCreate, load, runSearch, clearSearch, joinCircle, create,
+    openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving, create,
   }
 }

@@ -9,6 +9,7 @@ import com.campus.social.service.AuditService;
 import com.campus.social.service.LlmModerationService;
 import com.campus.social.service.ModerationVerdict;
 import com.campus.social.service.PostService;
+import com.campus.social.websocket.WsAfterCommit;
 import com.campus.social.websocket.WsPushService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class AiReviewTriggerImpl implements AiReviewTrigger {
     private final NotifyMapper notifyMapper;
     private final com.campus.social.mapper.UserMapper userMapper;
     private final WsPushService wsPush;
+    private final WsAfterCommit wsAfterCommit;
     private final AuditService auditService;
 
     @Override
@@ -140,7 +142,7 @@ public class AiReviewTriggerImpl implements AiReviewTrigger {
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(authorId, 1);
-        wsPush.pushNotify(authorId, n.getId(), type, post.getId(), 0L);
+        wsAfterCommit.run(() -> wsPush.pushNotify(authorId, n.getId(), type, post.getId(), 0L));
         log.info("ai review notify: post={}, type={}, author={}, source={}", post.getId(), type, authorId, source);
     }
 }

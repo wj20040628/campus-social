@@ -1,12 +1,16 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.Result;
+import com.campus.social.common.CursorPage;
 import com.campus.social.dto.UpdateProfileDTO;
 import com.campus.social.entity.User;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.mapper.PostMapper;
 import com.campus.social.service.AuthService;
+import com.campus.social.service.PostService;
 import com.campus.social.vo.UserVO;
+import com.campus.social.vo.PostVO;
 import com.campus.social.assembler.UserVoAssembler;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -18,16 +22,26 @@ public class UserController {
 
     private final AuthService authService;
     private final UserMapper userMapper;
+    private final PostMapper postMapper;
+    private final PostService postService;
 
-    public UserController(AuthService authService, UserMapper userMapper) {
+    public UserController(AuthService authService, UserMapper userMapper,
+                          PostMapper postMapper, PostService postService) {
         this.authService = authService;
         this.userMapper = userMapper;
+        this.postMapper = postMapper;
+        this.postService = postService;
     }
 
     @GetMapping("/me")
     public Result<UserVO> me(HttpServletRequest req) {
         Long userId = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(authService.me(userId));
+        UserVO vo = authService.me(userId);
+        // 头部「动态」数字按 author_id 现查 post 表,与「动态」列表同源(不靠冗余列)
+        if (vo != null) {
+            vo.setPostCount(postMapper.countByAuthor(userId));
+        }
+        return Result.ok(vo);
     }
 
     /** 更新资料:昵称/头像/学号。院系与年级走 POST /user/school-profile(字典 id) */
@@ -52,7 +66,28 @@ public class UserController {
         if (u == null || u.getStatus() == 2) {
             return Result.fail(com.campus.social.common.ResultCode.NOT_FOUND, "用户不存在");
         }
-        return Result.ok(UserVoAssembler.of(u));
+        UserVO vo = UserVoAssembler.of(u);
+        // 动态数按 author_id 现查 post 表(与「动态」列表同源),头部数字不再依赖漂移的冗余列
+        vo.setPostCount(postMapper.countByAuthor(id));
+        return Result.ok(vo);
+    }
+
+    /**
+     * 某用户发的动态(他人主页「动态」tab 用)。
+     *
+     * <p>复用 {@link PostService#myPosts(long, Long, int)} 按 author_id 现查 post 表,
+     * 不再依赖 /post/mine 绑死登录人。校验目标用户存在,防拿任意 id 探活。
+     * 返回公开 PostVO(不含审核态)——看别人主页不该暴露私有审核信息。
+     */
+    @GetMapping("/{id}/posts")
+    public Result<CursorPage<PostVO>> userPosts(@PathVariable("id") long id,
+                                                @RequestParam(value = "lastId", required = false) Long lastId,
+                                                @RequestParam(value = "size", defaultValue = "20") int size) {
+        User u = userMapper.selectById(id);
+        if (u == null || u.getStatus() == 2) {
+            return Result.fail(com.campus.social.common.ResultCode.NOT_FOUND, "用户不存在");
+        }
+        return Result.ok(postService.myPosts(id, lastId, size));
     }
 
     /**

@@ -83,18 +83,44 @@ export function useChatSends(ctx) {
     }
   }
 
-  /** 120s 内、非撤回、我发的消息才可撤(与后端 RECALL_WINDOW_SECONDS 对齐)。
+  /** 120s 内、非撤回、我发的、**有有效 msgId**的消息才可撤。
    *  sendTs 来自服务器 createTime(历史消息)或本地发送时刻(刚发出),前端只用来
-   *  不给出注定无效的按钮,真正的拦截在服务端。 */
+   *  不给出注定无效的按钮,真正的拦截在服务端。
+   *  id 守卫:刚发出时若后端响应异常、id 落到 undefined(或前端生成的占位),
+   *  这里不渲染撤回按钮,从根上避免点撤回触发 400「参数类型错误: msgId」。 */
   const canRecall = (m) =>
+    m.id != null &&
     m.fromMe && !m.recalled && m.sendTs && Date.now() - m.sendTs < 120000
 
   async function doRecall(m) {
     if (m._recallBusy) return
+    const content = m.content ?? ''
+    // 终极兜底:msgId 必须是有限的数字才发请求。undefined/NaN/前端时间戳占位
+    // 都打回去提示,绝不让它落到 URL 变成 .../message/undefined 触发 400。
+    let msgId = Number(m.id)
+    // 二次保险:调用方(旧 HMR 闭包 / WS 推送的脏数据)可能丢了 id —— 从本地
+    // messages 数组按「内容 + fromMe + 未撤回 + 120s 窗口」重新锁定那条气泡,
+    // 取它的 id。日志已证明这条路径拿到的 id 就是后端返回的数字。
+    if (!Number.isFinite(msgId) || msgId <= 0) {
+      const match = (messages.value || []).find((x) =>
+        x.fromMe && !x.recalled &&
+        x.sendTs && Date.now() - x.sendTs < 120000 &&
+        x.content === content && Number(x.id) > 0,
+      )
+      if (match) msgId = Number(match.id)
+    }
+    if (!Number.isFinite(msgId) || msgId <= 0) {
+      ElMessage.error('这条消息没拿到有效 id,刷新后再试')
+      return
+    }
     m._recallBusy = true
     try {
-      if (currentKind.value === 'group') await api.groupRecall(m.id)
-      else await api.recall(m.id)
+      if (currentKind.value === 'group') {
+        // recallGroupMessage(groupId, msgId):两个参数,groupId 在前。漏掉会导致 msgId=undefined。
+        await api.groupRecall(currentGroup.value.id, msgId)
+      } else {
+        await api.recall(msgId)
+      }
       // DB 是真相源:重拉一次,后端已把 content 置空 + recalled=true。
       // 前端本地改只能改自己收到的那条,漏推的历史消息会显示正文 —— 那更糟。
       if (currentKind.value === 'group') await loadGroupHistory()

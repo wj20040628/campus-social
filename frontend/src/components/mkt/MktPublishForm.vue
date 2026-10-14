@@ -16,21 +16,12 @@
       <p v-if="form.categoryError" class="mpf__err" role="alert">{{ form.categoryError }}</p>
     </el-form-item>
 
-    <!-- 子关键词:可选 -->
-    <el-form-item label="子关键词">
-      <el-input v-model="form.subTag" class="mpf__ctl" maxlength="32" placeholder="更细一点,如「王者荣耀」「拼单」" />
-    </el-form-item>
-
-    <!-- 标题:15–25 字符(前后端都拦) -->
-    <el-form-item label="标题" required>
-      <el-input
-        v-model="form.title"
-        class="mpf__ctl"
-        maxlength="25"
-        show-word-limit
-        placeholder="15–25 字,一句话说清"
-      />
-      <p v-if="form.titleError" class="mpf__err" role="alert">{{ form.titleError }}</p>
+    <!-- 游戏:仅「游戏组队」显示,从热门游戏里挑一个,写入 subTag -->
+    <el-form-item v-if="form.category === GAME_TEAM" label="想玩的游戏">
+      <el-select v-model="form.subTag" clearable placeholder="选一个(可留空)" class="mpf__ctl" :teleported="false">
+        <el-option v-for="g in HOT_GAMES" :key="g" :label="g" :value="g" />
+      </el-select>
+      <p class="mpf__hint">卡片会显示成「游戏组队 · <选中的游戏>」</p>
     </el-form-item>
 
     <!-- 描述:1–500 -->
@@ -110,7 +101,8 @@
  * 自填时长上限 12h 与后端 MAX_LAUNCH_HOURS 一致。编辑模式(isEdit)隐藏时长选择,
  * 因为编辑只改文案、不改 expire_time(计划 §编辑语义)。
  */
-import { DURATION_OPTIONS, CATEGORIES } from './mktConstants'
+import { DURATION_OPTIONS, CATEGORIES, HOT_GAMES } from './mktConstants'
+import { watch } from 'vue'
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -120,11 +112,22 @@ const props = defineProps({
 })
 
 const DURATIONS = DURATION_OPTIONS
+const GAME_TEAM = '游戏组队'
 
 function pickDuration(hours) {
   props.form.launchHours = hours
   props.form.customHours = null
 }
+
+// 切走「游戏组队」时清掉已选游戏,避免残留 subTag
+watch(
+  () => props.form.category,
+  (cat, prev) => {
+    if (cat !== GAME_TEAM && prev === GAME_TEAM) {
+      props.form.subTag = ''
+    }
+  },
+)
 </script>
 
 <style scoped>

@@ -32,6 +32,8 @@ public class MktActivityVO {
     private Integer isFull;
     private LocalDateTime createTime;
     private LocalDateTime lastLaunchTime;
+    /** 主文案「分类 · 游戏」:卡片/详情主标题,前端直接展示,不再采集独立标题。 */
+    private String mainText;
     /** 仅「我的发布」填充：LAUNCHING/FULL/PAUSED/EXPIRED */
     private MktStatus status;
 }

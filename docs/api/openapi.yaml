@@ -711,6 +711,42 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /user/{id}/posts:
+    get:
+      operationId: listUserPosts
+      tags: [post]
+      summary: 某用户发的动态
+      description: |
+        他人主页「动态」tab 用。按 author_id 现查 post 表（复用
+        `PostService.myPosts(authorId, lastId, size)` 的查询口径），
+        不再依赖 /post/mine 绑死登录人。校验目标用户存在，否则 404。
+        返回公开 PostVO（不含私有审核态）——看别人主页不暴露审核信息。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 目标用户 id
+          schema:
+            type: integer
+            format: int64
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 该用户发的动态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostCursorPageResponse'
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   # ===========================================================================
   # §5.3 F5 官方公告 —— 后台（管理员，手机端可用）
   # ===========================================================================
@@ -1848,6 +1884,254 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  # ===========================================================================
+  # 群管理（群信息头 + 群主/成员操作）。镜像单聊域,走独立四表
+  # group / group_member / group_message / group_read。全部需登录,读 me
+  # 走 AuthInterceptor 请求属性。群主操作返 403 NOT_GROUP_OWNER(1027),
+  # 非成员返 404 NOT_GROUP_MEMBER(1026),满员返 409 GROUP_FULL(1045)。
+  # 后端 GroupController.java。
+  # ===========================================================================
+
+  /group/{groupId}/members:
+    get:
+      operationId: getGroupMembers
+      tags: [group]
+      summary: 查群信息头（群名/人数/群主/公告 + 成员名单）
+      description: 校验我是成员。群主排第一、我标 isSelf。非成员 404。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 群信息头
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMemberInfoResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: addGroupMembers
+      tags: [group]
+      summary: 拉人（群成员均可）
+      description: |
+        把一批已存在、未入群的成员加进现有群，member_count 原子累加。
+        权限：调用方须是该群成员（assertMember），不限于群主。满员 409 GROUP_FULL(1045)。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userIds: { type: array, items: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: { added: 本次新增人数 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: 群成员已满（GROUP_FULL 1045）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /group/{groupId}/kick:
+    post:
+      operationId: kickGroupMember
+      tags: [group]
+      summary: 踢人（仅群主）
+      description: 把某普通成员移出（不能踢群主自己/自己），清其水位。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: integer, format: int64 }
+      responses:
+        '200': { description: 已移出 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /group/{groupId}/name:
+    put:
+      operationId: renameGroup
+      tags: [group]
+      summary: 群改名（仅群主）
+      description: name 非空，否则 422 GROUP_NAME_EMPTY(1028)。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '200': { description: 已改名 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /group/{groupId}/announcement:
+    put:
+      operationId: setGroupAnnouncement
+      tags: [group]
+      summary: 群公告（仅群主）
+      description: 空串=清除。展示在群信息头公告条。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string, nullable: true }
+      responses:
+        '200': { description: 已设置/清除公告 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /group/{groupId}/transfer:
+    post:
+      operationId: transferGroupOwner
+      tags: [group]
+      summary: 群主转让（仅群主，指定对象）
+      description: 把群主位传给某群成员（须是群成员且非我），我降为普通成员留在群里。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newOwnerId]
+              properties:
+                newOwnerId: { type: integer, format: int64 }
+      responses:
+        '200': { description: 已转让 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /group/{groupId}/members/me:
+    delete:
+      operationId: leaveGroup
+      tags: [group]
+      summary: 退群
+      description: 非群主→物理删我+减成员数+清我水位；群主退→还有他人则自动转让给第一个非我成员，只剩我则解散（物理清四表+软删群行）。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { description: 已退出/已解散 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /group/{groupId}/mute:
+    post:
+      operationId: muteMember
+      tags: [group]
+      summary: 禁言某成员(仅群主)
+      description: 群主把某普通成员设为被禁言(muted=true)或解除(muted=false)。muted 缺省视为 true。不能禁言群主自己。被禁言者发群消息被拒(GROUP_MUTED 1046)。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId: { type: integer, format: int64, description: 被禁言/解除的成员 id }
+                muted: { type: boolean, default: true, description: true=禁言 false=解除,缺省 true }
+      responses:
+        '200': { description: 已设置禁言状态 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /group/{groupId}/mute-all:
+    post:
+      operationId: muteAllMembers
+      tags: [group]
+      summary: 禁言全员(仅群主)
+      description: 群主把除自己外全部成员设为被禁言(muted=true)或解除(muted=false)。muted 缺省视为 true。幂等可重放。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                muted: { type: boolean, default: true, description: true=全员禁言 false=解除全员,缺省 true }
+      responses:
+        '200': { description: 已设置全员禁言状态 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /group/{groupId}/muted-me:
+    get:
+      operationId: groupMutedMe
+      tags: [group]
+      summary: 我是否被该群禁言
+      description: 查我是否被该群群主禁言,前端据此禁用输入框/提示;后端发消息另有 GROUP_MUTED(1046) 兜底。
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: { muted: true/false }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  muted: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
 
   # ---------------------------------------------------------------------------
@@ -2911,6 +3195,10 @@ components:
           description: 年级字典 id，与上面的名称快照并存
         followerCount: { type: integer, nullable: true }
         followingCount: { type: integer, nullable: true }
+        postCount:
+          type: integer
+          nullable: true
+          description: 该用户发的动态数(按 author_id 现查 post 表,他人主页「动态」数字用)
         unreadNotifyCount:
           type: integer
           nullable: true
@@ -2947,6 +3235,82 @@ components:
             默认开启（DB 为 1 或 NULL 时视为 true）。
             前端判据：`me.strangerMsgEnabled !== false`（null/undefined 视为开）。
         createTime: { type: string, format: date-time, nullable: true }
+
+    # ---- 群（群信息头 + 群管理）--------------------------------------------
+    # GroupVO / GroupMemberInfoVO / GroupMessageVO 与 Java vo/ 同名,
+    # verify-contract.py 按同名逐字段比对。
+
+    GroupVO:
+      type: object
+      description: 我的群会话列表项(群卡片 + 我侧未读 + 群主),来自 `vo/GroupVO.java`
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        ownerId: { type: integer, format: int64 }
+        owner: { $ref: '#/components/schemas/UserVO' }
+        memberCount: { type: integer }
+        announcement:
+          type: string
+          nullable: true
+          description: 群公告(可空,空=无),群信息头公告条来源
+        myUnread: { type: integer }
+        lastMsgId: { type: integer, format: int64, nullable: true }
+        lastPreview: { type: string, nullable: true }
+        lastMsgTime: { type: string, format: date-time, nullable: true }
+
+    MemberItem:
+      type: object
+      description: 群成员项(嵌套于 GroupMemberInfoVO)
+      properties:
+        user: { $ref: '#/components/schemas/UserVO' }
+        isOwner: { type: boolean }
+        isSelf: { type: boolean }
+        muted: { type: boolean }
+
+    GroupMemberInfoVO:
+      type: object
+      description: |
+        群信息头出参(群名/人数/群主/公告 + 成员名单),来自 `vo/GroupMemberInfoVO.java`。
+        字段 `user` / `isOwner` / `isSelf` / `muted` 是嵌套类 `MemberItem` 的字段,在成员名单
+        每一项里出现;此处的顶层同名项是为让 verify-contract.py(按「类名==schema 名」
+        且正则把所有 `private` 字段拍平)能读到的口径,并非 GroupMemberInfoVO 自身字段。
+      properties:
+        groupId: { type: integer, format: int64 }
+        name: { type: string }
+        ownerId: { type: integer, format: int64 }
+        announcement: { type: string, nullable: true }
+        memberCount: { type: integer }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/MemberItem' }
+        user: { $ref: '#/components/schemas/UserVO' }
+        isOwner: { type: boolean }
+        isSelf: { type: boolean }
+        muted: { type: boolean }
+
+    GroupMessageVO:
+      type: object
+      description: 群消息出参(镜像 ChatMessageVO),来自 `vo/GroupMessageVO.java`
+      properties:
+        id: { type: integer, format: int64 }
+        groupId: { type: integer, format: int64 }
+        senderId: { type: integer, format: int64 }
+        content: { type: string }
+        status: { type: integer, nullable: true }
+        recalled: { type: boolean }
+        replyToId: { type: integer, format: int64, nullable: true }
+        replyToContent: { type: string, nullable: true }
+        replyToNickname: { type: string, nullable: true }
+        createTime: { type: string, format: date-time }
+        fromMe: { type: boolean }
+
+    GroupMemberInfoResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/GroupMemberInfoVO' }
 
     PostCreatedResponse:
       allOf:

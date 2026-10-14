@@ -28,4 +28,8 @@ public interface GroupMessageMapper extends BaseMapper<GroupMessage> {
     /** 某群最后一条群消息 id(水位取"我读到的最大 id",用于群已读) */
     @Select("SELECT MAX(id) FROM group_message WHERE group_id = #{groupId} AND is_deleted = 0")
     Long lastMsgId(@Param("groupId") Long groupId);
+
+    /** 物理删某群全部消息(解散时用,群没了历史无意义;软删留行无价值) */
+    @Delete("DELETE FROM group_message WHERE group_id = #{groupId}")
+    int deleteByGroup(@Param("groupId") Long groupId);
 }

@@ -69,17 +69,20 @@ public class MktActivityServiceImpl implements MktActivityService {
         rateLimiter.guardPublish(userId);
 
         validateCategory(dto.getCategory());
-        String title = requireText(dto.getTitle(), ResultCode.MKT_TITLE_INVALID, 15, 25);
+        // 标题不再必填:主文案由「分类 · 游戏(游戏组队时)」派生,未传则留 null(前端不再采集)。
+        String title = optionalTitle(dto.getTitle());
         String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
         LocalDateTime expire = validateExpire(dto.getExpireTime());
 
-        blockIfSensitive(title + "\n" + content);
+        blockIfSensitive((title == null ? "" : title + "\n") + content);
 
         MktActivity a = new MktActivity();
         a.setUserId(userId);
         a.setCategory(dto.getCategory().trim());
         a.setSubTag(blankToNull(dto.getSubTag()));
-        a.setTitle(title);
+        // 数据库 title 列 NOT NULL:未传标题时落「分类 · 游戏」派生主文案,兼容旧读法。
+        String storedTitle = blankToNull(title);
+        a.setTitle(storedTitle != null ? storedTitle : derivedTitle(dto.getCategory(), dto.getSubTag()));
         a.setContent(content);
         a.setTargetNum(dto.getTargetNum());
         a.setPrice(dto.getPrice());
@@ -145,13 +148,15 @@ public class MktActivityServiceImpl implements MktActivityService {
     public void edit(long id, long me, MktActivityDTO dto) {
         MktActivity a = ownedBy(id, me);
         validateCategory(dto.getCategory());
-        String title = requireText(dto.getTitle(), ResultCode.MKT_TITLE_INVALID, 15, 25);
+        // 标题可选:留空则置 null(前端不再采集,主文案走「分类 · 游戏」)。
+        String title = optionalTitle(dto.getTitle());
         String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
-        blockIfSensitive(title + "\n" + content);
+        blockIfSensitive((title == null ? "" : title + "\n") + content);
 
         a.setCategory(dto.getCategory().trim());
         a.setSubTag(blankToNull(dto.getSubTag()));
-        a.setTitle(title);
+        String storedTitle = blankToNull(title);
+        a.setTitle(storedTitle != null ? storedTitle : derivedTitle(dto.getCategory(), dto.getSubTag()));
         a.setContent(content);
         a.setTargetNum(dto.getTargetNum());
         a.setPrice(dto.getPrice());
@@ -298,6 +303,34 @@ public class MktActivityServiceImpl implements MktActivityService {
     }
 
     /**
+     * 标题(可选):前端不再采集标题,主文案由「分类 · 游戏」派生。
+     * 仍兼容旧数据:传入非空且 ≤25 字则保留(trim 后),留空/未传/超长一律置 null,
+     * 不再抛 MKT_TITLE_INVALID(标题不再是必填校验项)。
+     */
+    private String optionalTitle(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String t = raw.trim();
+        if (t.isEmpty()) {
+            return null;
+        }
+        // 旧数据或前端仍传了标题:超长时截断到 25,而非拒收(标题已非必填)。
+        return t.length() > 25 ? t.substring(0, 25) : t;
+    }
+
+    /**
+     * 派生主文案「分类 · 游戏」:标题列 NOT NULL 的兜底,同时是卡片/详情的主文案来源。
+     * 游戏组队且有游戏名 →「游戏组队 · 王者荣耀」;否则只给分类。限 64 列宽内。
+     */
+    private String derivedTitle(String category, String subTag) {
+        String cat = category == null ? "" : category.trim();
+        String game = subTag == null ? "" : subTag.trim();
+        String main = (game.isEmpty()) ? cat : cat + " · " + game;
+        return main.length() > 64 ? main.substring(0, 64) : main;
+    }
+
+    /**
      * 投放截止时间校验：now < expire <= now + MAX_LAUNCH_HOURS。
      * 既拦「过去时间」也拦「单次超 12h」——防前端篡改。
      */
@@ -306,7 +339,10 @@ public class MktActivityServiceImpl implements MktActivityService {
             throw new BusinessException(ResultCode.MKT_EXPIRE_INVALID);
         }
         LocalDateTime now = LocalDateTime.now();
-        if (!expire.isAfter(now) || Duration.between(now, expire).toHours() >= MAX_LAUNCH_HOURS) {
+        // 用秒数比较,不用 toHours():Duration.toHours() 向下取整,12h 整点会因
+        // 网络/请求耗时变成 11h59m 而取整成 11,导致「12 小时」快捷选项偶发被拦。
+        if (!expire.isAfter(now)
+                || Duration.between(now, expire).toSeconds() > MAX_LAUNCH_HOURS * 3600L) {
             throw new BusinessException(ResultCode.MKT_EXPIRE_INVALID);
         }
         return expire;
@@ -344,6 +380,7 @@ public class MktActivityServiceImpl implements MktActivityService {
                 .isFull(a.getIsFull())
                 .createTime(a.getCreateTime())
                 .lastLaunchTime(a.getLastLaunchTime())
+                .mainText(derivedTitle(a.getCategory(), a.getSubTag()))
                 .build();
     }
 

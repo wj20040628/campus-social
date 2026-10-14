@@ -79,6 +79,12 @@ public final class BusinessHttpStatus {
         // 学号核验待审项不存在/已被处置:404。前端收到后刷新待审列表即可,
         // 与「帖子/评论不存在」同为404,不需要第三种处理分支
         MAPPING.put(ResultCode.VERIFY_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+        // 圈子「圈管理/官方名保护」
+        // 撞预留名:409 CONFLICT(名称资源冲突,与建圈重名同源,前端贴输入框提示即可)
+        MAPPING.put(ResultCode.CIRCLE_NAME_RESERVED, HttpStatus.CONFLICT);
+        // 被封禁成员操作圈内写路径:422 UNPROCESSABLE(请求合法但业务上此刻不可用)
+        MAPPING.put(ResultCode.CIRCLE_MEMBER_BANNED, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     private BusinessHttpStatus() {

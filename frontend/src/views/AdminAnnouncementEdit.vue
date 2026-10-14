@@ -149,6 +149,16 @@ const canPublish = computed(
 /** 「有内容」的判定:只有标题非空也算 —— 用户可能刚打了个标题就被打断了 */
 const dirty = computed(() => !!(form.value.title.trim() || form.value.content.trim()))
 
+/**
+ * dirty 的「已处置」开关:内容被成功提交(发布/存草稿)或用户显式放弃后置 true。
+ * 关键时序坑:submit 里 router.replace 是**异步**的,它排在微任务后真正执行守卫,
+ * 而 submit 的 finally 早已把 submitting 置回 false —— 等守卫跑起来时 submitting
+ * 已经是 false,只剩 dirty 还是 true(内容还在 form 里)→ 成功提交的离开被自己拦截,
+ * 弹「内容还没发,确定丢掉?」,而那个确认框的「丢掉」重放导航又被拦一次 → 死循环。
+ * 修法:提交成功发起导航前先置 disposed=true,让守卫与「放弃」两条路都不再拦。
+ */
+const disposed = ref(false)
+
 async function load() {
   if (!editId.value) return
   loading.value = true
@@ -197,6 +207,9 @@ async function submit(publishNow) {
       await api.create(body)
     }
     // 禁止庆祝动画(§4):一句 Toast 就够
+    // 内容已成功落库,标记「已处置」:即将的离开导航(哪怕异步晚一步跑守卫)
+    // 与后续放弃都不会再被 onBeforeRouteLeave 拦下来 —— 见 disposed 的注释。
+    disposed.value = true
     ElMessage.success(publishNow ? '公告发出去了,全校同学会看到' : '草稿存好了')
     router.replace('/admin/announcement')
   } catch {
@@ -227,9 +240,11 @@ onMounted(load)
 const pendingLeave = ref(null)
 
 onBeforeRouteLeave((to, from, next) => {
-  // 提交成功后的 router.replace('/admin/announcement') 不该被拦:
-  // 那时表单已提交,dirty 还是 true(内容还在),不拦会死循环
-  if (!dirty.value || submitting.value) {
+  // 不该被拦的三种情况:
+  //  - 没脏内容(!dirty):无可丢,直接放行
+  //  - 本次正在提交(submitting):放行
+  //  - 内容已处置(disposed):已成功提交或已显式放弃,放行 —— 修复提交后死循环
+  if (!dirty.value || submitting.value || disposed.value) {
     next()
     return
   }
@@ -239,12 +254,14 @@ onBeforeRouteLeave((to, from, next) => {
 })
 
 function onCancel() {
-  if (dirty.value) confirmOpen.value = true
+  if (dirty.value && !disposed.value) confirmOpen.value = true
   else discard()
 }
 
 function discard() {
   confirmOpen.value = false
+  // 放弃即「内容已处置」:重放的这次导航与之后任何离开都不该再弹
+  disposed.value = true
   if (pendingLeave.value) {
     const to = pendingLeave.value
     pendingLeave.value = null
