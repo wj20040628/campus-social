@@ -41,10 +41,15 @@ function apply(value) {
   const root = document.documentElement
   if (value === 'dark') {
     root.dataset.theme = 'dark'
-    root.classList.add('dark') // EP 深色变量需要 html.dark
+    // 不再加 html.dark class。EP dark css-vars 靠 `.dark` class 触发,
+    // 它选择器 `:root, .dark`(0,0,1,0)比 design-tokens 的
+    // `:root[data-theme="dark"]`(0,0,2,0)特异性**低**,但 CSS 变量定义
+    // 里「后写者胜」优先于特异性 —— EP dark 值(冷灰蓝/默认蓝)会盖回
+    // Bridge 段映射的友声暖深色,导致 el-menu/el-button 在深色下变回标准 EP。
+    // 去掉 class 后,data-theme="dark" 是**唯一事实**,design-tokens 的
+    // 深色段(含 Bridge 段深色覆写)全权接管,EP 原生组件也吃到友声暖色。
   } else {
     root.dataset.theme = 'light'
-    root.classList.remove('dark')
   }
 }
 

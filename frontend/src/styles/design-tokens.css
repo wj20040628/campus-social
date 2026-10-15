@@ -404,11 +404,18 @@ body {
 }
 
 /* ==========================================================================
- * 深色主题 —— MVP 不在范围,Token 结构已预留。
- * 启用方式:<html data-theme="dark">。启用前需实测 EP 组件的深色二次覆盖。
+ * 深色主题 —— 单一事实:data-theme="dark"。
+ * 启用方式:<html data-theme="dark">。
  * 2026-10-14 随 A 方向同步换暖:暖夜棕底 + 暖纸文本,不用冷蓝黑。
+ *
+ * 2026-10-15 修复:把 EP Bridge 段(--el-*)也挂到 [data-theme="dark"] 上,
+ * 与浅色 :root 的 Bridge 段**同级同特异性**,靠「后写者胜」在深色下赢。
+ * 否则 EP dark css-vars(.dark class 触发,已被 useTheme 去掉)会把
+ * Bridge 值盖回冷灰蓝/默认蓝,el-menu / el-button / el-input 在深色下
+ * 变回标准 EP 观感,与友声暖深色体系脱节。
  * ========================================================================== */
 :root[data-theme="dark"] {
+  /* ---- 暖色 token 深色覆写 ---- */
   --ys-bg: #1A1712;        /* 暖夜棕 */
   --ys-surface: #221E18;
   --ys-surface-2: #2C2820;
@@ -418,11 +425,59 @@ body {
   --ys-meta: #9A8E7C;      /* 对比 5.2 */
   --ys-border: #7A6F5E;    /* 控件边界,对比 3.4 */
   --ys-border-soft: #332E26;
+  --ys-border-control: #5A5245;  /* 表单控件边框,深色下要更亮才能看清(WCAG 1.4.11 ≥3) */
   --ys-accent: #4fd1c5;    /* 对比 9.6 */
+  --ys-accent-hover: #38b8ad;   /* 亮底 hover,对比 7.2 */
+  --ys-accent-active: #2a9d93;  /* 按下更深,对比 6.4 */
   --ys-accent-on: #1A1712;
+  --ys-accent-soft: #234a46;    /* accent 落其上:暖青深底,不用冷灰 */
   --ys-accent-2: #f0a868;
+  --ys-accent-2-hover: #e09153;
+  --ys-accent-2-active: #c87a42;
+  --ys-accent-2-soft: #3a2a1a; /* 活动砖橙的深色落底 */
+  --ys-success: #3da66b;
+  --ys-success-soft: #1e3a2a;
+  --ys-warning: #e08a3c;
+  --ys-warning-soft: #3a2a14;
+  --ys-danger: #e06a5c;
+  --ys-danger-soft: #3a1a17;
+  --ys-info: #9a9488;
+  --ys-info-soft: #2a2720;
   --ys-official-surface: #2C2820;
   --ys-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --ys-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.45);
   --ys-shadow-3: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  /* ---- EP Bridge 段(深色覆写,与浅色 Bridge 同级)----
+     让 el-menu / el-button / el-input / el-card 等 EP 原生组件
+     在深色主题下取友声暖色,而非 EP 默认冷灰蓝。 */
+  --el-color-primary: var(--ys-accent);
+  --el-color-success: var(--ys-success);
+  --el-color-warning: var(--ys-warning);
+  --el-color-danger: var(--ys-danger);
+  --el-color-error: var(--ys-danger);
+  --el-color-info: var(--ys-info);
+  --el-bg-color: var(--ys-surface);
+  --el-bg-color-page: var(--ys-bg);
+  --el-bg-color-overlay: var(--ys-surface);
+  --el-fill-color: var(--ys-surface-2);
+  --el-fill-color-light: var(--ys-surface-2);
+  --el-fill-color-lighter: #17140f;   /* 最浅填充:比 bg 更暗一档,不用纯黑 */
+  --el-fill-color-blank: var(--ys-surface);
+  --el-text-color-primary: var(--ys-fg);
+  --el-text-color-regular: var(--ys-fg-2);
+  --el-text-color-secondary: var(--ys-muted);
+  --el-text-color-placeholder: var(--ys-meta);
+  --el-text-color-disabled: #5a5245;
+  --el-border-color: var(--ys-border);
+  --el-border-color-light: var(--ys-border);
+  --el-border-color-lighter: var(--ys-border-soft);
+  --el-border-color-extra-light: var(--ys-border-soft);
+  --el-border-color-dark: var(--ys-border-control);
+  --el-border-color-darker: var(--ys-border-control);
+  --el-mask-color: rgba(0, 0, 0, 0.55);
+  --el-box-shadow: var(--ys-shadow-2);
+  --el-box-shadow-light: var(--ys-shadow-1);
+  --el-box-shadow-lighter: var(--ys-shadow-1);
+  --el-box-shadow-dark: var(--ys-shadow-2);
 }
