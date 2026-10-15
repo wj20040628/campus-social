@@ -96,37 +96,110 @@
 
     <template v-else>
       <!--
-        「我加入的」与「全部圈子」两个分组(设计 §1)。
-        移动端分组是因为列表变长了,分组给的是「先看我加过的」这个快捷视角;
-        桌面端一屏能看到 9-12 个卡片,分组反而增加滚动,所以合并成单一网格。
+        移动端:默认只露两个入口按钮「我创建的 / 我加入的」,点了才展开对应列表;
+        不默认加载全部圈子(用户原话)。桌面端恒「多一个分组」直显,不加按钮。
       -->
-      <section v-if="joinedCircles.length" class="circles__group">
-        <h2 class="circles__group-head">
-          我加入的
-          <span class="circles__group-count">{{ joinedCircles.length }}</span>
-        </h2>
-        <div class="circle-rows">
-          <CircleRow
-            v-for="c in joinedCircles"
-            :key="`j-${c.id}`"
-            :circle="c"
-            :leaving="isLeaving(c)"
-            @open="goDetail"
-            @join="joinCircle"
-            @leave="leaveCircle"
-          />
-        </div>
-      </section>
+      <div v-if="isMobile && mobileView === 'all'" class="circles__entries">
+        <button
+          type="button"
+          class="entry"
+          @click="openCreated"
+        >
+          <el-icon :size="20"><User /></el-icon>
+          <span class="entry__title">我创建的</span>
+          <span class="entry__count ys-num">{{ createdCircles.length }}</span>
+          <el-icon :size="18" class="entry__caret"><ArrowRight /></el-icon>
+        </button>
+        <button
+          type="button"
+          class="entry"
+          @click="openJoined"
+        >
+          <el-icon :size="20"><ChatDotRound /></el-icon>
+          <span class="entry__title">我加入的</span>
+          <span class="entry__count ys-num">{{ joinedCircles.length }}</span>
+          <el-icon :size="18" class="entry__caret"><ArrowRight /></el-icon>
+        </button>
+      </div>
 
-      <section class="circles__group">
-        <h2 v-if="joinedCircles.length" class="circles__group-head">
+      <!--
+        移动端:「我创建的」组,只在 mobileView==='created' 时展开。
+        桌面端(isMobile===false)恒渲染,且不受 mobileView 控制。
+      -->
+      <transition-group name="circles-view">
+        <section
+          v-if="(isMobile && mobileView === 'created') || !isMobile"
+          key="view-created"
+          class="circles__group"
+        >
+          <h2 class="circles__group-head">
+            我创建的
+            <span class="circles__group-count">{{ createdCircles.length }}</span>
+            <button
+              v-if="isMobile"
+              type="button"
+              class="circles__view-close"
+              @click="closeMobileView"
+            >收起</button>
+          </h2>
+          <div v-if="createdCircles.length" class="circle-rows">
+            <CircleRow
+              v-for="c in createdCircles"
+              :key="`cr-${c.id}`"
+              :circle="c"
+              :leaving="isLeaving(c)"
+              @open="goDetail"
+              @join="joinCircle"
+              @leave="leaveCircle"
+            />
+          </div>
+          <p v-else class="circles__group-empty">还没有当过圈主的圈子</p>
+        </section>
+
+        <section
+          v-if="(isMobile && mobileView === 'joined') || !isMobile"
+          key="view-joined"
+          class="circles__group"
+        >
+          <h2 class="circles__group-head">
+            我加入的
+            <span class="circles__group-count">{{ joinedCircles.length }}</span>
+            <button
+              v-if="isMobile"
+              type="button"
+              class="circles__view-close"
+              @click="closeMobileView"
+            >收起</button>
+          </h2>
+          <div v-if="joinedCircles.length" class="circle-rows">
+            <CircleRow
+              v-for="c in joinedCircles"
+              :key="`j-${c.id}`"
+              :circle="c"
+              :leaving="isLeaving(c)"
+              @open="goDetail"
+              @join="joinCircle"
+              @leave="leaveCircle"
+            />
+          </div>
+          <p v-else class="circles__group-empty">还没有加入过圈子</p>
+        </section>
+      </transition-group>
+
+      <!--
+        桌面端「全部圈子」分组:移动端两个入口按钮都**不**暴露「全部圈子」——
+        进 /circles 的人想逛全部圈子应该走 /search(设计已定的全局搜索入口),
+        不在本页里堆。桌面端桌面宽、一屏看 4 张卡,全部圈子保留直显。
+      -->
+      <section v-if="!isMobile" class="circles__group">
+        <h2 class="circles__group-head">
           全部圈子
           <span class="circles__group-count">{{ circles.length }}</span>
         </h2>
-        <div class="circle-rows">
+        <div v-if="circles.length" class="circle-rows">
           <CircleRow
-            v-for="c in visibleCircles"
-            :key="c.id"
+            v-for="c in circles"
+            :key="`a-${c.id}`"
             :circle="c"
             :leaving="isLeaving(c)"
             @open="goDetail"
@@ -226,20 +299,22 @@
  */
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, WarningFilled, User, ArrowRight, ChatDotRound } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import CircleRow from '@/components/common/CircleRow.vue'
 import { useCircles } from '@/composables/useCircles'
+import { useIsMobile } from '@/composables/useBreakpoint'
 
 const router = useRouter()
 const verifyOpen = ref(false)
+const isMobile = useIsMobile()
 
 const {
   circles, hasMore, loading, loadFailed, loaded,
   keyword, searching, searchFailed, results, isSearching,
-  joinedCircles, visibleCircles,
+  joinedCircles, createdCircles, mobileView, openCreated, openJoined, closeMobileView,
   showCreate, newName, creating, createError,
   openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving, create,
 } = useCircles()

@@ -62,6 +62,39 @@ export function useCircles() {
     return 'opened'
   }
 
+  /**
+   * 「我创建的」分组口径。
+   * CircleVO 没有严格的「我参与创建」字段(只有 owner + myRole),
+   * 当前用 myRole===1(我是圈主)近似 —— 我当管理(2)但不是创建者的圈不算进来。
+   * 这是已知语义缺口,交付时已标注:将来要精确再补后端 /circle/mine。
+   */
+  const createdCircles = computed(() => circles.value.filter((c) => c.myRole === 1))
+
+  /**
+   * 移动端分组视图。
+   * - 默认('all'):只显示两个入口按钮(我创建的/我加入的),不展开任何列表 —— 用户原话
+   * - 'created':展开「我创建的」
+   * - 'joined':展开「我加入的」
+   * 桌面端恒为 'all' 语义,但「我创建的」组**始终直接渲染**(桌面端拍板:不加按钮、多一个分组)。
+   * 所以 mobileView 主要驱动模板的 v-if;桌面由 CSS 决定形态,不读 mobileView。
+   */
+  const mobileView = ref('all')
+
+  /** 移动端:点「我创建的」入口按钮 —— 切到 created 视图 */
+  function openCreated() {
+    mobileView.value = mobileView.value === 'created' ? 'all' : 'created'
+  }
+
+  /** 移动端:点「我加入的」入口按钮 —— 切到 joined 视图 */
+  function openJoined() {
+    mobileView.value = mobileView.value === 'joined' ? 'all' : 'joined'
+  }
+
+  /** 移动端:点已展开的列表区收起(回到入口按钮) */
+  function closeMobileView() {
+    mobileView.value = 'all'
+  }
+
   async function load() {
     loading.value = true
     loadFailed.value = false
@@ -220,6 +253,7 @@ export function useCircles() {
     circles, cursor, hasMore, loading, loadFailed, loaded,
     keyword, searching, searchFailed, results, isSearching, rows,
     joinedCircles, visibleCircles,
+    createdCircles, mobileView, openCreated, openJoined, closeMobileView,
     showCreate, newName, creating, createError,
     openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving,
     disbandCircle, isDisbanding, create,

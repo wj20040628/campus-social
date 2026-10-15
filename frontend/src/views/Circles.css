@@ -123,6 +123,111 @@
   color: var(--ys-fg-2);
 }
 
+.circles__group {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/*
+  移动端两个入口按钮(我创建的 / 我加入的)。
+  卡片式:暖米 surface + 1px 暖描边 + 圆角 + 轻影,与桌面端圈子卡片同一套语言(A 方向)。
+  桌面端这两张按钮隐藏(模板里 v-if 已经按 isMobile 门控)。
+*/
+.circles__entries {
+  max-width: 900px;
+  margin: 0 auto var(--ys-space-4);
+  padding: 0 var(--ys-gutter-phone);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: 64px;
+  padding: 0 var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface);
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--ys-motion-fast) var(--ys-ease-out),
+    box-shadow var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.entry:hover {
+  border-color: var(--ys-accent);
+  box-shadow: 0 0 0 3px var(--ys-accent-soft);
+}
+
+.entry__title {
+  flex: 1;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+}
+
+.entry__count {
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ys-meta);
+}
+
+.entry__caret {
+  color: var(--ys-meta);
+}
+
+/* 视图展开/收起:淡入上移(用户拍板,150ms 级别),不闪不跳 */
+.circles-view-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.circles-view-enter-active {
+  transition:
+    opacity 150ms var(--ys-ease-out),
+    transform 150ms var(--ys-ease-out);
+}
+
+.circles-view-leave-active {
+  transition: opacity 120ms var(--ys-ease-out);
+}
+
+.circles-view-leave-to {
+  opacity: 0;
+}
+
+/* 视图收起/展开时的「收起」按钮(移动端才出现):低调,不抢列表 */
+.circles__view-close {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: none;
+  background: transparent;
+  color: var(--ys-meta);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  cursor: pointer;
+}
+
+.circles__view-close:hover {
+  color: var(--ys-accent);
+}
+
+/* 空分组时的一句话:比渲染空列表友好 */
+.circles__group-empty {
+  margin: 0;
+  padding: var(--ys-space-4) 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  text-align: center;
+}
+
 .circles__group-count {
   font-family: var(--ys-font-mono);
   font-variant-numeric: tabular-nums;
@@ -149,6 +254,15 @@
   }
   .circles__create {
     padding: 0 var(--ys-space-4);
+  }
+  /* 桌面端:移动端入口按钮/「收起」隐藏;三个分组头(我创建的/我加入的/全部圈子)直显,
+     分组容器也拉宽到 1320,与全部圈子的 4 列网格对齐 */
+  .circles__entries,
+  .circles__view-close {
+    display: none;
+  }
+  .circles__group {
+    max-width: 1320px;
   }
 }
 
