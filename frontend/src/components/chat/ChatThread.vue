@@ -109,7 +109,6 @@
       :can-quote="sheetCanQuote"
       @recall="emit('recall', sheetTarget)"
       @quote="emit('quote', sheetTarget)"
-      @go-peer="onGoProfile"
     />
   </div>
 </template>
@@ -143,7 +142,6 @@ const props = defineProps({
   replyTo: { type: Object, default: null },
   kind: { type: String, default: 'dm' },
   peerName: { type: String, default: '' },
-  peerId: { type: [Number, String], default: null },
   sourceTitle: { type: String, default: '' },
   historyLoading: { type: Boolean, default: false },
   historyError: { type: Boolean, default: false },
@@ -175,7 +173,6 @@ const emit = defineEmits([
   'retry-send',
   'reload',
   'close-source',
-  'go-peer',
 ])
 
 const listEl = ref(null)
@@ -278,11 +275,6 @@ function scheduleScrollBottom() {
 function onLongPress(m) {
   sheetTarget.value = m
   sheetOpen.value = true
-}
-
-function onGoProfile() {
-  sheetOpen.value = false
-  if (props.peerId) emit('go-peer', props.peerId)
 }
 
 /*

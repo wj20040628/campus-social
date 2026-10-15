@@ -97,12 +97,24 @@
             :class="{ 'is-active': activeId === c.convId }"
           >
             <button type="button" class="crow__btn" @click="$emit('open', c)">
-              <span class="crow__avatar">
+              <button
+                type="button"
+                class="crow__avatar crow__avatar--link"
+                :aria-label="`查看 ${peerName(c)} 的主页`"
+                @click.stop="$emit('peer', c.peer?.id)"
+              >
                 {{ c.peer?.nickname?.slice(0, 1) || '?' }}
                 <UnreadDot v-if="c.unread" :count="c.unread" noun="条未读" />
-              </span>
+              </button>
               <span class="crow__info">
-                <span class="crow__name">{{ peerName(c) }}</span>
+                <button
+                  type="button"
+                  class="crow__name crow__name--link"
+                  :aria-label="`查看 ${peerName(c)} 的主页`"
+                  @click.stop="$emit('peer', c.peer?.id)"
+                >
+                  {{ peerName(c) }}
+                </button>
                 <span class="crow__preview">{{ c.lastPreview || '还没有消息' }}</span>
               </span>
               <span class="crow__time ys-num">{{ c.timeText }}</span>
@@ -187,7 +199,7 @@ const props = defineProps({
   activeKind: { type: String, default: 'dm' },
 })
 
-defineEmits(['open', 'open-group', 'browse', 'ignore-stranger', 'ignore-all-stranger', 'create-group'])
+defineEmits(['open', 'open-group', 'peer', 'browse', 'ignore-stranger', 'ignore-all-stranger', 'create-group'])
 
 const strangerOpen = ref(false)
 const groupKw = ref('')

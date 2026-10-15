@@ -27,6 +27,7 @@
       :active-kind="currentKind"
       @open="openConv"
       @open-group="openGroup"
+      @peer="goPeer"
       @create-group="createGroupOpen = true"
       @browse="router.push('/circles')"
     />
@@ -43,7 +44,6 @@
           :reply-to="replyToMsg"
           :kind="currentKind"
           :peer-name="headTitle"
-          :peer-id="peerId"
           :source-title="sourceTitle"
           :history-loading="historyLoading"
           :history-error="historyError"
@@ -66,7 +66,6 @@
           @retry-send="retrySend"
           @reload="reload"
           @close-source="sourceTitle = ''"
-          @go-peer="router.push(`/user/${$event}`)"
         />
       </template>
 
@@ -157,7 +156,6 @@ const listLoading = computed(() => core.initialLoading.value || routeLoading.val
 const isDesktop = computed(() => !isMobile.value)
 const isListRoute = computed(() => isMobile.value && route.name === 'chat')
 const isThreadRoute = computed(() => route.name === 'chatThread')
-const peerId = computed(() => core.currentConv.value?.peer?.id || null)
 
 /**
  * 阻断原因(AC-04)。
@@ -247,6 +245,11 @@ function openGroup(g) {
     return
   }
   coreOpenGroup(g)
+}
+
+/** 会话列表里点对方头像/名字:直接进 TA 的主页(peer.id = 对方 uid) */
+function goPeer(uid) {
+  if (uid) router.push(`/user/${uid}`)
 }
 
 /* ---------------- 建群完成:刷新群列表并打开新群 ---------------- */

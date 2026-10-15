@@ -275,3 +275,60 @@
   font-size: var(--ys-text-xs);
   color: var(--ys-meta);
 }
+
+/*
+  对方头像/名字可点跳主页:内嵌按钮。
+  父 .crow__btn 是整行 open 会话;这两个内嵌按钮 @click.stop 截断,
+  避免点名字/头像时误开会话。命中热区交给父按钮,自身仅做视觉提示。
+*/
+.crow__avatar--link {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-md);
+  cursor: pointer;
+}
+
+.crow__avatar--link:hover {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+.crow__name--link {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  cursor: pointer;
+  width: 100%;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* 内嵌在 .crow__info(flex column)里,作为独立一行占满宽 */
+}
+
+.crow__name--link:hover {
+  color: var(--ys-accent);
+  text-decoration: underline;
+}
+
+.crow__name--link:focus-visible {
+  outline: 2px solid var(--ys-accent);
+  outline-offset: 2px;
+  border-radius: var(--ys-radius-sm);
+}
+
+.crow__avatar--link:focus-visible {
+  outline: 2px solid var(--ys-accent);
+  outline-offset: 2px;
+}

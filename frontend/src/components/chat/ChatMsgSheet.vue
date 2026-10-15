@@ -2,8 +2,9 @@
   <!--
     长按气泡后的操作表(2026-10-15 从 ChatThread.vue 拆出)。
     抽出的理由:ChatThread.vue 436 行超 300 行门禁;且这是一个完整交互
-    (撤回 / 引用回复 / 看主页),开合与「当前操作哪条消息」都由父组件持有,
-    本组件只渲染三个动作并根据权限显隐 —— 与消息窗本身无关。
+    (撤回 / 引用回复),开合与「当前操作哪条消息」都由父组件持有,
+    本组件只渲染动作并根据权限显隐 —— 与消息窗本身无关。
+    「查看 TA 的主页」入口 2026-10 起迁到会话列表的对方头像/名字,这里不再保留。
   -->
   <ActionSheet :model-value="modelValue" :title="title" @update:model-value="emit('update:modelValue', $event)">
     <button v-if="canRecall" type="button" class="sheet__act" @click="pick('recall')">
@@ -14,15 +15,11 @@
       <el-icon :size="18"><Paperclip /></el-icon>
       引用回复
     </button>
-    <button type="button" class="sheet__act sheet__act--danger" @click="pick('go-peer')">
-      <el-icon :size="18"><User /></el-icon>
-      查看 TA 的主页
-    </button>
   </ActionSheet>
 </template>
 
 <script setup>
-import { RefreshLeft, Paperclip, User } from '@element-plus/icons-vue'
+import { RefreshLeft, Paperclip } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 
 defineProps({
@@ -36,7 +33,7 @@ defineProps({
   canQuote: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:modelValue', 'recall', 'quote', 'go-peer'])
+const emit = defineEmits(['update:modelValue', 'recall', 'quote'])
 
 /** 动作一律先关层再上报:父组件不必在每个 handler 里重复写关闭 */
 function pick(kind) {
