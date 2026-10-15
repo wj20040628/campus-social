@@ -87,6 +87,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Plus, Search, Bell, CaretBottom } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useIsMobile } from '@/composables/useBreakpoint'
 import { resolveUrl } from '@/utils/resolve'
 import UnreadDot from '@/components/mobile/UnreadDot.vue'
 
@@ -100,6 +101,7 @@ const emit = defineEmits(['logout'])
 
 const router = useRouter()
 const userStore = useUserStore()
+const isMobile = useIsMobile()
 
 /** 头像拉取失败时降级为首字母块,不报错不弹窗(布局不接管全站级错误) */
 const avatarFallback = computed(() => {
@@ -126,8 +128,11 @@ function onUserCommand(cmd) {
     // 拿不到 id 就静默不动,绝不让一次坏导航打断全站渲染。
     const id = userStore.userInfo?.id
     if (id != null) router.push(`/user/${id}`).catch(() => {})
-  } else if (cmd === 'settings') router.push('/settings').catch(() => {})
-  else if (cmd === 'logout') emit('logout')
+  } else if (cmd === 'settings') {
+    // 桌面(≥1024)落真正的设置页 /settings/profile(编辑资料 + 隐私);
+    // 移动端「我的」(/settings)是唯一能挂管理入口/退出/审核记录的地方,保留现状。
+    router.push(isMobile.value ? '/settings' : '/settings/profile').catch(() => {})
+  } else if (cmd === 'logout') emit('logout')
 }
 </script>
 

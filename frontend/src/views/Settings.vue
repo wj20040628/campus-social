@@ -192,12 +192,14 @@ import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { me as meApi } from '@/api/auth'
 import { myPosts as myPostsApi } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
+import { useIsMobile } from '@/composables/useBreakpoint'
 import { resolveUrl } from '@/utils/resolve'
 import { useSettings } from '@/composables/useSettings'
 import { useTheme } from '@/composables/useTheme'
 
 const userStore = useUserStore()
 const router = useRouter()
+const isMobile = useIsMobile()
 
 /** 深色模式开关:读 isDark 受控渲染,切换由 toggleTheme 翻转并持久化 */
 const { isDark, toggle: toggleTheme } = useTheme()
@@ -265,6 +267,13 @@ function onOvCommand(cmd) {
 }
 
 onMounted(async () => {
+  // 桌面端没有「我的」页的语义 —— 移动端 TabBar 才有,桌面导航走 SideNav。
+  // 兜底挡住「桌面直接输 URL 进 /settings」:跳到真正的设置页(编辑资料 + 隐私)。
+  // 移动端(TabBar「我的」跳进来)走 replace 会丢浏览器前进栈,所以只在桌面跳。
+  if (!isMobile.value) {
+    router.replace('/settings/profile').catch(() => {})
+    return
+  }
   // 刷新本地 userInfo(计数 followerCount 等随 /user/me 更新),再预拉帖子列表
   try {
     const me = await meApi()
