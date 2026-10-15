@@ -187,8 +187,13 @@
 @media (min-width: 1024px) {
   .circle-rows {
     display: grid;
-    /* 一行 4 个、列宽自适应。窄的 1024px 桌面放不下时自然掉成 2 列,仍一行不叠 */
-    grid-template-columns: repeat(4, minmax(240px, 1fr));
+    /*
+      一行最多 4 个、列宽自适应。用 auto-fill 让浏览器按容器实际宽度(<=900px)
+      自行决定能放下几列:4×200 + 3×gap(16) ≈ 848 < 900 时放 4 列,
+      窗口更窄时自然掉成 3/2 列,而不会像写死 repeat(4, minmax(240px,1fr)) 那样
+      强制 4×240 撑破 900px 容器导致卡片重叠(Bug4)。
+    */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: var(--ys-space-4);
   }
 }
