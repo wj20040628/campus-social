@@ -1,0 +1,195 @@
+/*
+  ChatBubble.vue 的样式,随组件从 ChatThread.css 搬迁(原 219-408 行)。
+  选择器与规则原样搬迁,未改一个值。
+*/
+
+/* 气泡样式随组件从 ChatThread.css 搬迁(原 219-408 行),未改一个值 */
+.brow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.brow--me {
+  align-items: flex-end;
+}
+
+.brow__sender {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  margin-bottom: 2px;
+}
+
+.bbubble {
+  position: relative;
+  max-width: 72%;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-xl);
+  /* 靠近对方一侧收成小圆角,做「尾巴感」 */
+  border-top-left-radius: var(--ys-radius-sm);
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  color: var(--ys-fg);
+  /* 长按热区 = 气泡本身,最小高 44px */
+  min-height: var(--ys-touch-min);
+}
+
+/* 桌面 hover「⋯」入口:长按是移动端方案,鼠标用户没有长按习惯,
+   给一个可见的更多操作按钮让撤回/引用/看主页可被找到。
+   仅 hover 设备显示(touch 设备仍走长按,不增干扰)。 */
+.bbubble__menu {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: calc(-1 * var(--ys-space-6));
+  transform: translateY(-50%);
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ys-border);
+  border-radius: 50%;
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .bbubble:hover .bbubble__menu,
+  .bbubble__menu:focus-visible {
+    display: inline-flex;
+  }
+}
+
+.brow--me .bbubble {
+  background: var(--ys-accent);
+  border-color: var(--ys-accent);
+  color: var(--ys-accent-on);
+  border-top-left-radius: var(--ys-radius-xl);
+  border-top-right-radius: var(--ys-radius-sm);
+}
+
+.bbubble--recalled {
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border-soft);
+  color: var(--ys-muted);
+  /* 撤回气泡内容居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.bbubble--failed {
+  background: var(--ys-danger-soft);
+  border-color: var(--ys-danger);
+  color: var(--ys-fg);
+}
+
+.bbubble--long .bbubble__text,
+.bbubble--long {
+  max-width: 82%;
+}
+
+.bbubble__recalled {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.bbubble__text {
+  margin: 0;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  /* 无空格长串不撑破气泡 */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 未展开时最多 8 行 */
+.bbubble--long:not(.bbubble--open) .bbubble__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bbubble__more {
+  margin-top: var(--ys-space-1);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.quote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--ys-space-2);
+  padding: var(--ys-space-1) var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+}
+
+.quote__from {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
+}
+
+.quote__text {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bbubble__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-1);
+}
+
+.bbubble__time {
+  font-size: var(--ys-text-xs);
+  /* 气泡底色不同,时间用半透明的白/黑;用 opacity 而非硬编码色 */
+  opacity: 0.7;
+}
+
+.bbubble__state {
+  font-size: var(--ys-text-xs);
+  opacity: 0.85;
+}
+
+/* 已读:语义色,不再用硬编码 #b3f0c8(原 Chat.vue:1027) */
+.bbubble__state.is-read {
+  color: var(--ys-success);
+  opacity: 1;
+  font-weight: var(--ys-weight-medium);
+}
+
+.brow:not(.brow--me) .bbubble__state.is-read {
+  color: var(--ys-success);
+}
+
+.bbubble__retry {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ys-danger);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  text-decoration: underline;
+}

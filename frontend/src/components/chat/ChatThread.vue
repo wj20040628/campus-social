@@ -4,49 +4,12 @@
     唯一负责「键盘弹起时输入框不被吞掉」的地方。
   -->
   <div class="th">
-    <!--
-      行 0:会话顶栏(路由 ownTop 关掉全站顶栏后,这里自绘)。
-      单聊=对方昵称,群聊=群名(与全站顶栏同源:都读 headTitle)。
-      右侧搜索/铃铛与全站顶栏对齐。返回:手机 history.back,桌面同。
-    -->
-    <div class="th__bar" role="banner">
-      <button
-        type="button"
-        class="th__bar-back"
-        aria-label="返回上一页"
-        @click="goBack"
-      >
-        <el-icon :size="22"><Back /></el-icon>
-      </button>
-      <div class="th__bar-title" :title="peerName">{{ peerName || '会话' }}</div>
-      <div class="th__bar-actions">
-        <button
-          type="button"
-          class="th__bar-act"
-          aria-label="找人"
-          @click="router.push('/search')"
-        >
-          <el-icon :size="20"><Search /></el-icon>
-        </button>
-        <button
-          type="button"
-          class="th__bar-act"
-          aria-label="通知"
-          @click="router.push('/notify')"
-        >
-          <el-icon :size="20"><Bell /></el-icon>
-        </button>
-      </div>
-    </div>
-
-    <!-- 行 2:来源上下文条。这是「不加好友也能聊」的由头,不可删 -->
-    <div v-if="sourceTitle" class="src">
-      <el-icon :size="16" class="src__pin"><Top /></el-icon>
-      <span class="src__text">来自:{{ sourceTitle }}</span>
-      <button type="button" class="src__close" aria-label="收起来源" @click="$emit('close-source')">
-        <el-icon :size="16"><Close /></el-icon>
-      </button>
-    </div>
+    <!-- 行 0 + 行 2:自绘顶栏与来源上下文条(2026-10-15 拆去 ChatThreadHeader.vue) -->
+    <ChatThreadHeader
+      :peer-name="peerName"
+      :source-title="sourceTitle"
+      @close-source="$emit('close-source')"
+    />
 
     <!--
       ② 群信息头(仅群聊)。**桌面 + 手机都常显**:群头固定在消息区上方,
@@ -88,77 +51,16 @@
         还没有消息,说点什么打个招呼
       </p>
 
+      <!-- 气泡渲染在 ChatBubble.vue(展开全文与长按计时器都是它自己的状态) -->
       <ul v-else class="bubbles">
-        <li
+        <ChatBubble
           v-for="m in messages"
           :key="m.id"
-          class="brow"
-          :class="{ 'brow--me': m.fromMe }"
-        >
-          <span v-if="showSender(m)" class="brow__sender">{{ m.senderNickname || '群成员' }}</span>
-
-          <div
-            class="bbubble"
-            :class="{
-              'bbubble--recalled': m.recalled,
-              'bbubble--failed': m.failed,
-              'bbubble--long': isLong(m),
-              'bbubble--open': expanded.has(m.id),
-            }"
-            :aria-label="m.fromMe ? '我发送的消息' : undefined"
-            @pointerdown="onPointerDown($event, m)"
-            @pointerup="clearPress"
-            @pointercancel="clearPress"
-            @pointerleave="clearPress"
-            @contextmenu.prevent
-          >
-            <p v-if="m.recalled" class="bbubble__recalled">这条消息已撤回</p>
-
-            <template v-else>
-              <div v-if="m.replyToContent" class="quote">
-                <span class="quote__from">{{ m.replyToNickname || '对方' }}:</span>
-                <span class="quote__text">{{ m.replyToContent }}</span>
-              </div>
-
-              <p class="bbubble__text">{{ m.content }}</p>
-
-              <!-- 超长单条(>500 字)最多 8 行 + 展开全文(§3 内容超长) -->
-              <button v-if="isLong(m) && !expanded.has(m.id)" type="button" class="bbubble__more" @click="expand(m.id)">
-                展开全文
-              </button>
-            </template>
-
-            <!--
-              桌面端 hover 入口(仅 hover 设备显示,CSS 控制):长按是移动端方案,
-              桌面鼠标没有长按习惯,给一个「⋯」让撤回/引用/看主页可被找到。
-              点击直接打开操作面板,等价于长按。
-            -->
-            <button
-              v-if="m.fromMe && !m.recalled"
-              type="button"
-              class="bbubble__menu"
-              aria-label="更多操作"
-              @click.stop="onLongPress(m)"
-            >⋯</button>
-
-            <div class="bbubble__foot">
-              <span class="bbubble__time ys-num">{{ m.createTime }}</span>
-              <span v-if="m.failed" class="bbubble__state">未发出</span>
-              <span v-else-if="m.fromMe && !m.recalled" class="bbubble__state" :class="{ 'is-read': m.status === 1 }">
-                {{ m.status === 1 ? '已读' : '未读' }}
-              </span>
-              <!-- 失败态:整条气泡可点重发 -->
-              <button
-                v-if="m.failed"
-                type="button"
-                class="bbubble__retry"
-                @click.stop="$emit('retry-send', m)"
-              >
-                没发出去,点这里重试
-              </button>
-            </div>
-          </div>
-        </li>
+          :msg="m"
+          :show-sender="showSender(m)"
+          @long-press="onLongPress"
+          @retry="$emit('retry-send', $event)"
+        />
       </ul>
     </div>
 
@@ -199,21 +101,16 @@
       </button>
     </div>
 
-    <!-- 长按气泡的 ActionSheet -->
-    <ActionSheet v-model="sheetOpen" :title="sheetTitle">
-      <button v-if="sheetCanRecall" type="button" class="sheet__act" @click="onRecall">
-        <el-icon :size="18"><RefreshLeft /></el-icon>
-        撤回这条
-      </button>
-      <button v-if="sheetCanQuote" type="button" class="sheet__act" @click="onQuote">
-        <el-icon :size="18"><Paperclip /></el-icon>
-        引用回复
-      </button>
-      <button type="button" class="sheet__act sheet__act--danger" @click="onGoProfile">
-        <el-icon :size="18"><User /></el-icon>
-        查看 TA 的主页
-      </button>
-    </ActionSheet>
+    <!-- 长按气泡后的操作表(2026-10-15 拆去 ChatMsgSheet.vue) -->
+    <ChatMsgSheet
+      v-model="sheetOpen"
+      :title="sheetTitle"
+      :can-recall="sheetCanRecall"
+      :can-quote="sheetCanQuote"
+      @recall="emit('recall', sheetTarget)"
+      @quote="emit('quote', sheetTarget)"
+      @go-peer="onGoProfile"
+    />
   </div>
 </template>
 
@@ -233,13 +130,12 @@
  * 用 pointerdown/pointerup 而不是 touchstart —— 前者在桌面也能触发,
  * 开发时不用为了测长按切到手机。
  */
-import { ref, computed, onBeforeUnmount, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { Top, Close, Promotion, RefreshLeft, Paperclip, User, Back, Search, Bell } from '@element-plus/icons-vue'
-import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import { ref, computed, watch } from 'vue'
+import { Promotion } from '@element-plus/icons-vue'
 import GroupHead from './GroupHead.vue'
-
-const router = useRouter()
+import ChatThreadHeader from './ChatThreadHeader.vue'
+import ChatBubble from './ChatBubble.vue'
+import ChatMsgSheet from './ChatMsgSheet.vue'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -284,9 +180,8 @@ const emit = defineEmits([
 
 const listEl = ref(null)
 const sheetOpen = ref(false)
+/** 长按操作表当前针对的那条消息 */
 const sheetTarget = ref(null)
-const expanded = ref(new Set())
-const pressTimer = ref(null)
 
 const skelWidths = ['40%', '60%', '52%', '44%', '58%']
 
@@ -315,18 +210,9 @@ const sheetCanQuote = computed(
   () => !!sheetTarget.value && !sheetTarget.value.fromMe && !sheetTarget.value.recalled,
 )
 
+/** 是否显示发送者昵称(群聊 + 非本人 + 未撤回)。判定留在本层:它取决于会话类型 */
 function showSender(m) {
   return props.kind === 'group' && !m.fromMe && !m.recalled
-}
-
-/** 超长阈值 500 字(§3):超过后正文最多 8 行 */
-function isLong(m) {
-  return (m.content?.length || 0) > 500
-}
-
-function expand(id) {
-  // Set 是浅响应式的引用,替换成新 Set 才触发重渲染
-  expanded.value = new Set(expanded.value).add(id)
 }
 
 function send() {
@@ -377,47 +263,15 @@ function scheduleScrollBottom() {
  * 群头固定在消息区上方,不再随滚动平移。
  */
 
-/* ---------------- 返回:顶栏 ←(路由 ownTop,自绘顶栏) ---------------- */
-// 手机端会话是独立路由,history.back 回列表页;桌面无列表页,back 回上一条。
-function goBack() {
-  if (window.history.length > 1) router.back()
-  else router.replace('/chat')
-}
+/* ---------------- 长按操作表 ---------------- */
 
-/* ---------------- 长按 ---------------- */
-
+/**
+ * 长按的计时与 pointer 事件在 ChatBubble 内部(它自己的状态),
+ * 这里只接收「长按发生了」并记住目标是哪条消息。
+ */
 function onLongPress(m) {
   sheetTarget.value = m
   sheetOpen.value = true
-}
-
-/**
- * 用 pointer 事件而不是 touch 事件:
- * touchstart 在桌面端不触发,开发时无法验证菜单项。
- * pointercancel 必须清定时器 —— 手指滑走时若不清,菜单会在 500ms 后莫名弹出。
- */
-function onPointerDown(e, m) {
-  if (e.pointerType === 'mouse' && e.button !== 0) return
-  pressTimer.value = setTimeout(() => onLongPress(m), 500)
-}
-
-function clearPress() {
-  if (pressTimer.value) {
-    clearTimeout(pressTimer.value)
-    pressTimer.value = null
-  }
-}
-
-onBeforeUnmount(clearPress)
-
-function onRecall() {
-  sheetOpen.value = false
-  emit('recall', sheetTarget.value)
-}
-
-function onQuote() {
-  sheetOpen.value = false
-  emit('quote', sheetTarget.value)
 }
 
 function onGoProfile() {
