@@ -11,7 +11,7 @@
         <el-input
           v-model="q"
           class="search__input"
-          placeholder="搜索帖子 / 用户 / 圈子"
+          placeholder="搜索帖子 / 用户 / 圈子 / 集市"
           clearable
           @keyup.enter="doSearch"
         >
@@ -26,6 +26,7 @@
           <el-tab-pane label="帖子" name="posts" />
           <el-tab-pane label="用户" name="users" />
           <el-tab-pane label="圈子" name="circles" />
+          <el-tab-pane label="集市" name="mkts" />
         </el-tabs>
 
         <!-- 搜索中骨架占位,避免点击后到出结果之间纯白 -->
@@ -52,7 +53,7 @@
             <StateBlock v-if="!(results.users || []).length" variant="empty" title="没有匹配的同学" description="关键词可能太长了,试试只输入姓或昵称" action-label="改个关键词" :icon="User" @action="clearKw" />
           </div>
 
-          <div v-else class="res-list">
+          <div v-else-if="tab === 'circles'" class="res-list">
             <div v-for="c in results.circles || []" :key="c.id" class="user-item" @click="router.push(`/circles/${c.id}`)">
               <InitialAvatar class="u-avatar c-avatar" :size="44" :src="c.avatarUrl ? resolveUrl(c.avatarUrl) : ''" :seed="c.id" :name="c.name || ''" />
               <div class="u-info">
@@ -61,6 +62,17 @@
               </div>
             </div>
             <StateBlock v-if="!(results.circles || []).length" variant="empty" title="没有匹配的圈子" description="换个词试试,或者自己开一个" action-label="去圈子广场" :icon="Collection" @action="router.push('/circles')" />
+          </div>
+
+          <div v-else-if="tab === 'mkts'" class="res-list">
+            <div v-for="m in results.mkts || []" :key="m.id" class="user-item" @click="router.push(`/mkt/${m.id}`)">
+              <InitialAvatar class="u-avatar c-avatar" :size="44" :src="''" :seed="m.id" :name="m.title || ''" />
+              <div class="u-info">
+                <div class="u-name">{{ m.title }}</div>
+                <div class="u-sub">{{ [m.category, m.price != null ? '¥' + m.price : ''].filter(Boolean).join(' · ') || '校园集市' }}</div>
+              </div>
+            </div>
+            <StateBlock v-if="!(results.mkts || []).length" variant="empty" title="没有匹配的集市活动" description="换个词试试,或者去集市广场逛逛" action-label="去集市" :icon="Collection" @action="router.push('/mkt')" />
           </div>
         </template>
       </div>

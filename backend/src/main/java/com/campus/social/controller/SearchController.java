@@ -3,9 +3,11 @@ package com.campus.social.controller;
 import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.entity.Circle;
+import com.campus.social.entity.MktActivity;
 import com.campus.social.entity.Post;
 import com.campus.social.entity.User;
 import com.campus.social.mapper.CircleMapper;
+import com.campus.social.mapper.MktActivityMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.UserMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -30,11 +32,14 @@ public class SearchController {
     private final PostMapper postMapper;
     private final UserMapper userMapper;
     private final CircleMapper circleMapper;
+    private final MktActivityMapper mktActivityMapper;
 
-    public SearchController(PostMapper postMapper, UserMapper userMapper, CircleMapper circleMapper) {
+    public SearchController(PostMapper postMapper, UserMapper userMapper, CircleMapper circleMapper,
+                            MktActivityMapper mktActivityMapper) {
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.circleMapper = circleMapper;
+        this.mktActivityMapper = mktActivityMapper;
     }
 
     @GetMapping
@@ -90,6 +95,18 @@ public class SearchController {
                     .last("LIMIT " + size));
             data.put("circles", circles.stream().map(this::toCircleVo).toList());
         }
+        // 集市(校园限时活动):数据量小,LIKE。仅「已投放(is_enable=1)且未软删」的
+        // 活 listings 才进搜索 —— 与帖子 status=1、圈子 status=0 的「可见」口径一致。
+        // 满员/过期的不在此过滤(用户搜历史活动也有意义),但软删与下架必过滤。
+        if (type.equals("mkt") || type.equals("all")) {
+            List<MktActivity> mkts = mktActivityMapper.selectList(new LambdaQueryWrapper<MktActivity>()
+                    .eq(MktActivity::getIsDeleted, 0)
+                    .eq(MktActivity::getIsEnable, 1)
+                    .like(MktActivity::getTitle, keyword)
+                    .orderByDesc(MktActivity::getId)
+                    .last("LIMIT " + size));
+            data.put("mkts", mkts.stream().map(this::toMktVo).toList());
+        }
         return Result.ok(data);
     }
 
@@ -116,5 +133,18 @@ public class SearchController {
         m.put("name", c.getName());
         m.put("memberCount", c.getMemberCount());
         return m;
+    }
+
+    private Map<String, Object> toMktVo(MktActivity m) {
+        Map<String, Object> vo = new HashMap<>();
+        vo.put("id", m.getId());
+        vo.put("title", m.getTitle());
+        vo.put("content", m.getContent());
+        vo.put("category", m.getCategory());
+        vo.put("price", m.getPrice());
+        vo.put("location", m.getLocation());
+        vo.put("userId", m.getUserId());
+        vo.put("createTime", m.getCreateTime());
+        return vo;
     }
 }
