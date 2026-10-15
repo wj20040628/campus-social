@@ -33,7 +33,7 @@
     <div class="gh__actions">
       <!--
         拉人对所有群成员开放(后端 assertMember),不再仅群主。
-        ⚙ 群管理(改名/公告/全员禁言/转让/退出)仅群主可见 —— 普通成员
+        群管理(改名/公告/全员禁言/转让/退出)仅群主可见 —— 普通成员
         点成员按钮走「拉人 + 退出群聊」(见成员名单底部),不再有管理项。
       -->
       <button
@@ -50,7 +50,7 @@
         title="群管理"
         aria-label="群管理"
         @click="menuOpen = !menuOpen"
-      >⚙</button>
+      ><el-icon :size="18"><Setting /></el-icon></button>
       <button
         type="button"
         class="gh__btn"
@@ -208,7 +208,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Avatar, Bell, Edit, Switch, Back, Mute,
+  Avatar, Bell, Edit, Switch, Back, Mute, Setting,
 } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import AddMembersSheet from './AddMembersSheet.vue'

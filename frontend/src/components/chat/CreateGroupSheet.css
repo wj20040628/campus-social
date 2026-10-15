@@ -52,9 +52,10 @@
 
 .cg__check {
   width: 20px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--ys-accent);
-  font-weight: var(--ys-weight-bold);
 }
 
 .cg__error {

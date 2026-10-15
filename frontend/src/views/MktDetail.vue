@@ -55,7 +55,7 @@
         <!-- 块 3:大号主文案「分类 · 游戏」(完整,不截断) -->
         <h2 class="md__h">{{ act.mainText || act.title }}</h2>
 
-        <!-- 块 4:📝完整详情正文(全展开,{{ }} 渲染) -->
+        <!-- 块 4:完整详情正文(全展开,{{ }} 渲染) -->
         <div class="md__content">{{ act.content }}</div>
 
         <!-- 块 5:信息小卡片一行:地点/价格/期望人数/剩余倒计时 -->
@@ -96,8 +96,9 @@
         </div>
 
         <!-- 免责声明(计划 §第 2 处:信息卡下方一行) -->
+        <!-- 不用 emoji 前缀:check-sfc 门禁零 emoji,且项目的文案纪律就是不拿 emoji 当图标 -->
         <p class="md__disclaimer">
-          💡温馨提示:本平台仅提供信息展示与线上沟通渠道。所有线下见面、交易,请务必提高安全意识,
+          温馨提示:本平台仅提供信息展示与线上沟通渠道。所有线下见面、交易,请务必提高安全意识,
           自行承担风险。请勿私下进行大额转账。
         </p>
 
@@ -106,7 +107,8 @@
 
         <!-- 块 7:发布者昵称(不展示微信/手机号) -->
         <div class="md__publisher">
-          <el-avatar :size="32" :src="resolveUrl(act.avatarUrl)" />
+          <!-- 头像走统一 InitialAvatar;契约里没有发布者 id,seed 用昵称(仅决定颜色) -->
+          <InitialAvatar :size="32" :src="act.avatarUrl ? resolveUrl(act.avatarUrl) : ''" :seed="act.nickname || ''" :name="act.nickname || ''" />
           <div class="md__pub-txt">
             <p class="md__pub-name">{{ act.nickname || '匿名' }}</p>
             <p class="md__pub-sub">发布者</p>
@@ -163,6 +165,7 @@ import {
   ArrowLeft, Location, Coin, User, Timer, Warning, WarningFilled,
 } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import MktComments from '@/components/mkt/MktComments.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
@@ -251,186 +254,4 @@ function openCommentReport(c) {
 onMounted(load)
 </script>
 
-<style scoped>
-.mdetail {
-  min-height: 100%;
-}
-
-.mdetail-inner {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: var(--ys-space-4);
-}
-
-/* 块 1:自绘顶栏(返回 + 标题 + 举报) */
-.md__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ys-space-3);
-  min-height: var(--ys-topbar-h);
-  margin: 0 calc(var(--ys-gutter-phone) * -1) var(--ys-space-4);
-  padding: 0 var(--ys-gutter-phone);
-  border-bottom: 1px solid var(--ys-border);
-}
-
-.md__back,
-.md__report {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--ys-touch-min);
-  min-height: var(--ys-touch-min);
-  border: 0;
-  background: none;
-  color: var(--ys-fg-2);
-  cursor: pointer;
-}
-
-.md__report:hover { color: var(--ys-danger); }
-
-.md__title {
-  flex: 1;
-  margin: 0;
-  font-size: var(--ys-text-lg);
-  font-weight: var(--ys-weight-semibold);
-  text-align: center;
-  color: var(--ys-fg);
-}
-
-.md__state { margin: var(--ys-space-8) 0; }
-.md__loading { display: flex; flex-direction: column; gap: var(--ys-space-4); }
-
-/* 块 2:大标签栏 */
-.md__tags {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--ys-space-2);
-}
-
-.md__cat {
-  padding: 4px var(--ys-space-3);
-  border-radius: var(--ys-radius-md);
-  background: var(--ys-accent-2-soft);
-  color: var(--ys-accent-2);
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
-}
-
-.md__timer {
-  margin-left: auto;
-  font-family: var(--ys-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--ys-text-sm);
-  color: var(--ys-meta);
-}
-
-.md__timer--warn { color: var(--ys-danger); font-weight: var(--ys-weight-medium); }
-.md__timer--expired { color: var(--ys-danger); }
-
-/* 块 3:大号标题(完整展示,不截断) */
-.md__h {
-  margin: var(--ys-space-4) 0 var(--ys-space-3);
-  font-size: var(--ys-text-2xl);
-  line-height: var(--ys-lh-2xl);
-  letter-spacing: var(--ys-ls-2xl);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
-
-/* 块 4:完整详情正文 */
-.md__content {
-  font-size: var(--ys-text-base);
-  line-height: var(--ys-lh-base);
-  color: var(--ys-fg);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* 块 5:信息小卡片一行 */
-.md__info {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ys-space-3);
-  margin: var(--ys-space-5) 0;
-}
-
-.md__info-item {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
-  padding: var(--ys-space-3);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface);
-}
-
-.md__info-item .el-icon { color: var(--ys-accent-2); }
-
-.md__info-txt {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.md__info-k { font-size: var(--ys-text-xs); color: var(--ys-meta); }
-
-.md__info-v {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.md__info-v--warn { color: var(--ys-danger); }
-.md__info-v--expired { color: var(--ys-danger); }
-
-/* 免责声明(第 2 处:信息卡下方一行) */
-.md__disclaimer {
-  margin: 0 0 var(--ys-space-2);
-  padding: var(--ys-space-3) var(--ys-space-4);
-  border: 1px solid var(--ys-border-soft);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface-2);
-  color: var(--ys-muted);
-  font-size: var(--ys-text-xs);
-  line-height: var(--ys-lh-sm);
-}
-
-/* 块 7:发布者昵称(不展示联系方式) */
-.md__publisher {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  padding: var(--ys-space-3) 0;
-}
-
-.md__pub-txt {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.md__pub-name {
-  margin: 0;
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg);
-}
-
-.md__pub-sub {
-  margin: 0;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-}
-
-@media (min-width: 1024px) {
-  .md__info {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-</style>
+<style scoped src="./MktDetail.css"></style>

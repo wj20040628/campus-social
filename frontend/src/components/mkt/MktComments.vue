@@ -5,15 +5,15 @@
     沟通只走这一条公共留言区:输入框 + 提交 + 扁平列表。
     留言**不带树、不带回复** —— 计划明确「参加走留言区」「不做回复层级」。
     每条留言右下角一个小型「举报」按钮,走既有 POST /report。
-    留言区上方固定一条 ⚠️ 隐私提示(计划 §免责声明)。
+    留言区上方固定一条隐私提示(计划 §免责声明)。
   -->
   <section class="mkc">
     <!-- 顶部提示:引导性文案(计划 §留言区固定文案) -->
-    <p class="mkc__hint">💡有意向?可以在这里留言!例如留言:「我有空,一起!」</p>
+    <p class="mkc__hint">有意向?可以在这里留言!例如留言:「我有空,一起!」</p>
 
     <!-- 隐私警示(计划 §免责声明第 3 处:留言区上方) -->
     <div class="mkc__warn" role="note">
-      ⚠️本平台仅提供信息展示,沟通请自行确认安全,请勿在留言区留下手机号、微信号等隐私信息!
+      本平台仅提供信息展示,沟通请自行确认安全,请勿在留言区留下手机号、微信号等隐私信息!
     </div>
 
     <!-- 输入框 + 提交 -->
@@ -198,7 +198,7 @@ async function submit() {
   min-width: var(--ys-touch-min);
   padding: 0 var(--ys-space-5);
   border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-accent);
   color: var(--ys-accent-on);
   font-family: var(--ys-font-body);

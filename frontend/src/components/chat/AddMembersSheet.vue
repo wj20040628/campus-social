@@ -24,7 +24,7 @@
         >
           <el-avatar :size="36" :src="resolveUrl(u.avatarUrl)" />
           <span class="am__member-name">{{ u.nickname || u.username }}</span>
-          <span class="am__check" aria-hidden="true">{{ checked.has(u.id) ? '✓' : '' }}</span>
+          <span class="am__check" aria-hidden="true"><el-icon v-if="checked.has(u.id)" :size="16"><Check /></el-icon></span>
         </li>
       </ul>
 
@@ -45,6 +45,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from '@/utils/feedback'
+import { Check } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { resolveUrl } from '@/utils/resolve'
 import { following, followers } from '@/api/relation'

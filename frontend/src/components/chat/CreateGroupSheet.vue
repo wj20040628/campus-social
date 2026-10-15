@@ -29,7 +29,7 @@
         >
           <el-avatar :size="36" :src="resolveUrl(u.avatarUrl)" />
           <span class="cg__member-name">{{ u.nickname || u.username }}</span>
-          <span class="cg__check" aria-hidden="true">{{ checked.has(u.id) ? '✓' : '' }}</span>
+          <span class="cg__check" aria-hidden="true"><el-icon v-if="checked.has(u.id)" :size="16"><Check /></el-icon></span>
         </li>
       </ul>
 
@@ -50,6 +50,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from '@/utils/feedback'
+import { Check } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { resolveUrl } from '@/utils/resolve'
 import { following } from '@/api/relation'

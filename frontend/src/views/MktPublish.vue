@@ -268,7 +268,7 @@ onMounted(async () => {
   width: 100%;
   min-height: var(--ys-touch-min);
   border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-accent);
   color: var(--ys-accent-on);
   font-family: var(--ys-font-body);

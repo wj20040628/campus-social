@@ -36,7 +36,7 @@
       <p class="mktcard__title">{{ activity.mainText || activity.title }}</p>
       <p class="mktcard__preview">{{ activity.content }}</p>
 
-      <!-- 信息行:📍地点 ｜ 💰价格(0 免费)｜ 👥期望人数(缺的隐藏) -->
+      <!-- 信息行:地点 / 价格(0 免费)/ 期望人数(缺的隐藏) -->
       <div class="mktcard__info">
         <span v-if="activity.location" class="mktcard__meta">
           <el-icon :size="14"><Location /></el-icon>{{ activity.location }}
@@ -290,7 +290,7 @@ const priceText = (() => {
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-2);
   border: 1px solid var(--ys-border-control);
-  border-radius: var(--ys-radius-md);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-surface);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-xs);
