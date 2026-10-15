@@ -59,6 +59,7 @@
           :msg="m"
           :show-sender="showSender(m)"
           @long-press="onLongPress"
+          @context-menu="onContextMenu"
           @retry="$emit('retry-send', $event)"
         />
       </ul>
@@ -110,6 +111,18 @@
       @recall="emit('recall', sheetTarget)"
       @quote="emit('quote', sheetTarget)"
     />
+
+    <!-- 桌面端右键菜单(teleport 到 body,仅 hover:hover 设备挂载) -->
+    <MessageContextMenu
+      v-model="ctxOpen"
+      :pos="ctxPos"
+      :can-recall="ctxTarget ? canRecall(ctxTarget) : false"
+      :can-copy="!!ctxTarget?.content"
+      :can-quote="ctxTarget ? !ctxTarget.recalled && !ctxTarget.failed : false"
+      @copy="onCtxCopy"
+      @quote="onCtxQuote"
+      @recall="onCtxRecall"
+    />
   </div>
 </template>
 
@@ -129,12 +142,14 @@
  * 用 pointerdown/pointerup 而不是 touchstart —— 前者在桌面也能触发,
  * 开发时不用为了测长按切到手机。
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { Promotion, Close } from '@element-plus/icons-vue'
+import { ElMessage } from '@/utils/feedback'
 import GroupHead from './GroupHead.vue'
 import ChatThreadHeader from './ChatThreadHeader.vue'
 import ChatBubble from './ChatBubble.vue'
 import ChatMsgSheet from './ChatMsgSheet.vue'
+import MessageContextMenu from './MessageContextMenu.vue'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
@@ -179,6 +194,11 @@ const listEl = ref(null)
 const sheetOpen = ref(false)
 /** 长按操作表当前针对的那条消息 */
 const sheetTarget = ref(null)
+
+/** 桌面右键菜单:开合 + 位置 + 目标 */
+const ctxOpen = ref(false)
+const ctxTarget = ref(null)
+const ctxPos = ref({ x: 0, y: 0 })
 
 const skelWidths = ['40%', '60%', '52%', '44%', '58%']
 
@@ -275,6 +295,76 @@ function scheduleScrollBottom() {
 function onLongPress(m) {
   sheetTarget.value = m
   sheetOpen.value = true
+}
+
+/* ---------------- 桌面右键菜单(2026-10-15 新增) ---------------- */
+
+/**
+ * 右键开菜单:同时关掉长按表(两者互斥,避免同屏出现两个浮层),
+ * 再在文档捕获阶段挂 close 监听(捕获,这样菜单 item 上 click.stop 也不会
+ * 误触发关闭)。
+ */
+function onContextMenu({ msg, x, y }) {
+  sheetOpen.value = false
+  ctxTarget.value = msg
+  ctxPos.value = { x, y }
+  ctxOpen.value = true
+  document.addEventListener('click', closeCtxOnOutside, true)
+  document.addEventListener('contextmenu', closeCtxOnOutside, true)
+  document.addEventListener('scroll', closeCtxOnOutside, true)
+  window.addEventListener('keydown', onEsc, true)
+}
+
+function closeCtxOnOutside(e) {
+  // 点菜单本体:close 是 stop 过的,但外层捕获 listener 仍会收到,
+  // 所以先排除菜单内部,再关。document click 在捕获阶段,
+  // 菜单内 click 冒泡到 document 会冒到,这里排除。
+  const menu = document.querySelector('.ctx')
+  if (menu && e.target && menu.contains(e.target)) return
+  ctxOpen.value = false
+  cleanupCtxListeners()
+}
+
+function onEsc(e) {
+  if (e.key === 'Escape') {
+    ctxOpen.value = false
+    cleanupCtxListeners()
+  }
+}
+
+function cleanupCtxListeners() {
+  document.removeEventListener('click', closeCtxOnOutside, true)
+  document.removeEventListener('contextmenu', closeCtxOnOutside, true)
+  document.removeEventListener('scroll', closeCtxOnOutside, true)
+  window.removeEventListener('keydown', onEsc, true)
+}
+
+onBeforeUnmount(cleanupCtxListeners)
+
+/** 复制:项目已有 clipboard util(见 PostSheets.vue),非安全上下文走 fallback */
+async function onCtxCopy() {
+  const m = ctxTarget.value
+  if (!m) return
+  try {
+    await navigator.clipboard.writeText(m.content || '')
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.warning('这个浏览器不让复制,长按消息试试')
+  }
+}
+
+function onCtxQuote() {
+  const m = ctxTarget.value
+  if (!m) return
+  ctxOpen.value = false
+  emit('quote', m)
+}
+
+function onCtxRecall() {
+  const m = ctxTarget.value
+  if (!m) return
+  ctxOpen.value = false
+  emit('recall', m)
 }
 
 /*

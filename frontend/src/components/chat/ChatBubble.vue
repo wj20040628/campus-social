@@ -19,7 +19,7 @@
       @pointerup="clearPress"
       @pointercancel="clearPress"
       @pointerleave="clearPress"
-      @contextmenu.prevent
+      @contextmenu="onContextMenu($event, msg)"
     >
       <p v-if="msg.recalled" class="bbubble__recalled">这条消息已撤回</p>
 
@@ -91,7 +91,7 @@ defineProps({
   showSender: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['long-press', 'retry'])
+const emit = defineEmits(['long-press', 'retry', 'context-menu'])
 
 /** 展开全文:每条气泡自己记,不回父组件 */
 const expanded = ref(false)
@@ -105,6 +105,22 @@ function isLong(m) {
 function onPointerDown(e, m) {
   if (e.pointerType === 'mouse' && e.button !== 0) return
   pressTimer.value = setTimeout(() => emit('long-press', m), 500)
+}
+
+/**
+ * 桌面右键:气泡上按下鼠标右键 → 透传给父组件开上下文菜单。
+ * - 只有鼠标右键(button===2)且 hover 设备才弹;touch 设备右键是浏览器默认
+ *   (保存图片/复制链接),我们不该拦截。
+ * - 必须在 capture 阶段 preventDefault,否则默认菜单会抢先出现。
+ */
+function onContextMenu(e, m) {
+  if (e.button !== 2) return
+  if (typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(hover:hover)').matches) {
+    e.preventDefault()
+    emit('context-menu', { msg: m, x: e.clientX, y: e.clientY })
+  }
 }
 
 function clearPress() {

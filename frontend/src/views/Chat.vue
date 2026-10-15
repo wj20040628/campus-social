@@ -134,7 +134,7 @@ const core = useChatCore({
 const {
   convs, groups, strangerList, quotaLeft,
   messages, replyToMsg, currentKind, currentConvId,
-  groupInfo, mutedMe,
+  groupInfo, mutedMe, currentGroup,
   historyLoading, historyError, headTitle, hasActive, canRecall,
   openConv: coreOpenConv, openGroup: coreOpenGroup, doRecall,
   onAddMembers, onKick, onLeaveGroup, onTransfer, onRename, onSetAnnouncement,
