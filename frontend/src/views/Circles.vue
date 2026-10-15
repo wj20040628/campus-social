@@ -23,7 +23,7 @@
         :disabled="searching || !keyword.trim()"
         @click="runSearch"
       >
-        {{ searching ? '搜着' : '搜' }}
+        {{ searching ? '搜着' : '搜索' }}
       </button>
       <button
         v-if="isSearching"
