@@ -256,15 +256,20 @@ const memberText = computed(() => {
  * 桌面端进了 4 列网格(Circles.css .circle-rows)后,行式分隔线会变成每张卡顶部一条突兀的横线,
  * 所以这里恢复卡片形态:白底 + 暖描边 + 轻影 + 16px 圆角 ——
  * 与 PostCard 同一套卡片语言(A 方向),hover 只升影不改色。
- * 4 列窄卡(~280px)下 min-height 收到 80px,避免卡片又高又空;
- * 信息块(头像+名字+成员)贴顶、操作块(加入/退出)贴底右,垂直节奏统一。
+ *
+ * 统一大小:用定高 height 而非 min-height。min-height 下高度由每行内容
+ * (圈子名/成员数长短)各自撑开,同行最高那张把整行抬起来、其它行矮,
+ * 行间高度跳变就是"卡片大小不一"。定高 118 + 名字/成员数各 1 行截断,
+ * 每张卡恒 118,行间对齐、视觉统一。4 列窄卡下按钮收窄、字号调小,
+ * 信息块贴顶、操作块贴底右,垂直节奏稳定。
  */
 @media (min-width: 1024px) {
   .crow {
     flex-direction: column;
     align-items: stretch;
     justify-content: space-between;
-    min-height: 80px;
+    height: 118px;
+    min-height: 0;
     padding: var(--ys-space-3);
     border: 1px solid var(--ys-border);
     border-radius: var(--ys-radius-xl);
@@ -278,19 +283,30 @@ const memberText = computed(() => {
     border-color: var(--ys-border-control);
     box-shadow: var(--ys-shadow-2);
   }
-  /* 信息块(图标+名字+成员数)贴顶,横向排列 */
+  /* 信息块(图标+名字+成员数)贴顶,横向排列;各 1 行截断 */
   .crow__open {
     align-items: flex-start;
   }
-  /* 操作块(加入/退出)贴底右 */
+  /* 头像略收:4 列窄卡下 48px 太大,收 40 */
+  .crow__avatar {
+    width: 40px;
+    height: 40px;
+  }
+  /* 操作块(加入/退出)贴底右;窄卡收窄 + 字号调小,塞得下不撑高 */
   .crow__join,
   .crow__leave {
     align-self: flex-end;
-    min-width: 72px;
+    min-width: 60px;
+    padding: 0 var(--ys-space-2);
+    font-size: var(--ys-text-sm);
   }
   /* 文本列允许截断:否则卡片收窄时名字列把按钮顶出右缘(桌面重叠 Bug4) */
   .crow__info {
     min-width: 0;
+  }
+  /* 成员数 1 行截断:长名把第二行顶掉,定高下不会溢出 */
+  .crow__sub {
+    white-space: nowrap;
   }
 }
 </style>
