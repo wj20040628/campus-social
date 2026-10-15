@@ -38,6 +38,7 @@
           ref="threadRef"
           v-model:draft="draft"
           class="chat__thread"
+          :key="currentConvId ?? currentGroup?.id ?? 'blank'"
           :messages="messages"
           :reply-to="replyToMsg"
           :kind="currentKind"
@@ -231,6 +232,12 @@ function openConv(c) {
     if (c.peer?.id) router.push(`/chat/t/dm/${c.peer.id}`)
     return
   }
+  // 切会话前清掉旧会话的残留消息与加载态:否则首点击可能沿用上一会话的
+  // messages / historyError,表现为「点了没反应、再点才显示」(Bug1)。
+  // 设 historyLoading=true 让右侧先出骨架,loadHistory 结束再翻成正文。
+  messages.value = []
+  historyError.value = false
+  historyLoading.value = true
   coreOpenConv(c)
 }
 
