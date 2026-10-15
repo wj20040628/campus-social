@@ -88,6 +88,22 @@
         </div>
       </el-card>
 
+      <!-- 外观:深色模式开关。持久化到 localStorage,刷新不丢(见 useTheme) -->
+      <el-card class="settings__appearance">
+        <div class="ap__row">
+          <div class="ap__text">
+            <div class="ap__label">深色模式</div>
+            <div class="ap__desc">夜间刷校园动态更护眼</div>
+          </div>
+          <el-switch
+            :model-value="isDark"
+            aria-label="深色模式开关"
+            style="--el-switch-on-color: var(--ys-accent)"
+            @change="toggleTheme"
+          />
+        </div>
+      </el-card>
+
       <!-- 我发布的帖子列表(首屏主体) -->
       <div class="settings__posts" id="settings-posts">
         <StateBlock
@@ -178,9 +194,13 @@ import { myPosts as myPostsApi } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
 import { resolveUrl } from '@/utils/resolve'
 import { useSettings } from '@/composables/useSettings'
+import { useTheme } from '@/composables/useTheme'
 
 const userStore = useUserStore()
 const router = useRouter()
+
+/** 深色模式开关:读 isDark 受控渲染,切换由 toggleTheme 翻转并持久化 */
+const { isDark, toggle: toggleTheme } = useTheme()
 
 /* 三个弹层 + 退出登录:状态与打开逻辑在 composable 里(2026-10-15 拆出) */
 const {

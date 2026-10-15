@@ -154,3 +154,32 @@
   flex-direction: column;
   gap: var(--ys-space-3);
 }
+
+/* 外观卡:深色模式开关。文字在左,开关在右(整行可点由 el-switch 自身承载) */
+.settings__appearance {
+  margin-bottom: var(--ys-space-4);
+}
+.settings__appearance :deep(.el-card__body) {
+  display: flex;
+  align-items: center;
+}
+.ap__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+}
+.ap__text {
+  flex: 1;
+  min-width: 0;
+}
+.ap__label {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+.ap__desc {
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}

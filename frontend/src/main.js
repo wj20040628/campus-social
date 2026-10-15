@@ -20,11 +20,20 @@ import { useUserStore } from './stores/user'
  * --------------------------------------------------------------------------- */
 import './styles/design-tokens.css'
 import './styles/tokens.css'
+/* EP 深色变量:必须在本文件引入,且放在 design-tokens.css 之后。
+ * 它把 --el-* 在 html.dark 下换成深色值,供 el-dialog / el-button /
+ * el-message 等原生组件在深色主题下取色。顺序反了会被浅色值盖回。 */
+import 'element-plus/theme-chalk/dark/css-vars.css'
 
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 app.use(router)
+
+// 主题必须在挂载前落到 <html>,否则先浅后深会闪一下白
+import { initTheme } from './composables/useTheme'
+initTheme()
+
 app.mount('#app')
 
 // 全局拉一次当前用户信息:无论刷新、新开标签还是直接进首页,
