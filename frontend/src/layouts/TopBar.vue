@@ -74,6 +74,18 @@
           <el-dropdown-menu>
             <el-dropdown-item command="profile">个人主页</el-dropdown-item>
             <el-dropdown-item command="settings">设置</el-dropdown-item>
+            <!--
+              深色模式开关放顶栏头像下拉(桌面端)——比「设置页下半张外观卡」更顺眼,
+              切完即时生效(localStorage ys-theme + <html data-theme>),刷新不丢。
+              移动端无此项(头像在 TabBar「我的」,深色走 Settings.vue「我的」页的外观卡)。
+            -->
+            <el-dropdown-item
+              v-if="!isMobile"
+              :command="isDark ? 'toggleLight' : 'toggleDark'"
+            >
+              <el-icon><Sunny v-if="!isDark" /><Moon v-else /></el-icon>
+              {{ isDark ? '切换浅色' : '切换深色' }}
+            </el-dropdown-item>
             <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -85,9 +97,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Plus, Search, Bell, CaretBottom } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, Search, Bell, CaretBottom, Sunny, Moon } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useBreakpoint'
+import { useTheme } from '@/composables/useTheme'
 import { resolveUrl } from '@/utils/resolve'
 import UnreadDot from '@/components/mobile/UnreadDot.vue'
 
@@ -102,6 +115,9 @@ const emit = defineEmits(['logout'])
 const router = useRouter()
 const userStore = useUserStore()
 const isMobile = useIsMobile()
+/** 深色模式开关(桌面头像下拉项):与 Settings / SettingsProfile 共享 useTheme 单例,
+ *  切完落 localStorage + <html data-theme>,即时生效、刷新不丢。 */
+const { isDark, toggle: toggleTheme } = useTheme()
 
 /** 头像拉取失败时降级为首字母块,不报错不弹窗(布局不接管全站级错误) */
 const avatarFallback = computed(() => {
@@ -132,6 +148,9 @@ function onUserCommand(cmd) {
     // 桌面(≥1024)落真正的设置页 /settings/profile(编辑资料 + 隐私);
     // 移动端「我的」(/settings)是唯一能挂管理入口/退出/审核记录的地方,保留现状。
     router.push(isMobile.value ? '/settings' : '/settings/profile').catch(() => {})
+  } else if (cmd === 'toggleDark' || cmd === 'toggleLight') {
+    // 桌面端一键切主题:同一份 useTheme 单例,切完即时落类 + 持久化,无需跳转
+    toggleTheme()
   } else if (cmd === 'logout') emit('logout')
 }
 </script>
