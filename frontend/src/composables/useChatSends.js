@@ -89,7 +89,7 @@ export function useChatSends(ctx) {
    *  id 守卫:刚发出时若后端响应异常、id 落到 undefined(或前端生成的占位),
    *  这里不渲染撤回按钮,从根上避免点撤回触发 400「参数类型错误: msgId」。 */
   const canRecall = (m) =>
-    m.id != null &&
+    m != null && m.id != null &&
     m.fromMe && !m.recalled && m.sendTs && Date.now() - m.sendTs < 120000
 
   async function doRecall(m) {

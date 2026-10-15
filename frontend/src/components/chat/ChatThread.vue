@@ -131,7 +131,7 @@
  * 开发时不用为了测长按切到手机。
  */
 import { ref, computed, watch } from 'vue'
-import { Promotion } from '@element-plus/icons-vue'
+import { Promotion, Close } from '@element-plus/icons-vue'
 import GroupHead from './GroupHead.vue'
 import ChatThreadHeader from './ChatThreadHeader.vue'
 import ChatBubble from './ChatBubble.vue'
@@ -205,7 +205,13 @@ const inputPlaceholder = computed(() => {
 const sheetTitle = computed(() =>
   props.kind === 'group' ? '这条群消息' : `发给 ${props.peerName || 'TA'} 的消息`,
 )
-const sheetCanRecall = computed(() => props.canRecall(sheetTarget.value))
+// 长按操作表尚未针对某条消息时 sheetTarget 是 null:
+// 不判空会直接 canRecall(null) → null.id 抛 TypeError,
+// 渲染中断、消息窗白屏(表现为「选中会话后聊天区不渲染,再点一次才好」)。
+const sheetCanRecall = computed(() => {
+  if (!sheetTarget.value) return false
+  return props.canRecall(sheetTarget.value)
+})
 const sheetCanQuote = computed(
   () => !!sheetTarget.value && !sheetTarget.value.fromMe && !sheetTarget.value.recalled,
 )
