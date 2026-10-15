@@ -98,6 +98,9 @@ const memberText = computed(() => {
   align-items: center;
   gap: var(--ys-space-3);
   flex: 1;
+  /* flex 子项默认 min-width:auto,会撑到内容最宽;卡片收窄时文本列必须能截断,
+     否则名字列把「加入/退出」按钮顶出卡片右缘(桌面端卡片重叠,见 Bug4) */
+  min-width: 0;
   /* 视觉高 72px 由 .crow 给,这里撑满让整行都是热区 */
   align-self: stretch;
   padding: 0;
@@ -274,6 +277,10 @@ const memberText = computed(() => {
   .crow__join,
   .crow__leave {
     min-width: 88px;
+  }
+  /* 文本列允许截断:否则卡片收窄时名字列把按钮顶出右缘(桌面重叠 Bug4) */
+  .crow__info {
+    min-width: 0;
   }
 }
 </style>
