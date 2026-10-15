@@ -152,7 +152,7 @@ const list = computed(() => all.value)
 const {
   panelOpen, panelLoading, panelFailed,
   unreadList, unreadTotal, reminding, remindedIds, currentAnn,
-  open: openUnread, remindAll, remindOne,
+  open: openUnread, load: loadUnread, remindAll, remindOne,
 } = useUnreadPanel()
 
 async function load(reset = false) {

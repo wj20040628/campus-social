@@ -30,6 +30,7 @@ const PROJECT = resolve(ROOT, '..')
 const GATES = [
   { name: 'check-sfc', file: 'scripts/check-sfc.mjs', cwd: ROOT, exec: 'node scripts/check-sfc.mjs', what: 'SFC 编译器零提醒' },
   { name: 'check-template-refs', file: 'scripts/check-template-refs.mjs', cwd: ROOT, exec: 'node scripts/check-template-refs.mjs', what: '模板标识符存在性' },
+  { name: 'check-external-css', file: 'scripts/check-external-css.mjs', cwd: ROOT, exec: 'node scripts/check-external-css.mjs', what: '外置样式存在性 + 括号平衡' },
   { name: 'check-composable-exports', file: 'scripts/check-composable-exports.mjs', cwd: ROOT, exec: 'node scripts/check-composable-exports.mjs', what: 'composable 解构契约' },
   { name: 'check-undefined-identifiers', file: 'scripts/check-undefined-identifiers.mjs', cwd: ROOT, exec: 'node scripts/check-undefined-identifiers.mjs', what: '漏 import / 用错名字' },
   { name: 'verify-frontend', file: 'scripts/verify-frontend.py', cwd: ROOT, exec: 'python scripts/verify-frontend.py', what: 'P0 门禁 + Token 纪律' },

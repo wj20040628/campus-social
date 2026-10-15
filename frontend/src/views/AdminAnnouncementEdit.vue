@@ -22,7 +22,7 @@
       </button>
     </header>
 
-    <form class="ed__form" @submit.prevent="onSubmit">
+    <form class="ed__form" @submit.prevent="submit(true)">
       <!-- 区 1:标题 -->
       <div class="ed__sec">
         <label class="ed__label" for="ann-title">标题</label>

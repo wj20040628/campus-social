@@ -39,6 +39,8 @@ const GLOBALS = new Set([
   'onMounted', 'onBeforeUnmount', 'onUnmounted', 'onActivated', 'onDeactivated',
   'storeToRefs', 'defineProps', 'defineEmits', 'defineExpose', 'defineOptions',
   'ElMessage', 'ElMessageBox', 'ElNotification', 'ElLoading',
+  // 模板里以 $ 开头的实例属性(不是 script 绑定)
+  '$emit', '$event', '$refs', '$el', '$props', '$attrs', '$slots', '$nextTick',
 ])
 
 /** 表达式关键字。不是自由引用 */
@@ -133,23 +135,96 @@ function collectVForVars(tpl) {
   return names
 }
 
-/** 剥掉字符串字面量与成员访问,只留「自由标识符」 */
+/**
+ * 插槽作用域变量:`<slot #head="{ foo }" />` 或
+ * `<router-view v-slot="{ Component }">` 里解构出来的名字,
+ * 由插槽提供方注入,不是本组件 script 的绑定。不认它们会误报
+ * (PasswordInput 的 `visible`、MainLayout 的 `Component` 都栽在这)。
+ */
+function collectSlotScopeVars(tpl) {
+  const names = new Set()
+  for (const m of tpl.matchAll(/(?:v-slot|#[\w-]+)="\{([^}]*)\}"/g)) {
+    for (const part of m[1].split(',')) {
+      const t = part.trim().split(/\s+as\s+/).pop().trim()
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(t)) names.add(t)
+    }
+  }
+  return names
+}
+
+/**
+ * 内联箭头函数的参数:模板里常见 `(ids) => onAddMembers(ids)` /
+ * `info?.members?.map((m) => m.user?.id)`。这些参数是表达式局部的,
+ * 不是 script 的绑定,不能当成「未声明」去报。
+ *
+ * 只处理带括号的箭头(本项目模板里都是这种写法);解构参数
+ * `{ id }` / `[a, b]` 与无括号单参 `a =>` 极少见,先不特殊处理 ——
+ * 真要出现会误报一条,但那也比静默漏掉好(本脚本的设计偏好是多报)。
+ */
+function collectArrowParams(expr) {
+  const params = new Set()
+  for (const m of expr.matchAll(/\(([^()]*)\)\s*=>/g)) {
+    for (const part of m[1].split(',')) {
+      let t = part.trim().split('=')[0].trim() // 去掉默认值 a = 1
+      t = t.replace(/^\.\.\./, '').trim() // 去掉 rest ...
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(t)) params.add(t)
+    }
+  }
+  return params
+}
+
+/**
+ * 剥掉字符串字面量、成员访问、对象字面量的键,只留「自由标识符」。
+ *
+ * 三处容易误报、必须剥掉的东西:
+ *   1. `$emit` / `$event` —— 开头的 $ 不是单词字符,`\b` 会从 e 开始匹配,
+ *      于是 `$emit` 被截成 `emit`、`$event` 被截成 `event`。
+ *   2. 对象字面量的键 —— `:style="{ width: '40%' }"` 里的 width 是键不是变量,
+ *      `:autosize="{ minRows: 1 }"` 同理。不剥的话满屏都是假阳性。
+ *   3. 内联箭头参数(见 collectArrowParams)—— `(ids) => onAddMembers(ids)`
+ *      里的 ids 是参数不是自由变量,要从结果里剔除,否则实打实存在的
+ *      箭头参数全会被误报成「未声明」。
+ */
 function freeIdentifiers(expr) {
-  // 去掉 '...' "..." `...`
+  // 去掉 '...' "..." `...`(先去字符串,否则里面的 // 会被当成注释)
   let s = expr.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""').replace(/`[^`]*`/g, '``')
-  // 去掉 obj.prop / obj?.prop 的 prop 部分:把 . 后面的标识符抹成 _(_ 是本脚本的占位符,不参与判断)
+  // 去掉表达式内的 JS 注释:模板属性里常有 `:class="{ // 注释 }"` 这种行内注释,
+  // 不剥会把注释里的字(如 chip)误报成未声明变量。字符串已先去掉,这里 // 不会是 https://
+  s = s.replace(/\/\*[\s\S]*?\*\//g, ' ')
+  s = s.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n')
+  // 去掉 obj.prop / obj?.prop 的 prop 部分:把 . 后面的标识符抹成 _
   s = s.replace(/\.\s*([A-Za-z_$][A-Za-z0-9_$]*)/g, '._')
+  // 去掉对象字面量的键:{ k: v, 'k2': v } 与解构别名 { k: alias }
+  s = s.replace(/([{,]\s*)(['"]?)([A-Za-z_$][A-Za-z0-9_$]*)\2\s*:/g, '$1_:')
+  const skip = collectArrowParams(expr)
   const out = new Set()
-  for (const m of s.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$]*)\b/g)) {
-    if (m[1] !== '_') out.add(m[1])
+  // 标识符前面若是 $($emit/$event),跳过 —— 那是 Vue 实例属性,不是自由变量
+  for (const m of s.matchAll(/(^|[^\w$])([A-Za-z_$][A-Za-z0-9_$]*)\b/g)) {
+    const name = m[2]
+    if (name === '_' || skip.has(name)) continue
+    out.add(name)
   }
   return out
 }
 
+/**
+ * 指令/事件表达式。
+ *
+ * **2026-10-15 修了一个让本门禁整体失效的正则错误**:
+ * 原写法 `(?:^|\s)(?::|v-if=|...|@[\w.:-]+=|v-bind:)="([^"]*)"` ——
+ * 分支 `@[\w.:-]+=` 已经吃掉了 `=`,后面又跟了一个 `="`,
+ * 等于要求文本是 `@click==`。结果**全项目的 @click="fn()" 一条都没被扫过**,
+ * 而 v-if / v-bind 这类分支因为不带尾部 `=` 反而能命中,
+ * 门禁一直报「模板标识符检查通过」,给人已经查过这个维度的错觉。
+ * (正是这个洞放过了一次真实事故:某组件拆出后模板里残留父级的
+ *  onLongPress(m) / expand(m.id),编译不报、运行才炸。)
+ *
+ * 现在把 `=` 统一放在分支外面,并要求分支本身不带 `=`。
+ */
 function collectExprs(tpl) {
   const exprs = []
   for (const m of tpl.matchAll(/\{\{([\s\S]*?)\}\}/g)) exprs.push(m[1])
-  const dirRe = /(?:^|\s)(?::|v-if=|v-else-if=|v-for=|v-show=|v-model=|@[\w.:-]+=|v-bind:)="([^"]*)"/g
+  const dirRe = /(?:^|\s)(?::[\w.-]+|v-[\w:-]+|@[\w.:-]+)\s*=\s*"([^"]*)"/g
   for (const m of tpl.matchAll(dirRe)) exprs.push(m[1])
   return exprs
 }
@@ -166,11 +241,15 @@ for (const file of files) {
   const code = descriptor.scriptSetup?.content || descriptor.script?.content || null
   if (!code) continue
 
-  const tpl = descriptor.template.content
+  // 先剥 HTML 注释:注释里的字(如「chip 块」「el-page-header」)不是表达式,
+  // 不剥会误报。副作用:注释里若真有 `{{ x }}` 也不会查 —— 可接受,注释里的
+  // 插值本来就不该参与渲染。
+  const tpl = descriptor.template.content.replace(/<!--[\s\S]*?-->/g, '')
   const known = new Set([
     ...collectBindings(code),
     ...collectPropNames(code),
     ...collectVForVars(tpl),
+    ...collectSlotScopeVars(tpl),
   ])
 
   const missing = new Set()

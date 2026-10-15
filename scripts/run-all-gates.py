@@ -33,6 +33,7 @@ FRONTEND = os.path.join(PROJECT, "frontend")
 GATES = [
     ("check-sfc", FRONTEND, ["node", "scripts/check-sfc.mjs"], "SFC 编译器零提醒"),
     ("check-template-refs", FRONTEND, ["node", "scripts/check-template-refs.mjs"], "模板标识符存在性"),
+    ("check-external-css", FRONTEND, ["node", "scripts/check-external-css.mjs"], "外置样式存在性 + 括号平衡"),
     ("check-composable-exports", FRONTEND, ["node", "scripts/check-composable-exports.mjs"], "composable 解构契约"),
     ("check-undefined-identifiers", FRONTEND, ["node", "scripts/check-undefined-identifiers.mjs"], "漏import / 用错名字"),
     ("verify-frontend", FRONTEND, ["python", "scripts/verify-frontend.py"], "P0 门禁 + Token 纪律"),
