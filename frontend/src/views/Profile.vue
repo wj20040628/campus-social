@@ -179,14 +179,14 @@ import ProfileHead from '@/components/profile/ProfileHead.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 import { useProfileData } from '@/composables/useProfileData'
 import { useProfileRelations } from '@/composables/useProfileRelations'
+import { useProfileActions } from '@/composables/useProfileActions'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { useIsMobile } from '@/composables/useBreakpoint'
-import { unblacklist } from '@/api/relation'
 import { submitReport } from '@/api/review'
 import { capCount as cap } from '@/composables/usePostDetail'
-import { displayName, isIdentityVerified } from '@/utils/mask'
+import { displayName } from '@/utils/mask'
 import PostCard from '@/components/PostCard.vue'
 import UserList from '@/components/UserList.vue'
 
@@ -235,43 +235,14 @@ const clickableStats = computed(() => [
   { label: '关注', value: user.value?.followingCount ?? 0, tab: 'following' },
 ])
 
-/**
- * 关注按钮 + 粉丝数联动。
- *
- * 计数在前端同步改而不是等下一次往返:用户看到「关注成功了但粉丝数没变」
- * 会比慢 300ms 更困惑。
- *
- * 只有拿到明确的三态结果才动计数 —— 失败(null)时不动,
- * 否则一次网络失败会让粉丝数凭空少 1。
- */
-async function toggleFollowAndCount() {
-  const result = await toggleFollow()
-  if (!result || !user.value) return
-  user.value.followerCount = Math.max(
-    0,
-    (user.value.followerCount || 0) + (result === 'followed' ? 1 : -1),
-  )
-}
-
-/** 解除拉黑。失败时请求层已弹错,关系状态维持原样 */
-async function unblock() {
-  try {
-    await unblacklist(targetId.value)
-    relStatus.value.blacklisted = false
-    await loadRelation().catch(() => {})
-  } catch {
-    /* 留在原地,用户可再点一次 */
-  }
-}
-
-/** AC-11:未认证不跳私信,给说明与出口 */
-function onChatClick() {
-  if (!isIdentityVerified(userStore.userInfo)) {
-    verifyOpen.value = true
-    return
-  }
-  router.push(`/chat?to=${targetId.value}`)
-}
+/*
+  关系动作(关注带计数联动 / 解除拉黑 / 发私信):
+  2026-10-15 拆去 composables/useProfileActions.js
+*/
+const { toggleFollowAndCount, unblock, onChatClick } = useProfileActions({
+  targetId, user, relStatus, toggleFollow, loadRelation,
+  onNeedVerify: () => { verifyOpen.value = true },
+})
 
 function goVerify() {
   verifyOpen.value = false

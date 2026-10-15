@@ -1,0 +1,168 @@
+/*
+  MktComments.vue 的样式,2026-10-15 外置(同一模式)。
+  外置原因:304 行超 300 行门禁,拆后回到约 139 行。
+*/
+
+.mkc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
+}
+
+/* ---------------- 顶部提示 + 隐私警示 ---------------- */
+.mkc__hint {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.mkc__warn {
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border: 1px solid var(--ys-warning);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-warning-soft);
+  color: var(--ys-warning);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+}
+
+/* ---------------- 输入区 ---------------- */
+.mkc__composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+}
+
+.mkc__input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 56px;
+  padding: var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  color: var(--ys-fg);
+  resize: vertical;
+}
+
+.mkc__input:focus-visible {
+  border-color: var(--ys-accent);
+  box-shadow: var(--ys-focus-ring);
+  outline: none;
+}
+
+.mkc__composer-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mkc__submit {
+  min-height: var(--ys-touch-min);
+  min-width: var(--ys-touch-min);
+  padding: 0 var(--ys-space-5);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.mkc__submit:hover { background: var(--ys-accent-hover); }
+
+.mkc__submit:disabled {
+  border-color: var(--ys-border-control);
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+/* 留言失败:贴近输入框而不是 toast,草稿保留(与发帖同纪律) */
+.mkc__err {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+}
+
+/* ---------------- 列表 ---------------- */
+.mkc__head {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+.mkc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
+}
+
+.mkc__item {
+  display: flex;
+  gap: var(--ys-space-3);
+}
+
+.mkc__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mkc__nick {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+.mkc__text {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-base);
+  line-height: var(--ys-lh-base);
+  color: var(--ys-fg);
+  word-break: break-word;
+}
+
+.mkc__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--ys-space-1);
+}
+
+.mkc__time {
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+.mkc__report {
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  cursor: pointer;
+  padding: 2px var(--ys-space-1);
+  border-radius: var(--ys-radius-sm);
+}
+
+.mkc__report:hover {
+  color: var(--ys-danger);
+  background: var(--ys-danger-soft);
+}
+
+.mkc__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
+}

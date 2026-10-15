@@ -102,6 +102,7 @@ import { ElMessage } from '@/utils/feedback'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { useChatCore } from '@/composables/useChatCore'
+import { useChatComposer } from '@/composables/useChatComposer'
 import ChatConvList from '@/components/chat/ChatConvList.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import CreateGroupSheet from '@/components/chat/CreateGroupSheet.vue'
@@ -110,12 +111,9 @@ const route = useRoute()
 const router = useRouter()
 const isMobile = useIsMobile()
 
-const draft = ref('')
-const sending = ref(false)
 /** 路由跳转引发的临时列表加载(打开会话前等列表就绪的那段时间) */
 const routeLoading = ref(false)
 const sourceTitle = ref('')
-const threadRef = ref(null)
 /** 建群操作表开关(ChatConvList 的「＋」触发) */
 const createGroupOpen = ref(false)
 
@@ -142,6 +140,10 @@ const {
   onAddMembers, onKick, onLeaveGroup, onTransfer, onRename, onSetAnnouncement,
   onMuteMember, onMuteAll, loadMutedMe,
 } = core
+
+/* 输入 / 发送 / 重试:2026-10-15 拆去 composables/useChatComposer.js
+   (draft/sending/threadRef/onSend/retrySend 都从那里来) */
+const { draft, sending, threadRef, onSend, retrySend } = useChatComposer(core)
 
 /**
  * 列表骨架 = 首屏加载(core 内部三并发,结束后自己关) || 路由跳转加载。
@@ -250,58 +252,6 @@ async function onGroupCreated(groupId) {
 }
 
 /* ---------------- 发送 ---------------- */
-
-async function onSend() {
-  if (sending.value || !draft.value.trim()) return
-  sending.value = true
-  const text = draft.value
-  try {
-    const res = await core.doSend(draft)
-    if (res.ok) {
-      draft.value = ''
-      return
-    }
-    /*
-     * 失败:**草稿保留**(§3 错误态)。清空输入框是最伤的交互。
-     * 同时追加一条 failed 气泡,让用户看到「到底发出去了没」的答案 ——
-     * 界面毫无变化会让人以为按钮坏了而狂点。
-     */
-    messages.value.push({
-      id: `local-${Date.now()}`,
-      content: text,
-      fromMe: true,
-      createTime: nowText(),
-      sendTs: Date.now(),
-      status: 0,
-      failed: true,
-    })
-    await nextTick()
-    threadRef.value?.scrollBottom()
-    ElMessage.error('没发出去,点气泡重试')
-  } finally {
-    sending.value = false
-  }
-}
-
-async function retrySend(m) {
-  const text = m.content
-  // 先撤掉失败气泡:重试成功时页面不能留下两条一样的消息
-  messages.value = messages.value.filter((x) => x.id !== m.id)
-  draft.value = text
-  const res = await core.doSend(draft)
-  if (res.ok) {
-    draft.value = ''
-  } else {
-    draft.value = text
-    ElMessage.error('还是没发出去,检查一下网络')
-  }
-}
-
-function nowText() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
 
 function reload() {
   core.loadHistory()
