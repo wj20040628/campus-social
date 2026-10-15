@@ -133,10 +133,15 @@ onBeforeUnmount(() => {
   gap: 12px;
   margin-bottom: 16px;
 }
+/* --ys-accent 不用 --el-color-primary:业务代码直连 --el-* 违反 token 硬规则 2 */
 .topic-title {
   font-size: 22px;
   font-weight: 700;
-  color: var(--el-color-primary);
+  color: var(--ys-accent);
+}
+/* A 方向:话题页主动作「发个这个话题的帖子」统一胶囊 */
+.topic-head :deep(.el-button) {
+  border-radius: var(--ys-radius-full);
 }
 .sentinel {
   text-align: center;

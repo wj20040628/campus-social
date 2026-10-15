@@ -127,13 +127,19 @@ onMounted(load)
 </script>
 
 <style scoped>
+/*
+ * 变量纪律(2026-10-15):原写法混用 --el-* 与 --card-radius。
+ * --el-* 虽经 Bridge 最终指向 --ys-*,但业务代码直接写违反
+ * design-tokens.css 头部硬规则 2;--card-radius 是 tokens.css 的
+ * 兼容垫片,新代码一律直接写 --ys-*(Profile.css 有过因此踩直角的历史)。
+ */
 .adetail-inner {
   max-width: 560px;
   margin: 0 auto;
   padding: 20px;
 }
 .adetail-inner .el-card {
-  border-radius: var(--card-radius);
+  border-radius: var(--ys-radius-xl);
 }
 .a-title { font-size: 22px; font-weight: 700; }
 .a-meta {
@@ -146,14 +152,14 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--el-fill-color-light);
-  border-radius: var(--card-radius);
+  background: var(--ys-surface-2);
+  border-radius: var(--ys-radius-lg);
   padding: 12px 16px;
-  color: var(--el-text-color-primary);
+  color: var(--ys-fg);
 }
 .a-time .el-icon {
   font-size: 22px;
-  color: var(--el-color-primary);
+  color: var(--ys-accent);
 }
 .a-time-box {
   display: flex;
@@ -166,12 +172,16 @@ onMounted(load)
   width: 32px;
   margin-right: 8px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--ys-meta);
 }
 .a-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-top: 16px;
+}
+/* A 方向:主动作按钮统一胶囊(与全站 CTA 同形) */
+.a-actions :deep(.el-button) {
+  border-radius: var(--ys-radius-full);
 }
 </style>

@@ -43,7 +43,7 @@
 
           <div v-else-if="tab === 'users'" class="res-list">
             <div v-for="u in results.users || []" :key="u.id" class="user-item" @click="router.push(`/user/${u.id}`)">
-              <el-avatar :size="44" :src="resolveUrl(u.avatarUrl)" class="u-avatar" />
+              <InitialAvatar class="u-avatar" :size="44" :src="u.avatarUrl ? resolveUrl(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
               <div class="u-info">
                 <div class="u-name">{{ displayName(u) }}</div>
                 <div class="u-sub">{{ maskUsername(u?.username) }}</div>
@@ -54,7 +54,7 @@
 
           <div v-else class="res-list">
             <div v-for="c in results.circles || []" :key="c.id" class="user-item" @click="router.push(`/circles/${c.id}`)">
-              <el-avatar :size="44" :src="c.avatarUrl ? resolveUrl(c.avatarUrl) : ''" class="u-avatar c-avatar" />
+              <InitialAvatar class="u-avatar c-avatar" :size="44" :src="c.avatarUrl ? resolveUrl(c.avatarUrl) : ''" :seed="c.id" :name="c.name || ''" />
               <div class="u-info">
                 <div class="u-name">{{ c.name }}</div>
                 <div class="u-sub">{{ c.memberCount || 0 }} 成员</div>
@@ -77,6 +77,7 @@ import { search as searchApi } from '@/api/circle'
 import { maskUsername, displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import { Search, User, Collection } from '@element-plus/icons-vue'
 

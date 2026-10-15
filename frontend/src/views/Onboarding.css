@@ -100,7 +100,7 @@
 .ob__primary {
   flex: 1;
   min-height: var(--ys-touch-min);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   border: 1px solid var(--ys-accent);
   background: var(--ys-accent);
   color: var(--ys-accent-on);
