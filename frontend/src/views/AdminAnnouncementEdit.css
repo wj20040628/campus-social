@@ -37,7 +37,7 @@
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);
   cursor: pointer;
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
 }
 
 .ed__bar-btn--primary {
@@ -159,7 +159,7 @@
 .ed__btn {
   flex: 1;
   min-height: var(--ys-touch-min);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   border: 1px solid var(--ys-border-control);
   background: var(--ys-surface);
   color: var(--ys-fg-2);

@@ -1,0 +1,156 @@
+/*
+  Settings.vue 的样式,2026-10-15 从 <style scoped> 外置(与 Circles.css /
+  Home.css 同一模式)。选择器与规则原样搬迁,未改一个值。
+  外置原因:Settings.vue 471 行超 300 行门禁;弹层逻辑拆去
+  composables/useSettings.js 后,本文件回到 ~250 行。
+*/
+
+.settings-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--ys-gutter-desktop);
+}
+
+/* 账号概览卡:头像 + 昵称/username + 入口(编辑资料/退出登录) */
+.settings__overview {
+  margin-bottom: var(--ys-space-4);
+}
+.settings__overview :deep(.el-card__body) {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+}
+.ov__avatar { flex: none; }
+.ov__id {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+}
+.ov__name {
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov__sub {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 右上角「⋯」触发器:el-dropdown 是 el-card 内的 flex 子项,flex:none 保持 44×44 */
+.ov__more { flex: none; }
+.ov__more-btn {
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ys-fg-2);
+  border-radius: var(--ys-radius-lg);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.ov__more-btn:hover { background: var(--ys-surface-2); }
+
+/* el-dropdown 弹层挂在 body 上,scoped 选择器够不到;:deep 仅命中组件内触发器 */
+.ov__logout { color: var(--ys-accent-2); }
+/* 退出登录图标前缀:与文字同色,把危险项跟上面两个纯文字项拉开 */
+.ov__logout-icon { color: var(--ys-accent-2); margin-right: var(--ys-space-1); }
+
+/* 审核记录弹层空态 */
+.ov__review {
+  padding: var(--ys-space-6) var(--ys-space-4);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* 管理员入口卡 */
+.settings__admin {
+  margin-bottom: var(--ys-space-4);
+}
+.settings__admin :deep(.el-card__body) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+}
+.ad__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-1);
+  min-width: 0;
+}
+.ad__label {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+.ad__sub {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ad__btn {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+}
+.ad__btn:hover { background: var(--ys-accent-hover); }
+
+/* 粉丝 / 关注 / 帖子 计数卡 */
+.settings__relations {
+  margin-bottom: var(--ys-space-4);
+}
+.settings__relations :deep(.el-card__body) {
+  display: flex;
+}
+.rel {
+  display: flex;
+  width: 100%;
+}
+.rel__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-height: var(--ys-touch-min);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.rel__item:hover { background: var(--ys-surface-2); }
+.rel__item:disabled { cursor: default; opacity: 0.6; }
+.rel__num {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  font-family: var(--ys-font-body);
+  color: var(--ys-fg-2);
+}
+.rel__label {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/* 帖子列表 */
+.settings__posts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}

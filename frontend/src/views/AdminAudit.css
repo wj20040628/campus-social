@@ -157,7 +157,7 @@
   flex: 1;
   min-height: var(--ys-touch-min);
   border: 1px solid var(--ys-border-control);
-  border-radius: var(--ys-radius-lg);
+  border-radius: var(--ys-radius-full);
   background: var(--ys-surface);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);

@@ -49,7 +49,9 @@
 
 .report-pane__progress-track {
   height: 4px;
-  border-radius: var(--ys-radius-pill);
+  /* 原来写 var(--ys-radius-pill) —— 该 token 在 design-tokens.css 里不存在,
+     浏览器退回 initial(0),进度条渲染成直角。正确的是 --ys-radius-full。 */
+  border-radius: var(--ys-radius-full);
   background: var(--ys-surface-2);
   overflow: hidden;
 }

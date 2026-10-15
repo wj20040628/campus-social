@@ -159,10 +159,13 @@
  * 「我的」页(移动端 TabBar「我的」的首屏)。
  * 概览 + 粉丝/关注可点数字 + 我发布的帖子列表。
  * 资料编辑已拆到 /settings/profile(见 SettingsProfile.vue),本页不再含表单。
+ *
+ * 2026-10-15 拆分:三个弹层(粉丝/关注名单、管理后台、我的审核记录)与
+ * 退出登录搬去 composables/useSettings.js,样式外置去 Settings.css。
+ * 本文件从 471 行降到约 250 行,只留概览/帖子/下拉编排。
  */
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { ChatLineSquare, WarningFilled, MoreFilled, CloseBold } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import StateBlock from '@/components/common/StateBlock.vue'
@@ -172,13 +175,20 @@ import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { me as meApi } from '@/api/auth'
 import { myPosts as myPostsApi } from '@/api/feed'
-import { mine as myReviewApi } from '@/api/review'
-import { following as followingApi, followers as followersApi } from '@/api/relation'
 import { useUserStore } from '@/stores/user'
 import { resolveUrl } from '@/utils/resolve'
+import { useSettings } from '@/composables/useSettings'
 
 const userStore = useUserStore()
 const router = useRouter()
+
+/* 三个弹层 + 退出登录:状态与打开逻辑在 composable 里(2026-10-15 拆出) */
+const {
+  listSheetOpen, listSheetKind, listSheetList, listSheetLoading, relLoading, cap, openList,
+  adminSheetOpen, goAdmin,
+  reviewSheetOpen, reviewList, reviewLoading, openReview,
+  doLogout,
+} = useSettings()
 
 /* ---- 我发布的帖子 ---- */
 const posts = ref([])
@@ -223,39 +233,6 @@ function goCircles() {
   router.push('/circles').catch(() => {})
 }
 
-/* ---- 粉丝 / 关注名单弹层 ---- */
-const listSheetOpen = ref(false)
-const listSheetKind = ref('followers')
-const listSheetList = ref([])
-const listSheetLoading = ref(false)
-const relLoading = ref({ followers: false, following: false })
-/** 计数封顶:超过 9999 显示 9999+ */
-function cap(n) { return n > 9999 ? '9999+' : n }
-
-async function openList(kind) {
-  listSheetKind.value = kind
-  listSheetOpen.value = true
-  listSheetLoading.value = true
-  listSheetList.value = []
-  const meId = userStore.userInfo?.id
-  try {
-    const data = kind === 'followers'
-      ? await followersApi(meId, null, 50)
-      : await followingApi(meId, null, 50)
-    listSheetList.value = (data?.list || []).filter(Boolean)
-  } finally {
-    listSheetLoading.value = false
-    relLoading.value[kind] = false
-  }
-}
-
-/* ---- 管理后台弹层 ---- */
-const adminSheetOpen = ref(false)
-function goAdmin(path) {
-  adminSheetOpen.value = false
-  router.push(path).catch(() => {})
-}
-
 /* ---- 概览卡右上角下拉(编辑资料 / 我的审核记录 / 退出登录) ---- */
 function onOvCommand(cmd) {
   if (cmd === 'profile') {
@@ -265,45 +242,6 @@ function onOvCommand(cmd) {
   } else if (cmd === 'logout') {
     doLogout()
   }
-}
-
-/* ---- 我的审核记录弹层 ---- */
-const reviewSheetOpen = ref(false)
-const reviewList = ref([])
-const reviewLoading = ref(false)
-async function openReview() {
-  reviewSheetOpen.value = true
-  if (reviewList.value.length) return // 已拉过就不重复请求
-  reviewLoading.value = true
-  try {
-    // 契约同 useProfileData.normalize:直接取 {list}
-    const data = await myReviewApi(null, 50)
-    reviewList.value = (data?.list || []).filter(Boolean)
-  } catch {
-    reviewList.value = []
-  } finally {
-    reviewLoading.value = false
-  }
-}
-
-/* ---- 退出登录 ---- */
-async function doLogout() {
-  try {
-    await ElMessageBox.confirm('确定退出登录吗?', '退出登录', {
-      confirmButtonText: '退出',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  try {
-    await userStore.logout()
-  } catch {
-    userStore.clear()
-  }
-  ElMessage.success('已退出登录')
-  router.replace('/login/form')
 }
 
 onMounted(async () => {
@@ -318,154 +256,4 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.settings-inner {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: var(--ys-gutter-desktop);
-}
-
-/* 账号概览卡:头像 + 昵称/username + 入口(编辑资料/退出登录) */
-.settings__overview {
-  margin-bottom: var(--ys-space-4);
-}
-.settings__overview :deep(.el-card__body) {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-}
-.ov__avatar { flex: none; }
-.ov__id {
-  flex: 1;
-  min-width: 0;
-  padding: 4px 0;
-}
-.ov__name {
-  font-size: var(--ys-text-lg);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ov__sub {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* 右上角「⋯」触发器:el-dropdown 是 el-card 内的 flex 子项,flex:none 保持 44×44 */
-.ov__more { flex: none; }
-.ov__more-btn {
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  display: grid;
-  place-items: center;
-  border: none;
-  background: transparent;
-  color: var(--ys-fg-2);
-  border-radius: var(--ys-radius-lg);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-.ov__more-btn:hover { background: var(--ys-surface-2); }
-
-/* el-dropdown 弹层挂在 body 上,scoped 选择器够不到;:deep 仅命中组件内触发器 */
-.ov__logout { color: var(--ys-accent-2); }
-/* 退出登录图标前缀:与文字同色,把危险项跟上面两个纯文字项拉开 */
-.ov__logout-icon { color: var(--ys-accent-2); margin-right: var(--ys-space-1); }
-
-/* 审核记录弹层空态 */
-.ov__review {
-  padding: var(--ys-space-6) var(--ys-space-4);
-  text-align: center;
-  font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
-}
-
-/* 管理员入口卡 */
-.settings__admin {
-  margin-bottom: var(--ys-space-4);
-}
-.settings__admin :deep(.el-card__body) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ys-space-3);
-}
-.ad__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ys-space-1);
-  min-width: 0;
-}
-.ad__label {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
-.ad__sub {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ad__btn {
-  flex: none;
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-4);
-  border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
-  cursor: pointer;
-}
-.ad__btn:hover { background: var(--ys-accent-hover); }
-
-/* 粉丝 / 关注 / 帖子 计数卡 */
-.settings__relations {
-  margin-bottom: var(--ys-space-4);
-}
-.settings__relations :deep(.el-card__body) {
-  display: flex;
-}
-.rel {
-  display: flex;
-  width: 100%;
-}
-.rel__item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--ys-space-1);
-  min-height: var(--ys-touch-min);
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-.rel__item:hover { background: var(--ys-surface-2); }
-.rel__item:disabled { cursor: default; opacity: 0.6; }
-.rel__num {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  font-family: var(--ys-font-body);
-  color: var(--ys-fg-2);
-}
-.rel__label {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-}
-
-/* 帖子列表 */
-.settings__posts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ys-space-3);
-}
-</style>
+<style scoped src="./Settings.css"></style>

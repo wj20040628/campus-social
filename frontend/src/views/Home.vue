@@ -122,21 +122,22 @@
  * 首页 Feed。**name 必须是 'Home'**:MainLayout 用 <KeepAlive include="Home">
  * 缓存本页 —— 没有显式 name,include 匹配不到(文件名推断不参与 include 匹配),
  * 缓存失效,「退出帖子回到原位置」随之落空。
+ *
+ * 2026-10-15 拆分:feed 的全部状态与副作用搬去 composables/useHomeFeed.js
+ * (拉取/游标/排序/无限滚动/keep-alive 滚动恢复,生命周期原样搬迁),
+ * 样式外置去 Home.css。本文件只剩模板与编排,从 448 行降到 ~150 行。
  */
 defineOptions({ name: 'Home' })
 
-import { ref, computed, onMounted, onActivated, onDeactivated, onBeforeUnmount, watch, nextTick } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import HomeAside from '@/components/HomeAside.vue'
 import { ChatLineSquare, Promotion, CaretRight } from '@element-plus/icons-vue'
-import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
-import { useVerifyStatus } from '@/composables/useVerifyStatus'
 import { useBreakpoint, BREAKPOINTS } from '@/composables/useBreakpoint'
-import { feedDirty } from '@/composables/useFeedRefresh'
+import { useHomeFeed } from '@/composables/useHomeFeed'
 
 const router = useRouter()
 
@@ -148,302 +149,14 @@ const { width } = useBreakpoint()
 const isMobile = computed(() => width.value < BREAKPOINTS.lg)
 const isWide = computed(() => width.value >= BREAKPOINTS.xl)
 
-const tab = ref('following') // 默认"关注"
-const posts = ref([])
-const cursor = ref(null)
-const hasMore = ref(true)
-const loading = ref(false)
-let observer = null
-
-// 认证状态是模块级单例,这里拿到的 load 与个人主页那边是同一个函数
-const { load: loadVerifyStatus } = useVerifyStatus()
-const sentinelEl = ref(null)
-
-// 排序模式:new=最新(默认,可无限刷) / hot=最热(按点赞,只看第一页)
-const searchQ = ref('')
-const sortMode = ref('new')
-
-function normalize(list) {
-  return (list || []).map((p) => ({
-    ...p,
-    createTime: dayjs(p.createTime).format('MM-DD HH:mm'),
-    media: p.media || null,
-  }))
-}
-
-// 搜索框回车 → 跳搜索结果页
-function doSearch() {
-  const kw = searchQ.value.trim()
-  if (!kw) return
-  router.push({ path: '/search', query: { kw } })
-}
-function goFollow() {
-  router.push('/search') // 搜索页找用户 → 进主页关注
-}
-
-// 拉 feed(按当前 tab / 筛选 / 方向)
-async function loadFeed(reset = false) {
-  if (reset) {
-    posts.value = []
-    cursor.value = null
-    hasMore.value = true
-  }
-  if (!hasMore.value || loading.value) return
-  loading.value = true
-  try {
-    if (tab.value === 'following') {
-      const data = await followingApi(cursor.value, 20)
-      posts.value = reset ? normalize(data.list) : [...posts.value, ...normalize(data.list)]
-      cursor.value = data.hasMore ? data.nextCursor : null
-      hasMore.value = data.hasMore
-    } else {
-      // 全部 tab:「最热」是非默认筛选,只看第一页,不叠加无限刷(同旧逻辑)
-      const filtered = sortMode.value !== 'new'
-      const data = await feedApi(filtered ? (reset ? null : cursor.value) : cursor.value, 20, {
-        by: sortMode.value === 'hot' ? 'like' : 'time',
-        order: 'desc',
-      })
-      posts.value = !filtered && cursor.value && !reset
-        ? [...posts.value, ...normalize(data.list)]
-        : normalize(data.list)
-      cursor.value = data.hasMore && !filtered ? data.nextCursor : null
-      hasMore.value = data.hasMore && !filtered
-    }
-  } catch {
-    // request.js 已弹错
-  } finally {
-    loading.value = false
-    nextTick(setupObserver)
-  }
-}
-
-/** 排序切换:最新 / 最热。点当前项不重拉 */
-function setSort(mode) {
-  if (sortMode.value === mode) return
-  sortMode.value = mode
-  loadFeed(true)
-}
-
-watch(tab, () => loadFeed(true))
+const {
+  tab, posts, loading, hasMore, searchQ, sortMode, sentinelEl, feedBarHidden,
+  setSort, doSearch, goFollow,
+} = useHomeFeed(isMobile)
 
 function goDetail(id) {
   router.push(`/post/${id}`)
 }
-
-function setupObserver() {
-  observer?.disconnect()
-  if (!sentinelEl.value) return
-  observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0]?.isIntersecting && !loading.value && hasMore.value) loadFeed(false)
-    },
-    { threshold: 0.1, rootMargin: '200px' }
-  )
-  observer.observe(sentinelEl.value)
-}
-
-onMounted(async () => {
-  // 与 feed 并行发起,不 await:认证状态是附加信息,不该拖慢首屏。
-  // 失败也不影响本页(useVerifyStatus 内部吞掉,不抛)。
-  loadVerifyStatus()
-  await loadFeed(true)
-  nextTick(setupObserver)
-  setupFeedBarScroll()
-})
-
-/**
- * keep-alive 激活(从帖子/发布页返回时触发,不再走 onMounted)。
- * 纯浏览返回:恢复离开时的滚动位置,数据原样保留(见下)。
- * 内容变更返回(发帖/编辑/删帖):重拉第一页,此时清列表跳顶符合预期。
- */
-const savedScrollY = ref(0)
-
-/** 组件进入 keep-alive 缓存前,记下当前滚动位置(供 onActivated 恢复) */
-onDeactivated(() => {
-  savedScrollY.value = window.scrollY || window.pageYOffset || 0
-  window.removeEventListener('scroll', onWinScroll)
-})
-
-/*
- * ③ 首页工具条「下滑收起 / 上滑拉回」(仅手机端)。
- * Home 在 <KeepAlive include="Home"> 里,body 级滚动,监听 window.scroll。
- * 下滑(往下刷帖)收起 .feed-bar,上滑(回看)拉回;近顶强制拉回。
- * 桌面端 isMobile=false,不监听,feedBarHidden 恒 false。
- */
-const feedBarHidden = ref(false)
-let lastWinScrollTop = 0
-
-function setupFeedBarScroll() {
-  if (!isMobile.value) return
-  window.addEventListener('scroll', onWinScroll, { passive: true })
-}
-
-function onWinScroll() {
-  if (!isMobile.value) return
-  const st = window.scrollY || 0
-  // 往上滑 或 已近顶 → 拉回
-  if (st - lastWinScrollTop < 0 || st < 40) {
-    feedBarHidden.value = false
-  } else if (st > 80) {
-    // 往下刷帖 → 收起
-    feedBarHidden.value = true
-  }
-  lastWinScrollTop = st
-}
-
-onActivated(() => {
-  // 手机端从 keep-alive 重新激活时,恢复工具条滚动监听(onDeactivated 已摘除)
-  setupFeedBarScroll()
-  if (feedDirty.value) {
-    feedDirty.value = false
-    loadFeed(true)
-    return
-  }
-  // 纯浏览返回:恢复离开时的滚动位置。不依赖 vue-router 的 savedPosition
-  // (它与 keep-alive + Transition 动画的配合时机不可靠,实测「返回位置不太准」),
-  // 组件自己记住最准 —— 数据在缓存里原样保留,高度与离开时一致,直接回填即可。
-  if (savedScrollY.value > 0) {
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, savedScrollY.value)
-      })
-    })
-  }
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', onWinScroll)
-  observer?.disconnect()
-  observer = null
-})
 </script>
 
-<style scoped>
-.home-inner {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 20px;
-}
-/*
- * >=1280px 双栏:主栏自适应 + 右栏 var(--ys-aside-w)(320px,token 里
- * 早就定义但一直没页面用,这次首页第一个用上)。1280 写字面量:
- * 没有 postcss-custom-media 时 @media(--ys-bp-xl) 会被浏览器静默丢弃,
- * 值取自 design-tokens.json 的 breakpoint.xl。
- */
-@media (min-width: 1280px) {
-  .home-inner--wide { max-width: 1024px; display: grid; grid-template-columns: minmax(0, 1fr) var(--ys-aside-w); gap: var(--ys-space-6); align-items: start; }
-  .home-aside { position: sticky; top: var(--ys-space-6); }
-}
-/* 公告入口横幅:仅在移动端出现(桌面侧栏已有入口),宽度贴 home-inner,热区 ≥44px */
-.home-ann {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
-  width: 100%;
-  min-height: var(--ys-touch-min);
-  padding: var(--ys-space-2) var(--ys-space-4);
-  margin-bottom: var(--ys-space-3);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface-2);
-  color: var(--ys-fg-2);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-.home-ann:hover {
-  border-color: var(--ys-accent);
-  color: var(--ys-fg);
-}
-.home-ann__icon { flex: none; color: var(--ys-accent); }
-.home-ann__text {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  font-size: var(--ys-text-sm);
-  font-family: var(--ys-font-body);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.home-ann__chev {
-  flex: none;
-  font-size: 14px;
-  color: var(--ys-muted);
-}
-@media (min-width: 1024px) {
-  .home-ann { display: none; }
-}
-.feed-tabs {
-  margin-bottom: 8px;
-}
-/*
- * ③ 首页工具条(tab + 搜索/筛选条)「下滑收起 / 上滑拉回」。
- * feedBarHidden 仅在手机端由 window.scroll 驱动(桌面恒 false)。
- * 收起=translateY(-100%),贴顶隐藏;拉回=归位。
- * sticky:让上滑拉回时工具条贴住顶部(而不是滚出视口后留在原处)。
- */
-.feed-bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--ys-bg);
-  transition: transform 0.25s var(--ys-ease-out, ease-out);
-}
-.feed-bar--hidden {
-  transform: translateY(-100%);
-}
-/*
- * 「关注 / 全部」两个 tab 的可点区:375px 实测 48x40,高度差 AC-15 的 44px 4 个像素。
- * el-tabs__item 是 EP 内部类,只能用 :deep 打进去。
- * 只给 min-height —— 横向已经 48 > 44,加 min-width 反而会把两个 tab 撑开、
- * 让「关注」离屏幕左边更远。
- */
-.feed-tabs :deep(.el-tabs__item) {
-  min-height: var(--ys-touch-min);
-}
-/*
- * 搜索框 append 里的「搜索」按钮:375px 实测 60x32。
- * 它与输入框同行,输入框本身够高,但按钮自身只有 32px,拇指点它偏小。
- * 只给 min-height,宽度 60 已过线。
- */
-.feed-search :deep(.el-input-group__append .el-button) {
-  min-height: var(--ys-touch-min);
-}
-.feed-tools {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
-  align-items: center;
-}
-.feed-search {
-  flex: 1;
-}
-/*
- * 分段控件(最新/最热):暖纸底槽 + 白色激活胶囊。
- * 按钮 min-height 走 --ys-touch-min(44px):排序是高频操作,拇指要够大。
- */
-.seg { flex: none; display: flex; gap: 2px; padding: 3px; background: var(--ys-surface-2); border-radius: var(--ys-radius-full); }
-.seg__btn {
-  border: 0; background: transparent; border-radius: var(--ys-radius-full);
-  min-height: var(--ys-touch-min); padding: 0 var(--ys-space-4);
-  font-family: var(--ys-font-body); font-size: var(--ys-text-sm); color: var(--ys-muted); cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out), color var(--ys-motion-fast) var(--ys-ease-out);
-}
-.seg__btn--on { background: var(--ys-surface); color: var(--ys-accent); font-weight: var(--ys-weight-semibold); box-shadow: var(--ys-shadow-1); }
-.feed-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.skeleton-card {
-  width: 100%;
-}
-.follow-hint {
-  text-align: center;
-  padding: 8px 0 16px;
-}
-.sentinel {
-  text-align: center;
-  padding: 16px;
-}
-</style>
+<style scoped src="./Home.css"></style>

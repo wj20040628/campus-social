@@ -64,11 +64,7 @@
 
         <MediaGrid :cells="cells" @remove="removeMedia" @retry="retryMedia" />
 
-        <!--
-          行 6:字数条。**紧贴正文区**,不放到话题框后面 ——
-          放在那里视觉上会被读成「话题的字数」,而它数的是正文(5000 上限)。
-          接近上限变色,到上限给一句可执行的提示。
-        -->
+        <!-- 行 6:字数条。紧贴正文区,放话题框后会被误读成话题的字数 -->
         <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
           {{ content.length }} / {{ MAX_LEN }}
         </p>
@@ -200,13 +196,8 @@ const isEdit = computed(() => route.name === 'postEdit')
 const canPublish = computed(() => !!userStore.hasToken)
 
 const topicTags = computed(() => parseTopics(topicText.value))
-const topicOverflow = computed(() => {
-  const all = topicText.value
-    .split(/[,，\s]+/)
-    .map((s) => s.trim().replace(/^#+/, '').replace(/#+$/, '').trim())
-    .filter(Boolean)
-  return Math.max(0, all.length - MAX_TOPIC_SHOWN)
-})
+/* 「+N」与 chips 同一套规则(parseTopics 去重后数全量),不用原始分隔数 */
+const topicOverflow = computed(() => Math.max(0, parseTopics(topicText.value, Infinity).length - MAX_TOPIC_SHOWN))
 
 const nearLimit = computed(() => content.value.length > WARN_AT)
 const atLimit = computed(() => content.value.length >= MAX_LEN)

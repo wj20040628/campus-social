@@ -371,7 +371,7 @@
 .task-btn {
   min-height: var(--ys-touch-min);
   border: 1px solid var(--ys-border-control);
-  border-radius: var(--ys-radius-md);
+  border-radius: var(--ys-radius-full);
   background: transparent;
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-sm);

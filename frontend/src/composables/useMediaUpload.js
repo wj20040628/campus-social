@@ -128,8 +128,11 @@ export function useMediaUpload() {
  *
  * 上限 5 个、单个 64 字,都按设计走。超出时**截断而不是报错** ——
  * 用户可能一次粘贴了 8 个话题,直接拒绝整条输入比帮他留前 5 个更糟。
+ *
+ * max 可传 Infinity 拿全量:Publish 的「+N」必须和 chips 用同一套规则
+ * 数出来(都去重),否则「显示了 5 个、还有 N 个」会和实际话题数对不上。
  */
-export function parseTopics(text) {
+export function parseTopics(text, max = 5) {
   const seen = new Set()
   const out = []
   for (const raw of String(text || '').split(/[,，\s]+/)) {
@@ -137,7 +140,7 @@ export function parseTopics(text) {
     if (!t || t.length > 64 || seen.has(t)) continue
     seen.add(t)
     out.push(t)
-    if (out.length >= 5) break
+    if (out.length >= max) break
   }
   return out
 }

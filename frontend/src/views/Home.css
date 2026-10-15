@@ -1,0 +1,134 @@
+/*
+  Home.vue 的样式,2026-10-15 从 <style scoped> 外置(与 Circles.css /
+  PostDetail.css 同一模式)。选择器与规则原样搬迁,未改一个值。
+  外置原因:Home.vue 448 行超 300 行门禁,拆 composable + 外置样式后
+  回到 150 行左右;scoped 经 src= 引入后作用域不变。
+*/
+
+.home-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px;
+}
+/*
+ * >=1280px 双栏:主栏自适应 + 右栏 var(--ys-aside-w)(320px,token 里
+ * 早就定义但一直没页面用,这次首页第一个用上)。1280 写字面量:
+ * 没有 postcss-custom-media 时 @media(--ys-bp-xl) 会被浏览器静默丢弃,
+ * 值取自 design-tokens.json 的 breakpoint.xl。
+ */
+@media (min-width: 1280px) {
+  .home-inner--wide { max-width: 1024px; display: grid; grid-template-columns: minmax(0, 1fr) var(--ys-aside-w); gap: var(--ys-space-6); align-items: start; }
+  .home-aside { position: sticky; top: var(--ys-space-6); }
+}
+/* 公告入口横幅:仅在移动端出现(桌面侧栏已有入口),宽度贴 home-inner,热区 ≥44px */
+.home-ann {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-2) var(--ys-space-4);
+  margin-bottom: var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.home-ann:hover {
+  border-color: var(--ys-accent);
+  color: var(--ys-fg);
+}
+.home-ann__icon { flex: none; color: var(--ys-accent); }
+.home-ann__text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: var(--ys-text-sm);
+  font-family: var(--ys-font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-ann__chev {
+  flex: none;
+  font-size: 14px;
+  color: var(--ys-muted);
+}
+@media (min-width: 1024px) {
+  .home-ann { display: none; }
+}
+.feed-tabs {
+  margin-bottom: 8px;
+}
+/*
+ * ③ 首页工具条(tab + 搜索/筛选条)「下滑收起 / 上滑拉回」。
+ * feedBarHidden 仅在手机端由 window.scroll 驱动(桌面恒 false)。
+ * 收起=translateY(-100%),贴顶隐藏;拉回=归位。
+ * sticky:让上滑拉回时工具条贴住顶部(而不是滚出视口后留在原处)。
+ */
+.feed-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--ys-bg);
+  transition: transform 0.25s var(--ys-ease-out, ease-out);
+}
+.feed-bar--hidden {
+  transform: translateY(-100%);
+}
+/*
+ * 「关注 / 全部」两个 tab 的可点区:375px 实测 48x40,高度差 AC-15 的 44px 4 个像素。
+ * el-tabs__item 是 EP 内部类,只能用 :deep 打进去。
+ * 只给 min-height —— 横向已经 48 > 44,加 min-width 反而会把两个 tab 撑开、
+ * 让「关注」离屏幕左边更远。
+ */
+.feed-tabs :deep(.el-tabs__item) {
+  min-height: var(--ys-touch-min);
+}
+/*
+ * 搜索框 append 里的「搜索」按钮:375px 实测 60x32。
+ * 它与输入框同行,输入框本身够高,但按钮自身只有 32px,拇指点它偏小。
+ * 只给 min-height,宽度 60 已过线。
+ */
+.feed-search :deep(.el-input-group__append .el-button) {
+  min-height: var(--ys-touch-min);
+}
+.feed-tools {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.feed-search {
+  flex: 1;
+}
+/*
+ * 分段控件(最新/最热):暖纸底槽 + 白色激活胶囊。
+ * 按钮 min-height 走 --ys-touch-min(44px):排序是高频操作,拇指要够大。
+ */
+.seg { flex: none; display: flex; gap: 2px; padding: 3px; background: var(--ys-surface-2); border-radius: var(--ys-radius-full); }
+.seg__btn {
+  border: 0; background: transparent; border-radius: var(--ys-radius-full);
+  min-height: var(--ys-touch-min); padding: 0 var(--ys-space-4);
+  font-family: var(--ys-font-body); font-size: var(--ys-text-sm); color: var(--ys-muted); cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out), color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.seg__btn--on { background: var(--ys-surface); color: var(--ys-accent); font-weight: var(--ys-weight-semibold); box-shadow: var(--ys-shadow-1); }
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.skeleton-card {
+  width: 100%;
+}
+.follow-hint {
+  text-align: center;
+  padding: 8px 0 16px;
+}
+.sentinel {
+  text-align: center;
+  padding: 16px;
+}
