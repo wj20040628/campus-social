@@ -38,17 +38,10 @@
       </template>
 
       <!--
-        桌面端 hover 入口(仅 hover 设备显示,CSS 控制):长按是移动端方案,
-        桌面鼠标没有长按习惯,给一个「⋯」让撤回/引用/看主页可被找到。
-        点击直接打开操作面板,等价于长按。
+        桌面端右键入口(仅 hover:hover 设备显示):长按是移动端方案,
+        桌面鼠标用右键弹 MessageContextMenu(复制/引用/撤回)。
+        移动端长按气泡触发 long-press,弹 ChatMsgSheet(撤回/引用)。
       -->
-      <button
-        v-if="msg.fromMe && !msg.recalled"
-        type="button"
-        class="bbubble__menu"
-        aria-label="更多操作"
-        @click.stop="emit('long-press', msg)"
-      >⋯</button>
 
       <div class="bbubble__foot">
         <span class="bbubble__time ys-num">{{ msg.createTime }}</span>

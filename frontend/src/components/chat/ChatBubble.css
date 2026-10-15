@@ -34,35 +34,8 @@
   min-height: var(--ys-touch-min);
 }
 
-/* 桌面 hover「⋯」入口:长按是移动端方案,鼠标用户没有长按习惯,
-   给一个可见的更多操作按钮让撤回/引用/看主页可被找到。
-   仅 hover 设备显示(touch 设备仍走长按,不增干扰)。 */
-.bbubble__menu {
-  display: none;
-  position: absolute;
-  top: 50%;
-  right: calc(-1 * var(--ys-space-6));
-  transform: translateY(-50%);
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--ys-border);
-  border-radius: 50%;
-  background: var(--ys-surface);
-  color: var(--ys-fg-2);
-  font-size: var(--ys-text-lg);
-  line-height: 1;
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .bbubble:hover .bbubble__menu,
-  .bbubble__menu:focus-visible {
-    display: inline-flex;
-  }
-}
+/* 桌面右键入口:气泡 @contextmenu → MessageContextMenu(复制/引用/撤回),
+   仅 hover:hover 设备;移动端长按 → ChatMsgSheet(撤回/引用)。 */
 
 .brow--me .bbubble {
   background: var(--ys-accent);
