@@ -133,12 +133,12 @@
   .circles-inner {
     padding: 0 var(--ys-gutter-desktop);
   }
-  /* 桌面端工具条与列表容器拉宽到 1040:
-     原来 900px + auto-fill 在只有 4 个圈子时锁成 4 列窄卡(每张 ~200px),
-     又宽又矮挤在左侧、右侧大空白、文字被截断。放宽容器 + 列数固定 2,
-     4 个圈子自然排 2×2,卡片宽、文字完整、下方「全部圈子」节奏统一。 */
+  /* 桌面端工具条与列表容器拉宽到 1200:
+     4 个圈子排 1 行 4 个,容器 1040 下每张卡只有 ~240px,4 列窄卡文字截断;
+     放宽到 1200,1280 视口下每张卡 ~280px、1440 下 ~290px,标题 1 行能装下,
+     下方「全部圈子」节奏统一。 */
   .circles__tools {
-    max-width: 1040px;
+    max-width: 1200px;
   }
   .circles__group-head {
     display: flex;
@@ -165,20 +165,22 @@
   .circle-rows {
     display: grid;
     /*
-      显式列数而非 auto-fill:4 个圈子在 1024–1279 区间固定 2×2,卡片宽 ~480px、
-      文字不截断;圈子变多时自动往下换行成 2 列网格。窗口 ≥1536 放宽到 3 列。
-      原来 auto-fill + 容器 max-width 在只有 4 个时仍算出 4 列窄卡(实测 1280=4 列),
-      显式 repeat(2,1fr) 根治,且可预测。
+      1 行 4 个:用户拍板"改成一行放 4 个"。
+      容器 1200px,1280 视口下每张卡 ~280px、1440 下 ~290px,
+      标题 1 行装得下,4 张卡一排,下方「全部圈子」自然收尾。
+      显式 repeat(4, minmax(0,1fr)) 而非 auto-fill:4 个 item 锁定 4 列,
+      可预测,不会因容器宽度算出意外列数。
+      圈子变多(>4)时往下换行成 4 列网格,节奏一致。
     */
-    max-width: 1040px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 1200px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--ys-space-4);
   }
 }
 
 @media (min-width: 1536px) {
   .circle-rows {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 1280px;
   }
 }
 

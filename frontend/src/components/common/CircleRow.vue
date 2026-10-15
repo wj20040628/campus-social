@@ -253,19 +253,19 @@ const memberText = computed(() => {
 /*
  * 桌面端(>=1024px):行变卡片。
  * 移动端是「发丝线分隔的全宽行」(信息密度优先,设计 §1.1);
- * 桌面端进了 4 列网格后,行式分隔线会变成每张卡顶部一条突兀的横线,
+ * 桌面端进了 4 列网格(Circles.css .circle-rows)后,行式分隔线会变成每张卡顶部一条突兀的横线,
  * 所以这里恢复卡片形态:白底 + 暖描边 + 轻影 + 16px 圆角 ——
  * 与 PostCard 同一套卡片语言(A 方向),hover 只升影不改色。
+ * 4 列窄卡(~280px)下 min-height 收到 80px,避免卡片又高又空;
+ * 信息块(头像+名字+成员)贴顶、操作块(加入/退出)贴底右,垂直节奏统一。
  */
 @media (min-width: 1024px) {
   .crow {
-    /* 垂直节奏:信息块贴顶、操作块贴底 —— 宽卡(2×2 时 480 宽)不再因
-       flex 居中把图标+文字糊在中部、上下留一大块空洞(圈子页排版问题)。 */
     flex-direction: column;
     align-items: stretch;
     justify-content: space-between;
-    min-height: 96px;
-    padding: var(--ys-space-4);
+    min-height: 80px;
+    padding: var(--ys-space-3);
     border: 1px solid var(--ys-border);
     border-radius: var(--ys-radius-xl);
     background: var(--ys-surface);
@@ -286,7 +286,7 @@ const memberText = computed(() => {
   .crow__join,
   .crow__leave {
     align-self: flex-end;
-    min-width: 88px;
+    min-width: 72px;
   }
   /* 文本列允许截断:否则卡片收窄时名字列把按钮顶出右缘(桌面重叠 Bug4) */
   .crow__info {
