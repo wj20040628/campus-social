@@ -41,9 +41,9 @@
  * 破冰走 ChatGuardService 的陌生人通道 —— 与 Chat.vue 是同一条链路,
  * 不在这里另造一套发送逻辑,否则两边的失败提示会不一样。
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { strangerQuota } from '@/api/chat'
+import { useStrangerQuota } from '@/composables/useStrangerQuota'
 import { useUserStore } from '@/stores/user'
 import { isIdentityVerified } from '@/utils/mask'
 
@@ -60,27 +60,15 @@ const userStore = useUserStore()
 const loading = ref(false)
 
 /**
- * 额度用尽。`quota` 为 null 表示**取不到**而不是 0 ——
+ * 额度用尽。`quotaRemaining` 为 null 表示**取不到**而不是 0 ——
  * 取不到时不能置灰:置灰会让用户以为今天不能搭话,实际能,
  * 他去问人才发现是产品故障。宁可按钮能点、点完被后端拒,也不要假置灰。
+ *
+ * 该值由 useStrangerQuota 在全站共享一份(账户级额度),
+ * 只在第一个挂载的 GreetButton 真正发请求,消除 feed 每卡 N+1。
  */
-const quota = ref(null)
-const quotaUsed = computed(() => quota.value !== null && quota.value <= 0)
-
-/**
- * 只查「还剩几个新对象」。remainingNewPeer 是 0 才置灰;
- * remainingPerPeer 是同一个人的条数上限,与「今天能不能向新人开口」不是一回事,
- * 混用会把「给同一个人发到上限」误判成「今天不能搭话」。
- */
-async function loadQuota() {
-  if (!props.peerId) return
-  try {
-    const data = await strangerQuota()
-    quota.value = Number(data?.remainingNewPeer)
-  } catch {
-    quota.value = null
-  }
-}
+const { quotaRemaining } = useStrangerQuota()
+const quotaUsed = computed(() => quotaRemaining.value !== null && quotaRemaining.value <= 0)
 
 async function onClick() {
   // AC-11:未认证不跳转。给说明 + 出口,而不是把人丢到引导页自己猜
@@ -100,8 +88,6 @@ async function onClick() {
     loading.value = false
   }
 }
-
-onMounted(loadQuota)
 </script>
 
 <style scoped>
