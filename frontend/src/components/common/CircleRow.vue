@@ -259,8 +259,13 @@ const memberText = computed(() => {
  */
 @media (min-width: 1024px) {
   .crow {
-    min-height: 88px;
-    padding: var(--ys-space-3) var(--ys-space-4);
+    /* 垂直节奏:信息块贴顶、操作块贴底 —— 宽卡(2×2 时 480 宽)不再因
+       flex 居中把图标+文字糊在中部、上下留一大块空洞(圈子页排版问题)。 */
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: space-between;
+    min-height: 96px;
+    padding: var(--ys-space-4);
     border: 1px solid var(--ys-border);
     border-radius: var(--ys-radius-xl);
     background: var(--ys-surface);
@@ -273,9 +278,14 @@ const memberText = computed(() => {
     border-color: var(--ys-border-control);
     box-shadow: var(--ys-shadow-2);
   }
-  /* 卡片里按钮不再贴边,留出呼吸;加入/退出收窄到 88px 防拉伸 */
+  /* 信息块(图标+名字+成员数)贴顶,横向排列 */
+  .crow__open {
+    align-items: flex-start;
+  }
+  /* 操作块(加入/退出)贴底右 */
   .crow__join,
   .crow__leave {
+    align-self: flex-end;
     min-width: 88px;
   }
   /* 文本列允许截断:否则卡片收窄时名字列把按钮顶出右缘(桌面重叠 Bug4) */

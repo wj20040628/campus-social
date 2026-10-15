@@ -133,6 +133,13 @@
   .circles-inner {
     padding: 0 var(--ys-gutter-desktop);
   }
+  /* 桌面端工具条与列表容器拉宽到 1040:
+     原来 900px + auto-fill 在只有 4 个圈子时锁成 4 列窄卡(每张 ~200px),
+     又宽又矮挤在左侧、右侧大空白、文字被截断。放宽容器 + 列数固定 2,
+     4 个圈子自然排 2×2,卡片宽、文字完整、下方「全部圈子」节奏统一。 */
+  .circles__tools {
+    max-width: 1040px;
+  }
   .circles__group-head {
     display: flex;
   }
@@ -148,8 +155,6 @@
 /*
   桌面端从行式切回卡片网格。
   移动端的单列由 .crow 自身撑满,这里只负责 >=1024px 的网格。
-  max-width 900 与工具条对齐:不封顶的话 1440px 屏上四张卡会被
-  1fr 拉到 300px 宽一张,卡片里只有两行字,空旷得不像卡片。
 */
 .circle-rows {
   max-width: 900px;
@@ -160,13 +165,20 @@
   .circle-rows {
     display: grid;
     /*
-      一行最多 4 个、列宽自适应。用 auto-fill 让浏览器按容器实际宽度(<=900px)
-      自行决定能放下几列:4×200 + 3×gap(16) ≈ 848 < 900 时放 4 列,
-      窗口更窄时自然掉成 3/2 列,而不会像写死 repeat(4, minmax(240px,1fr)) 那样
-      强制 4×240 撑破 900px 容器导致卡片重叠(Bug4)。
+      显式列数而非 auto-fill:4 个圈子在 1024–1279 区间固定 2×2,卡片宽 ~480px、
+      文字不截断;圈子变多时自动往下换行成 2 列网格。窗口 ≥1536 放宽到 3 列。
+      原来 auto-fill + 容器 max-width 在只有 4 个时仍算出 4 列窄卡(实测 1280=4 列),
+      显式 repeat(2,1fr) 根治,且可预测。
     */
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    max-width: 1040px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--ys-space-4);
+  }
+}
+
+@media (min-width: 1536px) {
+  .circle-rows {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
