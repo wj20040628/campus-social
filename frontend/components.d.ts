@@ -61,6 +61,7 @@ declare module 'vue' {
     ElUpload: typeof import('element-plus/es')['ElUpload']
     GreetButton: typeof import('./src/components/post/GreetButton.vue')['default']
     GroupHead: typeof import('./src/components/chat/GroupHead.vue')['default']
+    GroupMembersSheet: typeof import('./src/components/chat/GroupMembersSheet.vue')['default']
     HomeAside: typeof import('./src/components/HomeAside.vue')['default']
     InitialAvatar: typeof import('./src/components/common/InitialAvatar.vue')['default']
     MediaGrid: typeof import('./src/components/post/MediaGrid.vue')['default']
