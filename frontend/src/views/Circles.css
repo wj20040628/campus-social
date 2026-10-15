@@ -202,21 +202,29 @@
   opacity: 0;
 }
 
-/* 视图收起/展开时的「收起」按钮(移动端才出现):低调,不抢列表 */
-.circles__view-close {
+/* 分组头里的「← 返回」按钮(移动端展开列表时出现):把当前列表退回到入口按钮组 */
+.circles__group-back {
   flex: none;
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-2);
   border: none;
   background: transparent;
-  color: var(--ys-meta);
+  color: var(--ys-accent);
   font-family: var(--ys-font-body);
-  font-size: var(--ys-text-xs);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
   cursor: pointer;
 }
 
-.circles__view-close:hover {
-  color: var(--ys-accent);
+.circles__group-back:hover {
+  color: var(--ys-accent-hover);
+}
+
+/* 分组标题(与计数一起居左,返回按钮在更左) */
+.circles__group-title {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
 }
 
 /* 空分组时的一句话:比渲染空列表友好 */
@@ -255,10 +263,10 @@
   .circles__create {
     padding: 0 var(--ys-space-4);
   }
-  /* 桌面端:移动端入口按钮/「收起」隐藏;三个分组头(我创建的/我加入的/全部圈子)直显,
+  /* 桌面端:移动端入口按钮/「← 返回」按钮隐藏;三个分组头(我创建的/我加入的/全部圈子)直显,
      分组容器也拉宽到 1320,与全部圈子的 4 列网格对齐 */
   .circles__entries,
-  .circles__view-close {
+  .circles__group-back {
     display: none;
   }
   .circles__group {

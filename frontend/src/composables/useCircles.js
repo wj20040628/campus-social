@@ -43,9 +43,11 @@ export function useCircles() {
   const rows = computed(() => (isSearching.value ? results.value : circles.value))
 
   /**
-   * 「我加入的」分组。空则整组隐藏(模板 v-if),不留空分组头
+   * 「我加入的」分组:只显示**普通成员(myRole===3)**的圈 —— 即我加入、但不是我创建的别人的圈。
+   * 排除 myRole===1(我当圈主,归「我创建的」)和 myRole===2(我当管理,非「参与」,也不展示)。
+   * 这样「我加入的」和「我创建的」两个分组不重叠(否则我建的圈会两个组都出现)。
    */
-  const joinedCircles = computed(() => circles.value.filter((c) => c.joined))
+  const joinedCircles = computed(() => circles.value.filter((c) => c.joined && c.myRole === 3))
 
   /** 「全部圈子」里要排除已在上方出现过的,否则同一个圈子一屏出现两次 */
   const visibleCircles = computed(() =>
@@ -72,27 +74,30 @@ export function useCircles() {
 
   /**
    * 移动端分组视图。
-   * - 默认('all'):只显示两个入口按钮(我创建的/我加入的),不展开任何列表 —— 用户原话
-   * - 'created':展开「我创建的」
-   * - 'joined':展开「我加入的」
-   * 桌面端恒为 'all' 语义,但「我创建的」组**始终直接渲染**(桌面端拍板:不加按钮、多一个分组)。
-   * 所以 mobileView 主要驱动模板的 v-if;桌面由 CSS 决定形态,不读 mobileView。
+   * - null:显示入口按钮组(我创建的/我加入的/全部圈子),不展开任何列表
+   * - 'created' / 'joined' / 'all':展开对应列表,点「← 返回」收起
+   * 桌面端不读 mobileView(恒渲染三个分组),mobileView 只驱动移动端模板的 v-if。
    */
-  const mobileView = ref('all')
+  const mobileView = ref(null)
 
   /** 移动端:点「我创建的」入口按钮 —— 切到 created 视图 */
   function openCreated() {
-    mobileView.value = mobileView.value === 'created' ? 'all' : 'created'
+    mobileView.value = mobileView.value === 'created' ? null : 'created'
   }
 
   /** 移动端:点「我加入的」入口按钮 —— 切到 joined 视图 */
   function openJoined() {
-    mobileView.value = mobileView.value === 'joined' ? 'all' : 'joined'
+    mobileView.value = mobileView.value === 'joined' ? null : 'joined'
   }
 
-  /** 移动端:点已展开的列表区收起(回到入口按钮) */
+  /** 移动端:点「全部圈子」入口按钮 —— 切到 all 视图 */
+  function openAll() {
+    mobileView.value = mobileView.value === 'all' ? null : 'all'
+  }
+
+  /** 移动端:点已展开的列表区的返回按钮,回到入口按钮组 */
   function closeMobileView() {
-    mobileView.value = 'all'
+    mobileView.value = null
   }
 
   async function load() {
@@ -253,7 +258,7 @@ export function useCircles() {
     circles, cursor, hasMore, loading, loadFailed, loaded,
     keyword, searching, searchFailed, results, isSearching, rows,
     joinedCircles, visibleCircles,
-    createdCircles, mobileView, openCreated, openJoined, closeMobileView,
+    createdCircles, mobileView, openCreated, openJoined, openAll, closeMobileView,
     showCreate, newName, creating, createError,
     openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving,
     disbandCircle, isDisbanding, create,
