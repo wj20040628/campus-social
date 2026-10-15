@@ -26,7 +26,10 @@
 /**
  * 移动端底部主导航(mobile-shell.md §2)
  *
- * 五个入口由 PRD F1 锁定,不可增减。顺序与图标见 mobile-shell.md §2.2。
+ * 五个入口:首页 / 圈子 / 集市 / 消息 / 我的。
+ * 中间第 3 项「集市」(校园限时活动)用凸起圆钮承载,与设计参考稿方向 A 的手机 TabBar 一致。
+ * 发帖入口不在此:桌面走顶栏「+」、移动走圈子页「创建/发布」与 feed 空态,
+ * TabBar 5 项锁定不可增减,因此把「发布」让位给「集市」。
  *
  * 关于第 4 项的角标语义:是**待回应的搭话纸条数**,不是私信未读数。
  * 纸条 24 小时未回应即消失,角标随之清零 —— 这与普通未读消息
@@ -35,11 +38,11 @@
  * 无障碍:
  * - nav + ul + li 语义结构
  * - 当前项用 aria-current="page",**不用纯颜色区分**(另加字重)
- * - 每项 aria-label 提供完整语义(「发布动态」而不是「发布」)
+ * - 每项 aria-label 提供完整语义(「集市活动」而不是「集市」)
  */
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { House, ChatDotSquare, Plus, ChatDotRound, User } from '@element-plus/icons-vue'
+import { House, ChatDotSquare, Shop, ChatDotRound, User } from '@element-plus/icons-vue'
 import UnreadDot from './UnreadDot.vue'
 import SafeArea from './SafeArea.vue'
 
@@ -56,7 +59,7 @@ const route = useRoute()
 const items = computed(() => [
   { path: '/', label: '首页', icon: House, ariaLabel: '首页', badge: 0 },
   { path: '/circles', label: '圈子', icon: ChatDotSquare, ariaLabel: '圈子列表', badge: 0 },
-  { path: '/publish', label: '发布', icon: Plus, ariaLabel: '发布动态', badge: 0 },
+  { path: '/mkt', label: '集市', icon: Shop, ariaLabel: '集市活动广场', badge: 0 },
   { path: '/chat', label: '消息', icon: ChatDotRound, ariaLabel: '消息与纸条', badge: props.paperCount },
   { path: '/settings', label: '我的', icon: User, ariaLabel: '我的主页与设置', badge: 0 },
 ])
@@ -137,8 +140,9 @@ function isActive(path) {
 }
 
 /*
- * 中间项凸起(发布):必须用 transform,不能改 TabBar 高度。
+ * 中间项凸起(集市):必须用 transform,不能改 TabBar 高度。
  * 改高度会把顶栏顶穿,且影响所有继承 MainLayout 的页面。
+ * 凸起圆钮是「集市」(校园活动广场)的一级入口视觉锚点,对齐设计参考稿方向 A。
  */
 .tabbar__item:nth-child(3) .tabbar__icon {
   width: var(--ys-touch-min);
