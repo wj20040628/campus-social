@@ -53,7 +53,14 @@
             -->
             <Transition name="ys-fade">
               <KeepAlive include="Home">
-                <component :is="Component" />
+                <!--
+                  :key=route.path 是「导航后页面不切换、须刷新才正常」(Bug3)的根治:
+                  仅靠 <component :is="Component"> 时,若新旧组件判定为同一 vnode,
+                  Vue 会跳过挂载,DOM 卡在旧页面(URL 已变)。用 path 当 key 强制每次
+                  路由变化都识别为不同实例、干净换页。Home 的 path 恒为 '/',
+                  故 KeepAlive 仍按 key 命中缓存、返回首页位置不丢。
+                -->
+                <component :is="Component" :key="route.path" />
               </KeepAlive>
             </Transition>
           </router-view>
