@@ -65,6 +65,14 @@ public interface PostMapper extends BaseMapper<Post> {
     int hardDelete(@Param("postId") Long postId);
 
     /**
+     * 解散圈子时级联软删圈内全部帖子(绕过 @TableLogic,保留数据可审计)。
+     * status=2(已删):从所有 Feed 入口(综合/话题/热门/我的,均按 status=1 过滤)
+     * 一并隐藏,残留帖不再露出。与 Post.takedown 的 status=2 同语义但批量。
+     */
+    @Update("UPDATE post SET status = 2, update_time = NOW() WHERE circle_id = #{circleId} AND is_deleted = 0")
+    int invalidateCirclePosts(@Param("circleId") long circleId);
+
+    /**
      * 某用户发的动态数(他人主页头部「动态」数字用)。
      * 口径与 PostFeedQueryService.myPosts 一致:status IN (0,1,2) 且未删。
      * 现查 post 表而非依赖冗余计数列 —— 列漂移时列表是对的、头部也会跟着对。

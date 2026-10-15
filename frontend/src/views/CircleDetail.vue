@@ -41,13 +41,14 @@
         @manage="showManage = true"
       />
 
-      <!-- 圈管理面板:成员处置(封禁/解禁/任命)。仅 myRole<=2 可见 -->
+      <!-- 圈管理面板:成员处置(封禁/解禁/任命)+ 解散(仅圈主)。仅 myRole<=2 可见 -->
       <CircleManagePanel
         v-if="canManage"
         v-model:visible="showManage"
         :circle-id="circleId"
         :my-role="circle.myRole"
         :me="meId"
+        @disband="onDisband"
       />
 
       <!--
@@ -235,6 +236,12 @@ function onEmptyAction() {
   }
   // 聚焦发帖框而不是只滚过去:空态按钮的承诺是「开始写」
   composerRef.value?.focus()
+}
+
+/** 解散成功:圈子已软删,留在原地会进 notFound 卡住,跳回圈子列表 */
+function onDisband() {
+  showManage.value = false
+  router.push('/circles')
 }
 
 watch(circleId, load)

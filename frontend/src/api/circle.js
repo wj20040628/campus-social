@@ -21,6 +21,11 @@ export function leave(id) {
   return request.post(`/circle/${id}/leave`)
 }
 
+/** 解散圈子(仅圈主 role=1):软删圈子 + 级联软删圈内帖子。圈管理/成员 403。 */
+export function disband(id) {
+  return request.post(`/circle/${id}/disband`)
+}
+
 export function circlePosts(id, lastId, size = 20) {
   const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
   return request.get(`/circle/${id}/posts?${q}`)
@@ -90,7 +95,7 @@ export function search(q, type = 'all', size = 20) {
 }
 
 export default {
-  createCircle, list, detail, join, leave, circlePosts,
+  createCircle, list, detail, join, leave, disband, circlePosts,
   topPost, untopPost, takedownPost, movePost,
   appointAdmin, revokeAdmin, banMember, unbanMember, circleMembers,
   createActivity, activitiesByCircle, activityDetail, signup, cancelSignup,

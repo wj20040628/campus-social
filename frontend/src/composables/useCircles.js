@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
-import { list as listApi, join as joinApi, leave as leaveApi, createCircle as createApi, search as searchApi } from '@/api/circle'
+import { list as listApi, join as joinApi, leave as leaveApi, disband as disbandApi, createCircle as createApi, search as searchApi } from '@/api/circle'
 import { useUserStore } from '@/stores/user'
 import { isIdentityVerified } from '@/utils/mask'
 
@@ -158,6 +158,42 @@ export function useCircles() {
     }
   }
 
+  /**
+   * 解散圈子(仅圈主 myRole=1):软删圈子 + 级联软删圈内帖子。
+   * 区别于退圈 —— 退圈是成员级(物理删成员行、圈子还在),
+   * 解散是圈主级(整个圈子从列表/详情/广场全部消失,数据保留可审计)。
+   * 确认后本地翻 joined=false + myRole=0,该圈从「我加入的」分组移出。
+   * 圈内其它成员下次刷新列表时,圈子已被软删(status=1)自动过滤掉。
+   */
+  const disbandingCircleId = ref(null)
+
+  function isDisbanding(c) {
+    return c && disbandingCircleId.value === c.id
+  }
+
+  async function disbandCircle(c) {
+    try {
+      await ElMessageBox.confirm(
+        `确定解散「${c.name}」?解散后圈子与圈内帖子全部消失,成员需重新建圈加入。此操作不可恢复。`,
+        '解散圈子',
+        { type: 'error', confirmButtonText: '解散', cancelButtonText: '取消' },
+      )
+    } catch {
+      return
+    }
+    disbandingCircleId.value = c.id
+    try {
+      await disbandApi(c.id)
+      c.joined = false
+      c.myRole = 0
+      ElMessage.success('已解散圈子')
+    } catch {
+      ElMessage.error('解散失败,再试一次')
+    } finally {
+      disbandingCircleId.value = null
+    }
+  }
+
   async function create() {
     const name = newName.value.trim()
     if (!name || creating.value) return
@@ -185,6 +221,7 @@ export function useCircles() {
     keyword, searching, searchFailed, results, isSearching, rows,
     joinedCircles, visibleCircles,
     showCreate, newName, creating, createError,
-    openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving, create,
+    openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving,
+    disbandCircle, isDisbanding, create,
   }
 }

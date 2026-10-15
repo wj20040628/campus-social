@@ -50,6 +50,26 @@
           </li>
         </ul>
       </section>
+
+      <!--
+        解散区:仅圈主(myRole=1)可见。圈管理(role=2)不可解散 —— 后端
+        requireCircleCreator 只认 role=1,圈管理点了必 403,所以前端直接不给。
+        危险色描边 + 二次确认,与成员列表视觉分隔(管理面板底部独立区)。
+      -->
+      <section v-if="myRole === 1" class="cm__section cm__section--danger">
+        <h3 class="cm__h">解散圈子</h3>
+        <p class="cm__danger-hint">
+          解散后圈子与圈内帖子全部消失,成员需重新建圈加入。此操作不可恢复。
+        </p>
+        <button
+          type="button"
+          class="cm__btn cm__btn--danger"
+          :disabled="disbanding"
+          @click="disband"
+        >
+          {{ disbanding ? '解散中' : '解散圈子' }}
+        </button>
+      </section>
     </template>
 
     <template v-else>
@@ -61,8 +81,8 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
 import { useIsMobile } from '@/composables/useBreakpoint'
-import { ElMessageBox } from '@/utils/feedback'
-import { circleMembers } from '@/api/circle'
+import { ElMessage, ElMessageBox } from '@/utils/feedback'
+import { circleMembers, disband as disbandApi } from '@/api/circle'
 import { useCircleAdminActions } from '@/composables/useCircleAdminActions'
 
 const props = defineProps({
@@ -72,7 +92,7 @@ const props = defineProps({
   myRole: { type: Number, default: 0 },
   me: { type: [Number, String], default: 0 },
 })
-const emit = defineEmits(['update:visible', 'refresh-members'])
+const emit = defineEmits(['update:visible', 'refresh-members', 'disband'])
 
 const isMobile = useIsMobile()
 const drawerSize = computed(() => (isMobile.value ? '100%' : '420px'))
@@ -82,6 +102,8 @@ watch(() => props.visible, (v) => { open.value = v })
 
 const loading = ref(false)
 const members = ref([])
+/** 解散圈子请求进行中:「解散」按钮进入「解散中」态并禁点 */
+const disbanding = ref(false)
 
 async function reload() {
   if (!props.myRole || props.myRole > 2) return
@@ -93,6 +115,33 @@ async function reload() {
     members.value = []
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * 解散圈子(仅圈主 myRole=1):软删圈子 + 级联软删圈内帖子,不可恢复。
+ * 二次确认(ElMessageBox error 型)后调 POST /circle/{id}/disband,
+ * 成功后通知父组件重载(圈子已软删,详情页会进 notFound 错误态)。
+ */
+async function disband() {
+  try {
+    await ElMessageBox.confirm(
+      '解散后圈子与圈内帖子全部消失,成员需重新建圈加入。此操作不可恢复,确定解散?',
+      '解散圈子',
+      { type: 'error', confirmButtonText: '解散', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  disbanding.value = true
+  try {
+    await disbandApi(props.circleId)
+    ElMessage.success('已解散圈子')
+    emit('disband')
+  } catch {
+    ElMessage.error('解散失败,再试一次')
+  } finally {
+    disbanding.value = false
   }
 }
 

@@ -24,6 +24,15 @@ public interface CircleMapper extends BaseMapper<Circle> {
     @Update("UPDATE circle SET status = #{status}, update_time = NOW() WHERE id = #{circleId} AND is_deleted = 0")
     int setStatus(@Param("circleId") long circleId, @Param("status") int status);
 
+    /**
+     * 解散圈子(圈主级):status=1(软删)。
+     * 与 banCircle 同机制但调用方不同 —— banCircle 走 roleService.requireAdmin(平台管理员),
+     * 本方法由 CircleAdminServiceImpl.disband 走 requireCircleCreator(仅圈主),
+     * 共用同一物理开关。
+     */
+    @Update("UPDATE circle SET status = 1, update_time = NOW() WHERE id = #{circleId} AND is_deleted = 0")
+    int disband(@Param("circleId") long circleId);
+
     /** 对账:重算 member_count */
     @Update("UPDATE circle c SET " +
             "  member_count = (SELECT COUNT(*) FROM circle_member cm WHERE cm.circle_id = c.id AND cm.is_deleted = 0), " +

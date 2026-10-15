@@ -74,6 +74,14 @@ public class CircleController {
         return Result.ok();
     }
 
+    /** 解散圈子(仅圈主 role=1):软删圈子 + 级联软删圈内帖子。圈管理/成员无此权限。 */
+    @PostMapping("/circle/{id}/disband")
+    public Result<Void> disband(@PathVariable("id") long id, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        circleAdminService.disbandCircle(id, me);
+        return Result.ok();
+    }
+
     // ---------------- 圈管理 / 吧主级权限 ----------------
     // 吧主级动作 top/takedown/move 需 role<=2;成员处置 ban/appoint 需 role=1 圈主。
     // 非圈成员/无权限一律 403 NOT_CIRCLE_OWNER(1018)。

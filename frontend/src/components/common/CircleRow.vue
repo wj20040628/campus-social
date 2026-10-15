@@ -7,9 +7,15 @@
 
     整行是<button> 而不是 div @click(设计 §7):
     el-card 渲染成 div,键盘用户 Tab 不到,读屏器也不知道它可点。
+
+    操作按钮按 myRole 分流:
+    - 未加入:「加入」
+    - 普通成员(3):「退出」(退圈,圈子还在)
+    - 圈主(1)/ 圈管理(2):卡片上无操作 —— 解散是圈主专属的破坏性动作,
+      不进卡片扫列表场景,收在圈子详情页里(见 CircleDetail.vue)。
   -->
   <div class="crow">
-    <!-- 整行可点区。加入按钮在下面用 @click.stop 截断冒泡 -->
+    <!-- 整行可点区。操作按钮在下面用 @click.stop 截断冒泡 -->
     <button type="button" class="crow__open" @click="$emit('open', circle.id)">
       <img
         v-if="circle.avatarUrl"
@@ -37,9 +43,10 @@
       加入
     </button>
     <!--
-      已加入:直接给「退出」按钮(仅普通成员 myRole=3)。圈主/圈管理(1/2)
-      退圈后端必 422,显示灰色「已加入」不可点。
+      普通成员(3):「退出」。退圈是成员级动作,物理删成员行,圈子还在。
       @click.stop 截断冒泡,不触发整行的 open 跳详情。
+      圈主(1)/ 圈管理(2):卡片上不显示任何操作按钮 —— 退出对圈主后端 422,
+      解散是圈主专属的破坏性动作,放在详情页里(用户拍板,不放卡片上)。
     -->
     <button
       v-else-if="circle.myRole === 3"
@@ -51,7 +58,6 @@
     >
       {{ leaving ? '退出中' : '退出' }}
     </button>
-  
   </div>
 </template>
 
@@ -257,17 +263,18 @@ const memberText = computed(() => {
  * 所以这里恢复卡片形态:白底 + 暖描边 + 轻影 + 16px 圆角 ——
  * 与 PostCard 同一套卡片语言(A 方向),hover 只升影不改色。
  *
- * 统一大小:用定高 height 而非 min-height。min-height 下高度由每行内容
- * (圈子名/成员数长短)各自撑开,同行最高那张把整行抬起来、其它行矮,
- * 行间高度跳变就是"卡片大小不一"。定高 118 + 名字/成员数各 1 行截断,
- * 每张卡恒 118,行间对齐、视觉统一。4 列窄卡下按钮收窄、字号调小,
- * 信息块贴顶、操作块贴底右,垂直节奏稳定。
+ * 统一大小 + 文字协调:定高 118 替代 min-height,根治行间高度跳变;
+ * 整块内容(头像+名字+成员数)垂直居中,而非「信息贴顶 + 按钮贴底」两端拉开 ——
+ * 两端拉开在 118 定高下中间会留一大块空白、文字挤左上,看着丑(用户截图反馈)。
+ * 居中后视觉重心落在卡片中线,4 列宽卡下协调;按钮也跟随居中(不单独贴底)。
+ * 头像 40px(窄卡下 48 太大)、按钮收窄 60 + 字号 sm,整体协调。
  */
 @media (min-width: 1024px) {
   .crow {
     flex-direction: column;
-    align-items: stretch;
-    justify-content: space-between;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ys-space-2);
     height: 118px;
     min-height: 0;
     padding: var(--ys-space-3);
@@ -283,19 +290,19 @@ const memberText = computed(() => {
     border-color: var(--ys-border-control);
     box-shadow: var(--ys-shadow-2);
   }
-  /* 信息块(图标+名字+成员数)贴顶,横向排列;各 1 行截断 */
+  /* 信息块(图标+名字+成员数)横向居中排列 */
   .crow__open {
-    align-items: flex-start;
+    align-items: center;
   }
-  /* 头像略收:4 列窄卡下 48px 太大,收 40 */
+  /* 头像略收:4 列宽卡下 48px 太大,收 40 */
   .crow__avatar {
     width: 40px;
     height: 40px;
   }
-  /* 操作块(加入/退出)贴底右;窄卡收窄 + 字号调小,塞得下不撑高 */
+  /* 操作块(加入/退出)跟随居中;窄卡收窄 + 字号调小,塞得下不撑高 */
   .crow__join,
   .crow__leave {
-    align-self: flex-end;
+    align-self: center;
     min-width: 60px;
     padding: 0 var(--ys-space-2);
     font-size: var(--ys-text-sm);

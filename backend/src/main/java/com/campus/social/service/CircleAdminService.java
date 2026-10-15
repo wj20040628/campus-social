@@ -66,6 +66,13 @@ public interface CircleAdminService {
     /** 解封圈子(circle.status=0,管理员)。 */
     void unbanCircle(long circleId, long adminId);
 
+    /**
+     * 解散圈子(仅圈主 role=1):软删圈子(status=1)+ 级联软删圈内帖子。
+     * 成员行不删 —— 保留成员关系,该圈 status=1 后列表自动过滤(见 CircleMapper.list)。
+     * 数据保留可审计,管理员需要时可恢复。
+     */
+    void disbandCircle(long circleId, long operatorId);
+
     // ---------------- 预留名(管理员/运营后台) ----------------
 
     void addReservedName(ReservedNameDTO dto, long adminId);

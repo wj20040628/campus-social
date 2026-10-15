@@ -98,3 +98,40 @@
   border-color: var(--ys-danger);
   color: var(--ys-danger);
 }
+
+/* 解散区:管理面板底部独立危险区。红色描边按钮 + 提示文案,
+ * 与上方成员列表视觉分隔,让圈主明确「这是不可恢复的破坏性操作」。 */
+.cm__section--danger {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ys-border);
+}
+
+.cm__section--danger .cm__h {
+  color: var(--ys-danger);
+}
+
+.cm__danger-hint {
+  margin: 0 0 10px;
+  font-size: var(--ys-text-xs);
+  line-height: 1.5;
+  color: var(--ys-muted);
+}
+
+.cm__btn--danger {
+  border: 1px solid var(--ys-danger);
+  background: transparent;
+  color: var(--ys-danger);
+  font-weight: 500;
+}
+
+.cm__btn--danger:hover:not(:disabled) {
+  border-color: var(--ys-danger);
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.cm__btn--danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

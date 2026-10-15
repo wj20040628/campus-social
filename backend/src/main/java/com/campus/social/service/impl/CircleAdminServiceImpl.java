@@ -367,6 +367,25 @@ public class CircleAdminServiceImpl implements CircleAdminService {
         log.info("circle unbanned by admin: circle={} admin={}", circleId, adminId);
     }
 
+    @Override
+    @Transactional
+    public void disbandCircle(long circleId, long operatorId) {
+        // 解散是圈主级动作:仅 role=1 圈主可操作(requireCircleCreator),
+        // 区别于 banCircle 走 roleService.requireAdmin(平台管理员)。
+        requireCircleCreator(circleId, operatorId);
+        Circle c = circleMapper.selectById(circleId);
+        if (c == null || c.getStatus() == 1) {
+            throw new BusinessException(NOT_FOUND, "圈子不存在或已解散");
+        }
+        // 1) 圈子软删:status=1 后 list/detail/推荐/搜索/活动按 status 全过滤,自动消失
+        circleMapper.disband(circleId);
+        // 2) 级联软删圈内帖子:status=2(已删),从广场 Feed/话题/热门一并隐藏,
+        //    残留帖不再露出。帖子数据保留(未物理删),管理员可审计。
+        postMapper.invalidateCirclePosts(circleId);
+        auditService.record(operatorId, "circle_disband", "circle", circleId, "解散圈子", null);
+        log.info("circle disbanded by owner: circle={} operator={}", circleId, operatorId);
+    }
+
     // ============================================================ 预留名(运营后台)
 
     @Override
