@@ -80,6 +80,29 @@
           />
         </div>
       </el-card>
+
+      <!--
+        外观:深色模式开关。与 Settings.vue「我的」页(移动端)同一份 useTheme 单例,
+        切换落 localStorage(ys-theme)+ <html data-theme>,刷新不丢。
+        桌面用户走 /settings/profile,这是桌面端唯一能切深色的入口 ——
+        开关只在移动端「我的」页(Settings.vue)也有一份,两处共享同一单例,
+        任一处切都全局生效,互不冲突。
+      -->
+      <el-card class="sp__card sp__appearance">
+        <template #header><span>外观</span></template>
+        <div class="sp__switch-row">
+          <div class="sp__switch-text">
+            <div class="sp__switch-label">深色模式</div>
+            <p class="sp__switch-hint">夜间刷校园动态更护眼,切换即时生效,刷新不丢。</p>
+          </div>
+          <el-switch
+            :model-value="isDark"
+            aria-label="深色模式开关"
+            style="--el-switch-on-color: var(--ys-accent)"
+            @change="toggleTheme"
+          />
+        </div>
+      </el-card>
     </div>
   </div>
 </template>
@@ -104,11 +127,15 @@ import { IDENTITY_MODEL, SCHOOLS } from '@/constants/schoolDict'
 import { dictWriteError, refreshDictAfterInvalid, applyDictInvalid } from '@/utils/dictError'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
+import { useTheme } from '@/composables/useTheme'
 import SchoolFields from '@/components/common/SchoolFields.vue'
 
 const userStore = useUserStore()
 const dict = useDictStore()
 const router = useRouter()
+/** 深色模式开关:与 Settings.vue「我的」页共享同一份 useTheme 单例,
+ *  切换落 localStorage + <html data-theme>,刷新不丢,两处互不冲突。 */
+const { isDark, toggle: toggleTheme } = useTheme()
 
 const saving = ref(false)
 const schoolSaving = ref(false)

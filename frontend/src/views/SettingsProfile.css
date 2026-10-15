@@ -105,6 +105,10 @@
   max-width: 42ch;
 }
 
+/* 外观卡:与「个人资料」卡同 .sp__card,加个标识类便于将来差异化。
+   桌面端这是深色模式的唯一入口(移动端在 Settings.vue「我的」页也有一份)。 */
+.sp__appearance { margin-top: var(--ys-space-4); }
+
 /* 桌面(≥1024px):内容列放宽。移动端完全不受影响。 */
 @media (min-width: 1024px) {
   .sp-inner {
