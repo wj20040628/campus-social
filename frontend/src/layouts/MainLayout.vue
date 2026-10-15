@@ -52,17 +52,23 @@
               编辑/删帖)后由 useFeedRefresh 的脏标记触发重拉,不会看到旧数据。
             -->
             <!--
-              :key=route.path 是「导航后页面不切换、须刷新才正常」(Bug3)的根治:
-              仅靠 <component :is="Component"> 时,若新旧组件判定为同一 vnode,
-              Vue 会跳过挂载,DOM 卡在旧页面(URL 已变)。用 path 当 key 强制每次
-              路由变化都识别为不同实例、干净换页。Home 的 path 恒为 '/',
-              故 KeepAlive 仍按 key 命中缓存、返回首页位置不丢。
+              :key 路由切换钥匙(Bug3 根治 + 聊天双栏保活)。
+              默认用 route.path 当 key:同一路由内滚动恢复交给 KeepAlive + savedPosition,
+              跨路由(path 变)强制新实例、干净换页,不再「URL 变了内容没变、须刷新」。
+              **唯一例外 chatThread**:桌面双栏下 /chat 与 /chat/t/:kind/:id 是同一个
+              Chat 组件的两栏,打开/切换会话只换右栏、不该整页重挂 —— 否则历史/草稿/
+              WS 全被销毁重建,表现为「点会话卡一下、要再点」。故 chatThread 钉死成
+              常量 'chat',与 /chat 共享同一键;而 chat -> mkt 这种跨视图跳转 path 仍
+              会变,照样正常换页。
               注意:注释不能放进 <KeepAlive> 里 —— 编译器把注释也算子节点,
               会报「KeepAlive expects exactly one child component」直接白屏。
             -->
             <Transition name="ys-fade">
               <KeepAlive include="Home">
-                <component :is="Component" :key="route.path" />
+                <component
+                  :is="Component"
+                  :key="route.name === 'chatThread' ? 'chat' : route.path"
+                />
               </KeepAlive>
             </Transition>
           </router-view>
