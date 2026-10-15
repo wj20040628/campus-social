@@ -183,3 +183,22 @@
   font-size: var(--ys-text-xs);
   color: var(--ys-muted);
 }
+
+/*
+ * 桌面端(≥1024px)观感收紧:
+ * - 内容列加宽到 720px,设置项不再飘在 640px 窄缝中间
+ * - 三数字卡数字放大一档,桌面下视觉更扎实
+ * - 卡片间距略收,避免长列表下间距过松
+ */
+@media (min-width: 1024px) {
+  .settings-inner {
+    max-width: 720px;
+  }
+  .settings__overview {
+    margin-bottom: var(--ys-space-5);
+  }
+  .rel__num {
+    font-size: var(--ys-text-lg);
+    font-weight: var(--ys-weight-semibold);
+  }
+}
