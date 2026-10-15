@@ -3,7 +3,6 @@ import dayjs from 'dayjs'
 import { ElMessage } from '@/utils/feedback'
 import {
   conversations as convApi,
-  history as historyApi,
   send as sendApi,
   recall as recallApi,
   markRead,
@@ -11,19 +10,10 @@ import {
 } from '@/api/chat'
 import {
   myGroups as groupsApi,
-  groupMessages as groupMsgApi,
   sendGroupMessage as groupSendApi,
   recallGroupMessage as groupRecallApi,
   markGroupRead as groupMarkReadApi,
   groupMembers as groupMembersApi,
-  addGroupMembers as groupAddMembersApi,
-  kickMember as groupKickApi,
-  renameGroup as groupRenameApi,
-  setGroupAnnouncement as groupAnnouncementApi,
-  transferGroupOwner as groupTransferApi,
-  leaveGroup as groupLeaveApi,
-  muteMember as groupMuteApi,
-  muteAllMembers as groupMuteAllApi,
   groupMutedMe as groupMutedMeApi,
 } from '@/api/group'
 import { userCard } from '@/api/auth'
@@ -31,6 +21,8 @@ import { getWsClient } from '@/utils/ws'
 import { useUserStore } from '@/stores/user'
 import { createChatWsHandlers } from './chatWsHandlers'
 import { useChatSends } from './useChatSends'
+import { useChatHistory } from './useChatHistory'
+import { useGroupAdminOps } from './useGroupAdminOps'
 
 /**
  * 会话状态与实时收发(Chat.vue.md §7)
@@ -198,69 +190,11 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     }
   }
 
-  /* ---------------- 历史 ---------------- */
+  /* ---------------- 历史(2026-10-15 拆去 useChatHistory.js) ---------------- */
 
-  async function loadHistory() {
-    if (!currentConv.value) return
-    historyLoading.value = true
-    historyError.value = false
-    try {
-      const data = await historyApi(currentConv.value.peer?.id, null, 50)
-      messages.value = (data?.list || []).map((m) => ({
-        ...m,
-        createTime: fmt(m.createTime),
-        sendTs: m.createTime ? new Date(m.createTime).getTime() : 0,
-      }))
-      scrollBottom()
-    } catch {
-      // 保留已有消息,只在「一条都没有」时整区报错
-      historyError.value = true
-    } finally {
-      historyLoading.value = false
-    }
-  }
-
-  async function loadGroupHistory() {
-    if (!currentGroup.value) return
-    historyLoading.value = true
-    historyError.value = false
-    try {
-      const data = await groupMsgApi(currentGroup.value.id, null, 50)
-      const sids = [...new Set((data?.list || []).map((m) => m.senderId).filter(Boolean))]
-      const nickMap = await batchNicknames(sids)
-      messages.value = (data.list || []).map((m) => ({
-        ...m,
-        createTime: fmt(m.createTime),
-        sendTs: m.createTime ? new Date(m.createTime).getTime() : 0,
-        senderNickname: nickMap.get(m.senderId),
-      }))
-      scrollBottom()
-    } catch {
-      historyError.value = true
-    } finally {
-      historyLoading.value = false
-    }
-  }
-
-  /** 批量查昵称。逐个 await 是串行的,这里显式并发 —— 群消息 50 条可能有 20 个不同 sender */
-  const nickCache = new Map()
-  async function batchNicknames(ids) {
-    const out = new Map()
-    const todo = [...new Set(ids)].filter((id) => id && !nickCache.has(id))
-    await Promise.all(
-      todo.map(async (id) => {
-        try {
-          const u = await userCard(id)
-          nickCache.set(id, u.nickname || u.username)
-        } catch {
-          // 单个查不到不影响整屏:降级为「用户<id>」而不是整块报错
-          nickCache.set(id, `用户${id}`)
-        }
-      }),
-    )
-    ids.forEach((id) => out.set(id, nickCache.get(id)))
-    return out
-  }
+  const { loadHistory, loadGroupHistory, batchNicknames } = useChatHistory({
+    currentConv, currentGroup, messages, historyLoading, historyError, fmt, scrollBottom,
+  })
 
   /* ---------------- 发送 / 撤回 ---------------- */
 
@@ -296,128 +230,14 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     // 不 close():其他页面(通知)可能复用同一连接
   })
 
-  /* ---------------- 群管理(群信息头操作) ---------------- */
+  /* ---------------- 群管理(2026-10-15 拆去 useGroupAdminOps.js) ---------------- */
 
-  /**
-   * 刷新左侧群列表 + 当前群信息头。拉人/踢人/改名/公告/转让后调用。
-   * 群已解散则清当前群跳列表。
-   */
-  async function refreshAfterGroupOp() {
-    await loadGroups()
-    // 若我在左侧列表里已找不到这个群(被解散/我退群),清当前群
-    if (currentGroup.value && !groups.value.some((x) => x.id === currentGroup.value.id)) {
-      currentGroup.value = null
-      currentKind.value = 'dm'
-      groupInfo.value = null
-      messages.value = []
-      return
-    }
-    await loadGroupMembers()
-  }
-
-  /** 拉人:成功后刷新名单 + 人数;满员(1045)给文案 */
-  async function onAddMembers(userIds) {
-    if (!currentGroup.value || !userIds?.length) return
-    try {
-      await groupAddMembersApi(currentGroup.value.id, userIds)
-      ElMessage.success('已拉入')
-      await refreshAfterGroupOp()
-    } catch (e) {
-      ElMessage.error(e?.code === 1045 ? '群已满员,无法继续拉人' : '拉人失败,再试一次')
-    }
-  }
-
-  /** 踢人:成功后刷新 */
-  async function onKick(userId) {
-    if (!currentGroup.value) return
-    try {
-      await groupKickApi(currentGroup.value.id, userId)
-      ElMessage.success('已移出群聊')
-      await refreshAfterGroupOp()
-    } catch (e) {
-      ElMessage.error(e?.code === 1027 ? '仅群主可操作' : '移出失败,再试一次')
-    }
-  }
-
-  /** 改名:成功后刷新名单(群信息头带群名) */
-  async function onRename(name) {
-    if (!currentGroup.value || !name?.trim()) return
-    try {
-      await groupRenameApi(currentGroup.value.id, name.trim())
-      currentGroup.value = { ...currentGroup.value, name: name.trim() }
-      ElMessage.success('已改名')
-      await refreshAfterGroupOp()
-    } catch {
-      ElMessage.error('改名失败,再试一次')
-    }
-  }
-
-  /** 设公告:空=清除;成功后刷新 */
-  async function onSetAnnouncement(text) {
-    if (!currentGroup.value) return
-    try {
-      await groupAnnouncementApi(currentGroup.value.id, text)
-      await loadGroupMembers()
-      ElMessage.success(text?.trim() ? '公告已更新' : '公告已清除')
-    } catch {
-      ElMessage.error('设置公告失败,再试一次')
-    }
-  }
-
-  /** 转让:成功后我降为普通成员,刷新(名单里 isOwner 标自动变) */
-  async function onTransfer(newOwnerId) {
-    if (!currentGroup.value) return
-    try {
-      await groupTransferApi(currentGroup.value.id, newOwnerId)
-      ElMessage.success('群主已转让')
-      await refreshAfterGroupOp()
-    } catch (e) {
-      ElMessage.error(e?.code === 1026 ? '对方不是该群成员' : '转让失败,再试一次')
-    }
-  }
-
-  /** 退群:非群主直接退;群主退则自动转让或解散。跳列表 */
-  async function onLeaveGroup() {
-    if (!currentGroup.value) return
-    const gid = currentGroup.value.id
-    try {
-      await groupLeaveApi(gid)
-      ElMessage.success('已退出群聊')
-      await loadGroups()
-      currentGroup.value = null
-      currentKind.value = 'dm'
-      groupInfo.value = null
-      messages.value = []
-    } catch (e) {
-      ElMessage.error(e?.code === 1026 ? '你不是该群成员' : '退出群聊失败,再试一次')
-    }
-  }
-
-  /* ---------------- 群禁言(群主) ---------------- */
-
-  /** 禁言某成员:成功后刷新名单(muted 标随之变) */
-  async function onMuteMember(userId, muted = true) {
-    if (!currentGroup.value) return
-    try {
-      await groupMuteApi(currentGroup.value.id, userId, muted)
-      ElMessage.success(muted ? '已禁言' : '已解除禁言')
-      await loadGroupMembers()
-    } catch (e) {
-      ElMessage.error(e?.code === 1027 ? '仅群主可操作' : '操作失败,再试一次')
-    }
-  }
-
-  /** 禁言全员:成功后刷新名单(全员 muted 标随之变) */
-  async function onMuteAll(muted = true) {
-    if (!currentGroup.value) return
-    try {
-      await groupMuteAllApi(currentGroup.value.id, muted)
-      ElMessage.success(muted ? '已全员禁言' : '已解除全员禁言')
-      await loadGroupMembers()
-    } catch (e) {
-      ElMessage.error(e?.code === 1027 ? '仅群主可操作' : '操作失败,再试一次')
-    }
-  }
+  const {
+    onAddMembers, onKick, onRename, onSetAnnouncement, onTransfer, onLeaveGroup,
+    onMuteMember, onMuteAll,
+  } = useGroupAdminOps({
+    currentGroup, currentKind, groupInfo, messages, groups, loadGroups, loadGroupMembers,
+  })
 
   /* ---------------- 派生 ---------------- */
 
