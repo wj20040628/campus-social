@@ -75,12 +75,34 @@
 .bbubble--recalled {
   background: var(--ys-surface-2);
   border-color: var(--ys-border-soft);
-  color: var(--ys-muted);
+  color: var(--ys-meta);
   /* 撤回气泡内容居中 */
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
+}
+
+/*
+  撤回气泡:无论左(对方)右(自己)统一「中性底 + 可读文字」。
+  必须压过 .brow--me .bbubble(0,2,0) 的强调色 —— 否则自己撤回的消息会「青底 + 灰字」,
+  在深色 teal 上几乎看不见(Bug2)。两条选择器都是 (0,2,0),靠写在后面取胜。
+*/
+.brow .bbubble--recalled,
+.brow--me .bbubble--recalled {
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border-soft);
+  color: var(--ys-meta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* 撤回文字本身也用更深的辅助色,确保青底/中性底上都看得清 */
+.brow .bbubble--recalled .bbubble__recalled,
+.brow--me .bbubble--recalled .bbubble__recalled {
+  color: var(--ys-meta);
 }
 
 .bbubble--failed {
