@@ -25,9 +25,11 @@
             学校归属拆成两块,因为**写入端点不同**:
             PUT /user/me 只管昵称/学号/头像,学院与年级走 POST /user/school-profile。
             合成一次提交会出现「昵称存上了但学院没存上」的半成功态,用户看不出来。
+            桌面端外层用 div(block-group),由 CSS 软化成浅底块;移动端原生 fieldset 边框
+            在温暖设计里太生硬,一并改掉,见 SettingsProfile.css 的 .sp__block-group。
           -->
-          <fieldset class="sp__block">
-            <legend class="sp__legend">学校归属</legend>
+          <div class="sp__block-group" role="group" aria-label="学校归属">
+            <div class="sp__block">
 
             <SchoolFields v-model="identity" :invalid="identityInvalid" />
 
@@ -39,7 +41,8 @@
               <span v-if="!identityDirty && identitySaved" class="sp__saved">已保存</span>
             </div>
             <p class="sp__hint sp__hint--note">学校归属单独保存,昵称 / 学号 / 头像用下方「保存资料」。</p>
-          </fieldset>
+            </div>
+          </div>
 
           <el-form-item label="学号">
             <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />

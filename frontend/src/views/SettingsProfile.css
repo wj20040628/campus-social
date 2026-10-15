@@ -4,7 +4,6 @@
   拆后回到约 228 行。
 */
 
-<style scoped>
 .sp {
   min-height: 100dvh;
   background: var(--ys-bg);
@@ -54,19 +53,15 @@
 
 .sp__card { margin-bottom: var(--ys-space-4); }
 
-/* 表单块(fieldset 语义分组),边框自己画 */
-.sp__block {
+/* 表单块(学校归属分组),外层组框 + 内层浅底块。
+   原 fieldset 原生边框在温暖设计里太生硬,改浅底无边框,移动端也顺。 */
+.sp__block-group {
   margin: 0 0 var(--ys-space-5);
-  padding: var(--ys-space-4);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-lg);
 }
-.sp__legend {
-  padding: 0 var(--ys-space-2);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg-2);
+.sp__block {
+  padding: var(--ys-space-4);
+  background: var(--ys-surface-2);
+  border-radius: var(--ys-radius-lg);
 }
 .sp__row {
   display: flex;
@@ -110,14 +105,15 @@
   max-width: 42ch;
 }
 
-/* 桌面(≥1024px):内容列放宽,顶栏更舒展。移动端完全不受影响。
-   桌面点 Profile 页「编辑资料」直接落到本页,顶栏保留返回(router.back() 回个人主页)。 */
+/* 桌面(≥1024px):内容列放宽。移动端完全不受影响。 */
 @media (min-width: 1024px) {
   .sp-inner {
     max-width: 720px;
-    padding: var(--ys-space-6) var(--ys-space-4);
+    padding: var(--ys-space-8) var(--ys-space-4);
   }
+  /* 桌面左侧 SideNav 已提供导航语境,自绘「返回箭头 + 标题」栏多余且突兀,隐藏。
+     移动端保留(自绘栏是移动端唯一的顶部入口)。 */
   .sp__bar {
-    padding: 0 var(--ys-space-6);
+    display: none;
   }
 }
