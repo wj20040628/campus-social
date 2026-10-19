@@ -136,7 +136,7 @@
       <p class="gh__transfer-hint">把群主位传给一位成员,你降为普通成员留在群里。</p>
       <ul class="gh__transfer-list">
         <li v-for="mm in transferTargets" :key="mm.user?.id" class="gh__transfer-row">
-          <el-avatar :size="36" :src="resolveUrl(mm.user?.avatarUrl)" />
+          <el-avatar :size="36" :src="resolveThumb(mm.user?.avatarUrl)" />
           <span class="gh__transfer-name">{{ mm.user?.nickname || mm.user?.username || '成员' }}</span>
           <button type="button" class="gh__transfer-go" @click="doTransfer(mm.user.id)">转让</button>
         </li>
@@ -162,7 +162,7 @@ import {
 } from '@element-plus/icons-vue'
 import AddMembersSheet from './AddMembersSheet.vue'
 import GroupMembersSheet from './GroupMembersSheet.vue'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
 const props = defineProps({
   /** 当前群卡片(GroupVO,至少含 id/name/memberCount) */

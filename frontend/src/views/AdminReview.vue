@@ -93,7 +93,7 @@
             :class="{ 'task-card--current': !isMobile && i === currentIndex }"
           >
             <div class="task-head">
-              <el-avatar :size="36" :src="resolveUrl(t.author?.avatarUrl)" />
+              <el-avatar :size="36" :src="resolveThumb(t.author?.avatarUrl)" />
               <div class="task-author">
                 <p class="task-author__name">{{ t.author ? displayName(t.author) : '未知用户' }}</p>
                 <p class="task-author__time">{{ fmt(t.createTime) }}</p>
@@ -206,7 +206,7 @@ import { useReviewHotkeys } from '@/composables/useReviewHotkeys'
 import { useListFocus } from '@/composables/useListFocus'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import AdminDenied from '@/components/common/AdminDenied.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import ReportPane from '@/components/admin/ReportPane.vue'

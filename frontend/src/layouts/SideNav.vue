@@ -36,6 +36,11 @@
         <span>通知</span>
       </el-menu-item>
 
+      <el-menu-item index="/discover">
+        <el-icon><Compass /></el-icon>
+        <span>发现</span>
+      </el-menu-item>
+
       <!--
         管理员项:isAdmin 为 false 时整块不渲染,不给用户一个点进去才被拒的入口。
         收进 el-sub-menu「管理后台」子菜单:桌面侧栏 hover 展开,
@@ -72,6 +77,11 @@
           <el-icon><Collection /></el-icon>
           <span>圈子处置</span>
         </el-menu-item>
+        <!-- 反馈排最后:它是「改进建议」不是「必须处理的违规」,不占管理员的日常动线 -->
+        <el-menu-item index="/admin/feedback">
+          <el-icon><ChatLineSquare /></el-icon>
+          <span>意见反馈</span>
+        </el-menu-item>
       </el-sub-menu>
     </el-menu>
   </aside>
@@ -81,7 +91,8 @@
 import { computed } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
-  Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
+  Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection, Compass,
+  ChatLineSquare,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -98,8 +109,10 @@ const activeMenu = computed(() => {
   if (p.startsWith('/admin/review')) return '/admin/review'
   if (p.startsWith('/admin/audit')) return '/admin/audit'
   if (p.startsWith('/admin/circles')) return '/admin/circles'
+  if (p.startsWith('/admin/feedback')) return '/admin/feedback'
   if (p.startsWith('/chat')) return '/chat'
   if (p.startsWith('/notify')) return '/notify'
+  if (p.startsWith('/discover')) return '/discover'
   if (p.startsWith('/announcement')) return '/announcement'
   if (p.startsWith('/circles')) return '/circles'
   if (p.startsWith('/activity')) return '/circles'

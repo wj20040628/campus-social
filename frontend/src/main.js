@@ -34,9 +34,22 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
+/*
+ * ElMessageBox 依赖的全局组件补丁(必须在 app.mount 之前)。
+ * 详细原因见 utils/patchMessageBox.js 的注释:MessageBox 内部用
+ * resolveComponent 按名字查全局组件,而本项目为压体积没做整包注册,
+ * 结果确认框整个渲染不出来 —— 表现为「点退出登录没反应」。
+ */
+import { patchMessageBox } from './utils/patchMessageBox'
+patchMessageBox(app)
+
 // 主题必须在挂载前落到 <html>,否则先浅后深会闪一下白
 import { initTheme } from './composables/useTheme'
 initTheme()
+
+// 字号档位同理:挂载前落 data-font-scale,避免首屏字号跳一下
+import { initFontScale } from './composables/useFontScale'
+initFontScale()
 
 app.mount('#app')
 

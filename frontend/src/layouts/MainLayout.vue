@@ -24,7 +24,7 @@
           :show-back="showBack"
           :page-title="pageTitle"
           :notify-unread="notifyUnread"
-          @logout="logout"
+          @menu="drawerOpen = true"
         />
 
         <main
@@ -82,6 +82,13 @@
       两套外壳彻底隔离,不会各自维护一份焦点顺序)。
     -->
     <TabBar v-if="!hideTabBar" :paper-count="paperCount" />
+
+    <!--
+      全局导航抽屉(2026-10-18):手机端顶栏汉堡 / 桌面端头像 都唤起。
+      挂在布局层而不是 TopBar 内 —— 它要盖住 TabBar(fixed),且未读数
+      (notifyUnread)在这里,与顶栏铃铛同源不重复请求;退出登录走 logout()。
+    -->
+    <AppDrawer v-model="drawerOpen" :notify-unread="notifyUnread" @logout="logout" />
   </div>
 </template>
 
@@ -107,6 +114,7 @@ import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 import TabBar from '@/components/mobile/TabBar.vue'
+import AppDrawer from '@/components/mobile/AppDrawer.vue'
 import { useUserStore } from '@/stores/user'
 import { getWsClient } from '@/utils/ws'
 import * as notifyApi from '@/api/notify'
@@ -130,6 +138,8 @@ const immersive = computed(() => route.name === 'chatThread')
 
 const notifyUnread = ref(0)
 const paperCount = ref(0)
+/** 导航抽屉开关:TopBar 的汉堡按钮唤起(仅手机端渲染汉堡) */
+const drawerOpen = ref(false)
 
 /** 未读数是增强信息,拉取失败静默降级 —— 不该因为红点挂了而让用户以为系统坏了 */
 async function loadUnread() {
@@ -188,128 +198,4 @@ async function logout() {
 }
 </script>
 
-<style scoped>
-.layout {
-  /* 移动浏览器 100vh 不含地址栏回缩高度,底部会被浏览器栏遮住。
-     dvh 是动态视口高度,随地址栏收放实时变化。vh 保留作降级。 */
-  min-height: 100vh;
-  min-height: 100dvh;
-  background: var(--ys-bg);
-}
-
-.shell {
-  display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-.layout__side {
-  display: none;
-}
-
-.col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.content {
-  flex: 1;
-  min-width: 0;
-  background: var(--ys-bg);
-  padding: var(--ys-space-4) var(--ys-gutter-phone);
-  /*
-   * TabBar 是 position:fixed,内容区必须自己留出它的高度,
-   * 否则最后一条内容永远被盖住。二者只能有一处负责 —— 就是这里。
-   */
-  padding-bottom: calc(var(--ys-tabbar-h) + var(--ys-safe-bottom));
-}
-
-/* 页面自带顶栏时,内容区不加顶部内边距(顶栏由页面自己贴在最上) */
-.content--own-top {
-  padding-top: 0;
-}
-
-/* 不显示 TabBar 的页面:底部只留常规留白 + 安全区 */
-.content--no-tabbar {
-  padding-bottom: calc(var(--ys-space-4) + var(--ys-safe-bottom));
-}
-
-/* 沉浸式(会话页):输入区自己撑底,内容区不再加任何底部留白 */
-.content--immersive {
-  padding: 0;
-  padding-bottom: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* 键盘可达性:聚焦时显现。视觉隐藏但不能用 display:none(那样不可聚焦) */
-.skip-link {
-  position: absolute;
-  left: -9999px;
-  top: var(--ys-space-2);
-  z-index: var(--ys-z-toast);
-  padding: var(--ys-space-2) var(--ys-space-4);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  border-radius: var(--ys-radius-lg);
-  font-size: var(--ys-text-sm);
-  text-decoration: none;
-}
-
-.skip-link:focus {
-  left: var(--ys-space-2);
-}
-
-/*
- * 桌面(≥1024px):显侧栏、隐 TabBar。
- * 用 display:none 而非 visibility:hidden —— 后者仍可被 Tab 键聚焦,
- * 会让键盘用户走到看不见的元素上(MainLayout.vue.md §5)。
- * 侧栏 sticky,长列表滚动时导航始终可见。
- */
-@media (min-width: 1024px) {
-  .layout__side {
-    display: flex;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    height: 100dvh;
-  }
-
-  .content {
-    padding: var(--ys-space-6) var(--ys-gutter-desktop) var(--ys-space-12);
-  }
-
-  .content--no-tabbar {
-    padding-bottom: var(--ys-space-12);
-  }
-}
-
-/* 路由过渡:只做 opacity + 8px 位移,不横向滑动(与浏览器返回手势冲突) */
-.ys-fade-enter-active {
-  transition: opacity var(--ys-motion-page) var(--ys-ease-in-out),
-    transform var(--ys-motion-page) var(--ys-ease-in-out);
-}
-
-.ys-fade-leave-active {
-  transition: opacity var(--ys-motion-fast) var(--ys-ease-in-out);
-}
-
-.ys-fade-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.ys-fade-leave-to {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ys-fade-enter-active,
-  .ys-fade-leave-active {
-    transition: none;
-  }
-}
-</style>
+<style scoped src="./MainLayout.css"></style>

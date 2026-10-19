@@ -1,50 +1,54 @@
 <template>
   <!--
-    个人主页身份头(Profile.vue.md §1.1)
-    抽成组件而不是留在 Profile.vue:它是本页的核心区块,
-    独立出来后模板行数离开门禁,也能单独演进(比如后续加兴趣标签 chips)。
+    个人主页身份头(2026-10-18 hero 化,参考小红书):
+    上一行是父级的装饰带(.p-cover),头像用负 margin 叠上去(白描边);
+    昵称+认证徽章同行,操作按钮独立成行放信息块下方 ——
+    不再挤在头像右侧(原布局按钮多时右侧溢出,手机上更是放不下三个)。
+    emits/props 与旧版完全一致,父级无需改动交互接线。
   -->
   <div class="p-head">
-    <!--
-      el-avatar 的 size 是**属性**不是 CSS,媒体查询改不动它(设计 §7)。
-      移动端 56 / 桌面端 72 必须走 computed,不能写死 :size="72"。
-    -->
-    <el-avatar :size="avatarSize" :src="resolveUrl(user.avatarUrl)" class="p-avatar" />
-
-    <div class="p-info">
-      <div class="p-name">{{ displayName(user) }}</div>
-
+    <div class="p-id">
       <!--
-        学院 · 年级。设计 §1.1 要求单行 13px muted 文本,
-        不是两个彩色 tag —— 两个 tag 会把次要信息抬成视觉重点。
+        el-avatar 的 size 是**属性**不是 CSS,媒体查询改不动它(设计 §7)。
+        移动端 64 / 桌面端 84 必须走 computed,不能写死。
       -->
-      <div v-if="identity.deptName || identity.gradeName" class="p-sub">
-        {{ identityLine }}
-      </div>
-      <div v-else class="p-sub p-sub--empty">还没填学校归属</div>
+      <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
 
-      <div class="p-tags">
-        <!--
-          认证徽章(AC-12):只到「已认证 · XX 大学」这一层,
-          **不显示真实姓名与学号**。未认证时给本人一个「去认证」的出口。
-          判据由父级传入 —— 后端 UserVO 没有 verified 字段,
-          各处自己写 `user.verified` 会恒为 false(徽章全站消失)。
-        -->
-        <span v-if="verified" class="p-badge">
-          <CircleCheck class="p-badge__icon" aria-hidden="true" />
-          已认证<template v-if="user.schoolName"> · {{ user.schoolName }}</template>
-        </span>
-        <span v-else class="p-badge p-badge--off">未认证</span>
-        <router-link v-if="isMe && !verified" to="/settings" class="p-verify-link">
+      <div class="p-info">
+        <div class="p-name-row">
+          <span class="p-name">{{ displayName(user) }}</span>
+          <!--
+            认证徽章(AC-12):判据由父级传入 —— 后端 UserVO 的 verified,
+            各处自己推断会误判(历史事故见 useProfileData.js 注释)。
+          -->
+          <span v-if="verified" class="p-badge">
+            <CircleCheck class="p-badge__icon" aria-hidden="true" />
+            已认证<template v-if="user.schoolName"> · {{ user.schoolName }}</template>
+          </span>
+          <span v-else class="p-badge p-badge--off">未认证</span>
+        </div>
+        <div v-if="identity.deptName || identity.gradeName" class="p-sub">
+          {{ identityLine }}
+        </div>
+        <div v-else class="p-sub p-sub--empty">还没填学校归属</div>
+        <router-link v-if="isMe && !verified" to="/profile" class="p-verify-link">
           去认证
         </router-link>
       </div>
     </div>
 
-    <!-- 右侧操作区三态(设计 §1.1):本人 / 他人已关注 / 他人未关注 -->
+    <!-- 操作行:本人(编辑资料+设置) / 他人(关注+私信+举报),手机端拉满宽度 -->
     <div class="p-actions">
       <template v-if="isMe">
-        <el-button @click="$emit('settings')">编辑资料</el-button>
+        <el-button type="primary" class="p-act" @click="$emit('edit')">编辑资料</el-button>
+        <button
+          type="button"
+          class="p-gear"
+          aria-label="设置"
+          @click="$emit('settings')"
+        >
+          <el-icon :size="20"><Setting /></el-icon>
+        </button>
       </template>
       <template v-else-if="showActions">
         <el-button
@@ -52,6 +56,7 @@
           :loading="followLoading"
           :aria-pressed="!!following"
           :aria-label="`${following ? '已关注' : '关注'} ${displayName(user)}`"
+          class="p-act"
           @click="$emit('follow')"
         >
           <el-icon><Plus /></el-icon> {{ following ? '已关注' : '关注' }}
@@ -60,13 +65,10 @@
           AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
           与 PostDetail 的「搭句话」是同一套未认证处理。
         -->
-        <el-button @click="$emit('chat')">
+        <el-button class="p-act" @click="$emit('chat')">
           <el-icon><ChatDotRound /></el-icon> 发私信
         </el-button>
-        <!--
-          举报用户入口(AC-05 闭环):看别人主页时给一个「举报」出口。
-          与发私信同级,但不抢视觉重点——用纯文字按钮,不填色。
-        -->
+        <!-- 举报入口(AC-05 闭环):同级但不抢视觉,纯文字按钮 -->
         <el-button class="p-report" text @click="$emit('report')">
           <el-icon><WarningFilled /></el-icon> 举报
         </el-button>
@@ -80,9 +82,9 @@
  * 身份头。**纯展示 + 抛事件**:关注与私信的真实行为在 Profile.vue,
  * 因为它们要联动粉丝计数、未认证弹窗与路由,放进子组件会多一层双向耦合。
  */
-import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
+import { CircleCheck, ChatDotRound, Plus, WarningFilled, Setting } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
 defineProps({
   user: { type: Object, required: true },
@@ -99,45 +101,47 @@ defineProps({
    * 未登录时给一个点不动的「关注」按钮比不给更糟(AC-19)。
    */
   showActions: { type: Boolean, default: false },
-  /** 移动端 56 / 桌面端 72(属性硬编码,媒体查询改不动) */
-  avatarSize: { type: Number, default: 56 },
+  /** 移动端 64 / 桌面端 84(属性硬编码,媒体查询改不动) */
+  avatarSize: { type: Number, default: 64 },
 })
 
-defineEmits(['follow', 'chat', 'settings', 'report'])
+defineEmits(['follow', 'chat', 'edit', 'settings', 'report'])
 </script>
 
 <style scoped>
 .p-head {
   display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  padding: var(--ys-space-4) 0;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  padding: 0 0 var(--ys-space-1);
 }
 
-/*
-  头像样式原来在 Profile.css 里。搬进本组件后父级那条规则不再命中
-  (scoped 隔离),所以这里必须重述 —— 少了会退回 EP 默认的圆角头像,
-  桌面端也会丢掉压在横幅上的白描边。
-*/
+/* 头像行:align-end 让头像底边与信息块底边对齐,负 margin 叠上装饰带 */
+.p-id {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ys-space-3);
+  margin-top: -26px;
+}
+
 .p-avatar {
   flex-shrink: 0;
-  /* 原 0 2px 8px rgba(0,0,0,.1) 是纯黑投影,与白描边叠加成"贴纸"效果 */
+  /* 白描边把头像从装饰带上「托」出来;淡投影是 token 的暖墨 shadow-1 */
+  border: 3px solid var(--ys-surface);
   box-shadow: var(--ys-shadow-1);
-}
-
-/* 桌面端:头像压在横幅左下角(设计 §2 的 Instagram 式叠放) */
-@media (min-width: 1024px) {
-  .p-head {
-    margin-top: -36px;
-  }
-
-  .p-avatar {
-    border: 4px solid var(--ys-surface);
-  }
 }
 
 .p-info {
   flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.p-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  flex-wrap: wrap;
   min-width: 0;
 }
 
@@ -149,10 +153,11 @@ defineEmits(['follow', 'chat', 'settings', 'report'])
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .p-sub {
-  margin-top: var(--ys-space-1);
+  margin-top: 2px;
   font-size: var(--ys-text-sm);
   line-height: var(--ys-lh-sm);
   color: var(--ys-muted);
@@ -165,19 +170,12 @@ defineEmits(['follow', 'chat', 'settings', 'report'])
   color: var(--ys-meta);
 }
 
-.p-tags {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
-  margin-top: var(--ys-space-2);
-}
-
 .p-badge {
   display: inline-flex;
   align-items: center;
   gap: var(--ys-space-1);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
   color: var(--ys-success);
 }
 
@@ -192,7 +190,7 @@ defineEmits(['follow', 'chat', 'settings', 'report'])
 }
 
 .p-verify-link {
-  font-size: var(--ys-text-sm);
+  font-size: var(--ys-text-xs);
   color: var(--ys-accent);
   text-decoration: none;
 }
@@ -201,19 +199,59 @@ defineEmits(['follow', 'chat', 'settings', 'report'])
   color: var(--ys-accent-hover);
 }
 
+/*
+ * 操作行。手机端主动作拉满宽度(小红书式),桌面端靠右:
+ * el-button 根节点在组件内部,scoped 打不进去,用 :deep。
+ */
 .p-actions {
-  margin-left: auto;
   display: flex;
+  align-items: center;
   gap: var(--ys-space-2);
 }
 
-/*
- * A 方向(2026-10-15):操作区按钮统一胶囊形。
- * EP 默认圆角是 --el-border-radius-base(8px);关注/发私信/编辑资料
- * 都是主动作,和 GreetButton、发布钮同形才像一家。
- * 用 :deep 是因为 el-button 的根节点在组件内部,scoped 选择器打不进去。
- */
 .p-actions :deep(.el-button) {
   border-radius: var(--ys-radius-full);
+}
+
+.p-actions .p-act {
+  flex: 1;
+}
+
+/* 设置齿轮:44x44 触控热区,次要视觉 */
+.p-gear {
+  flex: none;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ys-border);
+  background: transparent;
+  color: var(--ys-fg-2);
+  border-radius: var(--ys-radius-full);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-gear:hover {
+  background: var(--ys-surface-2);
+}
+
+@media (min-width: 1024px) {
+  .p-id {
+    margin-top: -36px;
+  }
+
+  .p-avatar {
+    border-width: 4px;
+  }
+
+  /* 桌面端操作行靠右,按钮恢复内容宽度 */
+  .p-actions {
+    justify-content: flex-end;
+  }
+
+  .p-actions .p-act {
+    flex: 0 0 auto;
+  }
 }
 </style>

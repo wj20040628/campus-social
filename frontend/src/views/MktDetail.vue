@@ -108,7 +108,7 @@
         <!-- 块 7:发布者昵称(不展示微信/手机号) -->
         <div class="md__publisher">
           <!-- 头像走统一 InitialAvatar;契约里没有发布者 id,seed 用昵称(仅决定颜色) -->
-          <InitialAvatar :size="32" :src="act.avatarUrl ? resolveUrl(act.avatarUrl) : ''" :seed="act.nickname || ''" :name="act.nickname || ''" />
+          <InitialAvatar :size="32" :src="act.avatarUrl ? resolveThumb(act.avatarUrl) : ''" :seed="act.nickname || ''" :name="act.nickname || ''" />
           <div class="md__pub-txt">
             <p class="md__pub-name">{{ act.nickname || '匿名' }}</p>
             <p class="md__pub-sub">发布者</p>
@@ -170,7 +170,7 @@ import SkeletonList from '@/components/common/SkeletonList.vue'
 import MktComments from '@/components/mkt/MktComments.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 import { useRemainingCountdown } from '@/composables/useRemainingCountdown'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { submitReport } from '@/api/review'
 import * as mkt from '@/api/mkt'
 

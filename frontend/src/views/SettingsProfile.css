@@ -1,7 +1,7 @@
 /*
-  SettingsProfile.vue 的样式,2026-10-15 从 <style scoped> 外置(既有模式)。
-  选择器与规则原样搬迁,未改一个值。外置原因:345 行超 300 行门禁,
-  拆后回到约 228 行。
+  SettingsProfile.vue 的样式(既有外置模式,见 check-external-css.mjs)。
+  2026-10-18 按改版预览稿重写:头像区 + 分组标签 + 卡片行 + 底部整宽保存。
+  与其它页共用的 token 全部走 --ys-*,不写字面色。
 */
 
 .sp {
@@ -24,6 +24,7 @@
   background: var(--ys-surface);
   border-bottom: 1px solid var(--ys-border);
 }
+
 .sp__bar-btn {
   width: var(--ys-touch-min);
   height: var(--ys-touch-min);
@@ -35,7 +36,9 @@
   border-radius: var(--ys-radius-lg);
   cursor: pointer;
 }
+
 .sp__bar-btn:hover { background: var(--ys-surface-2); }
+
 .sp__bar-title {
   margin: 0;
   font-size: var(--ys-text-lg);
@@ -44,80 +47,254 @@
   color: var(--ys-fg);
 }
 
+/* 内容列:手机满宽,桌面收窄居中(预览稿 .pdk 720px) */
 .sp-inner {
-  max-width: 640px;
-  margin: 0 auto;
   width: 100%;
-  padding: var(--ys-gutter-desktop);
-}
-
-.sp__card { margin-bottom: var(--ys-space-4); }
-
-/* 表单块(学校归属分组),外层组框 + 内层浅底块。
-   原 fieldset 原生边框在温暖设计里太生硬,改浅底无边框,移动端也顺。 */
-.sp__block-group {
-  margin: 0 0 var(--ys-space-5);
-}
-.sp__block {
+  max-width: 720px;
+  margin: 0 auto;
   padding: var(--ys-space-4);
-  background: var(--ys-surface-2);
-  border-radius: var(--ys-radius-lg);
 }
-.sp__row {
+
+.sp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-5);
+  padding-bottom: var(--ys-space-6);
+}
+
+/* ---------- 头像区:整块可点 ---------- */
+.sp-ava {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--ys-space-4) 0 var(--ys-space-1);
+  cursor: pointer;
+}
+
+.sp-ava__ring {
+  display: grid;
+  place-items: center;
+  border-radius: var(--ys-radius-full);
+  border: 3px solid var(--ys-surface);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.sp-ava__tip {
+  margin-top: var(--ys-space-2);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
+}
+
+/* ---------- 分组:小标签 + 白卡 ---------- */
+.sp-group__label {
+  margin: 0 0 var(--ys-space-2);
+  padding: 0 var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-meta);
+}
+
+.sp-card {
+  background: var(--ys-surface);
+  border-radius: var(--ys-radius-xl);
+  box-shadow: var(--ys-shadow-1);
+  overflow: hidden;
+}
+
+.sp-card--pad { padding: var(--ys-space-3) var(--ys-space-4); }
+
+/* ---------- 卡片行:左侧固定标签,右侧控件 ---------- */
+.sp-row {
   display: flex;
   align-items: center;
   gap: var(--ys-space-3);
+  padding: var(--ys-space-3) var(--ys-space-4);
 }
-.sp__hint {
-  margin: 0;
+
+.sp-row + .sp-row { border-top: 1px solid var(--ys-border-soft); }
+
+.sp-row__label {
+  flex: none;
+  width: 56px;
   font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+}
+
+/* SchoolFields 自带 grid 与上下 label,这里改回「单列 + 左标签」的行式排布 */
+.sp-card--school { padding: var(--ys-space-1) 0; }
+
+.sp-card--school :deep(.school-fields) {
+  display: block;
+}
+
+.sp-card--school :deep(.el-form-item) {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+}
+
+.sp-card--school :deep(.el-form-item + .el-form-item) {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.sp-card--school :deep(.el-form-item__label) {
+  flex: none;
+  width: 72px;
+  height: auto;
+  padding: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+}
+
+.sp-card--school :deep(.el-form-item__content) {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  margin-left: 0;
+}
+
+/* 服务端判定的字段错误(如「该学院已停用」)改为行下红字,不再撑高整行 */
+.sp-card--school :deep(.el-form-item__error) {
+  position: static;
+  padding-top: var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+}
+
+.sp-card--school :deep(.school-fields__retry),
+.sp-card--school :deep(.school-fields__loading) {
+  padding: var(--ys-space-2) var(--ys-space-4);
+}
+
+.sp-note {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+  font-size: var(--ys-text-xs);
   color: var(--ys-meta);
 }
-/* 提交时机说明:比状态 hint 更靠下、更弱化,只解释「哪些一起存」 */
-.sp__hint--note {
+
+.sp-note--ok { color: var(--ys-success); }
+.sp-note--warn { color: var(--ys-accent-2); }
+
+/* ---------- 认证状态行 ---------- */
+.sp-verify {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
   margin: var(--ys-space-2) 0 0;
-}
-.sp__saved {
+  padding: 0 var(--ys-space-1);
   font-size: var(--ys-text-sm);
   color: var(--ys-success);
 }
-.sp__upload {
-  margin-left: var(--ys-space-3);
+
+.sp-verify--warn { color: var(--ys-accent-2); }
+
+/* ---------- 兴趣 chip ---------- */
+.sp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
 }
 
-.sp__switch-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--ys-space-4);
-  padding: var(--ys-space-2) 0;
+.sp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+  padding: 0 var(--ys-space-3);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
 }
-.sp__switch-label {
-  font-size: var(--ys-text-base);
-  line-height: var(--ys-lh-base);
-  font-weight: var(--ys-weight-medium);
+
+.sp-chip--add {
+  border: 0;
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+
+.sp-chip--add:hover { background: var(--ys-border-soft); }
+
+/* ---------- 安全邮箱入口行 ---------- */
+.sp-link {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
   color: var(--ys-fg);
 }
-.sp__switch-hint {
-  margin: var(--ys-space-1) 0 0;
-  font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
-  max-width: 42ch;
+
+.sp-link:hover { background: var(--ys-surface-2); }
+
+.sp-link__ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
 }
 
-/* 外观卡:与「个人资料」卡同 .sp__card,加个标识类便于将来差异化。
-   桌面端这是深色模式的唯一入口(移动端在 Settings.vue「我的」页也有一份)。 */
-.sp__appearance { margin-top: var(--ys-space-4); }
+.sp-link__text {
+  flex: 1;
+  min-width: 0;
+}
 
-/* 桌面(≥1024px):内容列放宽。移动端完全不受影响。 */
+.sp-link__label {
+  display: block;
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+}
+
+.sp-link__desc {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+.sp-link__chev { color: var(--ys-muted); }
+
+/* ---------- 底部整宽保存 ---------- */
+.sp-savebar { padding: 0 var(--ys-space-1); }
+
+.sp-save {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.sp-save:hover { background: var(--ys-accent-hover); }
+.sp-save:disabled { opacity: 0.6; cursor: default; }
+
+/* 桌面(≥1024px):左侧 SideNav 已提供导航语境,自绘「返回 + 标题」栏多余,隐藏 */
 @media (min-width: 1024px) {
-  .sp-inner {
-    max-width: 720px;
-    padding: var(--ys-space-8) var(--ys-space-4);
-  }
-  /* 桌面左侧 SideNav 已提供导航语境,自绘「返回箭头 + 标题」栏多余且突兀,隐藏。
-     移动端保留(自绘栏是移动端唯一的顶部入口)。 */
-  .sp__bar {
-    display: none;
-  }
+  .sp__bar { display: none; }
+
+  .sp-inner { padding: var(--ys-space-6) var(--ys-space-4); }
+
+  /* 桌面不用通栏大按钮:限宽靠左,和表单左边线对齐 */
+  .sp-savebar { max-width: 280px; }
 }

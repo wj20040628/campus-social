@@ -9,7 +9,7 @@
   <article class="pc" @click="$emit('click', post)">
     <header class="pc__head">
       <span class="pc__ava" @click.stop="goAuthor">
-        <InitialAvatar :size="40" :src="post.author?.avatarUrl ? resolveUrl(post.author.avatarUrl) : ''" :seed="post.author?.id" :name="post.author ? displayName(post.author) : ''" />
+        <InitialAvatar :size="40" :src="post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : ''" :seed="post.author?.id" :name="post.author ? displayName(post.author) : ''" />
       </span>
       <span class="pc__who" @click.stop="goAuthor">
         <span class="pc__name">{{ post.author ? displayName(post.author) : '匿名' }}</span>
@@ -28,7 +28,7 @@
       </div>
       <div v-if="mediaList.length" class="pc__media" :class="'pc__media--n' + Math.min(mediaList.length, 3)">
         <template v-for="(m, i) in mediaList" :key="i">
-          <el-image v-if="m.type === 'img'" :src="resolveUrl(m.url)" :preview-src-list="imgList" :initial-index="i" fit="cover" class="pc__img" loading="lazy" @click.stop />
+          <el-image v-if="m.type === 'img'" :src="resolveThumb(m.url)" :preview-src-list="imgList" :initial-index="i" fit="cover" class="pc__img" loading="lazy" @click.stop />
           <video v-else :src="resolveUrl(m.url)" controls class="pc__video" @click.stop></video>
         </template>
       </div>
@@ -60,7 +60,7 @@ import { Star, StarFilled, ChatLineRound, View } from '@element-plus/icons-vue'
 import GreetButton from '@/components/post/GreetButton.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { like, unlike } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from '@/utils/feedback'

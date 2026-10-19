@@ -2,7 +2,7 @@
   <div class="aa">
     <!-- 顶栏:返回型由 MainLayout 提供,本页只提供右侧「新建」入口 -->
     <div class="aa__head">
-      <button type="button" class="aa__new" aria-label="新建公告" @click="goNew()">
+      <button v-if="canPublishAnnouncement" type="button" class="aa__new" aria-label="新建公告" @click="goNew()">
         <el-icon :size="18"><Plus /></el-icon>
         新建
       </button>
@@ -57,7 +57,7 @@
         variant="empty"
         title="还没有发过公告"
         description="学校有通知要发?在这里发一条,全校同学都能看到"
-        action-label="新建公告"
+        :action-label="canPublishAnnouncement ? '新建公告' : ''"
         :icon="Bell"
         @action="goNew()"
       />
@@ -131,9 +131,12 @@ import UnreadPanel from '@/components/admin/UnreadPanel.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
+import { useVerifyStatus } from '@/composables/useVerifyStatus'
 
 const router = useRouter()
 const userStore = useUserStore()
+/** §5 A3:发公告入口按 canPublishAnnouncement 隐藏(弱认证/未认证不显示「新建」) */
+const { canPublishAnnouncement, load: loadVerify } = useVerifyStatus()
 
 const all = ref([])
 const status = ref(null)
@@ -255,6 +258,7 @@ onMounted(() => {
     loading.value = false
     return
   }
+  loadVerify()
   load(true)
 })
 </script>

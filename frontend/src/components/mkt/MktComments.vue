@@ -47,7 +47,7 @@
       <div class="mkc__head">留言 {{ list.length }}</div>
       <ul class="mkc__list">
         <li v-for="c in list" :key="c.id" class="mkc__item">
-          <el-avatar :size="32" :src="resolveUrl(c.avatarUrl)" />
+          <el-avatar :size="32" :src="resolveThumb(c.avatarUrl)" />
           <div class="mkc__body">
             <p class="mkc__nick">{{ displayNameOf(c) }}</p>
             <p class="mkc__text">{{ c.content }}</p>
@@ -92,7 +92,7 @@ import { ref } from 'vue'
 import dayjs from 'dayjs'
 import { ElMessage } from '@/utils/feedback'
 import { ChatLineSquare } from '@element-plus/icons-vue'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import StateBlock from '@/components/common/StateBlock.vue'
 import MktCommentSkeleton from './MktCommentSkeleton.vue'
 

@@ -1,0 +1,118 @@
+/* 意见反馈弹层样式。弹层本体是 el-dialog(非 scoped),故 class 只作挂载锚点,
+   内部布局全部 scoped 在 .fbk 上;这里沿用 ProfileTagDialog 的做法:
+   .ptd__dialog 之类的选择器写在 scoped 里靠 Vue 的属性穿透命中弹层根节点。 */
+
+/* 弹层内让标签与分类块有呼吸空间 */
+.fbk__dialog .el-dialog__body {
+  padding-top: var(--ys-space-2);
+}
+
+/* 分类区:fieldset 默认有边框与内边距,一律清掉,
+   但保留 legend 的语义(读屏会念「遇到的是哪一类」)。 */
+.fbk__cats {
+  margin: 0 0 var(--ys-space-4);
+  padding: 0;
+  border: 0;
+}
+
+.fbk__legend {
+  padding: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: 600;
+  color: var(--ys-text);
+}
+
+/* 手机端两列(五个分类 → 2+2+1,最后一条占满),桌面端三列 */
+.fbk__catgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-2);
+}
+
+.fbk__cat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* min-height 44px 是触控下限,别为了紧凑降它 */
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fbk__cat--on {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+}
+
+.fbk__catname {
+  font-size: var(--ys-text-sm);
+  font-weight: 600;
+  color: var(--ys-text);
+}
+
+.fbk__cat--on .fbk__catname {
+  color: var(--ys-accent);
+}
+
+/* 提示文字比标题弱一档,否则五个色块全是重字,反而看不出选中哪个 */
+.fbk__cathint {
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-meta);
+}
+
+.fbk__label {
+  display: block;
+  margin-bottom: var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: 600;
+  color: var(--ys-text);
+}
+
+.fbk__attach {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-4) 0 var(--ys-space-2);
+}
+
+.fbk__label--inline {
+  margin: 0 auto 0 0;
+}
+
+.fbk__add {
+  display: grid;
+  place-items: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  color: var(--ys-muted);
+  cursor: pointer;
+}
+
+/* MediaGrid 自带 0 16px 的左右 padding,这里给的是弹层内边距,
+   会让格子比输入框窄一截。用负 margin 拉齐,视觉上是一条线。 */
+.fbk :deep(.mg) {
+  padding: 0;
+}
+
+.fbk__mediatip {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
+@media (min-width: 1024px) {
+  .fbk__catgrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

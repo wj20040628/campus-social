@@ -1,0 +1,127 @@
+/*
+  MainLayout.vue 的样式(2026-10-18 从 <style scoped> 外置):
+  该文件超 300 行门禁,挂导航抽屉前先把样式外置腾空间。
+*/
+.layout {
+  /* 移动浏览器 100vh 不含地址栏回缩高度,底部会被浏览器栏遮住。
+     dvh 是动态视口高度,随地址栏收放实时变化。vh 保留作降级。 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.layout__side {
+  display: none;
+}
+
+.col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  background: var(--ys-bg);
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  /*
+   * TabBar 是 position:fixed,内容区必须自己留出它的高度,
+   * 否则最后一条内容永远被盖住。二者只能有一处负责 —— 就是这里。
+   */
+  padding-bottom: calc(var(--ys-tabbar-h) + var(--ys-safe-bottom));
+}
+
+/* 页面自带顶栏时,内容区不加顶部内边距(顶栏由页面自己贴在最上) */
+.content--own-top {
+  padding-top: 0;
+}
+
+/* 不显示 TabBar 的页面:底部只留常规留白 + 安全区 */
+.content--no-tabbar {
+  padding-bottom: calc(var(--ys-space-4) + var(--ys-safe-bottom));
+}
+
+/* 沉浸式(会话页):输入区自己撑底,内容区不再加任何底部留白 */
+.content--immersive {
+  padding: 0;
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 键盘可达性:聚焦时显现。视觉隐藏但不能用 display:none(那样不可聚焦) */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: var(--ys-space-2);
+  z-index: var(--ys-z-toast);
+  padding: var(--ys-space-2) var(--ys-space-4);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  border-radius: var(--ys-radius-lg);
+  font-size: var(--ys-text-sm);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  left: var(--ys-space-2);
+}
+
+/*
+ * 桌面(≥1024px):显侧栏、隐 TabBar。
+ * 用 display:none 而非 visibility:hidden —— 后者仍可被 Tab 键聚焦,
+ * 会让键盘用户走到看不见的元素上(MainLayout.vue.md §5)。
+ * 侧栏 sticky,长列表滚动时导航始终可见。
+ */
+@media (min-width: 1024px) {
+  .layout__side {
+    display: flex;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .content {
+    padding: var(--ys-space-6) var(--ys-gutter-desktop) var(--ys-space-12);
+  }
+
+  .content--no-tabbar {
+    padding-bottom: var(--ys-space-12);
+  }
+}
+
+/* 路由过渡:只做 opacity + 8px 位移,不横向滑动(与浏览器返回手势冲突) */
+.ys-fade-enter-active {
+  transition: opacity var(--ys-motion-page) var(--ys-ease-in-out),
+    transform var(--ys-motion-page) var(--ys-ease-in-out);
+}
+
+.ys-fade-leave-active {
+  transition: opacity var(--ys-motion-fast) var(--ys-ease-in-out);
+}
+
+.ys-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.ys-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ys-fade-enter-active,
+  .ys-fade-leave-active {
+    transition: none;
+  }
+}

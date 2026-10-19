@@ -481,3 +481,34 @@ body {
   --el-box-shadow-lighter: var(--ys-shadow-1);
   --el-box-shadow-dark: var(--ys-shadow-2);
 }
+
+/* ======================================================================
+ * 字号缩放(通用设置「字体大小」,2026-10-18)
+ * ------------------------------------------------------------------
+ * data-font-scale 由 useFontScale.js 落到 <html>,持久化 localStorage
+ * (键 ys-font-scale),三档:standard(不落属性) / large / xlarge。
+ * 只覆盖 --ys-text-*:行高是无单位值自动跟随字号,字距同理。
+ * 特异性 (0,0,2,0) 高于基础段的 :root (0,0,1,0);dark 段不覆盖字号,
+ * 两个 attribute 同时存在时这里仍生效(属性选择器互不冲突)。
+ */
+:root[data-font-scale='large'] {
+  --ys-text-xs: 13px;
+  --ys-text-sm: 14px;
+  --ys-text-base: 15px;
+  --ys-text-md: 17px;
+  --ys-text-lg: 20px;
+  --ys-text-xl: 22px;
+  --ys-text-2xl: 26px;
+  --ys-text-3xl: 33px;
+}
+
+:root[data-font-scale='xlarge'] {
+  --ys-text-xs: 14px;
+  --ys-text-sm: 15px;
+  --ys-text-base: 16px;
+  --ys-text-md: 18px;
+  --ys-text-lg: 21px;
+  --ys-text-xl: 24px;
+  --ys-text-2xl: 28px;
+  --ys-text-3xl: 36px;
+}

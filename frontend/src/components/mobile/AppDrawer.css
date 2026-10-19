@@ -1,0 +1,176 @@
+.adrawer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ys-z-drawer, 1220);
+}
+.adrawer__mask {
+  position: absolute;
+  inset: 0;
+  background: var(--ys-overlay);
+}
+.adrawer__panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: min(300px, 84vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--ys-surface);
+  border-left: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl) 0 0 var(--ys-radius-xl);
+  box-shadow: var(--ys-shadow-2);
+  padding: var(--ys-space-4) 0 var(--ys-space-2);
+}
+.adrawer__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  padding: 0 var(--ys-space-4) var(--ys-space-4);
+  border: 0;
+  border-bottom: 1px solid var(--ys-border-soft);
+  background: none;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+  color: var(--ys-fg);
+}
+.adrawer__headtext {
+  flex: 1;
+  min-width: 0;
+}
+.adrawer__name {
+  display: block;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+.adrawer__id {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+.adrawer__nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ys-space-2) var(--ys-space-3);
+}
+.adrawer__cap {
+  padding: var(--ys-space-2) var(--ys-space-2) var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+.adrawer__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  border-radius: var(--ys-radius-lg);
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.adrawer__item:hover {
+  background: var(--ys-surface-2);
+}
+.adrawer__item--static {
+  cursor: default;
+}
+.adrawer__item--static:hover {
+  background: none;
+}
+.adrawer__item--accent {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}
+.adrawer__ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+.adrawer__ic--dark {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+}
+.adrawer__dot {
+  margin-left: auto;
+}
+.adrawer__warn {
+  margin-left: auto;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent-2);
+}
+.adrawer__foot {
+  border-top: 1px solid var(--ys-border-soft);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.adrawer__empty {
+  padding: var(--ys-space-6) var(--ys-space-4);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* 退出登录(危险项):图标块与文字都用警示色 */
+.adrawer__item--danger {
+  color: var(--ys-danger);
+}
+.adrawer__ic--danger {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+/* 过渡:遮罩淡入 + 面板右侧滑入;尊重系统的减少动态设置 */
+.adrawer-enter-active,
+.adrawer-leave-active {
+  transition: opacity var(--ys-motion-base) var(--ys-ease-out);
+}
+.adrawer-enter-active .adrawer__panel,
+.adrawer-leave-active .adrawer__panel {
+  transition: transform var(--ys-motion-base) var(--ys-ease-out);
+}
+.adrawer-enter-from,
+.adrawer-leave-to {
+  opacity: 0;
+}
+.adrawer-enter-from .adrawer__panel,
+.adrawer-leave-to .adrawer__panel {
+  transform: translateX(100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .adrawer-enter-active,
+  .adrawer-leave-active,
+  .adrawer-enter-active .adrawer__panel,
+  .adrawer-leave-active .adrawer__panel {
+    transition: none;
+  }
+}
+
+/*
+ * 桌面端(≥1024px)只做宽度/字号适配。
+ * 2026-10-18 用户要求「手机端也改成右边弹出」,右侧滑出已下沉到基础层
+ * (.adrawer__panel 基础规则 + 进出场位移),这里只保留桌面宽度,
+ * 不再重复位置与位移,避免两处规则互相覆盖。
+ */
+@media (min-width: 1024px) {
+  .adrawer__panel {
+    width: 320px;
+  }
+}

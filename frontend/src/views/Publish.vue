@@ -92,6 +92,10 @@
 
       <!-- 行 7:吸底操作栏。键盘弹起时随 --kb-h 上移 -->
       <footer class="pub__foot">
+        <!-- 视频格式提示:只在视频入口开启时显示,与后端白名单/HEVC 拦截对齐 -->
+        <p v-if="videoEnabled" class="pub__hint">
+          视频支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
+        </p>
         <el-upload
           :show-file-list="false"
           :before-upload="beforeUpload"
@@ -104,6 +108,7 @@
           </button>
         </el-upload>
         <el-upload
+          v-if="videoEnabled"
           :show-file-list="false"
           :before-upload="beforeUpload"
           :http-request="uploadFile"
@@ -142,6 +147,7 @@ import { ElMessage } from '@/utils/feedback'
 import { createPost, updatePost, detail } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
 import { useMediaUpload, parseTopics } from '@/composables/useMediaUpload'
+import { VIDEO_SUPPORTED_FORMATS, VIDEO_UNSUPPORTED_NOTE } from '@/utils/videoCodec'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { markFeedDirty } from '@/composables/useFeedRefresh'
 import StateBlock from '@/components/common/StateBlock.vue'
@@ -170,7 +176,11 @@ const editingId = ref(null)
 const {
   cells, failedCount, readyMedia,
   beforeUpload, uploadFile, retry: retryMedia, remove: removeMedia, seed, reset,
+  videoEnabled, maxVideoBytes,
 } = useMediaUpload()
+
+/** 视频单条上限(MB),供提示文案用。响应式:探测回来后随后端配置更新 */
+const maxVideoMB = computed(() => Math.round(maxVideoBytes.value / 1024 / 1024))
 
 // 键盘弹起时把 --kb-h 写到 :root,吸底栏靠 translateY 让位(ChatThread 同方案)
 useKeyboardViewport()

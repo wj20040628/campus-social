@@ -21,7 +21,7 @@
         :key="mm.user?.id"
         class="ghm__row"
       >
-        <InitialAvatar :size="40" :src="mm.user?.avatarUrl ? resolveUrl(mm.user.avatarUrl) : ''" :seed="mm.user?.id" :name="mm.user?.nickname || mm.user?.username || ''" />
+        <InitialAvatar :size="40" :src="mm.user?.avatarUrl ? resolveThumb(mm.user.avatarUrl) : ''" :seed="mm.user?.id" :name="mm.user?.nickname || mm.user?.username || ''" />
         <div class="ghm__info">
           <div class="ghm__name">
             {{ mm.user?.nickname || mm.user?.username || '成员' }}
@@ -75,7 +75,7 @@ import { useRouter } from 'vue-router'
 import { Bell } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { maskUsername } from '@/utils/mask'
 
 defineProps({

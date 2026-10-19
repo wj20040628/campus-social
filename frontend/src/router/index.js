@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import adminRoutes from './admin'
 
 /**
  * 路由表
@@ -99,15 +100,20 @@ const routes = [
         path: 'settings',
         name: 'settings',
         component: () => import('@/views/Settings.vue'),
-        meta: { requiresAuth: true, title: '我的' },
+        meta: { requiresAuth: true, title: '设置' },
       },
       {
-        // 「我的」页概览卡「编辑资料」进的独立资料页。ownTop:自绘顶栏(返回+编辑资料),
-        // 不叠全站顶栏;hideTabBar 让表单独占底部,不被 TabBar 挤高度。
-        path: 'settings/profile',
-        name: 'settingsProfile',
+        // 编辑资料独立页:/profile(不再挂在 /settings 下)。
+        // ownTop:自绘顶栏(返回+编辑资料),不叠全站顶栏;hideTabBar 让表单独占底部。
+        path: 'profile',
+        name: 'profile',
         component: () => import('@/views/SettingsProfile.vue'),
         meta: { requiresAuth: true, title: '编辑资料', back: true, hideTabBar: true, ownTop: true },
+      },
+      {
+        // 兼容旧地址:编辑资料曾挂在 /settings/profile,重定向到 /profile。
+        path: 'settings/profile',
+        redirect: '/profile',
       },
       {
         path: 'circles',
@@ -155,6 +161,14 @@ const routes = [
         meta: { requiresAuth: true, title: '找人', back: true },
       },
 
+      /* ---- 发现:按兴趣找同好 + 热门圈子(计划 §6 场景3) ---- */
+      {
+        path: 'discover',
+        name: 'discover',
+        component: () => import('@/views/Discover.vue'),
+        meta: { requiresAuth: true, title: '发现' },
+      },
+
       /* ---- 官方公告(F5) ---- */
       {
         path: 'announcement',
@@ -179,54 +193,33 @@ const routes = [
         meta: { requiresAuth: true, title: '完善资料', hideTabBar: true, ownTop: true },
       },
 
-      /* ---- 后台:手机端同样可用(OD-19) ---- */
+      /* ---- 后台:手机端同样可用(OD-19);路由块外置在 ./admin.js ---- */
+      ...adminRoutes,
+
+      /* ---- 设置二级页(2026-10-18 改版:分类首页 + 二级页) ---- */
       {
-        /*
-          学号核验审核。
-          独立页而不是 AdminReview 的第四个 Tab —— 理由写在 AdminVerify.vue
-          头部(行数门禁 + 身份处置与内容处置语义不同 + 契约分属两个 tag)。
-        */
-        path: 'admin/verify',
-        name: 'verify',
-        component: () => import('@/views/AdminVerify.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true, title: '学号核验', back: true },
+        path: 'settings/privacy',
+        name: 'settingsPrivacy',
+        component: () => import('@/views/settings/SettingsPrivacy.vue'),
+        meta: { requiresAuth: true, title: '隐私设置', back: true },
       },
       {
-        path: 'admin/review',
-        name: 'review',
-        component: () => import('@/views/AdminReview.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true, title: '内容审核', back: true },
+        path: 'settings/general',
+        name: 'settingsGeneral',
+        component: () => import('@/views/settings/SettingsGeneral.vue'),
+        meta: { requiresAuth: true, title: '通用设置', back: true },
       },
       {
-        path: 'admin/audit',
-        name: 'audit',
-        component: () => import('@/views/AdminAudit.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true, title: '操作日志', back: true },
+        path: 'settings/security',
+        name: 'settingsSecurity',
+        component: () => import('@/views/settings/SettingsSecurity.vue'),
+        meta: { requiresAuth: true, title: '账号与安全', back: true },
       },
       {
-        path: 'admin/announcement',
-        name: 'adminAnnouncement',
-        component: () => import('@/views/AdminAnnouncement.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true, title: '公告管理', back: true, hideTabBar: true },
-      },
-      {
-        /*
-          圈子官方名保护 + 管理员处置(两个 Tab:圈子处置 / 预留名)。
-          移交圈主 / 封禁圈子 / 维护 reserved_circle_name。
-        */
-        path: 'admin/circles',
-        name: 'adminCircles',
-        component: () => import('@/views/AdminCircles.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true, title: '圈子处置', back: true },
-      },
-      {
-        // 公告编辑器:全屏页面而非抽屉(标题+正文+分类+置顶,字段多抽屉装不下)。
-        // 不设 back —— 退出只能走顶栏「取消」,防止误触返回丢内容。
-        // ownTop:编辑器自带「取消 / 新建公告 / 发布」顶栏。
-        path: 'admin/announcement/edit/:id?',
-        name: 'adminAnnouncementEdit',
-        component: () => import('@/views/AdminAnnouncementEdit.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true, title: '写公告', hideTabBar: true, ownTop: true },
+        path: 'settings/about',
+        name: 'settingsAbout',
+        component: () => import('@/views/settings/SettingsAbout.vue'),
+        meta: { requiresAuth: true, title: '关于我们', back: true },
       },
     ],
   },

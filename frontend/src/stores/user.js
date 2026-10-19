@@ -32,8 +32,8 @@ export const useUserStore = defineStore('user', {
       localStorage.setItem('user_info', JSON.stringify(info))
     },
 
-    async login(username, password) {
-      const data = await request.post('/auth/login', { username, password })
+    async login(username, password, rememberMe = false) {
+      const data = await request.post('/auth/login', { username, password, rememberMe })
       this.setTokens(data)
       return data
     },
@@ -44,11 +44,25 @@ export const useUserStore = defineStore('user', {
       return data
     },
 
-    async register(username, password, studentNo, verifyCode, nickname) {
-      const data = await request.post('/auth/register', {
-        username, password, studentNo, verifyCode, nickname,
-      })
+    async register(payload) {
+      const { studentNo, password, nickname, email, identity } = payload
+      const body = { studentNo, password, nickname }
+      if (email && email.trim()) body.email = email.trim()
+      if (identity) {
+        body.schoolId = identity.schoolId
+        body.deptId = identity.deptId
+        body.gradeId = identity.gradeId
+        body.majorId = identity.majorId
+      }
+      const data = await request.post('/auth/register', body)
       this.setTokens(data)
+      return data
+    },
+
+    async bindEmail(email, code) {
+      const data = await request.post('/user/bind-email', { email, code })
+      // 绑定后刷新 userInfo(含 emailBound / 脱敏 email)
+      this.setUserInfo(data)
       return data
     },
 

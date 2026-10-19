@@ -1,0 +1,153 @@
+/*
+  TopBar.vue 的样式(2026-10-18 从 <style scoped> 外置):
+  该文件贴着 300 行门禁,本批要加汉堡按钮与下拉项,样式先行外置腾空间。
+*/
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--ys-z-sticky);
+  height: var(--ys-topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  padding: 0 var(--ys-space-4);
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border);
+  transition: box-shadow var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.topbar__left,
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-width: 0;
+}
+
+.topbar__brand {
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  letter-spacing: var(--ys-ls-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  padding-left: var(--ys-space-2);
+}
+
+.topbar__title {
+  margin: 0;
+  /* 1 行截断:标题再长也不能把右侧图标挤出屏幕 */
+  max-width: 52vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  letter-spacing: var(--ys-ls-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.topbar__icon-btn {
+  position: relative;
+  /* 热区 44x44,AC-15 硬要求 */
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ys-fg-2);
+  border-radius: var(--ys-radius-lg);
+  cursor: pointer;
+  /* 禁止 outline:none,焦点环由全局 :focus-visible 提供 */
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out),
+    opacity var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.topbar__icon-btn:hover {
+  background: var(--ys-surface-2);
+}
+
+.topbar__icon-btn:active {
+  opacity: 0.7;
+}
+
+.topbar__avatar-wrap {
+  display: none;
+}
+
+.topbar__avatar-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-1);
+  border: none;
+  background: transparent;
+  border-radius: var(--ys-radius-lg);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.topbar__avatar-trigger:hover {
+  background: var(--ys-surface-2);
+}
+
+.topbar__avatar-fallback {
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-sm);
+}
+
+.topbar__caret {
+  font-size: 12px;
+  color: var(--ys-muted);
+}
+
+/*
+ * 手机端隐藏发布按钮(TabBar 已有),头像也隐藏(在「我的」里)。
+ * 桌面端(≥1024px)把发布按钮放回右端、显示头像下拉,隐藏汉堡。
+ * 断点用字面量:本项目无 postcss-custom-media,`@media (--ys-bp-lg)` 会被
+ * 浏览器静默丢弃。值 1024 = design-tokens.json 的 breakpoint.lg。
+ */
+@media (max-width: 1023px) {
+  .topbar__publish {
+    display: none;
+  }
+
+  /* 「找人」只留桌面:移动端 feed 已有搜索框、/search 是主入口,顶栏右侧只留铃铛 */
+  .topbar__search {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .topbar {
+    padding: 0 var(--ys-gutter-desktop);
+  }
+
+  .topbar__brand {
+    display: none;
+  }
+
+  .topbar__publish {
+    display: grid;
+    background: var(--ys-accent);
+    color: var(--ys-accent-on);
+    /* 原为彩色发光 0 4px 12px rgba(64,158,255,.35),命中红线;改用 --ys-shadow-2 */
+    box-shadow: var(--ys-shadow-2);
+  }
+
+  .topbar__publish:hover {
+    background: var(--ys-accent-hover);
+  }
+
+  .topbar__avatar-wrap {
+    display: block;
+  }
+
+  /* 汉堡只属于手机端:桌面有常驻 SideNav,再给一个抽屉入口是冗余 */
+  .topbar__menu {
+    display: none;
+  }
+}

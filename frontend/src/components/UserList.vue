@@ -1,7 +1,7 @@
 <template>
   <div class="user-list">
     <div v-for="u in list" :key="u.id" class="user-row" @click.stop="go(u)">
-      <el-avatar :size="40" :src="resolveUrl(u.avatarUrl)" />
+      <el-avatar :size="40" :src="resolveThumb(u.avatarUrl)" />
       <div class="u-info">
         <div class="u-name">{{ nick(u) }}</div>
         <div class="u-sub">{{ mask(u) }}<template v-if="u.dept"> · {{ u.dept }}</template></div>
@@ -32,7 +32,7 @@
 import { useRouter } from 'vue-router'
 import { User } from '@element-plus/icons-vue'
 import { maskUsername, displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import StateBlock from '@/components/common/StateBlock.vue'
 
 const router = useRouter()

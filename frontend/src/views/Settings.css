@@ -1,204 +1,211 @@
 /*
-  Settings.vue 的样式,2026-10-15 从 <style scoped> 外置(与 Circles.css /
-  Home.css 同一模式)。选择器与规则原样搬迁,未改一个值。
-  外置原因:Settings.vue 471 行超 300 行门禁;弹层逻辑拆去
-  composables/useSettings.js 后,本文件回到 ~250 行。
+  Settings.vue 的样式(设置页)。
+  本页只承载「设置项」,不含主页概览 / 帖子列表 / 粉丝关注(那些在 Profile.vue)。
+  设计令牌全部复用 design-tokens.css 的 --ys-* 变量,不引入新色板。
+
+  2026-10-18 改版:五张平铺小卡收成三张分组卡(快手式),每行左侧加图标块;
+  卡片圆角从 el-card 默认的 8px 统一到站内正式卡片的 --ys-radius-xl(16px)。
 */
 
 .settings-inner {
   max-width: 640px;
   margin: 0 auto;
   padding: var(--ys-gutter-desktop);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
 }
 
-/* 账号概览卡:头像 + 昵称/username + 入口(编辑资料/退出登录) */
-.settings__overview {
-  margin-bottom: var(--ys-space-4);
+/* 分组卡:一张卡包多个设置行,行间用内部分隔线(替代原来一卡一行) */
+.settings__group {
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
 }
-.settings__overview :deep(.el-card__body) {
+.settings__group :deep(.el-card__body) {
+  padding: 0;
+}
+
+/* 个人卡(分类首页顶部):整行点击进编辑资料 */
+.mecard {
   display: flex;
   align-items: center;
   gap: var(--ys-space-3);
-}
-.ov__avatar { flex: none; }
-.ov__id {
-  flex: 1;
-  min-width: 0;
-  padding: 4px 0;
-}
-.ov__name {
-  font-size: var(--ys-text-lg);
-  font-weight: var(--ys-weight-semibold);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-surface);
+  box-shadow: var(--ys-shadow-1);
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
   color: var(--ys-fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
-.ov__sub {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.mecard:hover {
+  background: var(--ys-surface-2);
 }
-/* 右上角「⋯」触发器:el-dropdown 是 el-card 内的 flex 子项,flex:none 保持 44×44 */
-.ov__more { flex: none; }
-.ov__more-btn {
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
+.mecard__ava {
+  flex: none;
   display: grid;
   place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-medium);
+}
+.mecard__text {
+  flex: 1;
+  min-width: 0;
+}
+.mecard__name {
+  display: block;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+.mecard__id {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+.mecard__chev {
+  flex: none;
+  color: var(--ys-muted);
+}
+
+/* 设置行容器 */
+.set-row {
+  display: flex;
+  align-items: center;
+}
+.set-row + .set-row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+/* 可点整行的按钮(管理 / 审核记录 / 退出):铺满卡片,图标 + 文 + 箭头 */
+.set-row__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-3) var(--ys-space-4);
   border: none;
   background: transparent;
-  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+  color: var(--ys-fg);
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.set-row--link:hover .set-row__btn,
+.set-row--danger:hover .set-row__btn {
+  background: var(--ys-surface-2);
+}
+
+/* 开关行:文字在左,开关在右(整行不可点,交互交给开关) */
+.set-row__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-3) var(--ys-space-4);
+}
+.set-row__switch .el-switch {
+  flex: none;
+}
+
+/* 图标块:34px 圆角方,浅底 accent 色;危险行用 danger 浅底 */
+.set-row__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
   border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+.set-row--danger .set-row__icon {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.set-row__text {
+  flex: 1;
+  min-width: 0;
+}
+.set-row__label {
+  display: block;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+.set-row--danger .set-row__label {
+  color: var(--ys-danger);
+}
+.set-row__desc {
+  display: block;
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+.set-row__chevron {
+  flex: none;
+  color: var(--ys-muted);
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+}
+.set-row--link:hover .set-row__chevron {
+  transform: translateX(2px);
+}
+
+/*
+ * 操作表层按钮:.asheet__item 在 ActionSheet.vue 的 scoped 样式无法穿透到
+ * 父组件(Settings.vue)的插槽内容,这里在本页 scoped 内补一份,
+ * 保证「管理后台」各按钮有样式(与 ActionSheet 内定义同源)。
+ */
+.asheet__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border: none;
+  background: transparent;
+  font-size: var(--ys-text-base);
+  font-family: var(--ys-font-body);
+  color: var(--ys-fg);
+  text-align: left;
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
-.ov__more-btn:hover { background: var(--ys-surface-2); }
+.asheet__item:hover {
+  background: var(--ys-surface-2);
+}
+.asheet__item--danger {
+  color: var(--ys-accent-2);
+}
 
-/* el-dropdown 弹层挂在 body 上,scoped 选择器够不到;:deep 仅命中组件内触发器 */
-.ov__logout { color: var(--ys-accent-2); }
-/* 退出登录图标前缀:与文字同色,把危险项跟上面两个纯文字项拉开 */
-.ov__logout-icon { color: var(--ys-accent-2); margin-right: var(--ys-space-1); }
-
-/* 审核记录弹层空态 */
-.ov__review {
+/* 审核记录弹层空态 / 加载态 */
+.review-empty {
   padding: var(--ys-space-6) var(--ys-space-4);
   text-align: center;
   font-size: var(--ys-text-sm);
   color: var(--ys-muted);
 }
 
-/* 管理员入口卡 */
-.settings__admin {
-  margin-bottom: var(--ys-space-4);
-}
-.settings__admin :deep(.el-card__body) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ys-space-3);
-}
-.ad__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ys-space-1);
-  min-width: 0;
-}
-.ad__label {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
-.ad__sub {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ad__btn {
-  flex: none;
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-4);
-  border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
-  cursor: pointer;
-}
-.ad__btn:hover { background: var(--ys-accent-hover); }
-
-/* 粉丝 / 关注 / 帖子 计数卡 */
-.settings__relations {
-  margin-bottom: var(--ys-space-4);
-}
-.settings__relations :deep(.el-card__body) {
-  display: flex;
-}
-.rel {
-  display: flex;
-  width: 100%;
-}
-.rel__item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--ys-space-1);
-  min-height: var(--ys-touch-min);
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-.rel__item:hover { background: var(--ys-surface-2); }
-.rel__item:disabled { cursor: default; opacity: 0.6; }
-.rel__num {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  font-family: var(--ys-font-body);
-  color: var(--ys-fg-2);
-}
-.rel__label {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-}
-
-/* 帖子列表 */
-.settings__posts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ys-space-3);
-}
-
-/* 外观卡:深色模式开关。文字在左,开关在右(整行可点由 el-switch 自身承载) */
-.settings__appearance {
-  margin-bottom: var(--ys-space-4);
-}
-.settings__appearance :deep(.el-card__body) {
-  display: flex;
-  align-items: center;
-}
-.ap__row {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  width: 100%;
-}
-.ap__text {
-  flex: 1;
-  min-width: 0;
-}
-.ap__label {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg);
-}
-.ap__desc {
-  margin-top: 2px;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-muted);
-}
-
-/*
- * 桌面端(≥1024px)观感收紧:
- * - 内容列加宽到 720px,设置项不再飘在 640px 窄缝中间
- * - 三数字卡数字放大一档,桌面下视觉更扎实
- * - 卡片间距略收,避免长列表下间距过松
- */
+/* 桌面端(≥1024px)观感收紧:内容列加宽,间距略收 */
 @media (min-width: 1024px) {
   .settings-inner {
     max-width: 720px;
-  }
-  .settings__overview {
-    margin-bottom: var(--ys-space-5);
-  }
-  .rel__num {
-    font-size: var(--ys-text-lg);
-    font-weight: var(--ys-weight-semibold);
   }
 }

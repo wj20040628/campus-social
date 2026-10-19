@@ -45,6 +45,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { House, ChatDotSquare, Shop, ChatDotRound, User } from '@element-plus/icons-vue'
 import UnreadDot from './UnreadDot.vue'
 import SafeArea from './SafeArea.vue'
+import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
   /**
@@ -55,14 +56,22 @@ const props = defineProps({
 })
 
 const route = useRoute()
+const userStore = useUserStore()
 
-const items = computed(() => [
-  { path: '/', label: '首页', icon: House, ariaLabel: '首页', badge: 0 },
-  { path: '/circles', label: '圈子', icon: ChatDotSquare, ariaLabel: '圈子列表', badge: 0 },
-  { path: '/mkt', label: '集市', icon: Shop, ariaLabel: '集市活动广场', badge: 0 },
-  { path: '/chat', label: '消息', icon: ChatDotRound, ariaLabel: '消息与纸条', badge: props.paperCount },
-  { path: '/settings', label: '我的', icon: User, ariaLabel: '我的主页与设置', badge: 0 },
-])
+const items = computed(() => {
+  // 「我的」跳转个人主页 /user/:id。userInfo 是异步 fetchMe 的,未就绪时
+  // id 为空 —— 此时给兜底 /settings,避免渲染出 /user/undefined 触发白屏
+  // (TopBar.vue:141-146 已踩过这个 <Transition> patch parentNode 为 null 的坑)。
+  // userInfo 就绪后 computed 自动重算,path 纠正为真实 /user/{id},无需手动刷新。
+  const meId = userStore.userInfo?.id
+  return [
+    { path: '/', label: '首页', icon: House, ariaLabel: '首页', badge: 0 },
+    { path: '/circles', label: '圈子', icon: ChatDotSquare, ariaLabel: '圈子列表', badge: 0 },
+    { path: '/mkt', label: '集市', icon: Shop, ariaLabel: '集市活动广场', badge: 0 },
+    { path: '/chat', label: '消息', icon: ChatDotRound, ariaLabel: '消息与纸条', badge: props.paperCount },
+    { path: meId ? `/user/${meId}` : '/settings', label: '我的', icon: User, ariaLabel: '我的主页', badge: 0 },
+  ]
+})
 
 /**
  * 选中判定用 startsWith 而非全等,理由:

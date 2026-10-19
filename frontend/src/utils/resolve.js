@@ -6,4 +6,17 @@ export function resolveUrl(url) {
   return window.location.origin + url
 }
 
-export default { resolveUrl }
+/**
+ * 缩略图 URL(降本⑦):列表 / 头像等小图展示走 OSS 实时缩略图(?t=1),省下行流量。
+ *
+ * 只对本地 /uploads/ 路径生效 —— MediaController 收到 ?t=1 优先用已存的 _t 实体,
+ * 没有则 x-oss-process 实时出 480px 缩略图(花图片处理费);本地 dev 无处理能力时优雅回退主图。
+ * 外部 http 图(如 OAuth 头像)、视频不动:视频不走 image/resize,?t=1 会失效。
+ */
+export function resolveThumb(url) {
+  if (!url) return ''
+  if (url.startsWith('/uploads/')) return resolveUrl(url + '?t=1')
+  return resolveUrl(url)
+}
+
+export default { resolveUrl, resolveThumb }

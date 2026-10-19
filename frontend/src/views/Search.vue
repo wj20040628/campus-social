@@ -44,7 +44,7 @@
 
           <div v-else-if="tab === 'users'" class="res-list">
             <div v-for="u in results.users || []" :key="u.id" class="user-item" @click="router.push(`/user/${u.id}`)">
-              <InitialAvatar class="u-avatar" :size="44" :src="u.avatarUrl ? resolveUrl(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+              <InitialAvatar class="u-avatar" :size="44" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
               <div class="u-info">
                 <div class="u-name">{{ displayName(u) }}</div>
                 <div class="u-sub">{{ maskUsername(u?.username) }}</div>
@@ -55,7 +55,7 @@
 
           <div v-else-if="tab === 'circles'" class="res-list">
             <div v-for="c in results.circles || []" :key="c.id" class="user-item" @click="router.push(`/circles/${c.id}`)">
-              <InitialAvatar class="u-avatar c-avatar" :size="44" :src="c.avatarUrl ? resolveUrl(c.avatarUrl) : ''" :seed="c.id" :name="c.name || ''" />
+              <InitialAvatar class="u-avatar c-avatar" :size="44" :src="c.avatarUrl ? resolveThumb(c.avatarUrl) : ''" :seed="c.id" :name="c.name || ''" />
               <div class="u-info">
                 <div class="u-name">{{ c.name }}</div>
                 <div class="u-sub">{{ c.memberCount || 0 }} 成员</div>
@@ -87,7 +87,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search as searchApi } from '@/api/circle'
 import { maskUsername, displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'

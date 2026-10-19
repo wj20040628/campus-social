@@ -1,0 +1,196 @@
+/*
+  设置二级页共享样式(SettingsPrivacy / SettingsGeneral / SettingsSecurity / About)。
+  行结构复用 Settings.css 的 set-row 体系?不行 —— 那是 Settings.vue 的 scoped 样式,
+  四个二级页各自 scoped 引用本文件。类名 srow 体系与预览稿一致。
+  设计令牌全部复用 design-tokens.css 的 --ys-* 变量。
+*/
+
+.sub-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--ys-space-4) var(--ys-gutter-desktop);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
+}
+
+/* 分组卡 */
+.sgroup {
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
+  padding: 0;
+}
+.sgroup :deep(.el-card__body) {
+  padding: 0;
+}
+
+/* 设置行 */
+.srow {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border: 0;
+  background: transparent;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  color: var(--ys-fg);
+}
+.srow + .srow {
+  border-top: 1px solid var(--ys-border-soft);
+}
+button.srow {
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+button.srow:hover {
+  background: var(--ys-surface-2);
+}
+.srow--static {
+  cursor: default;
+}
+
+/* 图标块 */
+.sicon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+.sicon--danger {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.stext {
+  flex: 1;
+  min-width: 0;
+}
+.slabel {
+  display: block;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+.slabel--danger {
+  color: var(--ys-danger);
+}
+.sdesc {
+  display: block;
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+.schev {
+  flex: none;
+  color: var(--ys-muted);
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+}
+button.srow:hover .schev {
+  transform: translateX(2px);
+}
+
+/* 字体大小三档 */
+.fseg {
+  display: flex;
+  gap: var(--ys-space-2);
+  padding: 0 var(--ys-space-4) var(--ys-space-4);
+}
+.fopt {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-sm);
+  font-family: var(--ys-font-body);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.fopt.on {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}
+
+/* 关于我们:品牌块 */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--ys-space-6) var(--ys-space-4) var(--ys-space-3);
+}
+.brand__logo {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-size: var(--ys-text-2xl);
+  font-weight: var(--ys-weight-medium);
+}
+.brand__name {
+  margin-top: var(--ys-space-2);
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-medium);
+}
+.brand__ver {
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+.slogan {
+  margin: 0;
+  padding: 0 var(--ys-space-4) var(--ys-space-4);
+  text-align: center;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
+/* ---- 隐私设置:黑名单行(2026-10-18 从 Privacy 内联块并入,消除混合 style) ---- */
+.bempty {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4) var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.bava {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent-2-soft);
+  color: var(--ys-accent-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+}
+
+.bbtn {
+  flex: none;
+  min-height: 32px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-xs);
+  font-family: var(--ys-font-body);
+  cursor: pointer;
+}

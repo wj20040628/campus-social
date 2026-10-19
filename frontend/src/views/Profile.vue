@@ -17,24 +17,21 @@
         @action="router.push('/')"
       />
 
-      <!-- 加载骨架。形状对齐真实内容:身份头(圆 + 三行条)+ 三统计(设计 §3) -->
+      <!-- 加载骨架。形状对齐真实内容:装饰带+头像行+三统计(设计 §3) -->
       <div v-else-if="!user" class="profile-skeleton" aria-hidden="true">
+        <div class="p-cover"></div>
         <SkeletonList variant="audit" :count="1" />
-        <div class="profile-skeleton__stats">
-          <SkeletonList variant="panel" :count="3" />
-        </div>
       </div>
 
       <el-card v-else class="profile-card">
         <!--
-          封面横幅:移动端隐藏(设计 §1.1)。
-          它在本项目里是一个纯灰空块,不承载信息,在 375px 下吃掉 80-120px 首屏高度,
-          把真正重要的身份信息推到折叠线以下。桌面端恢复 —— 桌面上横幅不占首屏成本,
-          且它是个人主页的身份感来源。
+          装饰带:移动端也显示(72px)。旧版隐藏是因为它是纯灰空块不承载信息;
+          现在它是品牌色 + 头像的叠放锚点(小红书式),72px 不吃首屏。
+          桌面端 140px(身份感来源)。
         -->
         <div class="p-cover"></div>
 
-        <!-- 身份头(设计 §1.1 的核心改造)独立成组件 -->
+        <!-- 身份头(hero 化):头像叠装饰带,操作按钮独立成行 -->
         <ProfileHead
           :user="user"
           :identity="identity"
@@ -47,6 +44,7 @@
           :avatar-size="avatarSize"
           @follow="toggleFollowAndCount"
           @chat="onChatClick"
+          @edit="goEditProfile"
           @settings="goSettings"
           @report="onReportClick"
         />
@@ -60,84 +58,83 @@
         <!-- 认证状态提示条(仅本人主页)。组件内部自行判断要不要渲染 -->
         <VerifyNotice v-if="isMe" />
 
+        <!-- 兴趣标签:自包含组件,自己拉数据(2026-10-18 从本页抽出) -->
+        <ProfileTags :target-id="targetId" :is-me="isMe" />
+
+        <!-- 三统计:粉丝/关注可点跳 Tab(2026-10-18 抽成组件) -->
+        <ProfileStats :user="user" @switch="switchTab" />
+
         <!--
-          三统计:栅格一律 CSS Grid(设计 §1.2)。
-          可点项是<button>、不可点的「动态」是 <div>(设计 §5)——
-          用同一个元素靠 class 区分会让读屏器把「动态」也念成可点的。
+          分段 tab 条(2026-10-18 替代 el-tabs):小红书式贴边框 + 底部短横线。
+          粉丝/关注列表已进主页预拉(loadFollowers / loadFollowing),
+          v-show 切换无请求竞态。
         -->
-        <div class="p-stats">
+        <div class="p-tabbar" role="tablist" aria-label="内容分区">
           <button
-            v-for="s in clickableStats"
-            :key="s.label"
+            v-for="t in TABS"
+            :key="t.name"
             type="button"
-            class="p-stat p-stat--btn"
-            @click="switchTab(s.tab)"
+            role="tab"
+            class="p-tabbar__item"
+            :class="{ 'p-tabbar__item--on': tab === t.name }"
+            :aria-selected="tab === t.name"
+            @click="switchTab(t.name)"
           >
-            <span class="p-stat__num">{{ cap(s.value) }}</span>
-            <span class="p-stat__label">{{ s.label }}</span>
+            {{ t.label }}
           </button>
-          <div class="p-stat">
-            <span class="p-stat__num">{{ cap(user?.postCount ?? 0) }}</span>
-            <span class="p-stat__label">动态</span>
-          </div>
         </div>
 
-        <el-tabs v-model="tab" @tab-change="onTabChange">
-          <el-tab-pane label="动态" name="posts">
-            <!-- 作者侧:我的审核结果(被驳理由/命中词/AI 预判),仅本人主页显示 -->
-            <MyReviewBlock v-if="isMe" :list="myReviews" />
-
-            <!-- 动态列表拉失败:只换内容区,身份头与统计仍可用(设计 §3) -->
+        <!-- 动态:列表拉失败只换内容区,身份头与统计仍可用(设计 §3);
+             p-pane--posts 供桌面双列瀑布流定位(Profile.css) -->
+        <div v-show="tab === 'posts'" class="p-pane p-pane--posts">
+          <StateBlock
+            v-if="postsFailed"
+            variant="error"
+            title="动态没拉出来"
+            description="网络好像断了，再试一次"
+            action-label="重试"
+            :icon="WarningFilled"
+            @action="loadPosts"
+          />
+          <template v-else>
+            <PostCard v-for="p in posts" :key="p.id" :post="p" @click="goDetail(p.id)" />
+            <!--AC-19:空态出口按「我的主页 / 看别人」分开 ——
+            看别人的主页时让他去发帖子是没意义的,该引导去关注或回广场。-->
             <StateBlock
-              v-if="postsFailed"
-              variant="error"
-              title="动态没拉出来"
-              description="网络好像断了，再试一次"
-              action-label="重试"
-              :icon="WarningFilled"
-              @action="loadPosts"
+              v-if="posts.length === 0"
+              variant="empty"
+              :title="isMe ? '你还没发过动态' : 'TA 还没发过动态'"
+              :description="isMe ? '发一条，同校的同学就能看到你' : '关注 TA，发新动态时你会收到提醒'"
+              :action-label="isMe ? '发一条' : '回圈子广场'"
+              :icon="ChatLineSquare"
+              @action="isMe ? router.push('/publish') : router.push('/circles')"
             />
-            <template v-else>
-              <PostCard v-for="p in posts" :key="p.id" :post="p" @click="goDetail(p.id)" />
-              <!--AC-19:空态出口按「我的主页 / 看别人」分开 ——
-              看别人的主页时让他去发帖子是没意义的,该引导去关注或回广场。-->
-              <StateBlock
-                v-if="posts.length === 0"
-                variant="empty"
-                :title="isMe ? '你还没发过动态' : 'TA 还没发过动态'"
-                :description="isMe ? '发一条，同校的同学就能看到你' : '关注 TA，发新动态时你会收到提醒'"
-                :action-label="isMe ? '发一条' : '回圈子广场'"
-                :icon="ChatLineSquare"
-                @action="isMe ? router.push('/publish') : router.push('/circles')"
-              />
-            </template>
-          </el-tab-pane>
-          <!--
-            空态三条各给一个出口(设计 §3)。原实现三条 el-empty 全无按钮,违反 AC-19。
-            文案也按设计改:粉丝空要说「多发几条，就有人来了」而不是「会出现在这儿」——
-            后者只是描述现象,前者给行动。
-          -->
-          <el-tab-pane label="粉丝" name="followers">
-            <UserList
-              :list="followers"
-              :loading="loadingFollowers"
-              empty-title="还没有人关注 TA"
-              empty-desc="多发几条，就有人来了"
-              empty-action="回首页"
-              @empty-action="router.push('/')"
-            />
-          </el-tab-pane>
-          <el-tab-pane label="关注" name="following">
-            <UserList
-              :list="following"
-              :loading="loadingFollowing"
-              empty-title="TA 还没关注任何人"
-              empty-desc="去圈子里看看大家都在聊什么"
-              empty-action="去逛逛"
-              @empty-action="router.push('/circles')"
-            />
-          </el-tab-pane>
-        </el-tabs>
+          </template>
+        </div>
+        <!--
+          空态三条各给一个出口(设计 §3,原三条 el-empty 全无按钮违反 AC-19);
+          粉丝空态文案说「多发几条，就有人来了」,给行动而不是描述现象。
+        -->
+        <div v-show="tab === 'followers'" class="p-pane">
+          <UserList
+            :list="followers"
+            :loading="loadingFollowers"
+            empty-title="还没有人关注 TA"
+            empty-desc="多发几条，就有人来了"
+            empty-action="回首页"
+            @empty-action="router.push('/')"
+          />
+        </div>
+        <div v-show="tab === 'following'" class="p-pane">
+          <UserList
+            :list="following"
+            :loading="loadingFollowing"
+            empty-title="TA 还没关注任何人"
+            empty-desc="去圈子里看看大家都在聊什么"
+            empty-action="去逛逛"
+            @empty-action="router.push('/circles')"
+          />
+        </div>
       </el-card>
     </div>
 
@@ -164,18 +161,20 @@
 <script setup>
 /**
  * 个人主页(Profile.vue.md)
- * 数据与副作用在 useProfileData / useProfileRelations 里,
- * 本页只做身份头与三个 Tab 的编排。
+ * 数据与副作用在 useProfileData / useProfileRelations 里,本页只做编排。
+ * 2026-10-18 改版:兴趣标签(ProfileTags)与三统计(ProfileStats)拆成组件、
+ * el-tabs 换分段 tab 条 —— 原 326 行超门禁,拆完回到 300 内。
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ChatLineSquare, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
-import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
 import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import ProfileHead from '@/components/profile/ProfileHead.vue'
+import ProfileTags from '@/components/profile/ProfileTags.vue'
+import ProfileStats from '@/components/profile/ProfileStats.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 import { useProfileData } from '@/composables/useProfileData'
 import { useProfileRelations } from '@/composables/useProfileRelations'
@@ -185,10 +184,16 @@ import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { submitReport } from '@/api/review'
-import { capCount as cap } from '@/composables/usePostDetail'
 import { displayName } from '@/utils/mask'
 import PostCard from '@/components/PostCard.vue'
 import UserList from '@/components/UserList.vue'
+
+/** 分段 tab 三项:动态 / 粉丝 / 关注(name 与旧 el-tabs 一致) */
+const TABS = [
+  { name: 'posts', label: '动态' },
+  { name: 'followers', label: '粉丝' },
+  { name: 'following', label: '关注' },
+]
 
 const route = useRoute()
 const router = useRouter()
@@ -201,15 +206,14 @@ const myId = computed(() => userStore.userInfo?.id)
 const isMe = computed(() => !!myId.value && myId.value === targetId.value)
 
 const {
-  user, posts, myReviews, loadFailed, postsFailed,
+  user, posts, loadFailed, postsFailed,
   load, loadPosts, identity, identityLine, verified,
 } = useProfileData(targetId, myId, dict)
 
 /*
-  关注关系 + 粉丝/关注列表:状态与副作用都在 composable 里。
+  关注关系 + 粉丝/关注列表:状态与副作用都在 composable 里,
   切人时的重置由 composable 内部的 watch 负责,这里不重复做。
-*/
-const {
+*/const {
   relStatus, followLoading, followers, following,
   loadingFollowers, loadingFollowing,
   loadRelation, toggleFollow, onTabChange,
@@ -225,15 +229,9 @@ const { load: loadVerifyStatus } = useVerifyStatus()
 
 /**
  * el-avatar 的 :size 是属性,媒体查询改不动(设计 §7)。
- * 移动端 56 / 桌面端 72,必须走 computed 而不是写死 :size="72"。
+ * 移动端 64 / 桌面端 84,必须走 computed 而不是写死。
  */
-const avatarSize = computed(() => (isMobile.value ? 56 : 72))
-
-/** 粉丝 / 关注两项可点(跳对应 Tab),「动态」不可点(数字来源是当前已加载的列表) */
-const clickableStats = computed(() => [
-  { label: '粉丝', value: user.value?.followerCount ?? 0, tab: 'followers' },
-  { label: '关注', value: user.value?.followingCount ?? 0, tab: 'following' },
-])
+const avatarSize = computed(() => (isMobile.value ? 64 : 84))
 
 /*
   关系动作(关注带计数联动 / 解除拉黑 / 发私信):
@@ -246,16 +244,22 @@ const { toggleFollowAndCount, unblock, onChatClick } = useProfileActions({
 
 function goVerify() {
   verifyOpen.value = false
-  router.push('/settings')
+  // 认证是提交学号,学号字段在编辑资料页 /profile
+  router.push('/profile')
 }
 
 function goDetail(id) {
   router.push(`/post/${id}`)
 }
 
+/** 「编辑资料」按钮:进独立编辑资料页 /profile(桌面 / 手机一致) */
+function goEditProfile() {
+  router.push('/profile')
+}
+
+/** 设置齿轮:进设置页 /settings */
 function goSettings() {
-  // 桌面:直接进编辑资料页;移动:跳「我的」概览(保持现状,链路里那个下拉项才进编辑页)
-  router.push(isMobile.value ? '/settings' : '/settings/profile')
+  router.push('/settings')
 }
 
 /** 点「举报」打开举报操作表(目标类型 1=用户) */
@@ -264,7 +268,8 @@ function onReportClick() {
 }
 
 /**
- * 点数字切 Tab:数字改动不触发 el-tabs 的 @tab-change,得手动改 tab.value 再补拉列表。
+ * 点数字/tab 切换:自定义 tab 没有 el-tabs 的 @tab-change,
+ * 手动改 tab.value 再补拉列表。
  */
 function switchTab(name) {
   tab.value = name

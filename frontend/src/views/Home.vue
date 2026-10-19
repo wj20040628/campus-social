@@ -114,6 +114,36 @@
      </div>
      <HomeAside v-if="isWide" :posts="posts" class="home-aside" />
     </div>
+
+    <!--
+      移动端浮动发帖按钮:
+      - 中位 TabBar 被「集市」占据,原本「发布」入口让位给一级导航,
+        但发帖是高频动作,完全失去入口会让用户找不到发东西的地方
+      - 56×56 圆形,默认落点:右下角(距底 88px 避开 TabBar 56px + 安全区,
+        距右 16px 留手侧空间);可拖拽,松手后吸附到最近屏幕边缘
+      - 位置持久化 localStorage,freshHome=true 时(KeepAlive 回来)保留位置
+      - 桌面端隐藏(顶栏已有「+」)
+    -->
+    <button
+      v-if="isMobile"
+      ref="fabEl"
+      type="button"
+      class="home-fab"
+      :class="{ 'is-dragging': fab.dragging }"
+      :style="{ left: fab.x + 'px', bottom: fab.y + 'px' }"
+      :aria-label="'去发布'"
+      @touchstart="handlers.onTouchStart"
+      @touchmove="handlers.onTouchMove"
+      @touchend="handlers.onTouchEnd"
+      @click="handlers.onClick"
+      @pointerdown="handlers.onPointerDown"
+      @pointermove="handlers.onPointerMove"
+      @pointerup="handlers.onPointerUp"
+    >
+      <el-icon :size="24"><Plus /></el-icon>
+      <!-- 拖拽提示:按钮下方淡字,只在拖动中显示,避免误触 -->
+      <span v-if="fab.dragging" class="home-fab__hint">拖动</span>
+    </button>
   </div>
 </template>
 
@@ -135,9 +165,10 @@ import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import HomeAside from '@/components/HomeAside.vue'
-import { ChatLineSquare, Promotion, CaretRight } from '@element-plus/icons-vue'
+import { ChatLineSquare, Promotion, CaretRight, Plus } from '@element-plus/icons-vue'
 import { useBreakpoint, BREAKPOINTS } from '@/composables/useBreakpoint'
 import { useHomeFeed } from '@/composables/useHomeFeed'
+import { useDraggableFab } from '@/composables/useDraggableFab'
 
 const router = useRouter()
 
@@ -153,6 +184,9 @@ const {
   tab, posts, loading, hasMore, searchQ, sortMode, sentinelEl, feedBarHidden,
   setSort, doSearch, goFollow,
 } = useHomeFeed(isMobile)
+
+// 移动端浮动发帖按钮:可拖拽 + 边缘吸附 + 位置持久化(见 useDraggableFab)
+const { fabEl, fab, handlers } = useDraggableFab()
 
 function goDetail(id) {
   router.push(`/post/${id}`)

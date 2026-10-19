@@ -30,7 +30,7 @@
       <ul v-if="mentionList.length" class="cc__mention-strip">
         <li v-for="u in mentionList" :key="u.id">
           <button type="button" class="cc__mention-cell" @mousedown.prevent="pick(u)">
-            <InitialAvatar :size="40" :src="u.avatarUrl ? resolveUrl(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+            <InitialAvatar :size="40" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
             <span class="cc__mention-name">{{ displayName(u) }}</span>
           </button>
         </li>
@@ -93,7 +93,7 @@ import { Close } from '@element-plus/icons-vue'
 import { useMention } from '@/composables/useMention'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 
 const MAX_LEN = 2000

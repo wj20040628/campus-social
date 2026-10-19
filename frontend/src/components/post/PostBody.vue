@@ -13,7 +13,7 @@
   <div class="post-body">
     <!-- 行 2:作者行。头像走统一的 InitialAvatar(没图时彩色首字母圆) -->
     <div class="author">
-      <InitialAvatar :size="44" :src="post.author?.avatarUrl ? resolveUrl(post.author.avatarUrl) : ''" :seed="post.author?.id" :name="post.author ? displayName(post.author) : ''" />
+      <InitialAvatar :size="44" :src="post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : ''" :seed="post.author?.id" :name="post.author ? displayName(post.author) : ''" />
       <div class="author__main">
         <p class="author__nick">{{ post.author ? displayName(post.author) : '' }}</p>
         <p class="author__time">{{ post.createTime }}</p>
@@ -33,7 +33,7 @@
       <template v-for="(m, i) in mediaList" :key="i">
         <el-image
           v-if="m.type === 'img'"
-          :src="resolveUrl(m.url)"
+          :src="resolveThumb(m.url)"
           :preview-src-list="imgList"
           :initial-index="i"
           fit="cover"
@@ -53,7 +53,7 @@
  * 放这里会让「数据规则」散到视图层。
  */
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import TopicChips from '@/components/post/TopicChips.vue'
 

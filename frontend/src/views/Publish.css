@@ -182,6 +182,7 @@
   bottom: 0;
   z-index: var(--ys-z-sticky);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--ys-space-2);
   padding: var(--ys-space-2) var(--ys-gutter-phone);
@@ -189,6 +190,19 @@
   border-top: 1px solid var(--ys-border);
   transform: translateY(calc(-1 * var(--kb-h, 0px)));
   transition: transform var(--ys-motion-base) var(--ys-ease-out);
+}
+
+/*
+  视频格式提示:占满整行(flex-wrap 让它单独一行),位于按钮上方。
+  配色用 --ys-meta(次要灰),不抢主操作;桌面端随 .pub__foot 限宽居中。
+*/
+.pub__hint {
+  flex: 1 0 100%;
+  order: -1;
+  margin: 0 0 var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-meta);
 }
 
 .pub__upload {
@@ -247,7 +261,8 @@
   .pub__count,
   .pub__count-tip,
   .pub__chips,
-  .pub__err {
+  .pub__err,
+  .pub__hint {
     padding-left: var(--ys-gutter-desktop);
     padding-right: var(--ys-gutter-desktop);
   }

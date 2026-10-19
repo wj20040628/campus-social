@@ -39,9 +39,12 @@ request.interceptors.response.use(
     if (code === 200) {
       return data
     }
-    // 业务错误
-    ElMessage.error(message || '操作失败')
-    return Promise.reject(new Error(message))
+    // 业务错误:默认弹 toast;调用方传 silent 时由调用方自行兜底(如引导页吸底栏)
+    const err = new Error(message || '操作失败')
+    err.isBusiness = true
+    err.businessCode = code
+    if (!resp.config?.silent) ElMessage.error(message || '操作失败')
+    return Promise.reject(err)
   },
   (error) => {
     const status = error.response?.status
@@ -97,9 +100,12 @@ request.interceptors.response.use(
      * 为什么按 status 精确关而不是整个请求静音:同一个端点仍然可能 500/网络断,
      * 那两种必须出红色 toast。只关 404,其余照旧走全局提示。
      */
-    const suppress = error.config?.suppressStatuses
-    if (!Array.isArray(suppress) || !suppress.includes(status)) {
-      ElMessage.error(error.response?.data?.message || error.message || '网络错误')
+    // silent:调用方自行兜底提示(如引导页吸底栏),全局不弹
+    if (!error.config?.silent) {
+      const suppress = error.config?.suppressStatuses
+      if (!Array.isArray(suppress) || !suppress.includes(status)) {
+        ElMessage.error(error.response?.data?.message || error.message || '网络错误')
+      }
     }
     return Promise.reject(error)
   }

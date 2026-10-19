@@ -92,7 +92,17 @@ export function upload(file, kind = 'image') {
   })
 }
 
+/**
+ * 能力探测(无副作用):当前上传配置。
+ * 前端据此判断视频功能开没开(videoEnabled)+ 单个视频/图片能传多大。
+ * @returns {Promise<{videoEnabled:boolean, maxVideoBytes:number, maxImageBytes:number}>}
+ */
+export function uploadConfig() {
+  return request.get('/upload/config')
+}
+
 export default {
   createPost, detail, deletePost, feed, feedFollowing, topicFeed, hot,
   like, unlike, comment, comments, commentChildren, myPosts, userPosts, upload,
+  uploadConfig,
 }

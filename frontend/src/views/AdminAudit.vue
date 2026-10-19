@@ -155,7 +155,7 @@
 
       <ul v-else class="audit__list">
         <li v-for="l in list" :key="l.id" class="log">
-          <el-avatar :size="34" :src="resolveUrl(l.operatorAvatar)" class="log__avatar" />
+          <el-avatar :size="34" :src="resolveThumb(l.operatorAvatar)" class="log__avatar" />
           <div class="log__body">
             <p class="log__line1">
               <span class="log__op">{{ l.operatorName || '未知用户' }}</span>
@@ -193,7 +193,7 @@ import { ArrowLeft, Close, Files, Filter, WarningFilled } from '@element-plus/ic
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
 const router = useRouter()
 const isMobile = useIsMobile()
