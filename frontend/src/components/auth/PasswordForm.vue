@@ -6,10 +6,10 @@
     label-position="top"
     @submit.prevent="onSubmit"
   >
-    <el-form-item label="邮箱/手机号" prop="username">
+    <el-form-item label="学号或邮箱" prop="username">
       <el-input
         v-model="model.username"
-        placeholder="you@qq.com 或 13800000000"
+        placeholder="输入学号,或绑定的邮箱"
         autocomplete="username"
       />
     </el-form-item>
@@ -18,6 +18,16 @@
         v-model="model.password"
         autocomplete="current-password"
       />
+    </el-form-item>
+    <!--
+      记住我:勾选 → refresh 7 天,免重复登录;不勾 → 3 天。
+      放在密码框与提交按钮之间,视觉上归到「这次登录」这一组。
+    -->
+    <el-form-item>
+      <label class="remember">
+        <el-checkbox v-model="model.rememberMe" />
+        <span>记住我（7 天内免登录）</span>
+      </label>
     </el-form-item>
     <el-form-item>
       <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
@@ -56,16 +66,17 @@ const emit = defineEmits(['submit'])
 
 const formRef = ref()
 
-/** 校验规则。手机号段与邮箱两种,复刻注册页同一套判据 */
+/** 校验规则。学号(13/14 位纯数字,主账号)或邮箱两种,复刻注册页同一套判据 */
 const rules = {
   username: [
-    { required: true, message: '请输入邮箱或手机号', trigger: 'blur' },
+    { required: true, message: '请输入学号或邮箱', trigger: 'blur' },
     {
       validator: (r, v, cb) => {
-        const isEmail = v.includes('@') && v.split('@').length === 2
-        const isPhone = /^1[3-9]\d{9}$/.test(v)
-        if (isEmail || isPhone) cb()
-        else cb(new Error('需为合法邮箱或 11 位手机号'))
+        const s = (v || '').trim()
+        const isEmail = s.includes('@') && s.split('@').length === 2
+        const isStudentNo = /^\d{13,14}$/.test(s)
+        if (isEmail || isStudentNo) cb()
+        else cb(new Error('需为 13~14 位学号或合法邮箱'))
       },
       trigger: 'blur',
     },
@@ -84,3 +95,20 @@ async function onSubmit() {
 // 否则用户看到「请输入密码」却没碰过输入框。暴露 clearValidate 让父级调用。
 defineExpose({ clearValidate: () => formRef.value?.clearValidate() })
 </script>
+
+<style scoped>
+/* 记住我:checkbox 与文字同一行,文字用 muted 色,贴近「这次登录」这一组 */
+.remember {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  cursor: pointer;
+}
+
+.remember :deep(.el-checkbox) {
+  height: auto;
+}
+</style>

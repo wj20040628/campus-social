@@ -5,6 +5,11 @@ import com.campus.social.dto.LoginDTO;
 import com.campus.social.dto.RefreshDTO;
 import com.campus.social.dto.RegisterDTO;
 import com.campus.social.dto.SendCodeDTO;
+import com.campus.social.dto.SchoolProfileDTO;
+import com.campus.social.dto.StudentNoVerifyDTO;
+import com.campus.social.dto.ForgotPasswordDTO;
+import com.campus.social.dto.ResetPasswordDTO;
+import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
@@ -52,6 +57,8 @@ public class AuthServiceImpl implements AuthService {
     private final com.campus.social.service.support.StudentNoChangeSupport studentNoChangeSupport;
     /** 头像归属校验:设置头像时,若引用的是本服务 /uploads 文件则必须确属该用户上传 */
     private final UploadService uploadService;
+    /** 注册即认证:带学号 + 归属注册时,复用存归属与六层校验逻辑,避免两套实现 */
+    private final com.campus.social.service.CampusVerifyService campusVerifyService;
 
     /** refresh:{userId} = jti */
     private static final String REFRESH_KEY = "refresh:";
@@ -59,8 +66,18 @@ public class AuthServiceImpl implements AuthService {
     /** 与 JwtConfig 的 access-ttl-millis(900000ms=15min)保持一致 */
     private static final long ACCESS_TTL_SECONDS = 15 * 60;
 
-    /** 与 JwtConfig 的 refresh-ttl-millis(7d)保持一致 */
-    private static final Duration REFRESH_TTL = Duration.ofDays(7);
+    /**
+     * refresh 默认有效期(不勾记住我)= 3d,与 JwtConfig 的 refresh-ttl-millis 对齐。
+     * 勾选记住我 = 7d,见 {@link #refreshTtl(boolean)}。
+     *
+     * <p>Redis key 的过期时间必须与 JwtUtil 签发的 token 过期时间完全一致,
+     * 否则会出现「token 还有效但 Redis 指纹已过期」或反过来的错位。
+     * 这里直接读 JwtUtil 暴露的毫秒值做单一来源,杜绝两处各写死导致漂移。
+     */
+    private static Duration refreshTtl(boolean remember) {
+        long ms = remember ? JwtUtil.getRememberTtlMillis() : JwtUtil.getRefreshTtlMillis();
+        return Duration.ofMillis(ms);
+    }
 
     /**
      * 原子 CAS:读 refresh:{uid} 的旧 jti,与新 jti 比对。
@@ -68,6 +85,9 @@ public class AuthServiceImpl implements AuthService {
      * - 不匹配(重用攻击):删 key,返回 0(全吊销)
      * - 无记录:返回 -1(需重新登录)
      * 用 Lua 保证读-判-写在一个原子步骤内,杜绝并发同 jti 双花绕过 rotation。
+     *
+     * @param ttlSeconds 写入新 jti 的过期秒数,必须与签发 token 的 TTL 一致
+     *                   (勾选记住我=7d,否则 3d),否则 Redis 指纹与 token 会错位。
      */
     private static final RedisScript<Long> REFRESH_CAS_SCRIPT;
 
@@ -89,11 +109,11 @@ public class AuthServiceImpl implements AuthService {
      *
      * @return 1=滚动成功;0=旧 jti 不匹配(重用攻击,已全吊销);-1=无记录(key 自然过期或从未写过)
      */
-    private int rotateRefreshJti(long userId, String oldJti, String newJti) {
+    private int rotateRefreshJti(long userId, String oldJti, String newJti, long ttlSeconds) {
         Long result = redis.execute(
                 REFRESH_CAS_SCRIPT,
                 List.of(REFRESH_KEY + userId),
-                oldJti, newJti, String.valueOf(REFRESH_TTL.toSeconds()));
+                oldJti, newJti, String.valueOf(ttlSeconds));
         if (result == null) {
             return -1;
         }
@@ -103,47 +123,76 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenPairVO register(RegisterDTO dto) {
-        // 1. 先校验验证码(防暴力试密码/防未验证就注册)
-        verifyCodeService.verify(dto.getUsername(), dto.getVerifyCode(), "register");
+        // 账号体系重构 2026-10-17:学号为主账号,注册不再发/校验验证码。
+        // 安全凭证邮箱选填,注册时不校验所有权(避免引入验证码链路),有值才写库。
 
-        // 用户名已存在?
-        User existing = userMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, dto.getUsername()));
+        // 学号(主账号)已存在?username 与 student_no 两列都可能持有学号,都查。
+        User existing = userMapper.selectByStudentNo(dto.getStudentNo());
         if (existing != null) {
-            throw new BusinessException(USERNAME_EXISTS, "该邮箱/手机号已注册");
+            throw new BusinessException(USERNAME_EXISTS, "该学号已注册");
         }
-        // 学号已存在?
-        if (dto.getStudentNo() != null && !dto.getStudentNo().isBlank()) {
-            User bySno = userMapper.selectOne(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                            .eq(User::getStudentNo, dto.getStudentNo()));
-            if (bySno != null) {
-                throw new BusinessException(STUDENT_NO_EXISTS, "该学号已被其他账号绑定");
+        // 安全凭证邮箱已存在?(有值时 UNIQUE,防两账号绑同一邮箱)
+        String email = dto.getEmail() == null ? null : dto.getEmail().trim().toLowerCase();
+        if (email != null && !email.isEmpty()) {
+            User byEmail = userMapper.selectByEmail(email);
+            if (byEmail != null) {
+                throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱已被其他账号绑定");
             }
         }
 
         User user = new User();
-        user.setUsername(dto.getUsername());
+        // 主账号:username 内部统一存学号(与 student_no 同值)
+        user.setUsername(dto.getStudentNo());
         user.setPasswordHash(JwtUtil.hashPassword(dto.getPassword()));
         user.setNickname(dto.getNickname());
         user.setStudentNo(dto.getStudentNo());
+        user.setEmail(email);   // 选填,无值则 NULL(UNIQUE 对 NULL 放行)
         user.setStatus(0); // 正常
         userMapper.insert(user);
 
+        // 注册即认证:带了合法学号 + 学校归属,则一次性存归属并跑六层校验。
+        // 六层不过 / 学号被占用 → 抛异常,整体事务回滚,用户不落库(干净失败,
+        // 不会留下「学号与归属不符」的脏数据)。学号为空则只注册、不认证、不存归属。
+        if (dto.getStudentNo() != null && !dto.getStudentNo().isBlank()) {
+            if (dto.getDeptId() == null || dto.getGradeId() == null || dto.getMajorId() == null) {
+                throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE,
+                        "请完善学校归属（学院 / 年级 / 专业）后再提交学号");
+            }
+            SchoolProfileDTO profileDto = new SchoolProfileDTO();
+            // schoolId 不传时由 saveSchoolProfile 兜底成本校;MVP 单校恒为 1
+            profileDto.setSchoolId(dto.getSchoolId());
+            profileDto.setDeptId(dto.getDeptId());
+            profileDto.setGradeId(dto.getGradeId());
+            profileDto.setMajorId(dto.getMajorId());
+            campusVerifyService.saveSchoolProfile(user.getId(), profileDto);
+
+            StudentNoVerifyDTO verifyDto = new StudentNoVerifyDTO();
+            verifyDto.setStudentNo(dto.getStudentNo());
+            // 注册流程没有「姓名后 1-2 位」字段,传空串;管理员比对以学号 + 归属为主
+            verifyDto.setNameTail("");
+            campusVerifyService.submitStudentNo(user.getId(), verifyDto);
+        }
+
         // 审计:注册
         auditService.record(user.getId(), "register", "user", user.getId(),
-                "username=" + dto.getUsername(), null);
+                "username=" + dto.getStudentNo(), null);
 
-        log.info("register: uid={}, username={}", user.getId(), dto.getUsername());
-        return issueTokens(user);
+        log.info("register: uid={}, studentNo={}", user.getId(), dto.getStudentNo());
+        // 注册默认不勾记住我(记住我是密码登录的优化项)
+        return issueTokens(user, false);
     }
 
     @Override
     public TokenPairVO login(LoginDTO dto) {
+        // 账号体系重构 2026-10-17:登录标识走 username(学号)OR email 双匹配。
+        // 旧账号 username 仍是旧主标识(邮箱/手机),新账号 username=学号,
+        // 已绑定邮箱的用户也能用邮箱登录。统一用 WRONG_PASSWORD,防账号枚举。
+        String id = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase();
         User user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, dto.getUsername()));
+                        .eq(User::getUsername, id)
+                        .or()
+                        .eq(User::getEmail, id));
         if (user == null) {
             throw new BusinessException(WRONG_PASSWORD);
         }
@@ -157,10 +206,12 @@ public class AuthServiceImpl implements AuthService {
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
             throw new BusinessException(WRONG_PASSWORD);
         }
+        // 记住我:勾选 → refresh 7d,不勾 → 3d(见 refreshTtl)
+        boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
         // 审计:登录
         auditService.record(user.getId(), "login", "user", user.getId(),
                 "username=" + user.getUsername(), null);
-        return issueTokens(user);
+        return issueTokens(user, remember);
     }
 
     @Override
@@ -168,11 +219,13 @@ public class AuthServiceImpl implements AuthService {
         // 校验邮箱验证码(登录用途,一次性消费)
         verifyCodeService.verify(dto.getEmail(), dto.getCode(), "login");
 
+        // 账号体系重构:邮箱验证码登录只服务于「已绑定安全凭证邮箱」的用户,
+        // 用 email 列查询(而非原 username —— 新账号 username 已是学号)。
         User user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, dto.getEmail()));
+                        .eq(User::getEmail, dto.getEmail().trim().toLowerCase()));
         if (user == null) {
-            throw new BusinessException(EMAIL_NOT_REGISTERED, "该邮箱尚未注册");
+            throw new BusinessException(EMAIL_NOT_REGISTERED, "该邮箱尚未绑定账号");
         }
         if (user.getStatus() == 1) {
             throw new BusinessException(USER_FROZEN);
@@ -181,7 +234,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(USER_CANCELLED);
         }
         log.info("loginByCode: email={}", dto.getEmail());
-        return issueTokens(user);
+        // 邮箱验证码登录属「免密码」,不勾记住我(默认 3d)
+        return issueTokens(user, false);
     }
 
     @Override
@@ -202,12 +256,16 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(REFRESH_TOKEN_INVALID);
         }
         String oldJti = claims.getId();
+        // 记住我保活:按旧 token 的 remember 选同 TTL 重签,否则「记住我」会在
+        // 首次静默刷新后悄悄失效(用户明明勾了 7 天,刷一次又变 3 天)。
+        boolean remember = JwtUtil.parseRemember(claims);
         // 签新 refresh(新 jti),先不写 Redis
         String newJti = UUID.randomUUID().toString().replace("-", "");
-        String newRefresh = JwtUtil.issueRefresh(userId, newJti);
+        String newRefresh = JwtUtil.issueRefresh(userId, newJti, remember);
 
         // 原子 CAS:旧 jti 匹配才滚动写入新 jti(杜绝并发同 jti 双花绕过 rotation)
-        int cas = rotateRefreshJti(userId, oldJti, newJti);
+        // TTL 必须与签发 token 的 TTL 一致(勾选记住我=7d,否则 3d)
+        int cas = rotateRefreshJti(userId, oldJti, newJti, refreshTtl(remember).getSeconds());
         if (cas != 1) {
             // -1:无记录(refresh token 自然过期/已登出)→ 正常失效,重新登录即可
             //  0:旧 jti 不匹配(重用攻击,已被 DEL 全吊销)→ 安全事件
@@ -242,6 +300,84 @@ public class AuthServiceImpl implements AuthService {
         log.info("logout: uid={}", userId);
         // 审计:登出
         auditService.record(userId, "logout", "user", userId, "退出登录", null);
+    }
+
+    // ----------------------------------------------------------------
+    // 安全凭证邮箱:找回密码 / 绑定(账号体系重构 2026-10-17)
+
+    /**
+     * 找回密码(第一步):提交学号,向该账号绑定的安全凭证邮箱发重置验证码。
+     *
+     * <p><b>枚举防护</b>:学号不存在时静默返回成功,不泄露「该学号是否已注册」;
+     * 账号存在但未绑邮箱才明确回 {@code EMAIL_NOT_BOUND}(用户输的是自己的学号,
+     * 提示去绑定是合理 UX,不算泄露)。邮箱验证码走 {@code reset} 用途分桶。
+     */
+    @Override
+    public void forgotPassword(ForgotPasswordDTO dto) {
+        User user = userMapper.selectByStudentNo(dto.getStudentNo().trim());
+        if (user == null) {
+            // 不泄露账号是否存在,静默成功(防学号枚举)
+            return;
+        }
+        if (user.getEmail() == null || user.getEmail().isEmpty()) {
+            throw new BusinessException(EMAIL_NOT_BOUND, "该学号尚未绑定邮箱,无法使用邮箱验证码找回密码");
+        }
+        // 向绑定的安全凭证邮箱发重置验证码(type=reset)
+        verifyCodeService.send(user.getEmail(), "reset");
+        auditService.record(user.getId(), "forgot_password", "user", user.getId(), "申请找回密码", null);
+        log.info("forgotPassword: uid={}, email={}", user.getId(), user.getEmail());
+    }
+
+    /**
+     * 找回密码(第二步):学号 + 邮箱收到的重置验证码 + 新密码。
+     *
+     * <p>校验通过后更新密码,并吊销该账号其他设备的 refresh(踢下线),
+     * 防止旧 token 在密码被改后仍能继续使用。验证码走 {@code reset} 桶,一次性消费。
+     */
+    @Override
+    public void resetPassword(ResetPasswordDTO dto) {
+        User user = userMapper.selectByStudentNo(dto.getStudentNo().trim());
+        if (user == null || user.getEmail() == null || user.getEmail().isEmpty()) {
+            // 账号不存在 / 未绑邮箱:统一回 EMAIL_NOT_BOUND,不泄露账号状态
+            throw new BusinessException(EMAIL_NOT_BOUND, "该学号尚未绑定邮箱,无法找回");
+        }
+        // 校验重置验证码(邮箱 + reset 桶,一次性消费)
+        verifyCodeService.verify(user.getEmail(), dto.getCode(), "reset");
+        user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
+        userMapper.updateById(user);
+        // 吊销其他设备:删 Redis 指纹,旧 refresh 刷新时 CAS 失败全吊销
+        redis.delete(REFRESH_KEY + user.getId());
+        auditService.record(user.getId(), "reset_password", "user", user.getId(), "重置密码", null);
+        log.info("resetPassword: uid={}", user.getId());
+    }
+
+    /**
+     * 绑定 / 修改安全凭证邮箱(需登录)。
+     *
+     * <p>流程:先 {@code POST /auth/send-code} type=bind 把码发到目标邮箱,
+     * 再带码调用本端点。校验通过后写 {@code user.email}(转小写),全局唯一
+     * (uk_user_email)——与其他账号冲突回 {@code EMAIL_ALREADY_BOUND}。
+     */
+    @Override
+    @Transactional
+    public UserVO bindEmail(Long userId, BindEmailDTO dto) {
+        String email = dto.getEmail().trim().toLowerCase();
+        // 先校验绑定验证码(发往目标邮箱,type=bind,一次性消费)
+        verifyCodeService.verify(email, dto.getCode(), "bind");
+        // 唯一性:其他账号已绑此邮箱 → 拒绝(自己换绑自己的邮箱不算冲突)
+        User existing = userMapper.selectByEmail(email);
+        if (existing != null && !existing.getId().equals(userId)) {
+            throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱已被其他账号绑定");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_CANCELLED, "用户不存在");
+        }
+        user.setEmail(email);
+        userMapper.updateById(user);
+        auditService.record(userId, "bind_email", "user", userId, "绑定邮箱=" + email, null);
+        log.info("bindEmail: uid={}, email={}", userId, email);
+        return toVo(user);
     }
 
     @Override
@@ -343,11 +479,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /** 签发 access + refresh,refresh jti 写入 Redis(注册/登录首次签发,无旧 jti 需比对) */
-    private TokenPairVO issueTokens(User user) {
+    private TokenPairVO issueTokens(User user, boolean remember) {
         String jti = UUID.randomUUID().toString().replace("-", "");
         String access = JwtUtil.issueAccess(user.getId(), user.getUsername());
-        String refresh = JwtUtil.issueRefresh(user.getId(), jti);
-        redis.opsForValue().set(REFRESH_KEY + user.getId(), jti, REFRESH_TTL);
+        String refresh = JwtUtil.issueRefresh(user.getId(), jti, remember);
+        // Redis 指纹 TTL 必须与 token 过期时间一致(勾选记住我=7d,否则 3d)
+        redis.opsForValue().set(REFRESH_KEY + user.getId(), jti, refreshTtl(remember));
 
         long accessExpireAt = System.currentTimeMillis() / 1000 + ACCESS_TTL_SECONDS;
         return TokenPairVO.builder()

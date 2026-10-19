@@ -13,7 +13,13 @@ import java.util.Date;
 /**
  * JWT 双 token 工具
  * access  15min - 走 Header,无状态
- * refresh 7d    - 存 Redis (key=refresh:{userId}),一次性可吊销
+ * refresh 默认 3d / 勾选「记住我」7d - 存 Redis (key=refresh:{userId}),一次性可吊销
+ *
+ * <p>双 TTL(记住我,账号体系重构 2026-10-17):
+ * 登录时若勾选「记住我」,refresh 有效期拉长到 {@code rememberTtlMillis}(7d);
+ * 否则用 {@code refreshTtlMillis}(3d,与登录页「不勾保持 3 天」对齐)。
+ * refresh token 内写入 {@code remember} claim,刷新时按旧 token 的 remember 选同 TTL
+ * 重签,否则「记住我」会在首次静默刷新后悄悄失效。
  *
  * 安全原则:
  * - HS512 (HMAC 密钥走配置,不写代码)
@@ -34,14 +40,17 @@ public final class JwtUtil {
 
     private static long accessTtlMillis;
     private static long refreshTtlMillis;
+    private static long rememberTtlMillis;
 
     /** Spring 启动时由 JwtConfig 注入 */
     public static void init(String accessSecret, String refreshSecret,
-                            long accessTtlMillis, long refreshTtlMillis) {
+                            long accessTtlMillis, long refreshTtlMillis,
+                            long rememberTtlMillis) {
         accessKey = Keys.hmacShaKeyFor(accessSecret.getBytes(StandardCharsets.UTF_8));
         refreshKey = Keys.hmacShaKeyFor(refreshSecret.getBytes(StandardCharsets.UTF_8));
         JwtUtil.accessTtlMillis = accessTtlMillis;
         JwtUtil.refreshTtlMillis = refreshTtlMillis;
+        JwtUtil.rememberTtlMillis = rememberTtlMillis;
     }
 
     /** 签发 access token */
@@ -58,12 +67,24 @@ public final class JwtUtil {
 
     /** 签发 refresh token(带 jti 指纹,便于吊销) */
     public static String issueRefresh(long userId, String jti) {
+        return issueRefresh(userId, jti, false);
+    }
+
+    /**
+     * 签发 refresh token(带 jti 指纹,便于吊销)。
+     *
+     * @param remember 是否「记住我」:true → 有效期用 {@code rememberTtlMillis}(7d),
+     *                  false → 用 {@code refreshTtlMillis}(3d)
+     */
+    public static String issueRefresh(long userId, String jti, boolean remember) {
+        long ttl = remember ? rememberTtlMillis : refreshTtlMillis;
         return Jwts.builder()
                 .id(jti)
                 .subject(String.valueOf(userId))
                 .claim("typ", "refresh")
+                .claim("remember", remember)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + refreshTtlMillis))
+                .expiration(new Date(System.currentTimeMillis() + ttl))
                 .signWith(refreshKey)  // 0.12 自动按 key 推断 HS512
                 .compact();
     }
@@ -98,6 +119,20 @@ public final class JwtUtil {
         }
     }
 
+    /**
+     * 从已解析的 refresh claims 读回「记住我」标记。
+     *
+     * <p>刷新时据此选同 TTL 重签,保证「记住我」在静默刷新后仍然有效。
+     * 老 token(升级前签发,无此 claim)读不到 → 默认 false(3d),行为向后兼容。
+     */
+    public static boolean parseRemember(Claims claims) {
+        if (claims == null) {
+            return false;
+        }
+        Boolean r = claims.get("remember", Boolean.class);
+        return Boolean.TRUE.equals(r);
+    }
+
     /** 密码哈希 */
     public static String hashPassword(String raw) {
         return BCrypt.hashpw(raw, BCrypt.gensalt(12));
@@ -105,6 +140,16 @@ public final class JwtUtil {
 
     public static boolean verifyPassword(String raw, String hashed) {
         return BCrypt.checkpw(raw, hashed);
+    }
+
+    /** 默认 refresh TTL(毫秒),供调用方对齐 Redis key 的过期时间 */
+    public static long getRefreshTtlMillis() {
+        return refreshTtlMillis;
+    }
+
+    /** 「记住我」refresh TTL(毫秒),供调用方对齐 Redis key 的过期时间 */
+    public static long getRememberTtlMillis() {
+        return rememberTtlMillis;
     }
 
     private JwtUtil() {

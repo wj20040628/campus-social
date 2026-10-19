@@ -53,8 +53,14 @@ public class SensitiveWordFilter {
 
     @PostConstruct
     public void init() {
-        load();
-        log.info("SensitiveWordFilter init, words loaded");
+        try {
+            load();
+            log.info("SensitiveWordFilter init, words loaded");
+        } catch (Exception e) {
+            // 启动期加载失败(库未起/连不上/表缺失等)不应拖垮整个应用:
+            // 带着空词表继续启动,5 分钟刷新任务会重试;异常全栈打到日志便于定位。
+            log.error("SensitiveWordFilter init failed, sensitive-word filtering disabled until next refresh", e);
+        }
     }
 
     /** 全量重建 DFA(由定时任务调用) */
@@ -64,7 +70,9 @@ public class SensitiveWordFilter {
         r.level = null;
         for (SensitiveWord w : words) {
             if (w.getWord() == null || w.getWord().isBlank()) continue;
-            insert(r, w.getWord(), w.getLevel());
+            Integer lv = w.getLevel();
+            if (lv == null) lv = 1; // 兜底,避免拆箱 NPE
+            insert(r, w.getWord(), lv);
         }
         this.root = r;
         log.info("SensitiveWordFilter reload, total words={}", words.size());

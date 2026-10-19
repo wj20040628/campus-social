@@ -5,6 +5,9 @@ import com.campus.social.dto.LoginDTO;
 import com.campus.social.dto.RegisterDTO;
 import com.campus.social.dto.RefreshDTO;
 import com.campus.social.dto.SendCodeDTO;
+import com.campus.social.dto.ForgotPasswordDTO;
+import com.campus.social.dto.ResetPasswordDTO;
+import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
 
@@ -52,4 +55,21 @@ public interface AuthService {
 
     /** 发送邮箱/手机验证码(注册/登录/绑定) */
     String sendCode(SendCodeDTO dto);
+
+    /**
+     * 找回密码(第一步):提交学号,向绑定的安全凭证邮箱发重置验证码。
+     * 账号不存在静默成功(防学号枚举);未绑邮箱回 EMAIL_NOT_BOUND。
+     */
+    void forgotPassword(ForgotPasswordDTO dto);
+
+    /**
+     * 找回密码(第二步):学号 + 邮箱重置验证码 + 新密码。
+     * 校验通过后改密并吊销其他设备的 refresh。
+     */
+    void resetPassword(ResetPasswordDTO dto);
+
+    /**
+     * 绑定 / 修改安全凭证邮箱(需登录):校验绑定验证码后写入 user.email(转小写,全局唯一)。
+     */
+    UserVO bindEmail(Long userId, BindEmailDTO dto);
 }

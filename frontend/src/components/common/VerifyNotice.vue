@@ -21,9 +21,9 @@
       verifyStatus=0/1                -> 不渲染
   -->
   <aside
-    v-if="showRejected || showPending"
+    v-if="showRejected || showPending || showWeakVerified"
     class="vnotice"
-    :class="showRejected ? 'vnotice--reject' : 'vnotice--pending'"
+    :class="showRejected ? 'vnotice--reject' : showPending ? 'vnotice--pending' : 'vnotice--weak'"
     role="status"
   >
     <!--
@@ -31,7 +31,7 @@
       读屏用户与色觉障碍用户会完全漏掉(设计 §5:语义必须三重传达)。
     -->
     <el-icon class="vnotice__icon" :size="20" aria-hidden="true">
-      <component :is="showRejected ? WarningFilled : Clock" />
+      <component :is="showRejected ? WarningFilled : showPending ? Clock : CircleCheck" />
     </el-icon>
 
     <div class="vnotice__body">
@@ -55,12 +55,16 @@
         确认一下你的学号有没有填错,改完后需要一个<strong>不同的学号</strong>重新提交
         (原学号已被占用,继续用会失败)
       </p>
-      <p v-else class="vnotice__how">
+      <p v-else-if="showPending" class="vnotice__how">
         管理员会尽快人工核验。有结果会在这里更新,不用反复刷新
+      </p>
+      <p v-else class="vnotice__how">
+        陌生人能直接给你发消息、你能发官方公告;发动态不需要认证。
+        这是自动通过的弱认证,权限弱于人工审核通过。
       </p>
     </div>
 
-    <button type="button" class="vnotice__btn" @click="goSubmit">
+    <button v-if="!showWeakVerified" type="button" class="vnotice__btn" @click="goSubmit">
       {{ showRejected ? '去改学号' : '查看进度' }}
     </button>
   </aside>
@@ -75,30 +79,43 @@
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock, WarningFilled } from '@element-plus/icons-vue'
-import { useVerifyStatus } from '@/composables/useVerifyStatus'
+import { Clock, WarningFilled, CircleCheck } from '@element-plus/icons-vue'
+import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
 
 const router = useRouter()
-const { showRejected, showPending, rejectReason, load } = useVerifyStatus()
+const { showRejected, showPending, rejectReason, load, code, autoApproved } = useVerifyStatus()
 
 /**
  * 标题不写「认证被驳回」这种系统词。
  * 用户填的是学号,不是「认证」;说「学号没通过」他能立刻对上自己填的那串数字。
  */
-const title = computed(() => (showRejected.value ? '你的学号没通过核验' : '学号正在核验中'))
+const title = computed(() =>
+  showRejected.value
+    ? '你的学号没通过核验'
+    : showPending.value
+      ? '学号正在核验中'
+      : '你已通过校内认证(自动通过)',
+)
+
+/**
+ * §5 A4:自动通过(弱认证)与人工通过要区分开。
+ * autoApproved=true 且状态为已认证(1)时,渲染一条中性提示,
+ * 让用户知道自己是「弱认证」——能收陌生人消息、能发公告,但权限弱于人工审核。
+ */
+const showWeakVerified = computed(() => code.value === VERIFY_OK && autoApproved.value)
 
 /**
  * 出口。
  *
- * 去 Settings 而不是 Onboarding:Onboarding 是新用户引导(第 1 步选院系年级),
+ * 去编辑资料页 /profile 而不是 Onboarding:Onboarding 是新用户引导(第 1 步选院系年级),
  * 已完成过的用户再进去会被路由到已完成的态,看不到「改学号」这个动作;
- * Settings 有独立的「学号」输入框,改完点保存就走 PUT /user/me。
+ * 编辑资料页有独立的「学号」输入框,改完点保存就走 PUT /user/me。
  *
  * 离开前 force 重拉:用户提交完新学号回来,这条提示必须消失 ——
  * 不重拉的话它会一直挂在页面上,用户以为没生效。
  */
 async function goSubmit() {
-  router.push('/settings')
+  router.push('/profile')
   await load(true)
 }
 </script>
@@ -142,6 +159,20 @@ async function goSubmit() {
 
 .vnotice--pending .vnotice__icon {
   color: var(--ys-meta);
+}
+
+/*
+  弱认证(自动通过)提示:中性偏正向,不告警不报危 ——
+  它是「通过了,但权限弱」,不是错误或等待。用 surface-2 浅底 + success 绿图标,
+  与驳回(danger)/审核中(中性灰)拉开三档。
+*/
+.vnotice--weak {
+  border-color: var(--ys-border);
+  background: var(--ys-surface-2);
+}
+
+.vnotice--weak .vnotice__icon {
+  color: var(--ys-success);
 }
 
 .vnotice__body {

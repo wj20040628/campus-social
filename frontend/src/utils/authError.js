@@ -31,6 +31,11 @@ export const AUTH_ERR = {
   CODE_LIMIT_REACHED: 1022,
   PHONE_NOT_REGISTERED: 1023,
   EMAIL_NOT_REGISTERED: 1024,
+  SCHOOL_PROFILE_INCOMPLETE: 1039,
+  STUDENT_NO_MISMATCH: 1058,
+  // 账号体系重构:邮箱安全凭证
+  EMAIL_ALREADY_BOUND: 1059,
+  EMAIL_NOT_BOUND: 1060,
 }
 
 /**
@@ -110,32 +115,45 @@ export function credentialMessage(e, kind) {
     if (code === AUTH_ERR.CODE_INVALID) return '验证码不对或者过期了，重新获取一次'
     return '验证码登录没成功，再试一次'
   }
-  if (code === AUTH_ERR.WRONG_PASSWORD) return '邮箱或密码不对，再试一次'
-  if (code === AUTH_ERR.EMAIL_NOT_REGISTERED) return '这个邮箱还没注册过'
+  if (code === AUTH_ERR.WRONG_PASSWORD) return '学号或密码不对，再试一次'
+  if (code === AUTH_ERR.EMAIL_NOT_REGISTERED) return '这个邮箱还没绑定账号'
+  if (code === AUTH_ERR.EMAIL_NOT_BOUND) return '这个学号还没绑定邮箱，先去绑定邮箱再试'
   return '登录没成功，再试一次'
 }
 
 /**
  * 注册端的字段级错误。
  *
- * 设计 §3 把注册的错误拆到四个字段上,而不是一个顶部汇总:
- *   1003 → 邮箱字段,并给一个「去登录」的inline 出口
- *   1004 → 学号字段(同一个学号被别的账号绑了)
- *   1020 → 验证码字段
+ * 设计 §3 把注册的错误拆到字段上,而不是一个顶部汇总:
+ *   1003(USERNAME_EXISTS,账号体系重构后 username 即学号) → 学号字段,并给一个「去登录」的 inline 出口
+ *   1004(STUDENT_NO_EXISTS) → 学号字段(同一个学号被别的账号绑了)
+ *   1059(EMAIL_ALREADY_BOUND) → 邮箱字段
+ *   1058(STUDENT_NO_MISMATCH) / 1039(SCHOOL_PROFILE_INCOMPLETE) → 学号字段(注册即认证的归属冲突)
  * 其余(网络/服务端)不适合按字段归因,交给调用方做表单级提示。
+ * 注:注册已不发验证码,1020/1021/1022 的 verifyCode 分支仅历史兼容,注册流程不会触发。
  *
- * @returns {null | { field:'username'|'studentNo'|'verifyCode', text:string, action?:'login' }}
+ * @returns {null | { field:'studentNo'|'email', text:string, action?:'login' }}
  */
 export function registerFieldError(e) {
   const code = authErrCode(e)
   if (code === null) return null
   if (code === AUTH_ERR.USERNAME_EXISTS) {
-    // action=login 是设计 §3 明确要求的:发现邮箱已注册,最优出路不是重新注册,
-    // 而是直接去登录。让用户在两个页面之间自己找,不如给一个按钮。
-    return { field: 'username', text: '这个邮箱已经注册过了，直接登录吧', action: 'login' }
+    // 账号体系重构后 username 即学号,这里映射到学号字段 + 去登录出口
+    return { field: 'studentNo', text: '这个学号已经注册过了，直接登录吧', action: 'login' }
   }
   if (code === AUTH_ERR.STUDENT_NO_EXISTS) {
     return { field: 'studentNo', text: '这个学号已经被别的账号绑了，换一个或者留空' }
+  }
+  if (code === AUTH_ERR.EMAIL_ALREADY_BOUND) {
+    return { field: 'email', text: '这个邮箱已被其他账号绑定了' }
+  }
+  if (code === AUTH_ERR.STUDENT_NO_MISMATCH) {
+    // 后端六层校验(纯数字/长度/年级/层次/专业编码/班内序号)任一不过的统一码。
+    // 用后端具体 message(如「学号专业编码与所选专业不一致」),让用户知道改哪。
+    return { field: 'studentNo', text: e.response?.data?.message || '学号与所选学校归属不一致，请核对' }
+  }
+  if (code === AUTH_ERR.SCHOOL_PROFILE_INCOMPLETE) {
+    return { field: 'studentNo', text: '请完善学校归属（学院/年级/专业）后再提交学号' }
   }
   if (code === AUTH_ERR.CODE_INVALID) {
     return { field: 'verifyCode', text: '验证码不对或者过期了，重新获取一次' }

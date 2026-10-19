@@ -18,7 +18,7 @@ public class SendCodeDTO {
             message = "target 需为合法邮箱或 11 位手机号")
     private String target;
 
-    /** 用途:register(注册) / login(登录) / bind(绑定第二账号) */
-    @Pattern(regexp = "^(register|login|bind)$", message = "type 必须是 register/login/bind")
+    /** 用途:register(注册,已不再发码) / login(邮箱验证码登录) / bind(绑定邮箱) / reset(找回密码) */
+    @Pattern(regexp = "^(register|login|bind|reset)$", message = "type 必须是 register/login/bind/reset")
     private String type = "register";
 }

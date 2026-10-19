@@ -27,7 +27,15 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/auth/login",
             "/auth/refresh",
             "/auth/send-code",
-            "/auth/login-code"
+            "/auth/login-code",
+            // 上传能力探测:前端进发帖页前拉一次,判断视频功能开没开 + 单文件上限。
+            // 只读、无副作用,不绑登录态(未登录也能知道「视频被关了」)。
+            "/upload/config",
+            // 学校字典(院系/年级/专业级联):纯只读全局参照数据,注册页和引导页都要用,
+            // 而注册页是未登录态 —— 不放行会在打开注册页时就被 401 踢回登录页。
+            // 见 WebMvcConfig.excludePathPatterns 同步放行。
+            "/dict/school",
+            "/dict/majors"
     );
 
     public static final String ATTR_USER_ID = "userId";

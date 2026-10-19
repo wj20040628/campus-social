@@ -8,7 +8,7 @@
   />
 
   <div v-else class="auth-page">
-    <div class="auth-card">
+    <div v-if="mode === 'login'" class="auth-card">
       <!--
         品牌区承担了「登录」这个标题的角色,表单顶部不再放一个大标题 ——
         设计 §1.1 明确:再来一个标题是重复。
@@ -68,7 +68,18 @@
       <div class="auth-link">
         没有账号？
         <router-link to="/login/register">去注册</router-link>
+        <span class="auth-link__sep">·</span>
+        <button type="button" class="link-btn" @click="mode = 'forgot'">忘记密码？</button>
       </div>
+    </div>
+
+    <!-- 找回密码:独立态,整页替换登录卡片内容 -->
+    <div v-else class="auth-card">
+      <div class="auth-brand">
+        <p class="auth-brand__name">友声</p>
+        <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+      </div>
+      <ForgotPasswordForm @done="onForgotDone" @back="mode = 'login'" />
     </div>
   </div>
 </template>
@@ -94,18 +105,24 @@ import AuthBlocked from '@/components/auth/AuthBlocked.vue'
 import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
 import PasswordForm from '@/components/auth/PasswordForm.vue'
 import CodeForm from '@/components/auth/CodeForm.vue'
+import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm.vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
 const TABS = [
-  { v: 'password', l: '密码登录' },
-  { v: 'code', l: '邮箱验证码' },
+  { v: 'password', l: '学号/邮箱登录' },
+  { v: 'code', l: '邮箱验证码登录' },
 ]
 
+/**
+ * 登录卡片 vs 找回密码卡片的切换。
+ * 'login' 是默认主态;点「忘记密码？」切到 'forgot'，整页替换登录卡片内容。
+ */
+const mode = ref('login')
 const tab = ref('password')
-const pwdForm = reactive({ username: '', password: '' })
+const pwdForm = reactive({ username: '', password: '', rememberMe: false })
 const codeForm = reactive({ email: '', code: '' })
 
 function goHome() {
@@ -131,6 +148,13 @@ const { cd, sending, start: startCd } = useCodeCountdown()
 function switchTab(v) {
   tab.value = v
   // 切 Tab 清错误:密码错的提示留到验证码登录页会误导
+  clearError()
+}
+
+/** 找回密码成功:回到登录态,默认落在密码 Tab(重置后需重新登录) */
+function onForgotDone() {
+  mode.value = 'login'
+  tab.value = 'password'
   clearError()
 }
 

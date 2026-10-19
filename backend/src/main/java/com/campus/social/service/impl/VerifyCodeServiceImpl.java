@@ -42,7 +42,9 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
 
     private static final Duration CODE_TTL = Duration.ofMinutes(5);
     private static final Duration RATE_LIMIT = Duration.ofSeconds(60);
-    private static final long DAILY_LIMIT = 10;
+    /** 每日发送上限:账号体系重构后邮箱验证码登录 + 找回密码都走邮件,
+     *  上限从 10 提到 20(仍远小于阿里云后台 20 封/日的硬配额,双重保险)。 */
+    private static final long DAILY_LIMIT = 20;
 
     /** 合法收件目标:邮箱或中国大陆手机号。非法格式一律在入口拒绝 */
     private static final Pattern EMAIL = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
@@ -52,20 +54,49 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
     public String send(String target, String type) {
         // 入参格式校验:必须在写 Redis 与调用发信通道之前拦截,
         // 否则任意字符串会成为 Redis key,并被送去真实的短信/邮件通道
-        if (target == null
-                || (!EMAIL.matcher(target).matches() && !PHONE.matcher(target).matches())) {
+        if (target == null) {
             throw new BusinessException(BAD_REQUEST, "请输入正确的手机号或邮箱");
         }
+        target = target.trim();
+        boolean isEmail = EMAIL.matcher(target).matches();
+        boolean isPhone = PHONE.matcher(target).matches();
+        if (!isEmail && !isPhone) {
+            throw new BusinessException(BAD_REQUEST, "请输入正确的手机号或邮箱");
+        }
+        // 邮箱统一小写:Redis key / 比对 / 发信目标都走小写,
+        // 防 AbC@x.com 与 abc@x.com 被当成两个收件人、还能各自发码绕过日额。
+        // 手机无大小写,原样。
+        String norm = isEmail ? target.toLowerCase() : target;
 
-        // 限频:60s 内不能重发。用 SET NX 原子抢占,杜绝 check-then-set 的并发绕过
-        String rateKey = "code:limit:" + target;
+        // 硬约束 1(type=login 邮箱验证码登录):仅「已绑定安全凭证邮箱」的用户可用。
+        // 未绑定 → 直接拒绝,不发码、不计日额。这是后端强制兜底,
+        // 前端即便把 Tab2 暴露给未绑定用户也无法真正发码。
+        if ("login".equals(type)) {
+            User bound = userMapper.selectByEmail(norm);
+            if (bound == null) {
+                throw new BusinessException(EMAIL_NOT_REGISTERED, "该邮箱尚未绑定账号,无法用于验证码登录");
+            }
+        }
+
+        // 硬约束 2(复用未过期验证码):已有一条有效码则直接复用,
+        // 不重新生成、不重发邮件、不计日额。邮箱通道消耗极小(见账号体系重构方案)。
+        String codeKey = "code:" + type + ":" + norm;
+        String existing = redis.opsForValue().get(codeKey);
+        if (existing != null && !existing.isEmpty()) {
+            log.info("verify code reused(not resent): target={}, type={}", norm, type);
+            return "验证码已发送,5 分钟内有效";
+        }
+
+        // 限频:60s 内不能重发新码。SET NX 原子抢占,杜绝 check-then-set 的并发绕过
+        // (硬约束 3 之 60s 单邮箱限频)
+        String rateKey = "code:limit:" + norm;
         Boolean first = redis.opsForValue().setIfAbsent(rateKey, "1", RATE_LIMIT);
         if (!Boolean.TRUE.equals(first)) {
             throw new BusinessException(CODE_TOO_FREQUENT, "发送过于频繁,请 1 分钟后再试");
         }
 
-        // 每日上限
-        String dailyKey = "code:daily:" + type + ":" + target;
+        // 每日上限(硬约束 3 之每日 20 封)
+        String dailyKey = "code:daily:" + type + ":" + norm;
         Long daily = redis.opsForValue().increment(dailyKey);
         if (daily != null && daily == 1) {
             // 首次计数时设 1d TTL(Lua 式原子:已存在 key 不重置,首建当天有效)
@@ -77,18 +108,17 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
 
         // 生成 6 位码
         String code = String.valueOf(random.nextInt(900_000) + 100_000);
-        String codeKey = "code:" + type + ":" + target;
         redis.opsForValue().set(codeKey, code, CODE_TTL);
 
         // 发送(失败则清理已生成的码 + 释放限频锁,避免"发了但校验不通过"且锁死 1 分钟)
-        boolean ok = messageGateway.sendCode(target, code);
+        boolean ok = messageGateway.sendCode(norm, code);
         if (!ok) {
             redis.delete(codeKey);
             redis.delete(rateKey);
             throw new BusinessException(CODE_LIMIT_REACHED.getCode(),
                     "验证码发送失败(通道不可用),请稍后重试");
         }
-        log.info("verify code sent: target={}, type={}", target, type);
+        log.info("verify code sent: target={}, type={}", norm, type);
         return "验证码已发送,5 分钟内有效";
     }
 
@@ -105,7 +135,15 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
      */
     @Override
     public void verify(String target, String code, String type) {
-        String codeKey = "code:" + type + ":" + target;
+        // 与 send 同口径:邮箱统一小写后再拼 key,否则 AbC@x.com 存的码用 abc@x.com 取不到
+        if (target == null) {
+            throw new BusinessException(CODE_INVALID, "验证码已失效,请重新获取");
+        }
+        String norm = target.trim();
+        if (EMAIL.matcher(norm).matches()) {
+            norm = norm.toLowerCase();
+        }
+        String codeKey = "code:" + type + ":" + norm;
         // 原子取出并删除:同一 code 并发多次 verify 只有一次能拿到非空值,杜绝同码双用
         String expected = redisLua.getAndDelete(codeKey);
         if (expected == null || expected.isEmpty()) {

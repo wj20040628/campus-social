@@ -47,11 +47,11 @@ export function verifyStatus() {
  *        studentNo 学号,nameTail 姓名后两位(如「张三」传「三」)
  * @returns {Promise<{verifyStatus:number, status?:string}>}
  */
-export function submitStudentNo({ studentNo, nameTail }) {
+export function submitStudentNo({ studentNo, nameTail }, opts = {}) {
   return request.post('/user/verify/student-no', {
     studentNo: (studentNo || '').trim(),
     nameTail: (nameTail || '').trim(),
-  })
+  }, opts)
 }
 
 export default {

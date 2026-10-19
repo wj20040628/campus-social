@@ -101,6 +101,12 @@ export function useVerifyStatus() {
     code: computed(() => state.value?.verifyStatus ?? null),
     text: computed(() => state.value?.verifyStatusText || ''),
     rejectReason: computed(() => state.value?.rejectReason || ''),
+    /** 认证状态原始码(0 未认证 / 1 已认证 / 2 审核中 / 3 已驳回),未拉到为 null */
+    studentNo: computed(() => state.value?.studentNo || ''),
+    /** §5 A3:认证解锁的能力位,前端此前零消费,现在暴露出去 */
+    canStrangerChat: computed(() => state.value?.canStrangerChat ?? false),
+    canPublishAnnouncement: computed(() => state.value?.canPublishAnnouncement ?? false),
+    autoApproved: computed(() => state.value?.autoApproved ?? false),
     /**
      * 该不该展示「驳回」提示条。
      *

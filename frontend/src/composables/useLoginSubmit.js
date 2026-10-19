@@ -71,7 +71,7 @@ export function useLoginSubmit({ pwdForm, codeForm, userStore, onSuccess }) {
     clearError()
     loadingPwd.value = true
     try {
-      await userStore.login(pwdForm.username, pwdForm.password)
+      await userStore.login(pwdForm.username, pwdForm.password, pwdForm.rememberMe === true)
       await userStore.fetchMe()
       onSuccess()
     } catch (e) {
