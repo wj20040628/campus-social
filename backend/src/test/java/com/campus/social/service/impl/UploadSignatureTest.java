@@ -38,6 +38,7 @@ class UploadSignatureTest {
         setField(svc, "absUploadRoot", tmpRoot);
         setField(svc, "maxImageBytes", 7864320L);
         setField(svc, "maxVideoBytes", 52428800L);
+        setField(svc, "videoEnabled", true);
     }
 
     @Test

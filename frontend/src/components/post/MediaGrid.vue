@@ -20,7 +20,7 @@
       <template v-if="cell.state === 'done'">
         <el-image
           v-if="cell.kind === 'image'"
-          :src="resolveUrl(cell.url)"
+          :src="resolveThumb(cell.url)"
           fit="cover"
           class="mg__thumb"
           :alt="`待发布的图片 ${i + 1},点右上角删除`"
@@ -63,7 +63,7 @@
 
 <script setup>
 import { Close, WarningFilled } from '@element-plus/icons-vue'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
 /**
  * @param {Array<{key:string, state:'uploading'|'done'|'failed', kind?:'image'|'video', url?:string, file?:File}>} cells

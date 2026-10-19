@@ -2,12 +2,13 @@ import { computed, reactive, ref } from 'vue'
 import { uploadToOss } from '@/composables/useOssUpload'
 import { ElMessage } from '@/utils/feedback'
 import { ensureUploadConfig, limits } from '@/composables/useUploadConfig'
+import { isHevcFile } from '@/utils/videoCodec'
 
 /** 单格媒体上限。超过时拒绝第 10 张并给出具体数字(Publish.vue.md §3) */
 export const MAX_MEDIA = 9
 
 /** 单文件体积上限:走后端 /upload/config 探测(useUploadConfig 单例缓存)。
- *  探测没回来前用默认值(video 10MB / image 7.5MB,与 application.yml 对齐)。
+ *  探测没回来前用默认值(video 25MB / image 7.5MB,与 application.yml 对齐)。
  *  暴露为 computed,让调用方(模板 v-if / beforeUpload)能响应式读到。 */
 const MAX_IMAGE_BYTES = computed(() => limits.value.maxImageBytes)
 const MAX_VIDEO_BYTES = computed(() => limits.value.maxVideoBytes)
@@ -51,7 +52,7 @@ export function useMediaUpload() {
    * el-upload 的 before-upload:只做本地校验,不碰网络。
    * 返回 false 是 EP 约定的「拒绝本次文件」。
    */
-  function beforeUpload(file) {
+  async function beforeUpload(file) {
     const isImg = file.type.startsWith('image/')
     const isVideo = file.type.startsWith('video/')
     // 视频功能总开关关掉时,视频直接拒(后端也会拦,前端先给个明确提示)
@@ -61,6 +62,12 @@ export function useMediaUpload() {
     }
     if (!isImg && !isVideo) {
       ElMessage.warning(VIDEO_ENABLED.value ? '仅支持图片或视频' : '仅支持图片')
+      return false
+    }
+    // HEVC 预检:浏览器普遍不支持 H.265,传上去也播不了。提前拦比传完失败友好。
+    // 与后端 VideoCodecUtil 同判据;后端也会再拦一次(防直传绕过)。
+    if (isVideo && (await isHevcFile(file))) {
+      ElMessage.warning('视频编码不支持(H.265/HEVC)，请用 H.264 编码的 mp4 重新上传')
       return false
     }
     const max = isVideo ? MAX_VIDEO_BYTES.value : MAX_IMAGE_BYTES.value

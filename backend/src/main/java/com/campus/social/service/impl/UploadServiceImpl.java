@@ -4,7 +4,13 @@ import cn.hutool.core.io.FileUtil;
 import com.campus.social.entity.UploadFile;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UploadFileMapper;
+import com.campus.social.service.OssService;
+import com.campus.social.service.UploadResult;
 import com.campus.social.service.UploadService;
+import com.campus.social.util.FileMagic;
+import com.campus.social.util.ImageCompressService;
+import com.campus.social.util.OssSignUtil;
+import com.campus.social.util.VideoCodecUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,14 +19,17 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 import java.io.File;
+import java.io.InputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,7 +37,8 @@ import static com.campus.social.common.ResultCode.*;
 
 /**
  * 本地磁盘上传
- * 量纲(前后端同标准):单图 ≤ 7.5MB,视频 ≤ 50MB
+ * 量纲(前后端同标准,均可配):单图 ≤ 7.5MB,视频 ≤ 10MB(存储止血,原 50MB)
+ * 视频功能总开关:upload.video-enabled=false 时拒收一切 video 上传
  * 目录:按天分目录,便于清理
  *
  * 关键:upload.dir 在 @PostConstruct 里一次性规范化为【绝对路径】并建好根目录,
@@ -42,6 +52,8 @@ import static com.campus.social.common.ResultCode.*;
 public class UploadServiceImpl implements UploadService {
 
     private final UploadFileMapper uploadFileMapper;
+    private final OssService ossService;
+    private final ImageCompressService imageCompressService;
 
     @Value("${upload.dir:./uploads}")
     private String baseDir;
@@ -52,8 +64,12 @@ public class UploadServiceImpl implements UploadService {
     @Value("${upload.max-image-bytes:7864320}")
     private long maxImageBytes;
 
-    @Value("${upload.max-video-bytes:52428800}")
+    @Value("${upload.max-video-bytes:10485760}")
     private long maxVideoBytes;
+
+    /** 视频功能总开关:false=拒收一切 video 上传(前端据此隐藏视频入口)。 */
+    @Value("${upload.video-enabled:true}")
+    private boolean videoEnabled;
 
     private static final Set<String> IMG_EXT = Set.of("jpg", "jpeg", "png", "gif", "webp");
     private static final Set<String> VIDEO_EXT = Set.of("mp4", "webm", "mov", "mkv");
@@ -71,82 +87,157 @@ public class UploadServiceImpl implements UploadService {
     }
 
     @Override
-    public String upload(MultipartFile file, String kind, long userId) {
+    public UploadResult upload(MultipartFile file, String kind, long userId) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(BAD_REQUEST, "文件为空");
         }
         String ext = extOf(file.getOriginalFilename()).toLowerCase();
         long max = "video".equals(kind) ? maxVideoBytes : maxImageBytes;
         Set<String> allow = "video".equals(kind) ? VIDEO_EXT : IMG_EXT;
+        // 视频功能总开关:false 时直接拒收 video 上传(比等大小/类型/魔数校验更早,省 I/O)
+        if ("video".equals(kind) && !videoEnabled) {
+            throw new BusinessException(BAD_REQUEST, "视频上传已暂停,请改用图片");
+        }
         if (!allow.contains(ext)) {
             throw new BusinessException(BAD_REQUEST, "不支持的文件类型: ." + ext);
         }
         if (file.getSize() > max) {
             throw new BusinessException(PAYLOAD_TOO_LARGE,
-                    "文件超过 " + (kind.equals("video") ? "50MB" : "7.5MB") + " 限制");
+                    "文件超过 " + (kind.equals("video") ? mb(max) : mb(maxImageBytes)) + " 限制");
         }
+        // 一次性读全量字节:魔数校验 + 压缩 + 上传 OSS / 落盘都复用,避免多次消费 MultipartFile 流。
         // 魔数校验:只看扩展名不够 —— 攻击者可用 .jpg 后缀套 shell 脚本/可执行文件。
-        // 读文件头字节,与实际声明的后缀比对签名,不符拒收。
-        byte[] head = headBytes(file);
-        if (!signatureMatches(ext, "video".equals(kind), head)) {
+        // 与实际内容签名比对,不符拒收(共用 FileMagic,与直传回调校验同一套规则)。
+        byte[] data;
+        try {
+            data = file.getBytes();
+        } catch (IOException e) {
+            log.error("read upload bytes fail", e);
+            throw new BusinessException(INTERNAL_ERROR, "读取文件失败");
+        }
+        byte[] head = data.length >= MAGIC_LEN ? Arrays.copyOf(data, MAGIC_LEN) : data;
+        if (!FileMagic.matches(head, "video".equals(kind))) {
             throw new BusinessException(BAD_REQUEST,
                     "文件内容与后缀 ." + ext + " 不符,请上传真实的图片/视频文件");
         }
+        // 视频编码预检:浏览器(尤其 Chrome/Edge,无 HEVC 扩展)不支持 H.265/HEVC,
+        // 传上去也播不了(报「没有找到支持的视频格式和 MIME 类型」),且 Safari 能播 Chrome 不能。
+        // 上传即拦下返回明确提示,比传完才失败友好。
+        if ("video".equals(kind) && VideoCodecUtil.isHevc(data)) {
+            throw new BusinessException(BAD_REQUEST,
+                    "视频编码不支持(H.265/HEVC)，请用 H.264 编码的 mp4 重新上传");
+        }
 
-        String day = LocalDate.now().format(DAY);
-        // 基于启动时锁定的绝对路径,保证与静态映射同目录
-        Path targetDir = absUploadRoot.resolve(day);
-        String fileName = UUID.randomUUID().toString().replace("-", "") + "." + ext;
+        // ---- 决定实际落库内容:图片压缩 / 缩略图(降本①②) ----
+        byte[] storeData = data;
+        String storeExt = ext;
+        ImageCompressService.CompressedImage thumb = null;
+        String thumbRel = null;
+        if ("image".equals(kind) && imageCompressService.isEnabled()) {
+            // GIF 动画保留原图(转 WebP 掉动画),但仍生成静态 WebP 缩略图
+            boolean transcodeMain = !"gif".equals(ext);
+            ImageCompressService.CompressedImage comp =
+                    transcodeMain ? imageCompressService.compressOriginal(data) : null;
+            if (comp != null) {
+                storeData = comp.bytes();
+                storeExt = comp.format();
+            }
+            thumb = imageCompressService.makeThumbnail(data);
+        }
+
+        // 统一对象 key / 相对 URL:uploads/{userId}/{day}/{uuid}.ext
+        // OSS 直传与本地兜底共用同一形态,读链路(MediaController P3)按 URL 直接映射回 OSS key,
+        // DB 仍存 /uploads/...,前端 resolveUrl 零改动。
+        String key = ossService.generateObjectKey(userId, storeExt);
+        String rel = "/" + key;
+        if (thumb != null) {
+            // 缩略图 key = 主图 key 末尾扩展名前插 _t(同源 uuid,便于对应/清理)
+            thumbRel = "/" + key.replaceFirst("(\\.[^.]+)$", "_t." + thumb.format());
+        }
+
+        if (ossService.isConfigured()) {
+            // 服务端兜底直传 OSS(STS 临时令牌,scope 锁 uploads/{userId}/*)。
+            // 生产上普通上传一般走前端直传(P4),这里是 dev / 异常兜底,以及将来可能保留的服务端入口。
+            ossService.putObject(userId, key, new ByteArrayInputStream(storeData), OssSignUtil.mimeOf(storeExt));
+            if (thumb != null && thumbRel != null) {
+                ossService.putObject(userId, thumbRel.substring(1),
+                        new ByteArrayInputStream(thumb.bytes()), OssSignUtil.mimeOf(thumb.format()));
+            }
+        } else {
+            // 本地磁盘兜底(开发态未配 AK):写到 absUploadRoot/{userId}/{day}/{fileName},
+            // 与 key 形态一致,WebMvcConfig 静态映射 /uploads/** 直接服务。
+            writeLocal(key, storeData);
+            if (thumb != null && thumbRel != null) {
+                writeLocal(thumbRel.substring(1), thumb.bytes());
+            }
+        }
+
+        // 记录归属:头像/群头像引用该文件时校验「确属该用户上传」,
+        // 堵住引用他人文件的越权。userId 由 controller 注入(当前登录人)。
+        // 缩略图也记归属:头像若用 thumbUrl,校验 isAvatarAllowed 才能通过;同 owner。
+        insertOwnership(rel, userId, kind);
+        if (thumbRel != null) {
+            insertOwnership(thumbRel, userId, "image");
+        }
+
+        log.info("upload ok: kind={}, size={}, rel={}, thumb={}, owner={}, oss={}",
+                kind, file.getSize(), rel, thumbRel, userId, ossService.isConfigured());
+        return new UploadResult(rel, thumbRel, kind);
+    }
+
+    /** 本地磁盘兜底写:objectKey=uploads/{userId}/{day}/{file} → absUploadRoot/{userId}/{day}/{file} */
+    private void writeLocal(String objectKey, byte[] bytes) {
+        String[] ks = objectKey.split("/"); // [uploads, userId, day, fileName]
+        Path targetDir = absUploadRoot.resolve(ks[1]).resolve(ks[2]);
         try {
             File dir = FileUtil.mkdir(targetDir.toFile());
-            File dest = new File(dir, fileName);
-            // 用绝对路径 File 走 OutputStream,避开 MultipartFile.transferTo(相对路径)
-            // 被 Tomcat 解析到临时目录的坑
+            File dest = new File(dir, ks[3]);
             try (OutputStream os = new FileOutputStream(dest)) {
-                file.getInputStream().transferTo(os);
+                os.write(bytes);
             }
         } catch (IOException e) {
             log.error("upload fail: dest={}", targetDir, e);
             throw new BusinessException(INTERNAL_ERROR, "上传失败");
         }
-        // 返回相对路径,前端拼 origin(铁律:不写死域名/端口)
-        String rel = "/uploads/" + day + "/" + fileName;
+    }
 
-        // 记录归属:头像/群头像引用该文件时校验「确属该用户上传」,
-        // 堵住引用他人文件的越权。userId 由 controller 注入(当前登录人)。
+    /** 插 upload_file 归属记录(mapper 为 null 的单测场景跳过) */
+    private void insertOwnership(String url, long userId, String kind) {
         UploadFile uf = new UploadFile();
         uf.setUserId(userId);
-        uf.setUrl(rel);
+        uf.setUrl(url);
         uf.setKind(kind);
         uf.setIsDeleted(0);
-        // mapper 为 null 时(单测场景)跳过落库,纯签名/落盘校验不受影响
         if (uploadFileMapper != null) {
             uploadFileMapper.insert(uf);
         }
-
-        log.info("upload ok: kind={}, size={}, absPath={}, rel={}, owner={}", kind, file.getSize(), targetDir.resolve(fileName), rel, userId);
-        return rel;
     }
 
     @Override
     public boolean isAvatarAllowed(String avatarUrl, long me) {
         // 只有 /uploads 前缀的 URL 需要校验归属 —— 外部图床/老数据没有 upload_file 记录,放行
-        String path = null;
-        try {
-            path = new java.net.URL(avatarUrl).getPath();
-        } catch (Exception e) {
-            // 非绝对 URL(相对 /uploads/...) → 直接把原串当路径用
-            path = avatarUrl;
-        }
+        String path = toPath(avatarUrl);
         if (path == null || !path.startsWith("/uploads/")) {
             return true; // 非本服务上传目录,无归属记录,放行
         }
-        // 查归属:返回 null = 老数据/无记录 → 放行;非 null 且 ≠ me → 拒
+        // 查归属
         Long owner = uploadFileMapper.ownerOf(path);
         if (owner == null) {
-            return true; // 无记录,兼容老数据
+            // 无记录:新格式(含 userId 段的 /uploads/{userId}/...)视作越权引用,拒(S2 防越权);
+            // 老格式(2 段 /uploads/{day}/{file},upload_file 表里没有)兼容放行,避免历史头像全挂。
+            boolean legacy = path.substring("/uploads/".length()).split("/").length < 3;
+            return legacy;
         }
         return owner == me;
+    }
+
+    /** 绝对 URL 取 path;非绝对(相对 /uploads/...)原样当路径用 */
+    private String toPath(String avatarUrl) {
+        try {
+            return new java.net.URL(avatarUrl).getPath();
+        } catch (Exception e) {
+            return avatarUrl;
+        }
     }
 
     private String extOf(String name) {
@@ -155,69 +246,20 @@ public class UploadServiceImpl implements UploadService {
         return i < 0 ? "" : name.substring(i + 1);
     }
 
-    /** 读文件头 MAGIC_LEN 字节(不足则读到末尾)。失败返回空数组 → 签名校验直接拒收(保守策略)。 */
-    private byte[] headBytes(MultipartFile file) {
-        byte[] buf = new byte[MAGIC_LEN];
-        int n = 0;
-        try (java.io.InputStream in = file.getInputStream()) {
-            int r;
-            while (n < buf.length && (r = in.read(buf, n, buf.length - n)) > 0) {
-                n += r;
-            }
-        } catch (IOException e) {
-            log.warn("read file head fail", e);
-            return new byte[0];
-        }
-        return n == buf.length ? buf : Arrays.copyOf(buf, n);
+    /** bytes → 人类可读 MB 文案(上限值可能调,不能写死) */
+    private static String mb(long bytes) {
+        return (bytes / 1024 / 1024) + "MB";
     }
 
-    /** 签名与后缀一致性判定。
-
-     比对的是「实际字节」而非扩展名白名单 —— 扩展名白名单只挡了"声明",
-     挡不住"内容是 PHP 但声明 .jpg"。逐类判定:
-
-     - JPEG  (\xFF\xD8\xFF)
-     - PNG   (\x89PNG\r\n\x1A\n)
-     - GIF   ("GIF8")
-     - WEBP  (\x1A\x45\x46\x46)
-     - MP4/MOV/QuickTime: 第 4-7 字节是 "ftyp"/"qt  ",且第 0-3 字节是长度 > 8;
-       宽松判定:head 长度 >= 12 且 (head[4..8)=="ftyp" 或 head[4..8)=="qt  ")
-     - WebM  (\x1A\x45\xDF\xA3,EBML 头)
-
-     未知后缀返回 false → 拒收。这是保守策略:宁可误拒,不可放过。
-    */
-    private boolean signatureMatches(String ext, boolean isVideo, byte[] head) {
-        if (head.length < 4) return false;
-        int b0 = head[0] & 0xFF, b1 = head[1] & 0xFF, b2 = head[2] & 0xFF, b3 = head[3] & 0xFF;
-        switch (ext) {
-            case "jpg":
-            case "jpeg":
-                return b0 == 0xFF && b1 == 0xD8 && b2 == 0xFF;
-            case "png":
-                // \x89 P N G
-                return b0 == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G';
-            case "gif":
-                return head[0] == 'G' && head[1] == 'I' && head[2] == 'F';
-            case "webp":
-                // \x1A E F F
-                return b0 == 0x1A && head[1] == 'E' && head[2] == 'F';
-            case "mp4":
-            case "mov":
-            case "webm":
-            case "mkv":
-                if (isVideo) {
-                    // MP4/MOV/QuickTime: 第 4-7 字节是 "ftyp" 或 "qt  "
-                    if (head.length >= 12) {
-                        String brand = new String(head, 4, 4, java.nio.charset.StandardCharsets.US_ASCII);
-                        if ("ftyp".equals(brand) || "qt  ".equals(brand)) return true;
-                    }
-                    // WebM/MKV: EBML 头 \x1A\x45\xDF\xA3
-                    if (b0 == 0x1A && b1 == 0x45 && b2 == 0xDF && b3 == 0xA3) return true;
-                }
-                return false;
-            default:
-                return false;
-        }
+    @Override
+    public Map<String, Object> uploadConfig() {
+        return Map.of(
+                "videoEnabled", videoEnabled,
+                "maxVideoBytes", maxVideoBytes,
+                "maxImageBytes", maxImageBytes,
+                // 前端据此决定走直传(P4,true)还是普通 POST /upload 服务端兜底(false,本地 dev/备案中)
+                "ossEnabled", ossService.isConfigured() && ossService.isDirectUploadEnabled()
+        );
     }
 
     /** 供 WebMvcConfig 静态映射读取,保证读写同目录 */
