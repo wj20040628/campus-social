@@ -73,6 +73,16 @@ public interface PostMapper extends BaseMapper<Post> {
     int invalidateCirclePosts(@Param("circleId") long circleId);
 
     /**
+     * 恢复解散的圈子(对称 invalidateCirclePosts):把圈内帖子 status=2 还原回 1。
+     * 仅针对 circle_id=X 的帖子,不影响其它圈。只处理「被解散级联改成的 status=2」,
+     * 但 SQL 不区分来源,因此调用方(restoreCircle)只在 status=1 的圈上调,
+     * 而 status=1 的圈在广场不可见,其内帖子的 status=2 只能来自解散(正常圈的下架帖
+     * 也是 status=2 但圈 status=0,不会被误伤)。
+     */
+    @Update("UPDATE post SET status = 1, update_time = NOW() WHERE circle_id = #{circleId} AND status = 2 AND is_deleted = 0")
+    int restoreCirclePosts(@Param("circleId") long circleId);
+
+    /**
      * 某用户发的动态数(他人主页头部「动态」数字用)。
      * 口径与 PostFeedQueryService.myPosts 一致:status IN (0,1,2) 且未删。
      * 现查 post 表而非依赖冗余计数列 —— 列漂移时列表是对的、头部也会跟着对。
