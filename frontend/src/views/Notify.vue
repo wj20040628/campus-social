@@ -24,12 +24,22 @@
             :class="{ unread: !n.isRead }"
             @click="openAndRead(n)"
           >
-            <el-avatar :size="40" :src="resolveUrl(n.actor?.avatarUrl)" class="n-avatar" />
+            <!-- 反馈回复匿名:不显示管理员真实头像,用中性图标占位并保持与其他条左对齐 -->
+            <el-avatar v-if="n.type === 11" :size="40" class="n-avatar n-avatar-anon">
+              <el-icon><Service /></el-icon>
+            </el-avatar>
+            <el-avatar v-else :size="40" :src="resolveThumb(n.actor?.avatarUrl)" class="n-avatar" />
             <div class="n-body">
               <div class="n-text">
-                <b>{{ n.actor ? displayName(n.actor) : '用户' }}</b>
-                {{ n.summary }}
+                <!-- 官方回复固定署名「管理员」,不暴露具体处置人;与 summary 同一行避免中间空格 -->
+                <template v-if="n.type === 11"><b>管理员</b>{{ n.summary }}</template>
+                <template v-else>
+                  <b>{{ n.actor ? displayName(n.actor) : '用户' }}</b>
+                  {{ n.summary }}
+                </template>
               </div>
+              <!-- 反馈回复(type=11):管理员回复原文,引用块展示;点击仅标已读不跳转 -->
+              <div v-if="n.type === 11 && n.content" class="n-reply">{{ n.content }}</div>
               <div class="n-time">{{ n.createTime }}</div>
             </div>
             <el-tag v-if="!n.isRead" type="danger" size="small" effect="dark" class="n-badge">新</el-tag>
@@ -52,9 +62,9 @@ import dayjs from 'dayjs'
 import { list as listApi, read as readApi, readAll as readAllApi } from '@/api/notify'
 import { getWsClient } from '@/utils/ws'
 import StateBlock from '@/components/common/StateBlock.vue'
-import { Bell } from '@element-plus/icons-vue'
+import { Bell, Service } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 
@@ -133,6 +143,9 @@ async function openAndRead(n) {
       // 被 @:targetId 是评论 id,跳帖子并定位到那条评论
       const pid = n.postId ?? null
       if (pid) router.push({ path: `/post/${pid}`, query: { comment: n.targetId } })
+    } else if (n.type === 11) {
+      // 反馈回复:管理员回复原文已在卡片内展示,点击仅标已读,不跳转任何页面
+      // (显式分支:防止后续有人给 jump 加默认回首页逻辑时误伤)
     }
   }
   if (!n.isRead) {
@@ -239,6 +252,17 @@ onBeforeUnmount(() => {
 .n-avatar {
   flex-shrink: 0;
 }
+/*
+ * 反馈回复匿名头像:暖青浅底 + 客服图标,不暴露管理员真实头像。
+ * el-avatar 无图时默认白字,这里显式给底色与图标色,免得深色模式下糊成一片。
+ */
+.n-avatar-anon {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+.n-avatar-anon :deep(.el-icon) {
+  font-size: 20px;
+}
 .n-body {
   flex: 1;
 }
@@ -249,6 +273,18 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--ys-meta);
   margin-top: 4px;
+}
+/* 反馈回复原文:浅底引用块,与「回复了你的反馈」摘要做视觉区分 */
+.n-reply {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--ys-surface-2);
+  border-left: 3px solid var(--ys-accent);
+  border-radius: var(--ys-radius-md);
+  font-size: 13px;
+  color: var(--ys-text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .n-badge {
   flex-shrink: 0;

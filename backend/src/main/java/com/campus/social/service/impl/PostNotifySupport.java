@@ -81,4 +81,33 @@ public class PostNotifySupport {
         // WS 实时推（离线落表，上线后 REST 拉）
         wsPush.pushNotify(userId, n.getId(), type, targetId, actorId);
     }
+
+    /**
+     * 反馈回复通知：管理员处置反馈时把处理说明作为回复推给提交者。
+     *
+     * <p>与 {@link #pushNotify} 同一条路径（写 notify + 未读数 +1 + WS 实时推），
+     * 唯一区别是带 {@code content} 自由文本——原话存库，前端直接渲染，
+     * 不必再为「反馈回复」硬造一套 type→文案映射。
+     *
+     * <p>只在该发的时候发：调用方（FeedbackServiceImpl.handle）已用乐观锁挡掉
+     * 重复处置，这里不会收到二次调用，故不会重发。
+     *
+     * @param toUserId 反馈提交者（接收方）
+     * @param feedbackId 反馈 id（存 targetId，点通知时可作为线索）
+     * @param adminId 处置管理员（actorId）
+     * @param content 回复原文（即 handleNote）
+     */
+    public void pushFeedbackReply(long toUserId, long feedbackId, long adminId, String content) {
+        Notify n = new Notify();
+        n.setUserId(toUserId);
+        n.setType(11);
+        n.setTargetId(feedbackId);
+        n.setPostId(null);
+        n.setActorId(adminId);
+        n.setContent(content);
+        n.setIsRead(0);
+        notifyMapper.insert(n);
+        userMapper.adjustUnreadNotifyCount(toUserId, 1);
+        wsPush.pushNotify(toUserId, n.getId(), 11, feedbackId, adminId);
+    }
 }

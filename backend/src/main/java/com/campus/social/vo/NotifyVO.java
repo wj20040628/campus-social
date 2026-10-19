@@ -20,6 +20,8 @@ public class NotifyVO {
     private UserVO actor;
     /** 关联对象摘要(帖子标题/评论摘要等) */
     private String summary;
+    /** 自由文本通知内容(如反馈回复原文);非文本类通知为 null */
+    private String content;
     /**
      * boolean + Lombok @Data 的 getter 是 isRead(),Jackson 默认序列化成 "read"(去 is 前缀),
      * 前端读的是 isRead → 恒 undefined,导致「新」标记永远显示。

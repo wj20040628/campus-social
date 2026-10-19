@@ -177,6 +177,10 @@ tags:
     description: F4 举报提交（上线门槛项）
   - name: admin-report
     description: F4 举报处置（管理员，手机端可用，OD-19）
+  - name: feedback
+    description: 意见反馈提交（导航抽屉「意见反馈」）
+  - name: admin-feedback
+    description: 意见反馈审核（管理员，手机端可用）
   - name: chat
     description: F3 免好友搭话
   - name: tag
@@ -534,6 +538,116 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReportHandleResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /feedback:
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: 提交意见反馈
+      description: |
+        提交即进入管理员审核队列（`status = 0`），由管理端处置。
+        **不幂等**：同一个人可以重复提交（同一问题提两次是常事，
+        反而说明用户很在意），故不返回 `duplicated` 标记，也不做唯一键去重。
+
+        `content` 过长或含敏感词分别返回 422 `SENSITIVE_WORD_BLOCKED`；
+        `media` 复用发帖的上传产物（OSS 相对路径），后端只校验数量与地址长度。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackSubmitRequest'
+      responses:
+        '200':
+          description: 反馈已进入待处理队列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackSubmitResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/feedback:
+    get:
+      operationId: listAdminFeedback
+      tags: [admin-feedback]
+      summary: 反馈列表（管理员）
+      description: |
+        进入即校验管理员（非管理员 403 `NOT_ADMIN`）。游标按 `id` 倒序
+        （不用 `create_time`：可能撞同一秒，会漏行或重复行）。
+        `pendingCount` 是 `status = 0` 的**全量**总数，供手机端顶栏红点。
+      parameters:
+        - name: status
+          in: query
+          description: 0待处理 1已采纳 2已忽略。不传表示全部
+          required: false
+          schema:
+            type: integer
+            enum: [0, 1, 2]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 反馈游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeedbackPageResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/feedback/{id}/handle:
+    post:
+      operationId: handleAdminFeedback
+      tags: [admin-feedback]
+      summary: 处置反馈（采纳 / 忽略）
+      description: |
+        `adopt` 采纳（`status = 1`）或 `ignore` 忽略（`status = 2`），
+        `handleNote` **必填** —— 反馈是人对人的沟通，管理员什么都不写
+        就点采纳，等于让提交者收到一句没有信息量的「收到」。
+
+        不设「已修复」态：产品改没改只有开发者知道，让管理员去勾一个
+        自己无法证实的状态，那个字段很快就会变成人人随手点的 noise。
+
+        处置写 `audit_log`（`feedback_adopt` / `feedback_ignore`）；
+        重复处置返回 409 `FEEDBACK_ALREADY_HANDLED`（乐观锁 `WHERE status = 0`）。
+
+        **处置即回复**：`handleNote` 直接作为回复原文推给反馈提交者一条
+        站内通知（`notify.type = 11`，`content` 存原文）。用户到 `/notify`
+        列表看到「管理员回复了你的反馈：<原话>」，点开仅标已读不跳转。
+        该推送走与点赞/评论通知同一条通道（写 `notify` 行 + 未读数 +1 + WS 实时推），
+        乐观锁已挡掉重复处置，故不会重发。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackHandleRequest'
+      responses:
+        '200':
+          description: 处置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackHandleResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ForbiddenAdmin' }
@@ -2448,6 +2562,199 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ReportHandleData'
+
+    FeedbackSubmitRequest:
+      type: object
+      required: [category, content]
+      properties:
+        category:
+          type: integer
+          description: 1功能建议 2使用问题 3内容问题 4界面体验 5其他
+          enum: [1, 2, 3, 4, 5]
+          example: 2
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: |
+            文字描述。上限 1000 字（与列宽一致），比举报的 200 字宽：
+            反馈是「描述问题」而非「选一个原因」，复现步骤 + 现象 + 期望
+            三段写下来 200 字往往只够写半句。
+          example: 点开聊天页之后列表一直转圈，重开才好
+        media:
+          type: array
+          maxItems: 9
+          description: 图片 / 视频附件，可空。最多 9 个，与发帖媒体上限一致
+          items:
+            $ref: '#/components/schemas/FeedbackMediaItem'
+
+    FeedbackMediaItem:
+      type: object
+      required: [type, url]
+      properties:
+        type:
+          type: integer
+          description: 1 图片 2 视频（与发帖媒体同码）
+          enum: [1, 2]
+          example: 1
+        url:
+          type: string
+          maxLength: 500
+          description: 上传接口返回的 OSS 相对路径
+          example: uploads/2026/10/18/clip.mp4
+
+    FeedbackSubmitData:
+      type: object
+      required: [status]
+      properties:
+        feedbackId:
+          type: integer
+          format: int64
+        status:
+          type: integer
+          description: |
+            0待处理 1已采纳 2已忽略。新提交恒为 0。
+            回执带 status 是为了让前端提示「我们会看」而不是
+            「已经改好了」—— 后者会误导用户。
+          enum: [0, 1, 2]
+
+    FeedbackSubmitResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/FeedbackSubmitData'
+
+    FeedbackVO:
+      type: object
+      required: [id, category, content, status, createTime]
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        userNickname:
+          type: string
+          nullable: true
+          description: 提交人昵称，联表带出；用户已注销时为 null，前端降级为「已注销用户」
+        category:
+          type: integer
+          enum: [1, 2, 3, 4, 5]
+        content:
+          type: string
+          maxLength: 1000
+        mediaJson:
+          type: string
+          nullable: true
+          description: |
+            `[{"type":"img","url":"..."}]`，与 `post.media` 同形，
+            管理端复用同一套缩略图渲染。为空表示没传媒体。
+        status:
+          type: integer
+          enum: [0, 1, 2]
+        handlerId:
+          type: integer
+          format: int64
+          nullable: true
+        handleTime:
+          type: string
+          format: date-time
+          nullable: true
+        handleNote:
+          type: string
+          nullable: true
+        createTime:
+          type: string
+          format: date-time
+
+    AdminFeedbackPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/CursorPageEnvelope'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/FeedbackVO'
+                    pendingCount:
+                      type: integer
+                      description: status=0 的全量总数，供手机端顶栏红点
+
+    FeedbackHandleRequest:
+      type: object
+      required: [action, handleNote]
+      properties:
+        action:
+          type: string
+          enum: [adopt, ignore]
+          example: adopt
+        handleNote:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 处理说明，必填，写入 audit_log
+
+    FeedbackHandleResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/FeedbackSubmitData'
+
+    NotifyVO:
+      type: object
+      description: |
+        站内通知项。`type` 取值：1被关注 2被赞 3被评 4私信 5活动
+        6审核中 7审核通过 8审核未通过 9被@ 10集市留言 11反馈回复。
+        `summary` 由后端按 type 硬拼（如「回复了你的反馈」），
+        `content` 仅 type=11 有值，存反馈回复原文。
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: integer
+          example: 11
+        targetId:
+          type: integer
+          format: int64
+          description: 关联实体 id（type=11 时为反馈 id）
+        postId:
+          type: integer
+          format: int64
+          nullable: true
+        actorId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 触发者 id；type=11（反馈回复）**恒为 null**，管理员身份对用户匿名
+        actor:
+          allOf:
+            - $ref: '#/components/schemas/UserVO'
+          nullable: true
+          description: 触发者资料；type=11（反馈回复）**恒为 null**
+        summary:
+          type: string
+          example: 回复了你的反馈
+        content:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: 自由文本通知内容；仅 type=11（反馈回复）有值，存原文
+        isRead:
+          type: boolean
+        createTime:
+          type: string
+          format: date-time
 
     ChatSendRequest:
       type: object

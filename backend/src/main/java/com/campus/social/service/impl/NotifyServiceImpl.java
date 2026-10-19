@@ -72,16 +72,25 @@ public class NotifyServiceImpl implements NotifyService {
         return u != null ? u.getUnreadNotifyCount() : 0;
     }
 
+    /**
+     * 反馈回复(type=11)是「官方对个人」的通知,用户不该知道是哪个管理员处理的。
+     * 匿名要在接口层做:只在前端隐藏,用户按 F12 看返回照样能查到管理员 id。
+     */
+    private static final int TYPE_FEEDBACK_REPLY = 11;
+
     private NotifyVO toVo(Notify n) {
-        UserVO actorVo = UserVoAssembler.of(userMapper.selectById(n.getActorId()));
+        boolean anonymous = n.getType() != null && n.getType() == TYPE_FEEDBACK_REPLY;
+        // 匿名时不查 user 表,顺带省一次查询;非匿名保持原逻辑
+        UserVO actorVo = anonymous ? null : UserVoAssembler.of(userMapper.selectById(n.getActorId()));
         return NotifyVO.builder()
                 .id(n.getId())
                 .type(n.getType())
                 .targetId(n.getTargetId())
                 .postId(n.getPostId())
-                .actorId(n.getActorId())
+                .actorId(anonymous ? null : n.getActorId())
                 .actor(actorVo)
                 .summary(summaryFor(n))
+                .content(n.getContent())
                 .isRead(n.getIsRead() == 1)
                 .createTime(n.getCreateTime())
                 .build();
@@ -99,6 +108,7 @@ public class NotifyServiceImpl implements NotifyService {
             case 8: return "你的内容未通过审核";
             case 9: return "在评论中@了你";
             case 10: return "在你的集市活动下留言了";
+            case 11: return "回复了你的反馈";
             default: return "";
         }
     }

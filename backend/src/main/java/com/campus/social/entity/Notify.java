@@ -16,10 +16,13 @@ public class Notify implements Serializable {
 
     private Long userId;
 
-    /** 1被关注 2被赞 3被评 4私信 5活动 */
+    /**
+     * 1被关注 2被赞 3被评 4私信 5活动 6审核中 7审核通过 8审核未通过
+     * 9被@ 10集市留言 11反馈回复
+     */
     private Integer type;
 
-    /** 关联实体 id(帖子/评论/会话/活动) */
+    /** 关联实体 id(帖子/评论/会话/活动/反馈) */
     private Long targetId;
 
     /** 被指向的帖子 id(点赞/评论跳帖子详情用),其他类型可空 */
@@ -27,6 +30,9 @@ public class Notify implements Serializable {
 
     /** 触发者 */
     private Long actorId;
+
+    /** 自由文本通知内容(如反馈回复原文);旧类型通知恒为 NULL */
+    private String content;
 
     /** 0未读 1已读 */
     private Integer isRead;

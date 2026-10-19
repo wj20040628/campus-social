@@ -1,0 +1,114 @@
+/* AdminFeedback.vue 的样式。
+   chips / chip / notice / more 四组类名与 AdminAnnouncement.css 同名同构,
+   两页刻意保持一致:后台各页的筛选条长得不一样,管理员每换一页要重新适应一次。 */
+.af {
+  max-width: var(--ys-container-max);
+  margin: 0 auto;
+}
+
+.chips {
+  display: flex;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-border);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip.is-on {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+/* 待处理计数:用 accent 底色的小圆标,与 chip 自身的选中态同色系 */
+.chip__num {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-size: var(--ys-text-xs);
+  line-height: 1;
+}
+
+.notice {
+  margin: 0 var(--ys-space-4) var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  font-size: var(--ys-text-sm);
+}
+
+.notice--danger {
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+}
+
+.af__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--ys-surface);
+  border-radius: var(--ys-radius-xl);
+  box-shadow: var(--ys-shadow-1);
+  overflow: hidden;
+}
+
+/* 相邻条目之间用发丝线分隔,不另加 margin —— 加了会让首尾多出空隙 */
+.af__list > * + * {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.more {
+  margin: var(--ys-space-3) 0;
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+  cursor: pointer;
+}
+
+/* 处置弹层里回显被处置的那条原文:管理员写说明时要看得见自己在说哪条 */
+.af__quote {
+  margin: 0 0 var(--ys-space-3);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface-2);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  max-height: 6em;
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .af__list > * + * {
+    /* 桌面端列表不需要通栏卡片感,留出容器边距更好读 */
+    border-top: 0;
+  }
+
+  .af__list > * {
+    border-bottom: 1px solid var(--ys-border-soft);
+  }
+}

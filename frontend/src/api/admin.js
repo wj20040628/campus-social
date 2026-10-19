@@ -22,6 +22,17 @@ export function unbanCircle(id) {
   return request.post(`/admin/circles/${id}/unban`)
 }
 
+/** 恢复解散的圈子(思路 B 兜底:圈 status 1→0 + 圈内帖子 status 2→1,仅管理员)。 */
+export function restoreCircle(id) {
+  return request.post(`/admin/circles/${id}/restore`)
+}
+
+/** 全量圈子列表(含 status=1 封禁/解散),按 id 倒序。管理员处置用。 */
+export function listAllCircles(lastId, size = 100) {
+  const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
+  return request.get(`/admin/circles?${q}`)
+}
+
 // ---------------- 预留官方名 ----------------
 
 /** 预留某圈名(建圈撞名直接拦)。 */
@@ -41,6 +52,6 @@ export function listReservedNames(lastId, size = 20) {
 }
 
 export default {
-  transferCircle, banCircle, unbanCircle,
+  transferCircle, banCircle, unbanCircle, restoreCircle, listAllCircles,
   addReservedName, delReservedName, listReservedNames,
 }
