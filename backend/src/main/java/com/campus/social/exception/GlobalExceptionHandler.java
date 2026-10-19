@@ -6,10 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.MissingServletRequestParameterException;import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -67,6 +67,38 @@ public class GlobalExceptionHandler {
         log.warn("Type mismatch: {} = {}", e.getName(), e.getValue());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Result.fail(ResultCode.BAD_REQUEST, "参数类型错误: " + e.getName()));
+    }
+
+    /**
+     * 请求体 JSON 解析失败（字段类型对不上、JSON 语法错、枚举值不存在）。
+     *
+     * <p>不接住它就会落进最后的兜底分支变成 500，前端弹「服务器内部错误」，
+     * 而真实原因是**客户端把字段类型传错了** —— 前端会先去查服务端日志，
+     * 排查方向完全跑偏。实测踩过：反馈附件的 {@code type} 传字符串
+     * {@code "img"} 而 DTO 要 Integer，Jackson 抛本异常，
+     * 表现却是「上传了照片 → 服务器内部错误」，完全看不出是参数问题。
+     *
+     * <p>回 400 且 message 里带上字段路径，调用方能直接定位到是哪一项。
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Result<?>> notReadable(HttpMessageNotReadableException e) {
+        log.warn("Request body not readable: {}", rootMessage(e));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.fail(ResultCode.BAD_REQUEST, "请求体格式错误: " + rootMessage(e)));
+    }
+
+    /** 只取根因消息:Jackson 的包装层信息是「JSON parse error: ...」这类模板,太长且无用 */
+    private String rootMessage(HttpMessageNotReadableException e) {
+        Throwable cause = e.getMostSpecificCause();
+        String msg = cause.getMessage();
+        if (msg == null) {
+            return "字段类型不匹配";
+        }
+        int at = msg.indexOf(" at [Source");
+        if (at > 0) {
+            msg = msg.substring(0, at);
+        }
+        return msg.length() > 200 ? msg.substring(0, 200) : msg;
     }
 
     /** 404 资源不存在 */

@@ -100,6 +100,41 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+        <!-- 阿里云邮件推送(DirectMail)网关:app.campus.message-gateway=aliyun 时激活 -->
+        <!-- Tea SDK,Java 17 兼容。dm20151123 传递依赖 tea-openapi / tea / tea-util 等 -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dm20151123</artifactId>
+            <version>1.12.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>tea-openapi</artifactId>
+            <version>0.3.12</version>
+        </dependency>
+
+        <!-- 阿里云统一凭据客户端:支持 ECS 实例 RAM 角色(自动刷 STS,无 AK 落盘) -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>credentials-java</artifactId>
+            <version>1.0.8</version>
+        </dependency>
+
+        <!-- 阿里云 OSS 对象存储:前端直传 / 后端签名读 URL / 服务端兜底上传 -->
+        <dependency>
+            <groupId>com.aliyun.oss</groupId>
+            <artifactId>aliyun-sdk-oss</artifactId>
+            <version>3.17.4</version>
+        </dependency>
+
+        <!-- 图片压缩 / 转 WebP(降温①②):ImageIO 插件,原生 libwebp 打进 jar,Windows/Linux 通用;
+             缺失或编码失败自动回退 JPEG,上传绝不因压缩失败 -->
+        <dependency>
+            <groupId>com.github.usefulness</groupId>
+            <artifactId>webp-imageio</artifactId>
+            <version>0.11.0</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

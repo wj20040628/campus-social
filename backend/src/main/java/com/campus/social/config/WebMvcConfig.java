@@ -3,12 +3,10 @@ package com.campus.social.config;
 import com.campus.social.interceptor.AdminInterceptor;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.interceptor.VerifiedInterceptor;
-import com.campus.social.service.impl.UploadServiceImpl;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -16,7 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * - 注册 JWT 鉴权拦截器
  * - 注册未认证拦截器与管理员拦截器
  * - 跨域(白名单收窄,TD-01)
- * - 上传目录静态资源映射
+ * - 上传目录读链路改由 MediaController 接管(P3):OSS 配好 302 到签名 URL,未配 AK 读本地磁盘
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -24,7 +22,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final AuthInterceptor authInterceptor;
     private final VerifiedInterceptor verifiedInterceptor;
     private final AdminInterceptor adminInterceptor;
-    private final UploadServiceImpl uploadService;
     private final CorsProperties corsProperties;
 
     @Value("${upload.dir:./uploads}")
@@ -33,12 +30,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public WebMvcConfig(AuthInterceptor authInterceptor,
             VerifiedInterceptor verifiedInterceptor,
             AdminInterceptor adminInterceptor,
-            UploadServiceImpl uploadService,
             CorsProperties corsProperties) {
         this.authInterceptor = authInterceptor;
         this.verifiedInterceptor = verifiedInterceptor;
         this.adminInterceptor = adminInterceptor;
-        this.uploadService = uploadService;
         this.corsProperties = corsProperties;
     }
 
@@ -74,7 +69,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/refresh",
                         "/auth/send-code",
                         "/auth/login-code",
+                        "/upload/config",
+                        // 学校字典:纯只读全局参照数据,注册页(未登录)也要拉院系/年级/专业,
+                        // 不放行会在打开注册页时就被 401 踢回登录页(DictController 仅 GET,无越权风险)。
+                        "/dict/**",
                         "/uploads/**",
+                        // OSS 上传回调:由阿里云 OSS 服务器调用,不带用户 token,必须放行
+                        // (否则 auth 拦截器 401,回调失败 → 上传文件无 upload_file 记录)
+                        "/upload/oss-callback",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
                         "/swagger-ui.html",
@@ -87,15 +89,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(adminInterceptor)
                 .addPathPatterns("/admin/**")
                 .order(3);
-    }
-
-    @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // 上传目录静态资源(已 excludePathPatterns,无需鉴权)
-        // 与写盘共用 UploadServiceImpl 启动时锁定的绝对路径,保证读写同目录
-        String resolved = uploadService.getAbsUploadRoot().toAbsolutePath().toString();
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + resolved + "/");
     }
 
     /**

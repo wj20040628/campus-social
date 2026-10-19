@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `follower_count`        INT          NOT NULL DEFAULT 0,
     `following_count`       INT          NOT NULL DEFAULT 0,
     `unread_notify_count`   INT          NOT NULL DEFAULT 0,
+    `joined_circle_count`   INT          NOT NULL DEFAULT 0      COMMENT '加入的圈子数(冗余,加圈/退圈事务内±1)',
     `create_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`            TINYINT      NOT NULL DEFAULT 0,

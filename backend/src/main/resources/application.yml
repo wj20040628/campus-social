@@ -24,12 +24,12 @@ spring:
       database: ${REDIS_DB:0}
       timeout: 3s
   # ------------------------------------------------------------
-  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 50MB)
+  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 10MB)
   # ------------------------------------------------------------
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 200MB
+      max-file-size: 20MB
+      max-request-size: 100MB
   # 禁用默认静态资源映射(避免 /uploads/** 被拦截)
   web:
     resources:
@@ -71,15 +71,30 @@ jwt:
   # 本地开发用 application-local.yml,生产必须用强随机的 JWT_ACCESS_SECRET / JWT_REFRESH_SECRET 环境变量。
   access-secret: ${JWT_ACCESS_SECRET:}
   refresh-secret: ${JWT_REFRESH_SECRET:}
-  # access 15min,refresh 7d
+  # access 15min;refresh 默认 3d(不勾记住我),勾选记住我 7d
+  # 账号体系重构 2026-10-17:原默认 7d 翻转为 3d,新增 remember 7d 配置
   access-ttl-millis: 900000
-  refresh-ttl-millis: 604800000
+  refresh-ttl-millis: 259200000
+  refresh-ttl-remember-millis: 604800000
 
 upload:
   # 上传目录:相对路径,容器内可挂载
   dir: ${UPLOAD_DIR:./uploads}
   max-image-bytes: 7864320        # 7.5 MB
-  max-video-bytes: 52428800      # 50 MB
+  max-video-bytes: 26214400      # 25MB(存储止血;原 50 MB 太大,15 个视频就 169 MB)
+  # 视频功能总开关:true=正常收视频(受 max-video-bytes 限制);false=彻底关,
+  # 拒收一切 video 上传并让前端隐藏视频入口。改这一个值 + 重启即可,零代码回滚。
+  video-enabled: true
+  # 图片压缩 / 转 WebP / 缩略图(OSS 接入降本①②)。仅作用于「后端经手字节」的
+  # 上传路径(POST /upload 服务端兜底);前端直传(P4)压缩在浏览器侧做。
+  image:
+    enabled: ${UPLOAD_IMAGE_ENABLED:true}
+    # 原图最长边上限(px),超则等比缩放到此内再编码,源头减量最大头
+    max-edge: ${UPLOAD_IMAGE_MAX_EDGE:1920}
+    # 缩略图最长边(px),头像/列表用小图,详情用原图
+    thumb-edge: ${UPLOAD_IMAGE_THUMB_EDGE:480}
+    # WebP 质量 0-100(插件缺失/编码失败自动回退 JPEG,上传永不因压缩失败)
+    webp-quality: ${UPLOAD_IMAGE_WEBP_QUALITY:82}
 
 server:
   port: 8080
@@ -125,8 +140,65 @@ app:
   # 否则 Redis 重启后未到期的解封计划会先于 key 过期而丢失
   ban:
     max-plan-days: 45
+  oss:
+    # 存储桶(建桶时定死)
+    bucket: ${OSS_BUCKET:yousheng-uploads}
+    region: ${OSS_REGION:cn-hangzhou}
+    # 外网域名:前端直传 / 浏览器读签名 URL 用
+    endpoint: ${OSS_ENDPOINT:oss-cn-hangzhou.aliyuncs.com}
+    # 内网域名:ECS 后端拉头 / 回调校验用,免流量费
+    internal-endpoint: ${OSS_INTERNAL_ENDPOINT:oss-cn-hangzhou-internal.aliyuncs.com}
+    # STS 扮演的 RAM 角色 ARN
+    role-arn: ${OSS_ROLE_ARN:acs:ram::1930391355152122:role/oss-uploader-role}
+    # STS 服务接入点(地域级)
+    sts-endpoint: ${OSS_STS_ENDPOINT:sts.cn-hangzhou.aliyuncs.com}
+    # 上传回调地址(生产必须备案域名;本地 dev 不验证)
+    callback-url: ${OSS_CALLBACK_URL:https://yousheng8.cn/upload/oss-callback}
+    # 回调验签密钥(32 位 hex),生产 env 注入
+    callback-key: ${OSS_CALLBACK_KEY:}
+    # 前端直传开关:备案过审后才开(true)。备案中关(false),前端走 POST /upload 服务端兜底
+    # (服务端直传 OSS 不依赖回调域名,备案中可用;直传才依赖回调到 yousheng8.cn)。
+    direct-upload-enabled: ${OSS_DIRECT_UPLOAD_ENABLED:false}
+    # 上传 STS 临时令牌用的固定 AK(仅后端,不下发前端)
+    sts-access-key-id: ${OSS_STS_ACCESS_KEY_ID:}
+    sts-access-key-secret: ${OSS_STS_ACCESS_KEY_SECRET:}
+    # 后端生成读签名 URL 用的 AK(只 GetObject)
+    read-access-key-id: ${OSS_READ_ACCESS_KEY_ID:}
+    read-access-key-secret: ${OSS_READ_ACCESS_KEY_SECRET:}
+    # 签名读 URL 有效期(秒)
+    presign-ttl-seconds: 3600
+    # STS 临时令牌有效期(秒),需 <= 角色最大会话时长
+    sts-duration-seconds: 3600
+    # 对象 key 前缀;DB 仍存 /uploads/... 形态,读时映射回 OSS key
+    key-prefix: uploads
   campus:
-    message-gateway: ${APP_MESSAGE_GATEWAY:dev}
+    message-gateway: ${APP_MESSAGE_GATEWAY:aliyun}
+    # 阿里云邮件推送(DirectMail)网关配置:仅 app.campus.message-gateway=aliyun 时生效
+    # 生产用环境变量注入,切勿硬编码 AK/SK。本地开发走 dev(控制台打印)无需这些。
+    aliyun:
+      access-key-id: ${ALIYUN_DM_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIYUN_DM_ACCESS_KEY_SECRET:}
+      region-id: ${ALIYUN_DM_REGION_ID:cn-hangzhou}
+      # DM 接入点:默认公网 dm.aliyuncs.com;区域化可改 dm.<region>.aliyuncs.com
+      endpoint: ${ALIYUN_DM_ENDPOINT:dm.aliyuncs.com}
+      # 发信地址(AccountName),需先在 DM 控制台验证发信域名与发信地址
+      from-address: ${ALIYUN_DM_FROM_ADDRESS:system@yousheng8.cn}
+      # 发件人别名,如 友声
+      from-alias: ${ALIYUN_DM_FROM_ALIAS:友声}
+      # 0=随机发信地址(推荐) 1=用 from-address 发
+      address-type: ${ALIYUN_DM_ADDRESS_TYPE:1}
+      # 邮件标签(可选,DM 控制台统计用)
+      tag-name: ${ALIYUN_DM_TAG_NAME:}
+      # 控制台「模板管理」已审核邮件模板 ID;非空则 SingleSendMail 走模板发信
+      # (忽略 HtmlBody,内容以模板为准,降低反垃圾风控),为空则回退直传 HtmlBody
+      template-id: ${ALIYUN_DM_TEMPLATE_ID:445523}
+      # 邮件标题:与控制台模板「邮件标题」保持一致(模板模式下标题以请求为准)
+      subject: ${ALIYUN_DM_SUBJECT:系统验证码通知}
+      # 凭据类型:ecs_ram_role(默认,走 ECS 实例元数据自动发/自动刷 STS,磁盘与 env 无 AK)
+      #          access_key(回退,用上方 access-key-id/secret 环境变量,适用于本地或非 ECS)
+      credential-type: ${ALIYUN_DM_CREDENTIAL_TYPE:ecs_ram_role}
+      # ECS 实例绑定的 RAM 角色名(可空;空则 SDK 自动从实例元数据发现已绑定角色)
+      role-name: ${ALIYUN_DM_ROLE_NAME:}
 
 # ------------------------------------------------------------
 # 校园信息与护栏参数(F2 / F3 / F11)
@@ -134,7 +206,7 @@ app:
 # ------------------------------------------------------------
 campus:
   # MVP 单校,不建 school 表——为一行数据建表属过度设计
-  school-name: ${CAMPUS_SCHOOL_NAME:本校大学}
+  school-name: ${CAMPUS_SCHOOL_NAME:黄河交通学院}
   # 学校 ID,与 user.school_id / announcement.school_id 对齐。
   # 做成配置而非各处硬编码 1:多校字段已在库里,真要开第二所学校时只改这一处
   school-id: ${CAMPUS_SCHOOL_ID:1}

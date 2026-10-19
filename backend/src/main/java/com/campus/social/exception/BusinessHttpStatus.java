@@ -83,8 +83,17 @@ public final class BusinessHttpStatus {
         // 圈子「圈管理/官方名保护」
         // 撞预留名:409 CONFLICT(名称资源冲突,与建圈重名同源,前端贴输入框提示即可)
         MAPPING.put(ResultCode.CIRCLE_NAME_RESERVED, HttpStatus.CONFLICT);
+        // 圈子名 3-7 汉字:422 UNPROCESSABLE(请求合法但字段长度不符,前端贴输入框提示)
+        MAPPING.put(ResultCode.CIRCLE_NAME_INVALID, HttpStatus.UNPROCESSABLE_ENTITY);
         // 被封禁成员操作圈内写路径:422 UNPROCESSABLE(请求合法但业务上此刻不可用)
         MAPPING.put(ResultCode.CIRCLE_MEMBER_BANNED, HttpStatus.UNPROCESSABLE_ENTITY);
+
+        // 意见反馈审核:与 F4 举报同口径 ——
+        // 404 是「这条反馈不存在」(处理动作同样是刷新列表),
+        // 409 是「已被他人处置」(乐观锁 WHERE status=0 落空),
+        // 前端据此 suppressStatuses:[409] 把全局红条让给调用方翻成人话
+        MAPPING.put(ResultCode.FEEDBACK_NOT_FOUND, HttpStatus.NOT_FOUND);
+        MAPPING.put(ResultCode.FEEDBACK_ALREADY_HANDLED, HttpStatus.CONFLICT);
     }
 
     private BusinessHttpStatus() {
