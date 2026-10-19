@@ -104,6 +104,20 @@ export function handleFeedback(id, body) {
   return request.post(`/admin/feedback/${id}/handle`, body, { suppressStatuses: [409] })
 }
 
+/**
+ * 我的反馈列表(当前用户自己提交的,游标分页)。
+ * 与 adminFeedback 同款游标参数(cursor / nextCursor)。
+ *
+ * @param {{cursor?:number|null, size?:number}} [params]
+ * @returns {Promise<{list:Array, nextCursor:number|null, hasMore:boolean}>}
+ */
+export function myFeedback(params = {}) {
+  const { cursor, size = 20 } = params
+  const query = { size }
+  if (cursor !== undefined && cursor !== null) query.cursor = cursor
+  return request.get('/feedback/mine', { params: query })
+}
+
 export default {
   FEEDBACK_CATEGORIES,
   CATEGORY_TEXT,
@@ -111,4 +125,5 @@ export default {
   submitFeedback,
   adminFeedback,
   handleFeedback,
+  myFeedback,
 }

@@ -12,6 +12,8 @@ import com.campus.social.service.impl.PostNotifySupport;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.FeedbackAdminItemVO;
 import com.campus.social.vo.FeedbackAdminPageVO;
+import com.campus.social.vo.FeedbackMineItemVO;
+import com.campus.social.vo.FeedbackMinePageVO;
 import com.campus.social.vo.FeedbackSubmitVO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -130,6 +132,19 @@ public class FeedbackServiceImpl implements FeedbackService {
         log.info("feedback handled: id={}, action={}, admin={}", feedbackId, action, adminId);
 
         return FeedbackSubmitVO.builder().feedbackId(feedbackId).status(target).build();
+    }
+
+    @Override
+    public FeedbackMinePageVO listMine(long userId, Long cursor, int size) {
+        int limit = Math.max(1, Math.min(size, 50));
+        List<FeedbackMineItemVO> rows = feedbackMapper.selectByUser(userId, cursor, limit + 1);
+        boolean hasMore = rows.size() > limit;
+        List<FeedbackMineItemVO> page = hasMore ? rows.subList(0, limit) : rows;
+        FeedbackMinePageVO vo = new FeedbackMinePageVO();
+        vo.setList(page);
+        vo.setHasMore(hasMore);
+        vo.setNextCursor(hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null);
+        return vo;
     }
 
     /**

@@ -3,6 +3,7 @@ package com.campus.social.service;
 import com.campus.social.dto.FeedbackHandleDTO;
 import com.campus.social.dto.FeedbackSubmitDTO;
 import com.campus.social.vo.FeedbackAdminPageVO;
+import com.campus.social.vo.FeedbackMinePageVO;
 import com.campus.social.vo.FeedbackSubmitVO;
 
 /**
@@ -25,6 +26,9 @@ public interface FeedbackService {
 
     /** 管理端列表（游标分页） */
     FeedbackAdminPageVO list(Integer status, Long cursor, int size);
+
+    /** 我的反馈列表（游标分页，仅当前用户自己提交的） */
+    FeedbackMinePageVO listMine(long userId, Long cursor, int size);
 
     /**
      * 处置反馈。

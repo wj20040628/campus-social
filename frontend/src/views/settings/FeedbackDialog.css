@@ -116,3 +116,167 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* 标签切换:提交反馈 / 我的反馈 */
+.fbk__tabs {
+  display: flex;
+  gap: var(--ys-space-1);
+  margin-bottom: var(--ys-space-4);
+  padding-bottom: var(--ys-space-2);
+  border-bottom: 1px solid var(--ys-border-soft);
+}
+.fbk__tab {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 0;
+  border-radius: var(--ys-radius-lg);
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+.fbk__tab--on {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}
+
+/* 我的反馈列表(可滚动,避免长列表把弹层撑爆) */
+.fbk__mine {
+  max-height: 56vh;
+  overflow-y: auto;
+}
+.fbk__empty {
+  padding: var(--ys-space-6) var(--ys-space-2);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+.fbk__retry {
+  border: 0;
+  background: none;
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+}
+.fbk__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}
+.fbk__more {
+  margin: var(--ys-space-3) 0 0;
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+/* 单条反馈卡(复刻 AdminFeedbackItem 视觉,但不带提交人昵称 — 那是自己) */
+.fcard {
+  padding: var(--ys-space-3);
+  border: 1px solid var(--ys-border-soft);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+}
+.fcard__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin-bottom: var(--ys-space-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  font-size: var(--ys-text-xs);
+  line-height: 1;
+}
+.chip--live {
+  background: var(--ys-success-soft);
+  color: var(--ys-success);
+}
+.chip--done {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+.chip--off {
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+}
+.chip--cat {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+}
+.fcard__body {
+  margin: 0;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  color: var(--ys-fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fcard__media {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fcard__cell {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+}
+.fcard__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.fcard__warn {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
+}
+.fcard__meta {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+.fcard__reply {
+  margin: var(--ys-space-2) 0 0;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface-2);
+}
+.fcard__replylabel {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-accent);
+}
+.fcard__replytext {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fcard__replytime {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}

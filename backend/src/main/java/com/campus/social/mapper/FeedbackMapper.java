@@ -3,6 +3,7 @@ package com.campus.social.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.campus.social.entity.Feedback;
 import com.campus.social.vo.FeedbackAdminItemVO;
+import com.campus.social.vo.FeedbackMineItemVO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -74,5 +75,21 @@ public interface FeedbackMapper extends BaseMapper<Feedback> {
             + "ORDER BY f.id DESC LIMIT #{limit}"
             + "</script>")
     List<FeedbackAdminItemVO> selectAdminList(@Param("status") Integer status,
+            @Param("cursor") Long cursor, @Param("limit") int limit);
+
+    /**
+     * 我的反馈列表(游标分页,id 倒序,只取当前用户自己提交的)。
+     *
+     * <p>不联 user 表:提交人就是自己,昵称没意义;只投影用户侧需要的字段,
+     * 不把 handler_id 这种处理人 id 透传给提交者。
+     */
+    @Select("<script>"
+            + "SELECT f.id, f.category, f.content, f.media_json, f.status, "
+            + "f.handle_note, f.handle_time, f.create_time FROM feedback f "
+            + "WHERE f.user_id = #{userId} AND f.is_deleted = 0 "
+            + "<if test='cursor != null'>AND f.id &lt; #{cursor} </if>"
+            + "ORDER BY f.id DESC LIMIT #{limit}"
+            + "</script>")
+    List<FeedbackMineItemVO> selectByUser(@Param("userId") Long userId,
             @Param("cursor") Long cursor, @Param("limit") int limit);
 }
