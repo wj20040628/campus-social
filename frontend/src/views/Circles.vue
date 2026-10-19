@@ -270,11 +270,11 @@
             v-model="newName"
             class="create__input"
             type="text"
-            maxlength="64"
-            placeholder="如 篮球圈 / 考研圈 / 摄影社"
+            maxlength="7"
+            placeholder="如 篮球社 / 考研圈 / 摄影社"
             @keyup.enter="create"
           />
-          <p class="create__hint">名字起清楚一点，别人搜得到</p>
+          <p class="create__hint">3-7 字,需含汉字(可搭配字母/数字,如「23届网安」),不能纯数字/纯字母</p>
           <!-- 错误贴近字段(设计 §3),且**输入的名字必须保留** -->
           <p v-if="createError" class="create__error" role="alert">{{ createError }}</p>
         </div>
@@ -356,7 +356,8 @@ function onCreateClick() {
 
 function goVerify() {
   verifyOpen.value = false
-  router.push('/settings')
+  // 认证是提交学号,学号字段在编辑资料页 /profile
+  router.push('/profile')
 }
 
 function goDetail(id) {

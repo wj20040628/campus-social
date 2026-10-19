@@ -30,7 +30,7 @@
         <span class="ac__tab-ind" :style="{ transform: `translateX(${tab === 'circles' ? '0%' : '100%'})` }" />
       </div>
 
-      <!-- Tab 1:圈子处置(列圈子 + 移交/封禁/解封) -->
+      <!-- Tab 1:圈子处置(全量列表:含封禁/解散,移交/封禁/解封/恢复) -->
       <div v-show="tab === 'circles'" role="tabpanel" class="ac__body">
         <StateBlock
           v-if="!cLoading && circles.length === 0"
@@ -39,12 +39,19 @@
           description="用户建了圈子后,被抢注官方名的会出现在这里供你处置"
         />
         <ul v-else class="ac__list">
-          <li v-for="c in circles" :key="c.id" class="ac__row">
+          <li v-for="c in circles" :key="c.id" class="ac__row" :class="{ 'is-banned': c.status === 1 }">
             <div class="ac__cid">
-              <span class="ac__cname">{{ c.name }}</span>
-              <span class="ac__cmeta">
-                {{ c.status === 1 ? '已封禁' : '正常' }} · {{ c.memberCount || 0 }} 成员
-              </span>
+              <div class="ac__ctitle">
+                <span class="ac__cname">{{ c.name }}</span>
+                <!-- 状态标签:正常(灰)/ 已封禁(红)。封禁/解散的圈子整行染淡红,一眼扫出 -->
+                <span v-if="c.status === 0" class="ac__stag ac__stag--ok">正常</span>
+                <span v-else class="ac__stag ac__stag--bad">已封禁</span>
+                <span v-if="c.status === 0" class="ac__count">{{ c.memberCount || 0 }} 成员</span>
+              </div>
+              <!-- 圈主列:owner 对象由 toVoForAdmin 回填(脱敏 nickname);缺失时显示 id 兜底 -->
+              <div class="ac__cowner">
+                圈主:{{ c.owner?.nickname || c.owner?.username || c.ownerId }}
+              </div>
             </div>
             <div class="ac__cacts">
               <button
@@ -61,10 +68,24 @@
                 :disabled="busy === `unban-${c.id}`"
                 @click="unban(c)"
               >解封</button>
+              <!--
+                恢复:思路 B 兜底,仅 status=1(封禁/解散)时露出。
+                与「解封」的区别:解封只翻 status=0,不解散级联的帖子 status=2;
+                恢复额外把圈内帖子 status 2→1,让解散过的圈彻底复活。
+                实现上 unban 与 restore 可互换(都走 setStatus(0)),
+                这里保留两个按钮:封禁用「解封」,解散用「恢复」,语义对齐操作来源。
+              -->
+              <button
+                v-if="c.status === 1"
+                type="button"
+                class="ac__btn"
+                :disabled="busy === `restore-${c.id}`"
+                @click="restore(c)"
+              >恢复</button>
               <button
                 type="button"
                 class="ac__btn"
-                :disabled="busy === `transfer-${c.id}`"
+                :disabled="busy === `transfer-${c.id}` || c.status === 1"
                 @click="promptTransfer(c)"
               >移交圈主</button>
             </div>
@@ -157,7 +178,9 @@ async function loadCircles() {
   cLoading.value = true
   cFailed.value = false
   try {
-    const data = await circleApi.list(null, 100)
+    // 走 admin 全量端点(含 status=1 封禁/解散),旧 circleApi.list 只查 status=0,
+    // 封禁后这条会消失、管理员再也找不回来 —— 真 bug
+    const data = await adminApi.listAllCircles(null, 200)
     circles.value = data?.list || []
   } catch {
     cFailed.value = true
@@ -182,6 +205,18 @@ async function unban(c) {
   try {
     await adminApi.unbanCircle(c.id)
     ElMessage.success('已解封该圈子')
+    await loadCircles()
+  } catch { /* request.js 已弹错 */ } finally {
+    busy.value = ''
+  }
+}
+
+/** 恢复解散的圈子(思路 B 兜底):圈 status 1→0 + 圈内帖子 status 2→1。仅管理员。 */
+async function restore(c) {
+  busy.value = `restore-${c.id}`
+  try {
+    await adminApi.restoreCircle(c.id)
+    ElMessage.success('已恢复该圈子')
     await loadCircles()
   } catch { /* request.js 已弹错 */ } finally {
     busy.value = ''

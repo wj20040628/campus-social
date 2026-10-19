@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.CursorPage;
 import com.campus.social.common.ResultCode;
 import com.campus.social.dto.ReservedNameDTO;
+import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.entity.Circle;
 import com.campus.social.entity.CircleMember;
 import com.campus.social.entity.Post;
@@ -386,6 +387,25 @@ public class CircleAdminServiceImpl implements CircleAdminService {
         log.info("circle disbanded by owner: circle={} operator={}", circleId, operatorId);
     }
 
+    @Override
+    @Transactional
+    public void restoreCircle(long circleId, long adminId) {
+        // 思路 B 兜底:圈主侧不给恢复入口(解散文案承诺「不可恢复」),
+        // 恢复只走平台管理员通道,保留「圈主解散=终态」的强语义。
+        roleService.requireAdmin(adminId);
+        Circle c = circleMapper.selectById(circleId);
+        if (c == null || c.getStatus() != 1) {
+            // 只有 status=1(封禁/解散)的圈才可恢复;正常圈调它没意义
+            throw new BusinessException(UNPROCESSABLE, "该圈子不是封禁/解散状态,无需恢复");
+        }
+        // 1) 圈子 status 1→0
+        circleMapper.setStatus(circleId, 0);
+        // 2) 圈内帖子 status 2→1(对称 invalidateCirclePosts 的级联)
+        postMapper.restoreCirclePosts(circleId);
+        auditService.record(adminId, "circle_restore", "circle", circleId, "恢复圈子", null);
+        log.info("circle restored by admin: circle={} admin={}", circleId, adminId);
+    }
+
     // ============================================================ 预留名(运营后台)
 
     @Override
@@ -451,5 +471,46 @@ public class CircleAdminServiceImpl implements CircleAdminService {
         Long cnt = reservedNameMapper.selectCount(new LambdaQueryWrapper<ReservedCircleName>()
                 .eq(ReservedCircleName::getName, name.trim()));
         return cnt != 0;
+    }
+
+    /**
+     * 管理员处置列表:查全量圈子(含 status=1 封禁/解散),按 id 倒序游标分页。
+     * 实现里不重实现 toVo —— 委托 CircleService.list(全量版)由 CircleServiceImpl
+     * 负责装配,避免两处 CircleVO 字段口径漂移。
+     */
+    @Override
+    public CursorPage<com.campus.social.vo.CircleVO> listForAdmin(Long lastId, int size, long adminId) {
+        roleService.requireAdmin(adminId);
+        LambdaQueryWrapper<Circle> qw = new LambdaQueryWrapper<Circle>()
+                .lt(lastId != null, Circle::getId, lastId)
+                .orderByDesc(Circle::getId)
+                .last("LIMIT " + (size + 1));
+        List<Circle> rows = circleMapper.selectList(qw);
+        boolean hasMore = rows.size() > size;
+        List<Circle> page = rows.stream().limit(size).toList();
+        List<com.campus.social.vo.CircleVO> vos = page.stream()
+                .map(c -> toVoForAdmin(c, adminId))
+                .toList();
+        Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
+        return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    /** 管理后台专用 CircleVO 装配:不查 viewer 的 membership(joined/myRole/myBanned 全置默认),
+     *  因为管理后台关心的是圈子本身的状态,不是「我这个管理员加没加」。 */
+    private com.campus.social.vo.CircleVO toVoForAdmin(Circle c, long adminId) {
+        User owner = userMapper.selectById(c.getOwnerId());
+        com.campus.social.vo.UserVO ovo = owner != null ? UserVoAssembler.of(owner) : null;
+        return com.campus.social.vo.CircleVO.builder()
+                .id(c.getId())
+                .name(c.getName())
+                .ownerId(c.getOwnerId())
+                .owner(ovo)
+                .memberCount(c.getMemberCount())
+                .status(c.getStatus())
+                .createTime(c.getCreateTime())
+                .joined(false)
+                .myRole(0)
+                .myBanned(false)
+                .build();
     }
 }

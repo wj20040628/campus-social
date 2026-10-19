@@ -12,6 +12,7 @@ import com.campus.social.vo.CircleVO;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.assembler.UserVoAssembler;
+import com.campus.social.util.SensitiveWordFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,22 +33,36 @@ public class CircleServiceImpl implements CircleService {
     private final UserMapper userMapper;
     /** 官方名保护:建圈撞预留名直接拦(运营后台维护 reserved_circle_name) */
     private final CircleAdminService circleAdminService;
+    /** 敏感词 DFA:建圈名命中 level-2(拒发)直接 422;level-1(替换)也拒,圈名是永久标识,不允许打码入库 */
+    private final SensitiveWordFilter sensitive;
 
     @Override
     @Transactional
     public long createCircle(long owner, CircleDTO dto) {
+        // 归一化:trim + 全角转半角(「考研１」与「考研1」不应被视为两个名字)
+        String name = normalizeName(dto.getName());
+        // 长度 3-7 + 必须含至少 1 个汉字(纯数字/纯字母/纯符号都拒)。
+        // 用负向先行 (?![0-9a-zA-Z._-]*$) 排除纯非汉字串,允许「23届网安」这种混合
+        if (!name.matches("^(?![0-9a-zA-Z._-]*$)[\\u4e00-\\u9fa5a-zA-Z0-9._-]{3,7}$")) {
+            throw new BusinessException(CIRCLE_NAME_INVALID, "圈子名需含汉字(可搭配字母/数字),不能是纯数字/纯字母");
+        }
+        // 敏感词拦截:level-2 拒发直接 422;level-1 也拒(圈名是永久标识,
+        // 不允许打码入库——被替换成 * 的圈名后续没法展示/搜索)
+        if (sensitive.containsBlock(name) || sensitive.containsReplace(name)) {
+            throw new BusinessException(SENSITIVE_WORD_BLOCKED, "圈子名包含违规词,换一个再试");
+        }
         // 官方名保护:撞预留名直接拦(在重名检查之前,文案区分)
-        if (circleAdminService.isReservedName(dto.getName())) {
+        if (circleAdminService.isReservedName(name)) {
             throw new BusinessException(CIRCLE_NAME_RESERVED, "该圈子名已被系统预留,无法创建");
         }
-        // 名称唯一(逻辑删除外)
+        // 名称唯一(逻辑删除外)。用归一化后的 name,保证「 考研圈」与「考研圈」不被当两个
         LambdaQueryWrapper<Circle> qw = new LambdaQueryWrapper<Circle>()
-                .eq(Circle::getName, dto.getName());
+                .eq(Circle::getName, name);
         if (circleMapper.selectCount(qw) > 0) {
             throw new BusinessException(CONFLICT, "圈子名称已存在");
         }
         Circle c = new Circle();
-        c.setName(dto.getName());
+        c.setName(name);
         c.setOwnerId(owner);
         c.setMemberCount(1);
         c.setStatus(0);
@@ -109,6 +124,8 @@ public class CircleServiceImpl implements CircleService {
         cm.setRole(3); // member
         circleMemberMapper.insert(cm);
         circleMapper.adjustMemberCount(circleId, 1);
+        // 冗余计数:用户「加入的圈子数」+1(退圈时 -1),与 follower_count 同口径
+        userMapper.adjustJoinedCircleCount(userId, 1);
     }
 
     @Override
@@ -132,6 +149,8 @@ public class CircleServiceImpl implements CircleService {
         // 物理删(绕过 @TableLogic 软删,否则残留行锁住 uk_cm,再入会撞唯一键)
         circleMemberMapper.hardDelete(circleId, userId, 3);
         circleMapper.adjustMemberCount(circleId, -1);
+        // 冗余计数:用户「加入的圈子数」-1(加圈时 +1),与 follower_count 同口径
+        userMapper.adjustJoinedCircleCount(userId, -1);
     }
 
     @Override
@@ -171,8 +190,37 @@ public class CircleServiceImpl implements CircleService {
         return new CursorPage<>(vos, nextCursor, hasMore);
     }
 
-    private CircleVO toVo(Circle c, long viewerId) {
-        UserVO ovo = UserVoAssembler.of(userMapper.selectById(c.getOwnerId()));
+    /**
+     * 圈子名归一化:trim + 全角转半角(数字/字母)。
+     * 全角「１」与半角「1」不应被视为两个名字,也不应让全角数字混进库。
+     * 只转 ASCII 范围内有全角对应物的字符,汉字本身不变。
+     */
+    private String normalizeName(String raw) {
+        if (raw == null) return "";
+        String t = raw.trim();
+        StringBuilder sb = new StringBuilder(t.length());
+        for (char c : t.toCharArray()) {
+            if (c == ' ') continue; // 内部空格也去掉:「考研 圈」→「考研圈」,空格在列表里破坏对齐
+            if (c >= '０' && c <= '９') {
+                sb.append((char) ('0' + (c - '０')));
+            } else if (c >= 'Ａ' && c <= 'Ｚ') {
+                sb.append((char) ('A' + (c - 'Ａ')));
+            } else if (c >= 'ａ' && c <= 'ｚ') {
+                sb.append((char) ('a' + (c - 'ａ')));
+            } else if (c == '．') {
+                sb.append('.');
+            } else if (c == '－') {
+                sb.append('-');
+            } else if (c == '＿') {
+                sb.append('_');
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    private CircleVO toVo(Circle c, long viewerId) {        UserVO ovo = UserVoAssembler.of(userMapper.selectById(c.getOwnerId()));
 
         int myRole = 0; // 0=非成员
         boolean joined = false;

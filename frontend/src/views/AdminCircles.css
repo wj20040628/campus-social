@@ -83,18 +83,67 @@
   margin-top: var(--ys-space-3);
 }
 
+/* 封禁/解散的圈子:整行染淡红,状态标签红,一眼扫出 —— 与正常行的灰白底区分 */
+.ac__row.is-banned {
+  background: var(--ys-danger-soft);
+  border-color: color-mix(in srgb, var(--ys-danger) 24%, var(--ys-border));
+}
+
 .ac__cid {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* 圈子名 + 状态标签 + 成员数 同一行 */
+.ac__ctitle {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-width: 0;
 }
 
 .ac__cname {
   font-size: var(--ys-text-base);
   font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 状态标签:正常(灰底)/ 已封禁(红底红字) */
+.ac__stag {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: var(--ys-radius-full);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  line-height: 1.5;
+}
+
+.ac__stag--ok {
+  background: var(--ys-surface-2);
+  color: var(--ys-muted);
+}
+
+.ac__stag--bad {
+  background: var(--ys-danger);
+  color: #fff;
+}
+
+.ac__count {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  white-space: nowrap;
+}
+
+/* 圈主行:小号灰字,1 行截断 */
+.ac__cowner {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

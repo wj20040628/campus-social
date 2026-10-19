@@ -55,6 +55,14 @@ public interface CircleAdminService {
     /** 列圈内成员(供管理面板):role + banStatus + banUntil。 */
     List<CircleMemberVO> members(long circleId, long viewerId);
 
+    /**
+     * 管理员处置列表:查全量圈子(含 status=1 封禁/解散的),按 id 倒序游标分页。
+     * 区别于 CircleService.list(只查 status=0):被封禁/解散的圈子也要在管理后台可见,
+     * 否则管理员封了之后找不到入口解封/恢复。
+     * 返回 CircleVO,joined/myRole/myBanned 按 viewerId(admin)回填。
+     */
+    CursorPage<com.campus.social.vo.CircleVO> listForAdmin(Long lastId, int size, long adminId);
+
     // ---------------- 管理员:官方名处置 ----------------
 
     /** 移交圈主(管理员):owner_id 翻转 + 原圈主 1→3、新圈主 role→1。新圈主须为圈内成员。 */
@@ -69,9 +77,16 @@ public interface CircleAdminService {
     /**
      * 解散圈子(仅圈主 role=1):软删圈子(status=1)+ 级联软删圈内帖子。
      * 成员行不删 —— 保留成员关系,该圈 status=1 后列表自动过滤(见 CircleMapper.list)。
-     * 数据保留可审计,管理员需要时可恢复。
+     * 数据保留可审计,管理员需要时可恢复(见 restoreCircle)。
      */
     void disbandCircle(long circleId, long operatorId);
+
+    /**
+     * 恢复解散的圈子(管理员兜底,思路 B)。对称 disbandCircle:
+     * 圈子 status 1→0 + 圈内帖子 status 2→1。仅管理员可用(requireAdmin),
+     * 圈主侧不提供恢复入口 —— 解散文案承诺「不可恢复」,恢复只走平台兜底通道。
+     */
+    void restoreCircle(long circleId, long adminId);
 
     // ---------------- 预留名(管理员/运营后台) ----------------
 

@@ -20,7 +20,7 @@
       <img
         v-if="circle.avatarUrl"
         class="crow__avatar"
-        :src="resolveUrl(circle.avatarUrl)"
+        :src="resolveThumb(circle.avatarUrl)"
         :alt="`${circle.name}的图标`"
       />
       <span v-else class="crow__avatar crow__avatar--blank" aria-hidden="true">
@@ -64,7 +64,7 @@
 <script setup>
 import { computed } from 'vue'
 import { CircleCheck, ChatDotRound } from '@element-plus/icons-vue'
-import { resolveUrl } from '@/utils/resolve'
+import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
 const props = defineProps({
   circle: { type: Object, required: true },

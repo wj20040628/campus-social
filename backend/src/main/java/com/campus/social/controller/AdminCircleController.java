@@ -6,6 +6,7 @@ import com.campus.social.dto.ReservedNameDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.interceptor.RequireAdmin;
 import com.campus.social.service.CircleAdminService;
+import com.campus.social.vo.CircleVO;
 import com.campus.social.vo.ReservedNameVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -64,6 +65,32 @@ public class AdminCircleController {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         circleAdminService.unbanCircle(id, me);
         return Result.ok(Map.of("message", "已解封该圈子"));
+    }
+
+    /**
+     * 恢复解散的圈子(思路 B 兜底,仅管理员)。
+     * 对称 disbandCircle:圈 status 1→0 + 圈内帖子 status 2→1。
+     * 圈主侧不提供恢复入口(解散文案承诺「不可恢复」),恢复只走平台兜底通道。
+     */
+    @PostMapping("/{id}/restore")
+    public Result<Map<String, String>> restore(@PathVariable("id") long id, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        circleAdminService.restoreCircle(id, me);
+        return Result.ok(Map.of("message", "已恢复该圈子"));
+    }
+
+    /**
+     * 全量圈子列表:查 status=0 + status=1,按 id 倒序。
+     * 区别于 {@code CircleService.list}(只查 status=0):被封禁/解散的圈子也要在管理后台可见,
+     * 否则管理员封了之后找不到入口解封/恢复(真 bug:旧 list 按 status 过滤导致封禁后消失)。
+     */
+    @GetMapping
+    public Result<CursorPage<CircleVO>> listAll(
+            @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "size", defaultValue = "100") int size,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(circleAdminService.listForAdmin(lastId, size, me != null ? me : 0));
     }
 
     // ---------------- 预留官方名(运营后台) ----------------

@@ -235,6 +235,16 @@ export function useCircles() {
   async function create() {
     const name = newName.value.trim()
     if (!name || creating.value) return
+    // 前端先拦「不足 3 字」:用户打第 3 个字就该看到提示,不依赖后端 422
+    if ([...name].length < 3) {
+      createError.value = '名字至少 3 个字'
+      return
+    }
+    // 必须含汉字(可搭配字母/数字,如「23届网安」);纯数字/纯字母/纯符号拒
+    if (!/[一-龥]/.test(name)) {
+      createError.value = '名字需含汉字,不能是纯数字/纯字母'
+      return
+    }
     creating.value = true
     createError.value = ''
     try {
@@ -246,9 +256,12 @@ export function useCircles() {
       // 用户会以为「建了但没出现」
       cursor.value = null
       await load()
-    } catch {
-      // 输入的名字**保留** —— 清空等于让用户重打一遍(设计 §3)
-      createError.value = '没创建成功，再点一次'
+    } catch (e) {
+      // 输入的名字**保留** —— 清空等于让用户重打一遍(设计 §3)。
+      // 后端业务文案(409 撞预留名/重名、422 长度/敏感词)直接透传,
+      // 不用让用户去翻 Network 面板猜是哪条规则拦的
+      const msg = e?.response?.data?.message
+      createError.value = msg ? `${msg}(换个名字再试)` : '没创建成功，再点一次'
     } finally {
       creating.value = false
     }
