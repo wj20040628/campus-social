@@ -3,6 +3,7 @@ package com.campus.social.controller;
 import com.campus.social.common.Result;
 import com.campus.social.common.CursorPage;
 import com.campus.social.dto.UpdateProfileDTO;
+import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.entity.User;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.mapper.UserMapper;
@@ -57,6 +58,19 @@ public class UserController {
     public Result<UserVO> setStrangerMsg(@RequestParam("enabled") boolean enabled, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(authService.setStrangerMsgEnabled(me, enabled));
+    }
+
+    /**
+     * 绑定 / 修改安全凭证邮箱(需登录)。
+     * 流程:先 {@code POST /auth/send-code} type=bind 把码发到目标邮箱,再带码调用本端点。
+     */
+    @PostMapping("/bind-email")
+    public Result<UserVO> bindEmail(@Valid @RequestBody BindEmailDTO dto, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        return Result.ok(authService.bindEmail(me, dto));
     }
 
     /** 用户卡片(公开,看他人主页用) */

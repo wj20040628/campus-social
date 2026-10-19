@@ -36,6 +36,12 @@ public class SchoolProfileVO implements Serializable {
     /** 年级名称，如「2024级」 */
     private String gradeName;
 
-    /** deptId 与 gradeId 均非空 */
+    /** 专业字典 id */
+    private Long majorId;
+
+    /** 专业名称，由服务端查字典得到，前端不必二次请求 */
+    private String majorName;
+
+    /** deptId / gradeId / majorId 均非空 */
     private Boolean profileComplete;
 }

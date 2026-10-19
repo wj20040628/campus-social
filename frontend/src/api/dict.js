@@ -27,24 +27,60 @@ export function schoolDict() {
 }
 
 /**
+ * 学院 → 专业级联下拉(按学院 + 本专科过滤)。
+ *
+ * 与 schoolDict 分开:专业依赖「已选学院 + 已选本专科」两个前置值,
+ * 不能合并进一次性的院系年级响应。用户每改一次学院或本专科才查一次,
+ * 频率低、结果小,单独端点更贴合调用形态。
+ *
+ * @param {number} deptId 学院字典 id
+ * @param {number} level  本专科 1=本科 2=专科
+ * @returns {Promise<Array>} 专业字典项列表(id / name / code / level / sort)
+ */
+export function majors(deptId, level) {
+  return request.get(DICT_ENDPOINT.majors, { params: { deptId, level } })
+}
+
+/**
+ * 一次拉全校专业(挂载预取用)。
+ *
+ * 后端带 Redis 缓存(TTL 10min),返回该校启用中的全部专业(含 deptId / level),
+ * 前端据此按「当前学院 + 本专科」即时过滤专业下拉,不再逐组合发请求。
+ * 彻底消除级联竞态与「首次选完学院+本专科却没加载出来」的交互问题。
+ *
+ * @param {number} [schoolId] 学校 id,缺省取后端默认(恒 1)
+ * @returns {Promise<Array>} 专业字典项列表(id / deptId / name / code / level / sort)
+ */
+export function allMajors(schoolId) {
+  return request.get(DICT_ENDPOINT.majorsAll, {
+    params: schoolId != null ? { schoolId } : undefined,
+  })
+}
+
+/**
  * 写入学校归属(注册后补资料 / 单独修改)。
  *
  * 传的是**字典 id**,不是自由文本。
  *
- * @param {{schoolId:number, deptId:number, gradeId:number}} payload
+ * 注意:**必须带 majorId**。后端 SchoolProfileDTO.majorId 是 @NotNull,
+ * 少发这一个键会被 400「请选择专业」打回;本专科(level)无需传,
+ * 它由 school_major.level 派生,不落 user 表。
+ *
+ * @param {{schoolId:number, deptId:number, gradeId:number, majorId:number}} payload
  */
 export function saveSchoolProfile(payload) {
   return request.post('/user/school-profile', {
     [SCHOOL_PROFILE_PAYLOAD.schoolId]: payload.schoolId,
     [SCHOOL_PROFILE_PAYLOAD.deptId]: payload.deptId,
     [SCHOOL_PROFILE_PAYLOAD.gradeId]: payload.gradeId,
+    [SCHOOL_PROFILE_PAYLOAD.majorId]: payload.majorId,
   })
 }
 
 /**
- * 从用户资料对象里读出学院 / 年级。
+ * 从用户资料对象里读出学院 / 年级 / 专业。
  *
- * 返回 `{ deptId, deptName, gradeId, gradeName }`,其中 name 的来源有三级:
+ * 返回 `{ deptId, deptName, gradeId, gradeName, majorId }`,其中 name 的来源有三级:
  *   1. 后端直接下发的 name(权威,别的客户端写的数据也能正确显示)
  *   2. 按 id 去字典反查(后端没下发 name 时)
  *   3. 旧自由文本字段(仅存量数据)
@@ -52,15 +88,20 @@ export function saveSchoolProfile(payload) {
  * 三级兜底缺一不可:只做 1 则后端不下发 name 时全站显示空白;
  * 只做 2 则存量用户(id 为 null)显示不出任何东西。
  *
+ * majorId 一定带出:设置页回填专业下拉要用它,后端 /user/me 已返回。
+ * 本专科(level)不在这里读 —— user 表不存,由调用方用专业字典反查。
+ *
  * @param {object} user 用户资料对象
  * @param {{depts:Array, grades:Array}} dict 字典(可传空数组)
  */
 export function readIdentity(user, dict = { depts: [], grades: [] }) {
   const deptId = user?.[DICT_FIELDS.deptId] ?? null
   const gradeId = user?.[DICT_FIELDS.gradeId] ?? null
+  const majorId = user?.[DICT_FIELDS.majorId] ?? null
   return {
     deptId,
     gradeId,
+    majorId,
     deptName:
       user?.[DICT_FIELDS.deptName] ||
       dict.depts?.find((d) => Number(d.id) === Number(deptId))?.name ||
@@ -74,4 +115,4 @@ export function readIdentity(user, dict = { depts: [], grades: [] }) {
   }
 }
 
-export default { schoolDict, saveSchoolProfile, readIdentity }
+export default { schoolDict, majors, allMajors, saveSchoolProfile, readIdentity }

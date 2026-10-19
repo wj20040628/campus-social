@@ -19,6 +19,7 @@
 export const DICT_ERR = {
   DEPT_INVALID: 1040,
   GRADE_INVALID: 1041,
+  MAJOR_INVALID: 1057,
 }
 
 /**
@@ -28,12 +29,14 @@ export const DICT_ERR = {
 const FIELD_OF = {
   [DICT_ERR.DEPT_INVALID]: 'deptId',
   [DICT_ERR.GRADE_INVALID]: 'gradeId',
+  [DICT_ERR.MAJOR_INVALID]: 'majorId',
 }
 
 /** 字段级提示。与后端 message 语义一致,但措辞是指导动作而不是陈述失败。 */
 const HINT_OF = {
   [DICT_ERR.DEPT_INVALID]: '这个学院已停用或不存在,重新选一个',
   [DICT_ERR.GRADE_INVALID]: '这个年级已停用或不存在,重新选一个',
+  [DICT_ERR.MAJOR_INVALID]: '这个专业已停用或不存在,重新选一个',
 }
 
 /**
@@ -59,7 +62,7 @@ export function extractCode(e) {
 
 /**
  * 判定这次写入是不是「字典失效」类错误。
- * @returns {null | { code:number, field:'deptId'|'gradeId', hint:string }}
+ * @returns {null | { code:number, field:'deptId'|'gradeId'|'majorId', hint:string }}
  */
 export function dictWriteError(e) {
   const code = extractCode(e)
@@ -95,13 +98,16 @@ export async function refreshDictAfterInvalid(dictStore) {
  * 用户看到一个光秃秃的数字(如「12」),比不给提示更难理解。
  * 清掉之后下拉回到 placeholder,配合字段级错误就是完整的一条出路。
  *
- * @param {{deptId?:number|null, gradeId?:number|null}} identity 归属对象(会被就地修改)
- * @param {null|{field:'deptId'|'gradeId', hint:string}} bad dictWriteError 的返回值
- * @returns {{dept?:string, grade?:string}} 传给 SchoolFields 的 invalid
+ * @param {{deptId?:number|null, gradeId?:number|null, majorId?:number|null}} identity 归属对象(会被就地修改)
+ * @param {null|{field:'deptId'|'gradeId'|'majorId', hint:string}} bad dictWriteError 的返回值
+ * @returns {{dept?:string, grade?:string, major?:string}} 传给 SchoolFields 的 invalid
  */
 export function applyDictInvalid(identity, bad) {
   if (!bad || !identity) return {}
   if (bad.field === 'deptId') identity.deptId = null
   if (bad.field === 'gradeId') identity.gradeId = null
-  return bad.field === 'deptId' ? { dept: bad.hint } : { grade: bad.hint }
+  if (bad.field === 'majorId') identity.majorId = null
+  if (bad.field === 'deptId') return { dept: bad.hint }
+  if (bad.field === 'gradeId') return { grade: bad.hint }
+  return { major: bad.hint }
 }

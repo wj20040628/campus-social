@@ -9,6 +9,7 @@ import com.campus.social.dto.StudentNoVerifyDTO;
 import com.campus.social.entity.AuditLog;
 import com.campus.social.entity.SchoolDept;
 import com.campus.social.entity.SchoolGrade;
+import com.campus.social.entity.SchoolMajor;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.AuditLogMapper;
@@ -31,17 +32,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.Year;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.campus.social.common.ResultCode.BAD_REQUEST;
 import static com.campus.social.common.ResultCode.CAMPUS_EMAIL_NOT_ALLOWED;
 import static com.campus.social.common.ResultCode.CONFLICT;
 import static com.campus.social.common.ResultCode.SCHOOL_PROFILE_INCOMPLETE;
+import static com.campus.social.common.ResultCode.STUDENT_NO_MISMATCH;
 import static com.campus.social.common.ResultCode.STUDENT_NO_EXISTS;
 import static com.campus.social.common.ResultCode.UNPROCESSABLE;
 import static com.campus.social.common.ResultCode.VERIFY_ALREADY_DONE;
@@ -74,19 +74,19 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
      *   位 3-6   专业大类编码        0809=计算机类 0802=机械类 0818=交通运输类
      *   位 7-8   专业位号            类内序号
      *   位 9-10  班级                只可能是 0X(01~09,没有超过 9 个班)
-     *   位 11-12 固定标识            23 级是「05」两位(14 位学号);
-     *                                24/25/26 级是「5」一位(13 位学号),含义待查
-     *   最后 2 位 班内排名           最大不超过 70
+     *   位 11-12 层次标记            23 级本科「05」/专科「06」两位(14 位学号);
+     *                                24/25/26 级本科「5」/专科「6」一位(13 位学号)
+     *   最后 2 位 班内序号           取值 00~69(本科/专科同此范围)
      * </pre>
      * 用 {@code 0?5} 同时表达两种:14 位匹配「05」、13 位匹配「5」。
      * 与 {@link StudentNoParser}(解析展示用)不同:这里参与提交拦截,
      * 班级/排名/固定标识是用户确认的硬约束,必须挡在人工队列之外。
      */
     private static final Pattern STUDENT_NO_FORMAT =
-            Pattern.compile("^(\\d{2})(\\d{4})(\\d{2})(0[1-9])0?5(\\d{2})$");
+            Pattern.compile("^(\\d{2})(\\d{4})(\\d{2})(0[1-9])0?[56](\\d{2})$");
 
-    /** 班内排名上限:用户明确「最后两个数字最大不超过 70」 */
-    private static final int MAX_CLASS_RANK = 70;
+    /** 班内序号上限:用户明确「最后两位取值 00~69」 */
+    private static final int MAX_CLASS_RANK = 69;
 
     /** 自动通过审计动作。与管理员手动通过的 verify_approve 区分,便于事后抽查 */
     private static final String ACTION_VERIFY_AUTO_APPROVE = "verify_auto_approve";
@@ -125,12 +125,15 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         // 不会写进 user 表。名称快照由这里一并取出，避免下游再查一次字典。
         SchoolDept dept = dictService.requireSelectableDept(dto.getDeptId(), schoolId);
         SchoolGrade grade = dictService.requireSelectableGrade(dto.getGradeId());
+        // 专业必须属于所选学院：选了 A 学院却提交 B 学院的专业 id，会写出
+        // 「学院与专业对不上」的脏数据，后续学号专业码校验也会失真。
+        SchoolMajor major = dictService.requireSelectableMajor(dto.getMajorId(), dept.getId());
         userMapper.updateSchoolProfile(userId, schoolId, dept.getId(), dept.getName(),
-                grade.getId(), grade.getName());
+                grade.getId(), grade.getName(), major.getId());
         // 填了归属即推进引导进度：onboarding_step 单调递增，WHERE 已挡住回退
         userMapper.advanceOnboardingStep(userId, 1);
-        log.info("school profile saved: user={}, school={}, deptId={}, gradeId={}",
-                userId, schoolId, dept.getId(), grade.getId());
+        log.info("school profile saved: user={}, school={}, deptId={}, gradeId={}, majorId={}",
+                userId, schoolId, dept.getId(), grade.getId(), major.getId());
         return SchoolProfileVO.builder()
                 .schoolId(schoolId)
                 .schoolName(campus.getSchoolName())
@@ -138,6 +141,8 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
                 .deptName(dept.getName())
                 .gradeId(grade.getId())
                 .gradeName(grade.getName())
+                .majorId(major.getId())
+                .majorName(major.getName())
                 .profileComplete(true)
                 .build();
     }
@@ -209,25 +214,19 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         if (!dictService.hasDept(me) || !dictService.hasGrade(me)) {
             throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE, "请先填写学校院系与年级");
         }
+        if (me.getMajorId() == null) {
+            // 引导第 1 步要求同时填学院/本专科/年级/专业,六层的专业编码匹配强依赖 majorId。
+            // 老用户字典化前只有名称没有 id,若缺 id 先挡回去,不要带着空专业进六层比对。
+            throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE, "请先填写专业");
+        }
 
         String studentNo = dto.getStudentNo().trim();
         String nameTail = dto.getNameTail().trim();
 
-        // 精确格式校验(班级 0X / 固定标识 5 / 排名 ≤70 / 年份在有效范围)。
-        // DTO 的 @Pattern 只拦「非 13~14 位纯数字」,这里拦编码规则与业务边界——
-        // 否则「班级写成 10」「排名 99」这种明显乱填会进人工队列浪费审核时间。
-        Matcher m = STUDENT_NO_FORMAT.matcher(studentNo);
-        if (!m.matches()) {
-            throw new BusinessException(BAD_REQUEST, "学号格式不正确，请核对后重试");
-        }
-        int entranceYear = 2000 + Integer.parseInt(m.group(1));
-        int currentYear = Year.now().getValue();
-        if (entranceYear < currentYear - 3 || entranceYear > currentYear) {
-            throw new BusinessException(BAD_REQUEST, "学号入学年份不在有效范围");
-        }
-        if (Integer.parseInt(m.group(5)) > MAX_CLASS_RANK) {
-            throw new BusinessException(BAD_REQUEST, "学号班内排名超出范围");
-        }
+        // 六层硬校验:纯数字 / 长度 / 年级 / 层次 / 专业编码 / 班内序号。
+        // 任一不过直接拒绝,不再转人工——否则「学院乱选+学号不符」的脏数据
+        // 会进人工队列浪费审核时间。归属在上方已确认填写,这里拿实体做交叉比对。
+        validateStudentNoAgainstProfile(studentNo, me);
 
         // student_no 是 UNIQUE，主防线：同一学号不能被两个账号提交
         try {
@@ -292,6 +291,91 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
     }
 
     // ---------------------------------------------------------------- 私有
+
+    /**
+     * 学号与本人学校归属的六层硬校验（注册-认证一致性兜底）。
+     *
+     * <p><b>为什么是硬校验而不是转人工</b>：这六层全是基于字典的确定性比对,
+     * 不通过就是「填错」而非「待核实」。把它挡在 {@code autoPass} 之前,
+     * 乱填的学号根本不会进人工队列,管理员队列里只剩真正需要肉眼比对的 case。
+     *
+     * <p><b>六层顺序</b>（与注册页前端 validator 同一口径,前端先拦、后端兜底）：
+     * <ol>
+     *   <li>纯数字：{@code ^\d+$}</li>
+     *   <li>长度：23 级 14 位、24 级起 13 位（当前规格列 23/24/25/26,24+ 统一 13 位）</li>
+     *   <li>年级匹配：学号前两位 == 所选年级入学年份后两位</li>
+     *   <li>层次匹配：学号层次标记(本科 05/5、专科 06/6) == 所选专业层次</li>
+     *   <li>专业编码匹配：学号位 3-8（6 位）== 所选专业 code</li>
+     *   <li>班内序号：学号最后两位 < 70</li>
+     * </ol>
+     *
+     * <p>调用方需保证 {@code me} 的 deptId / gradeId / majorId 均已填写
+     * （{@code submitStudentNo} 已在上方拦截未填的情况）。
+     */
+    private void validateStudentNoAgainstProfile(String studentNo, User me) {
+        SchoolMajor major = dictService.requireSelectableMajor(me.getMajorId(), me.getDeptId());
+        SchoolGrade grade = dictService.requireSelectableGrade(me.getGradeId());
+        if (major.getCode() == null || major.getCode().length() != 6) {
+            // 字典数据缺陷,不是用户填错:交人工复核而不是拿一个坏 code 比,避免误拒真学生
+            throw new BusinessException(UNPROCESSABLE, "专业编码缺失，请联系管理员核对专业字典");
+        }
+
+        // 第 1 层：纯数字
+        if (!studentNo.matches("\\d+")) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号需为纯数字");
+        }
+        // 第 2 层：长度与入学年份匹配
+        int year = Integer.parseInt(studentNo.substring(0, 2));
+        int len = studentNo.length();
+        if (len == 14) {
+            if (year != 23) {
+                throw new BusinessException(STUDENT_NO_MISMATCH, "学号长度与入学年份不匹配（23 级为 14 位）");
+            }
+        } else if (len == 13) {
+            if (year < 24) {
+                throw new BusinessException(STUDENT_NO_MISMATCH, "学号长度与入学年份不匹配（24 级起为 13 位）");
+            }
+        } else {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号长度须为 13 或 14 位");
+        }
+        // 第 3 层：年级匹配（学号前两位 == 所选年级入学年份后两位）
+        int gradeSuffix = grade.getEnrollYear() % 100;
+        if (year != gradeSuffix) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号前两位与所选年级不一致");
+        }
+        // 第 4 层：层次匹配（学号层次标记 == 所选专业层次）
+        int marker = parseLevelMarker(studentNo);
+        if (marker == 0) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号层次标记无法识别（应为本科 05/5、专科 06/6）");
+        }
+        if (marker != major.getLevel()) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号层次（本科/专科）与所选专业不一致");
+        }
+        // 第 5 层：专业编码匹配（学号位 3-8 == 所选专业 code）
+        String majorCode = studentNo.substring(2, 8);
+        if (!majorCode.equals(major.getCode())) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号专业编码与所选专业不一致");
+        }
+        // 第 6 层：班内序号 < 70
+        int seq = Integer.parseInt(studentNo.substring(len - 2));
+        if (seq > MAX_CLASS_RANK) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号班内序号不能大于 69");
+        }
+    }
+
+    /**
+     * 解析学号层次标记为本/专科枚举。
+     *
+     * @return 1=本科 2=专科 0=无法识别（14 位取位 11-12,13 位取位 11）
+     */
+    private int parseLevelMarker(String studentNo) {
+        String marker = studentNo.length() == 14
+                ? studentNo.substring(10, 12)
+                : studentNo.substring(10, 11);
+        if ("05".equals(marker) || "5".equals(marker)) return 1;
+        if ("06".equals(marker) || "6".equals(marker)) return 2;
+        return 0;
+    }
 
     private User requireUser(long userId) {
         User me = userMapper.selectById(userId);

@@ -79,6 +79,9 @@ public final class UserVoAssembler {
                 .followingCount(user.getFollowingCount())
                 .strangerMsgEnabled(user.getStrangerMsgEnabled() == null
                         || user.getStrangerMsgEnabled() == 1)
+                // 安全凭证邮箱:仅「我的资料」暴露脱敏值。他人卡片( of )不含此字段,
+                // 避免邮箱(安全凭证)出现在 Feed / 评论区 / 私聊等任何公开响应里。
+                .email(user.getEmail() == null ? null : maskUsername(user.getEmail()))
                 .build();
     }
 
@@ -104,9 +107,15 @@ public final class UserVoAssembler {
                 // 「字典化之前填的老数据」。只给名称的话前端无法判断该不该推进引导页。
                 .deptId(user.getDeptId())
                 .gradeId(user.getGradeId())
+                .majorId(user.getMajorId())
                 // AC-12 徽章判据。必须由服务端给——前端从「是否填了院系」反推
                 // 是在伪造身份声明，用户可以在填完院系后从未提交过邮箱验证码。
                 .verified(Integer.valueOf(1).equals(user.getVerifyStatus()))
+                .joinedCircleCount(user.getJoinedCircleCount())
+                // 是否已绑定安全凭证邮箱(学号主账号体系)。仅「我的资料」消费,
+                // 公开卡片不依赖此值,故放 base 让 of / ofPrivate 都带上也不泄露隐私
+                // (他人看不到 emailBound 之外的邮箱信息,true/false 本身无敏感)。
+                .emailBound(user.getEmail() != null)
                 .createTime(user.getCreateTime());
     }
 
@@ -127,6 +136,13 @@ public final class UserVoAssembler {
             String domain = raw.substring(at + 1);
             return local.length() <= 2 ? local + "***@" + domain
                     : local.substring(0, 2) + "***" + local.substring(local.length() - 1) + "@" + domain;
+        }
+        // 学号(主账号,账号体系重构 2026-10-17):13 / 14 位纯数字。
+        // 形如 230820230100678 → 2308****0678(首尾各留 4 位,中间 4 位打码)。
+        // 放手机号分支之前:学号长度与 11 位手机号不重叠,先判学号不会误伤手机。
+        if (raw.length() >= 13 && raw.length() <= 14
+                && raw.chars().allMatch(Character::isDigit)) {
+            return raw.substring(0, 4) + "****" + raw.substring(raw.length() - 4);
         }
         // 纯手机号：11 位。不按长度硬判 1x 开头，测试数据与境外号码不一定是这个形状
         if (raw.length() == 11 && raw.chars().allMatch(Character::isDigit)) {

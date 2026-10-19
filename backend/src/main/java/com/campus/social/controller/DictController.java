@@ -3,12 +3,15 @@ package com.campus.social.controller;
 import com.campus.social.common.Result;
 import com.campus.social.config.CampusProperties;
 import com.campus.social.service.DictService;
+import com.campus.social.vo.MajorItemVO;
 import com.campus.social.vo.SchoolDictVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 院系与年级字典端点（支撑 F11 引导第 1 步）。
@@ -43,5 +46,36 @@ public class DictController {
     public Result<SchoolDictVO> schoolDict(@RequestParam(value = "schoolId", required = false) Long schoolId) {
         Long sid = schoolId == null ? campus.getSchoolId() : schoolId;
         return Result.ok(dictService.listSchoolDict(sid));
+    }
+
+    /**
+     * 学院 → 专业级联下拉。
+     *
+     * <p>与 /dict/school 分开：专业依赖「已选学院 + 已选本专科」两个前置值，
+     * 不能和院系年级合并成一个一次性响应。用户每改一次学院或本专科才来查一次，
+     * 频率低、结果小，单独端点更贴合调用形态。
+     *
+     * <p>deptId / level 缺省时不报错、返回空列表：这是「前置下拉还没选」的正常中间态，
+     * 不是参数错误。真正缺值由注册/引导的字典校验（requireSelectableMajor）在写路径拦。
+     */
+    @GetMapping("/majors")
+    public Result<List<MajorItemVO>> majors(
+            @RequestParam(value = "deptId", required = false) Long deptId,
+            @RequestParam(value = "level", required = false) Integer level) {
+        return Result.ok(dictService.listMajors(deptId, level));
+    }
+
+    /**
+     * 一次返回本校全部专业(挂载预取用)。
+     *
+     * <p>专业下拉改为前端按「学院 + 本专科」即时过滤,不再逐组合发请求。
+     * 该端点把全校专业一次性下发,后端带 Redis 缓存(TTL 10min)。
+     * schoolId 不传时取配置默认值(恒为 1)。
+     */
+    @GetMapping("/majors/all")
+    public Result<List<MajorItemVO>> allMajors(
+            @RequestParam(value = "schoolId", required = false) Long schoolId) {
+        Long sid = schoolId == null ? campus.getSchoolId() : schoolId;
+        return Result.ok(dictService.listAllMajors(sid));
     }
 }

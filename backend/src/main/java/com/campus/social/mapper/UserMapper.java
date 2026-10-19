@@ -22,6 +22,31 @@ public interface UserMapper extends BaseMapper<User> {
      * MyBatis-Plus 的 {@code selectBatchIds} 直接可用，
      * 但这里显式声明是为了让调用方一眼看出「这个方法是为了消 N+1 而存在的」。
      */
+    /**
+     * 按学号查用户(账号体系重构:学号是主账号)。
+     *
+     * <p>用在登录 OR 匹配、注册查重、找回密码定位账号。学号存于 {@code username}
+     * 与 {@code student_no} 两列(新账号同值),这里两列都查,避免历史数据
+     * username 仍是旧主标识(邮箱/手机)而 student_no 为空时漏判。
+     */
+    @Select("SELECT id, username, password_hash, student_no, email, nickname, avatar_url, "
+            + "verify_status, status, role, school_id, dept_id, grade_id, major_id, "
+            + "stranger_msg_enabled, onboarding_step, follower_count, following_count, "
+            + "unread_notify_count, joined_circle_count, create_time, update_time, is_deleted "
+            + "FROM user WHERE is_deleted = 0 AND (username = #{studentNo} OR student_no = #{studentNo}) "
+            + "LIMIT 1")
+    User selectByStudentNo(@Param("studentNo") String studentNo);
+
+    /**
+     * 按安全凭证邮箱查用户(账号体系重构)。邮箱存库前已统一转小写,这里用精确匹配即可。
+     */
+    @Select("SELECT id, username, password_hash, student_no, email, nickname, avatar_url, "
+            + "verify_status, status, role, school_id, dept_id, grade_id, major_id, "
+            + "stranger_msg_enabled, onboarding_step, follower_count, following_count, "
+            + "unread_notify_count, joined_circle_count, create_time, update_time, is_deleted "
+            + "FROM user WHERE is_deleted = 0 AND email = #{email} LIMIT 1")
+    User selectByEmail(@Param("email") String email);
+
     @Select("<script>"
             + "SELECT id, username, nickname, avatar_url, verify_status, status FROM user WHERE is_deleted = 0 "
             + "AND id IN "
@@ -38,6 +63,10 @@ public interface UserMapper extends BaseMapper<User> {
 
     @Update("UPDATE user SET unread_notify_count = GREATEST(0, unread_notify_count + #{delta}), update_time = NOW() WHERE id = #{userId}")
     int adjustUnreadNotifyCount(@Param("userId") Long userId, @Param("delta") int delta);
+
+    /** 加入/退出圈子时原子自增/自减「加入的圈子数」,防并发丢失(与 follower_count 同口径) */
+    @Update("UPDATE user SET joined_circle_count = GREATEST(0, joined_circle_count + #{delta}), update_time = NOW() WHERE id = #{userId}")
+    int adjustJoinedCircleCount(@Param("userId") Long userId, @Param("delta") int delta);
 
     @Update("UPDATE user SET unread_notify_count = 0, update_time = NOW() WHERE id = #{userId}")
     int clearUnreadNotifyCount(@Param("userId") Long userId);
@@ -71,11 +100,13 @@ public interface UserMapper extends BaseMapper<User> {
      * 字典化之后这些老用户会被误判为「没填归属」而被拦在引导页。
      */
     @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
-            + "grade_id = #{gradeId}, grade = #{grade}, update_time = NOW() "
+            + "grade_id = #{gradeId}, grade = #{grade}, "
+            + "major_id = #{majorId}, update_time = NOW() "
             + "WHERE id = #{userId}")
     int updateSchoolProfile(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
             @Param("deptId") Long deptId, @Param("dept") String dept,
-            @Param("gradeId") Long gradeId, @Param("grade") String grade);
+            @Param("gradeId") Long gradeId, @Param("grade") String grade,
+            @Param("majorId") Long majorId);
 
     /** 认证通过。WHERE 带 verify_status <> 1 兜住并发重复提交 */
     @Update("UPDATE user SET verify_status = 1, update_time = NOW() "
@@ -185,11 +216,13 @@ public interface UserMapper extends BaseMapper<User> {
      */
     @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
             + "grade_id = #{gradeId}, grade = #{grade}, "
+            + "major_id = #{majorId}, "
             + "onboarding_step = 3, update_time = NOW() "
             + "WHERE id = #{userId}")
     int completeOnboarding(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
             @Param("deptId") Long deptId, @Param("dept") String dept,
-            @Param("gradeId") Long gradeId, @Param("grade") String grade);
+            @Param("gradeId") Long gradeId, @Param("grade") String grade,
+            @Param("majorId") Long majorId);
 
     /** 单独推进引导进度(选完标签但未完成关注时用) */
     @Update("UPDATE user SET onboarding_step = #{step}, update_time = NOW() "

@@ -14,14 +14,30 @@ public class User implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 邮箱或手机号 */
+    /**
+     * 登录主账号:重构后内部统一存「学号」(账号体系重构 2026-10-17)。
+     *
+     * <p>历史数据里这列可能仍是旧主标识(邮箱/手机号),因为没强制回填;
+     * 登录查询用 {@code username OR email} 双匹配,旧账号靠原 username 仍可登录,
+     * 新账号一律写学号。脱敏展示走 {@code UserVoAssembler.maskUsername}
+     * (学号 13/14 位会按 {@code 2308****0678} 形态脱敏)。
+     */
     private String username;
 
     /** BCrypt */
     private String passwordHash;
 
-    /** 学号(可选),UNIQUE */
+    /** 学号(可选),UNIQUE。重构后新账号 username 与 studentNo 同值;旧账号可能为空 */
     private String studentNo;
+
+    /**
+     * 安全凭证邮箱(账号体系重构 2026-10-17)。
+     *
+     * <p>只承担找回密码 / 绑定 / 已绑定用户的邮箱验证码登录三种职责,
+     * 不参与日常学号密码登录。有值时 {@code uk_user_email} 唯一,
+     * 防止两个账号绑定同一邮箱。存库前统一转小写。
+     */
+    private String email;
 
     private String nickname;
     private String avatarUrl;
@@ -48,6 +64,9 @@ public class User implements Serializable {
     /** 年级字典 id，指向 school_grade.id */
     private Long gradeId;
 
+    /** 专业字典 id，指向 school_major.id；层次(本/专科)由 major 派生，不冗余存储 */
+    private Long majorId;
+
     /** 0正常 1冻结 2注销 */
     private Integer status;
 
@@ -73,6 +92,8 @@ public class User implements Serializable {
     private Integer followerCount;
     private Integer followingCount;
     private Integer unreadNotifyCount;
+    /** 加入的圈子数(冗余计数,加圈/退圈事务内 ±1,与 follower_count 同口径) */
+    private Integer joinedCircleCount;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

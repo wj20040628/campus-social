@@ -32,13 +32,46 @@ export const useDictStore = defineStore('dict', () => {
   /** 字典所属学校。MVP 单校恒为 1,存下来是为了不把 schoolId 写死在组件里 */
   const schoolId = ref(null)
 
+  /**
+   * 全校专业(挂载时一次拉取,后端带 Redis 缓存)。
+   * 每个元素含 { id, deptId, name, code, level, sort }。
+   * 专业下拉改为**纯前端按「当前学院 + 本专科」过滤**这个数组,
+   * 不再「每选一次组合发一次请求」——彻底消除竞态、loading 卡死、
+   * 以及「首次选完学院+本专科却没加载出来」的问题(用户只动其中几个选项也必然出专业)。
+   */
+  const allMajors = ref([])
+  /** 全校专业是否已拉取成功(决定专业下拉能否按当前选择即时过滤) */
+  const majorsLoaded = ref(false)
+  /** 全校专业首次拉取中(挂载时)——专业下拉据此显示加载动画 */
+  const majorsLoading = ref(false)
+  /** 全校专业拉取失败原因(失败时才需要重试入口) */
+  const majorsError = ref('')
+
   let loaded = false
   let inflight = null
+  /** 全校专业请求的单飞句柄(父页面回填与 SchoolFields 挂载会同时调用) */
+  let majorsInflight = null
 
   const deptOptions = computed(() => depts.value)
   const gradeOptions = computed(() =>
     grades.value.map((g) => ({ ...g, name: formatGradeName(g.name, g.enrollYear) })),
   )
+
+  /**
+   * 按「当前选中的学院 + 本专科」从已拉取的全校专业里过滤出下拉选项。
+   * 纯前端同步计算,随当前选择即时变化,无网络、无竞态、不依赖请求到达顺序。
+   *
+   * @param {number} deptId 学院 id
+   * @param {number} level  本专科 1=本科 2=专科
+   */
+  function majorOptionsFor(deptId, level) {
+    if (!deptId || !level) return []
+    const d = Number(deptId)
+    const l = Number(level)
+    return allMajors.value.filter(
+      (m) => Number(m.deptId) === d && Number(m.level) === l,
+    )
+  }
 
   /**
    * 归一化字典项。
@@ -128,10 +161,84 @@ export const useDictStore = defineStore('dict', () => {
     depts.value.some((d) => d.name.length > 12),
   )
 
+  /**
+   * 一次拉取全校专业(GET /dict/majors/all,后端带 Redis 缓存 TTL 10min)。
+   * 挂载时调用一次,之后专业下拉纯前端按「学院 + 本专科」过滤,不再逐组合发请求。
+   *
+   * **单飞**:设置页父组件 load() 回填专业、SchoolFields 子组件挂载都要调这里,
+   * 两者几乎同时发生。没有单飞就会打出两个内容完全相同的请求,
+   * 后到的响应还会覆盖先到的 allMajors(若两次数据不同则产生闪烁)。
+   *
+   * @param {number} [schoolId] 学校 id,缺省由后端取默认(恒 1)
+   * @param {boolean} force 强制重新拉(重试时用)
+   */
+  async function ensureMajorsLoaded(schoolId, force = false) {
+    if (majorsLoaded.value && !force) return
+    if (majorsInflight && !force) return majorsInflight
+    majorsLoading.value = true
+    majorsError.value = ''
+    const p = (async () => {
+      try {
+        const raw = await dictApi.allMajors(schoolId)
+        const list = Array.isArray(raw) ? raw : raw?.majors || []
+        allMajors.value = list
+          .map((it) => ({
+            id: Number(it?.id),
+            deptId: Number(it?.deptId),
+            name: String(it?.name ?? ''),
+            code: it?.code != null ? String(it?.code) : '',
+            level: Number(it?.level),
+            sort: Number(it?.sort ?? 0),
+          }))
+          .filter((it) => Number.isFinite(it.id) && it.name)
+        majorsLoaded.value = true
+      } catch (e) {
+        // 失败仅清空,组件给出重试入口;不阻断整体(院系/年级仍可用)。
+        allMajors.value = []
+        majorsError.value = e?.message || '专业列表没拉出来'
+      } finally {
+        majorsLoading.value = false
+        majorsInflight = null
+      }
+    })()
+    majorsInflight = p
+    return p
+  }
+
+  /**
+   * 按专业 id 反查本专科层次(1=本科 2=专科)。
+   *
+   * 为什么需要:user 表只存 major_id,不存 level(层次是专业的属性,
+   * 存两处会出现「专业是专科、层次填本科」的不一致)。设置页回填时
+   * 要拿它把「本专科」下拉恢复成已选项,否则专业下拉会被 level 为空禁用。
+   *
+   * 专业未被 allMajors 收录(如已停用)时返回 null,由调用方降级处理。
+   */
+  function levelOfMajor(majorId) {
+    if (majorId === null || majorId === undefined) return null
+    const hit = allMajors.value.find((m) => Number(m.id) === Number(majorId))
+    return hit ? hit.level : null
+  }
+
+  /**
+   * 兼容入口:原「按学院+本专科发请求」的调用点改为「确保全校专业已加载」。
+   * 数据已在挂载时一次拉齐,这里多数情况直接命中已加载、无网络。
+   *
+   * @param {number} deptId  学院 id(兼容参数,过滤已在前端做)
+   * @param {number} level   本专科(兼容参数)
+   * @param {boolean} force  强制重新拉全校专业
+   */
+  async function loadMajors(deptId, level, force = false) {
+    if (!majorsLoaded.value || force) {
+      await ensureMajorsLoaded(undefined, force)
+    }
+  }
+
   return {
     depts, grades, loading, degraded, error, schoolId,
-    deptOptions, gradeOptions, deptSearchable,
-    ensureLoaded, deptName, gradeName,
+    allMajors, majorsLoaded, majorsLoading, majorsError,
+    deptOptions, gradeOptions, deptSearchable, majorOptionsFor, levelOfMajor,
+    ensureLoaded, ensureMajorsLoaded, deptName, gradeName, loadMajors,
   }
 })
 

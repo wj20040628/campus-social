@@ -2,8 +2,12 @@ package com.campus.social.service;
 
 import com.campus.social.entity.SchoolDept;
 import com.campus.social.entity.SchoolGrade;
+import com.campus.social.entity.SchoolMajor;
 import com.campus.social.entity.User;
+import com.campus.social.vo.MajorItemVO;
 import com.campus.social.vo.SchoolDictVO;
+
+import java.util.List;
 
 /**
  * 院系与年级字典（F11 引导第 1 步的数据源）。
@@ -17,6 +21,20 @@ public interface DictService {
     SchoolDictVO listSchoolDict(Long schoolId);
 
     /**
+     * 学院 → 专业级联下拉：按学院 + 层次返回启用中的专业。
+     *
+     * @param deptId 学院 id（来自学院下拉）
+     * @param level  层次 1=本科 2=专科（来自本专科下拉）
+     */
+    List<MajorItemVO> listMajors(Long deptId, Integer level);
+
+    /**
+     * 一次返回本校启用中的全部专业(挂载预取用,前端按学院 + 本专科过滤)。
+     * 带 Redis 缓存,TTL 10min,与 listSchoolDict 同口径。
+     */
+    List<MajorItemVO> listAllMajors(Long schoolId);
+
+    /**
      * 校验并解析 deptId 为院系实体。
      *
      * @throws com.campus.social.exception.BusinessException id 不存在、属于别的学校或已停用时抛 1040
@@ -25,6 +43,13 @@ public interface DictService {
 
     /** 同上，错误码 1041 */
     SchoolGrade requireSelectableGrade(Long gradeId);
+
+    /**
+     * 校验并解析专业 id（写路径准入，与 requireSelectableDept 同口径）。
+     *
+     * @throws com.campus.social.exception.BusinessException 专业不存在 / 已停用 / 不属于所选学院时抛 1057
+     */
+    SchoolMajor requireSelectableMajor(Long majorId, Long deptId);
 
     /** 回显用：按 id 取院系，不过滤 enabled。取不到返回 null 由调用方决定降级 */
     SchoolDept findDeptForDisplay(Long deptId);

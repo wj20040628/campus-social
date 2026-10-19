@@ -12,7 +12,13 @@ import java.time.LocalDateTime;
 @Builder
 public class UserVO {
     private Long id;
-    private String username;     // 邮箱或手机号(部分脱敏:显示前几位+后几位)
+    /**
+     * 登录主账号(部分脱敏:学号 13/14 位 → 2308****0678;旧账号的邮箱/手机走原脱敏规则)。
+     *
+     * <p>重构后 username 内部存学号(账号体系重构 2026-10-17),脱敏形态见
+     * {@code UserVoAssembler.maskUsername}。此处只存脱敏展示值,原始值永不外发。
+     */
+    private String username;
     private String nickname;
     private String avatarUrl;
     private String grade;
@@ -27,11 +33,15 @@ public class UserVO {
      */
     private Long deptId;
     private Long gradeId;
+    /** 专业字典 id（学院→专业级联落库，层次由 major.level 派生，不冗余存专业名） */
+    private Long majorId;
     private Integer followerCount;
     private Integer followingCount;
     /** 该用户发的动态数(按 author_id 现查 post 表,他人主页「动态」数字用) */
     private Integer postCount;
     private Integer unreadNotifyCount;
+    /** 加入的圈子数(冗余计数,个人主页「圈子」展示用) */
+    private Integer joinedCircleCount;
     /**
      * 是否已通过校内认证（AC-12 徽章判据）。
      *
@@ -51,6 +61,21 @@ public class UserVO {
     private Boolean verified;
     /** 0普通用户 1管理员 */
     private Integer role;
+    /**
+     * 是否已绑定安全凭证邮箱(仅「我的资料」ofPrivate 暴露)。
+     *
+     * <p>前端据此决定「绑定邮箱 / 修改邮箱」入口的显隐,以及是否开放
+     * 邮箱验证码登录与自助找回密码。他人卡片( {@code of})不携带此字段。
+     */
+    private Boolean emailBound;
+    /**
+     * 已绑定的脱敏邮箱(仅「我的资料」ofPrivate 暴露,如 {@code ze***n@campus.test})。
+     *
+     * <p><b>为什么只给脱敏值</b>:邮箱是安全凭证,即使本人也不该在任意响应里拿到
+     * 完整值——完整值只在「验证邮箱所有权」(发码/回填)链路使用,从不在读接口回显。
+     * 他人卡片( {@code of})不携带此字段。
+     */
+    private String email;
     /**
      * 是否允许陌生人给自己发消息（AC-05 护栏开关）。
      *

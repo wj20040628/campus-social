@@ -32,4 +32,9 @@ public class SchoolProfileDTO {
     @NotNull(message = "请选择年级")
     @Positive(message = "年级取值不合法")
     private Long gradeId;
+
+    /** 专业字典 id，取自 {@code GET /dict/majors}（按学院 + 本专科过滤后的下拉） */
+    @NotNull(message = "请选择专业")
+    @Positive(message = "专业取值不合法")
+    private Long majorId;
 }

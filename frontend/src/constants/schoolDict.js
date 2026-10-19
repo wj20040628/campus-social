@@ -14,6 +14,10 @@
 export const DICT_ENDPOINT = {
   /** 一次拿全院系 + 年级。分开两个端点会让第 1 步多一次往返 */
   school: '/dict/school',
+  /** 专业级联下拉：按学院 + 本专科过滤。GET /dict/majors?deptId=&level= */
+  majors: '/dict/majors',
+  /** 一次拉全校专业(挂载预取用,前端按学院+层次过滤)。GET /dict/majors/all */
+  majorsAll: '/dict/majors/all',
 }
 
 /**
@@ -47,6 +51,21 @@ export const DICT_FIELDS = {
    *  且仅用于已存量数据 —— 新写入路径不再产生这两个字段 */
   legacyDept: 'dept',
   legacyGrade: 'grade',
+
+  /* ---- 专业字典项与用户资料上的专业 ---- */
+  /** 专业字典 id，指向 school_major.id；层次(本/专科)由专业派生，不冗余存储 */
+  majorId: 'majorId',
+  /** 专业名称。后端在写回执(SchoolProfileVO)里带，但 user 表不冗余存名称，
+   *  历史/列表场景如需展示可后续接「按 id 查专业名」端点 */
+  majorName: 'majorName',
+  /** 专业列表端点响应体的键(GET /dict/majors 返回数组) */
+  majorsKey: 'majors',
+  /** 专业字典项字段 */
+  majorItemId: 'id',
+  majorItemName: 'name',
+  majorItemCode: 'code',
+  majorItemLevel: 'level',
+  majorItemSort: 'sort',
 }
 
 /**
@@ -58,23 +77,36 @@ export const SCHOOL_PROFILE_PAYLOAD = {
   schoolId: 'schoolId',
   deptId: DICT_FIELDS.deptId,
   gradeId: DICT_FIELDS.gradeId,
+  majorId: DICT_FIELDS.majorId,
 }
 
 /**
- * 引导第 1 步的本地表单形状。与请求体键名一致,避免映射层。
+ * 引导 complete 请求体里「学校归属」的形状(只取三键)。
  *
- * studentNo / nameTail 是**学号核验**字段(选填):引导第 1 步顺路填了就能
- * 一步完成认证,不填也不阻塞(之后可在设置页补)。两者都不参与
- * /onboarding/complete 的请求体(见 useOnboardingFlow.persist 只取前三键),
- * 只用于第 1 步额外触发 POST /user/verify/student-no。
+ * 注册页已经收过学校/学院/年级并落库,引导页不再重复收(问题 2 的修复):
+ * 进入引导时 identity 直接从 userStore.userInfo 预填,这里只作为请求体的键名来源,
+ * 避免再写一层名字映射。学号核验(studentNo/nameTail)已移出引导,
+ * 改由设置页的认证入口处理。
  */
 export const IDENTITY_MODEL = {
   schoolId: null,
   deptId: null,
+  /** 本专科：1=本科 2=专科。注册「本专科」下拉的取值，
+   *  同时是专业级联下拉的过滤维度之一(与 deptId 共同决定可选专业) */
+  level: null,
   gradeId: null,
-  studentNo: null,
-  nameTail: null,
+  /** 专业字典 id，指向 school_major.id；级联下拉在「学院 + 本专科」选定后出现 */
+  majorId: null,
 }
+
+/**
+ * 本专科下拉选项(注册「本专科」下拉)。
+ * 值取 1/2 与 school_major.level 同口径(本科国标码/专科校内码)。
+ */
+export const LEVEL_OPTIONS = [
+  { value: 1, label: '本科' },
+  { value: 2, label: '专科' },
+]
 
 /** MVP 单校:schoolId 恒为 1,后端 SchoolProfileRequest 也是这个默认值 */
 export const SCHOOLS = [{ id: 1, name: '黄河交通学院' }]
@@ -106,8 +138,83 @@ export const FALLBACK_DEPTS = [
 export const FALLBACK_GRADES = ['2023', '2024', '2025', '2026']
   .map((y) => ({ id: Number(y), name: `${y}级`, enrollYear: Number(y) }))
 
+/**
+ * 学号「专业大类编码」(位 3-6,4 位)→ 该大类可能归属的招生学院名。
+ *
+ * [重要]这是后端 {@code StudentNoAutoPassSupport.MAJOR_CLASS_TO_DEPTS} 的**前端镜像**。
+ * 后端那张表是认证自动通过的权威依据(学号专业大类 vs 本人自填院系交叉校验),
+ * 这里只用于注册页 validator 给一个即时软提示 —— 所以:
+ *  - 一个大类可能跨多个学院,值是数组不是单值(写死单值会误伤另一个学院的真实学生);
+ *  - 未收录的大类一律不拦(对应后端「未收录转人工,不猜」)。
+ * 后端改这张表时,这里必须同步改一行,否则注册提示与认证口径会漂移。
+ */
+export const MAJOR_CLASS_TO_DEPTS = {
+  '0809': ['人工智能学院'], // 计算机类
+  '0802': ['智能制造与电气工程学院', '智能车辆与新能源工程学院'], // 机械类
+  '0818': ['智慧交通与智能建造工程学院', '智能车辆与新能源工程学院'], // 交通运输类
+  '0810': ['智慧交通与智能建造工程学院'], // 土木类
+  '0812': ['智慧交通与智能建造工程学院'], // 测绘类
+  '0805': ['智能车辆与新能源工程学院'], // 能源动力类
+  '0806': ['智能制造与电气工程学院'], // 电气类
+  '0807': ['智能制造与电气工程学院'], // 电子信息类
+  '1201': ['数字经济与智慧管理学院'], // 管理科学与工程
+  '1202': ['数字经济与智慧管理学院'], // 工商管理
+  '1206': ['数字经济与智慧管理学院'], // 物流管理
+  '1208': ['数字经济与智慧管理学院'], // 电子商务
+  '0203': ['数字经济与智慧管理学院'], // 金融学类
+  '0305': ['马克思主义学院'], // 马克思主义理论
+  '1305': ['艺术与设计学院'], // 设计学类
+}
+
+/**
+ * 学号与所选学院是否一致(注册页即时校验用)。
+ *
+ * 学号位布局(后端 StudentNoParser / CampusVerifyServiceImpl 同款):
+ * 位 1-2 入学年 / 位 3-6 专业大类 / 位 7-8 专业位号 / 位 9-10 班级 /
+ * 位 11-12 固定标识 / 最后 2 位班内排名。
+ * 这里只吃位 3-6 做软提示。
+ *
+ * @param {string} studentNo 已通过「纯数字 + 末两位 ≤ 70」的学号
+ * @param {string} [deptName] 用户选中的学院名(从字典下拉 dict.deptOptions 取)
+ * @returns {boolean|null} true=一致, false=不一致, null=无法判定(学号太短/大类未收录/学院名取不到)不拦
+ */
+export function matchStudentNoDept(studentNo, deptName) {
+  const s = (studentNo || '').trim()
+  if (s.length < 6) return null // 取不到位 3-6,放弃判定
+  const majorClass = s.slice(2, 6)
+  const allowed = MAJOR_CLASS_TO_DEPTS[majorClass]
+  if (!allowed) return null // 大类未收录:不猜,交后端
+  if (!deptName) return null // 学院名取不到:不拦,避免误伤
+  return allowed.includes(deptName.trim())
+}
+
+/**
+ * 学号层次标记(位 11-12)与所选本专科是否一致(注册页即时校验用)。
+ *
+ * 学号位布局(后端 StudentNoParser / CampusVerifyServiceImpl 同款):
+ * 位 1-2 入学年 / 位 3-6 专业大类 / 位 7-8 专业位号 / 位 9-10 班级 /
+ * 位 11-12 层次标记(23 级本科 05、专科 06;24-26 级本科 5、专科 6)/ 末 2 位班内序号。
+ * 23 级总长 14 位(标记占 2 位),24-26 级总长 13 位(标记占 1 位)。
+ *
+ * @param {string} studentNo 已通过「纯数字 + 末两位 ≤ 69」的学号
+ * @param {number} [level] 用户选中的本专科(1=本科 2=专科)
+ * @returns {boolean|null} true=一致, false=不一致, null=无法判定(长度/字符/标记不符/未选本专科)不拦
+ */
+export function matchStudentNoLevel(studentNo, level) {
+  const s = (studentNo || '').trim()
+  if (s.length !== 13 && s.length !== 14) return null
+  if (!/^\d+$/.test(s)) return null
+  const marker = s.length === 14 ? s.slice(10, 12) : s.slice(10, 11)
+  let studentLevel
+  if (marker === '05' || marker === '5') studentLevel = 1
+  else if (marker === '06' || marker === '6') studentLevel = 2
+  else return null
+  if (!level) return null
+  return studentLevel === Number(level)
+}
+
 /** 引导总步数,进度条 aria-valuemax 用它 */
-export const TOTAL_STEPS = 3
+export const TOTAL_STEPS = 2
 
 /**
  * 兜底:后端未下发 minSelect/maxSelect 时用这两个值。
@@ -116,6 +223,17 @@ export const TOTAL_STEPS = 3
  */
 export const FALLBACK_MIN_SELECT = 3
 export const FALLBACK_MAX_SELECT = 12
+
+/**
+ * 设置页「管理兴趣」(复用 StepTags 的编辑态)上下限。
+ * 与 `PUT /user/tags`(replaceMyTags)的存储契约对齐:openapi 该接口
+ * tagIds 为 minItems: 3 / maxItems: 8 —— 这是**存储层**硬约束,
+ * 不是引导首屏的「梯度裁剪」(/onboarding/tags 的 maxSelect=5)。
+ * 编辑态允许到 8 个,跟后端真实能存的一致;前端只认这个契约,不另写一套。
+ * 用户要求「至少保留 3 个」恰好等于存储下限,二者天然一致。
+ */
+export const TAG_EDIT_MIN_SELECT = 3
+export const TAG_EDIT_MAX_SELECT = 8
 
 /**
  * 年级展示名的统一算法。
