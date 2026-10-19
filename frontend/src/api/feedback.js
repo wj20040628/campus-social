@@ -42,13 +42,16 @@ export const FEEDBACK_STATUS_TEXT = {
  * **不幂等**,所以响应里没有 duplicated:同一个问题提两次就是两条记录,
  * 这正是我们要的 —— 用户提两次说明他很在意。
  *
- * @param {{category:1|2|3|4|5, content:string, media?:Array<{type:'img'|'video',url:string}>}} body
- *        media 由 useMediaUpload 的 readyMedia 直接给(字符串 type),转换在本层做
+ * @param {{category:1|2|3|4|5, kind?:0|1, content:string, media?:Array<{type:'img'|'video',url:string}>}} body
+ *        media 由 useMediaUpload 的 readyMedia 直接给(字符串 type),转换在本层做;
+ *        kind=1 表示学号认证申诉(2026-10-19),服务层会加「【认证申诉】」前缀
+ *        让管理员端一眼分辨,不与普通意见反馈混在一起
  * @returns {Promise<{feedbackId:number, status:0}>}
  */
 export function submitFeedback(body) {
   const payload = {
     category: body.category,
+    kind: body.kind ?? 0,
     content: body.content,
   }
   // 有附件才带 media:后端 media 为 null 与空数组等价,但少一个字段少一处校验

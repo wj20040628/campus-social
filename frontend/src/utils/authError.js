@@ -126,13 +126,18 @@ export function credentialMessage(e, kind) {
  *
  * 设计 §3 把注册的错误拆到字段上,而不是一个顶部汇总:
  *   1003(USERNAME_EXISTS,账号体系重构后 username 即学号) → 学号字段,并给一个「去登录」的 inline 出口
- *   1004(STUDENT_NO_EXISTS) → 学号字段(同一个学号被别的账号绑了)
+ *   1004(STUDENT_NO_EXISTS) → 学号字段,文案模糊 + 给「申诉」出口(见下)
  *   1059(EMAIL_ALREADY_BOUND) → 邮箱字段
- *   1058(STUDENT_NO_MISMATCH) / 1039(SCHOOL_PROFILE_INCOMPLETE) → 学号字段(注册即认证的归属冲突)
+ *   1058(STUDENT_NO_MISMATCH) / 1039(SCHOOL_PROFILE_INCOMPLETE) → 学号字段
  * 其余(网络/服务端)不适合按字段归因,交给调用方做表单级提示。
  * 注:注册已不发验证码,1020/1021/1022 的 verifyCode 分支仅历史兼容,注册流程不会触发。
  *
- * @returns {null | { field:'studentNo'|'email', text:string, action?:'login' }}
+ * [action:'appeal' 的含义 2026-10-19]
+ * 1004 与 1058 都带这个出口:用户被自己的规则挡在外面(填错、字典过期、
+ * 恰好被规则误伤)时,除了改一遍重试,还需要一条「我确实是本校学生」的出路,
+ * 否则界面承诺了出口而出口是死的。申诉复用反馈模块,管理员人工处理。
+ *
+ * @returns {null | { field:'studentNo'|'email', text:string, action?:'login'|'appeal' }}
  */
 export function registerFieldError(e) {
   const code = authErrCode(e)
@@ -142,15 +147,29 @@ export function registerFieldError(e) {
     return { field: 'studentNo', text: '这个学号已经注册过了，直接登录吧', action: 'login' }
   }
   if (code === AUTH_ERR.STUDENT_NO_EXISTS) {
-    return { field: 'studentNo', text: '这个学号已经被别的账号绑了，换一个或者留空' }
+    // 文案刻意模糊(2026-10-19 安全修正):学号 13-14 位纯数字,遍历成本极低。
+    // 若明确回「已被别的账号绑了」,等于提供枚举 oracle —— 攻击者可用它
+    // 批量扫出全校在册学号,再配合其他手段冒充。故统一为中性文案 + 申诉出口。
+    return {
+      field: 'studentNo',
+      text: '注册失败，请检查学号，或直接尝试登录',
+      action: 'appeal',
+    }
   }
   if (code === AUTH_ERR.EMAIL_ALREADY_BOUND) {
     return { field: 'email', text: '这个邮箱已被其他账号绑定了' }
   }
   if (code === AUTH_ERR.STUDENT_NO_MISMATCH) {
-    // 后端六层校验(纯数字/长度/年级/层次/专业编码/班内序号)任一不过的统一码。
-    // 用后端具体 message(如「学号专业编码与所选专业不一致」),让用户知道改哪。
-    return { field: 'studentNo', text: e.response?.data?.message || '学号与所选学校归属不一致，请核对' }
+    // 六层任一不过的统一码。**不回显后端 message**(2026-10-19 安全修正):
+    // 后端第 3/4/5/6 层分别泄露「前2位=入学年份」「层次标记=05/5或06/6」
+    // 「位3-8=专业code」「末两位<70」,逐条讲出来等于把编码规则送给攻击者 ——
+    // 拿到一个学号逐条试错,五次之内就能复原整套规则,六层随即失效。
+    // 这里只给中性文案,失败详情由管理员在后台核对队列查看。
+    return {
+      field: 'studentNo',
+      text: '学号与你填的学校归属不匹配，请核对后重试',
+      action: 'appeal',
+    }
   }
   if (code === AUTH_ERR.SCHOOL_PROFILE_INCOMPLETE) {
     return { field: 'studentNo', text: '请完善学校归属（学院/年级/专业）后再提交学号' }

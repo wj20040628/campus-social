@@ -44,7 +44,7 @@ public interface AuthService {
      * <p>不含院系与年级：这两项已字典化，只能经 {@code POST /user/school-profile}
      * 与 {@code POST /onboarding/complete} 按字典 id 写入。
      */
-    UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo);
+    UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo, String bio);
 
     /**
      * 设置「是否允许陌生人给自己发消息」开关（AC-05 护栏偏好）。

@@ -1,10 +1,9 @@
 <template>
   <div class="sp">
     <!--
-      「我的」页的编辑资料独立页(把原 Settings.vue 里的资料表单抽出来)。
-      2026-10-18 按改版预览稿重排版:头像区独立成块 + 四个分组卡
-      (基本信息 / 学校信息 / 兴趣标签 / 安全邮箱),底部一个整宽保存按钮,
-      不再用 el-card + label-position=top 的后台表单样式。
+      「我的」页的编辑资料独立页(从原 Settings.vue 抽出)。
+      2026-10-18 重排版:头像区独立成块 + 四个分组卡
+      (基本信息 / 学校信息 / 兴趣标签 / 安全邮箱),底部一个整宽保存按钮。
     -->
     <header class="sp__bar">
       <button type="button" class="sp__bar-btn" aria-label="返回" @click="router.back()">
@@ -36,6 +35,22 @@
               <span class="sp-row__label">昵称</span>
               <el-input v-model="form.nickname" placeholder="别人看到的名字" maxlength="32" />
             </div>
+            <!--
+              个人介绍（2026-10-19）：textarea 而非 input —— 介绍是成句的话，
+              单行框会让人当「备注」随便填两个字。上限 200 与后端列宽一致。
+            -->
+            <div class="sp-row sp-row--stack">
+              <span class="sp-row__label">个人介绍</span>
+              <el-input
+                v-model="form.bio"
+                type="textarea"
+                :rows="3"
+                maxlength="200"
+                show-word-limit
+                resize="none"
+                placeholder="一句话介绍自己，比如「喜欢安静的地方，正在找一起自习的搭子」"
+              />
+            </div>
             <div class="sp-row">
               <span class="sp-row__label">学号</span>
               <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />
@@ -53,9 +68,8 @@
         </section>
 
         <!--
-          学校信息:五项(学校 / 学院 / 本专科 / 专业 / 年级)走 POST /user/school-profile,
-          与上面的 /user/me **不是同一个端点**,所以底部保存按钮会分两次提交,
-          顺序为先学校后资料;不合成一次请求是为了避免「昵称存上了学院没存上」的半成功态。
+          学校信息:五项走 POST /user/school-profile,与上面的 /user/me 不是同一个端点,
+          故底部保存分两次提交(先学校后资料),避免「昵称存上了学院没存上」的半成功态。
         -->
         <section class="sp-group">
           <h2 class="sp-group__label">学校信息</h2>
@@ -132,7 +146,7 @@ const identitySaved = ref(false)
 const identityInvalid = ref({})
 
 /** PUT /user/me 管的字段。不含 dept / grade —— 它们走 school-profile */
-const form = reactive({ nickname: '', studentNo: '', avatarUrl: '' })
+const form = reactive({ nickname: '', bio: '', studentNo: '', avatarUrl: '' })
 
 /** POST /user/school-profile 管的字段。与 IDENTITY_MODEL 同形 */
 const identity = ref({ ...IDENTITY_MODEL })
@@ -161,10 +175,8 @@ const { verifyTip } = useVerifyTip()
 async function load() {
   const me = await meApi()
   form.nickname = me.nickname || ''
-  /**
-   * 学号**必须从 /user/verify/status 拿**,不能期待 /user/me:
-   * UserVO 同时用于关注列表 / 搜索等多人场景,后端刻意不在里面放学号(隐私)。
-   */
+  form.bio = me.bio || ''
+  // 学号必须从 /user/verify/status 拿:/user/me 的 UserVO 兼用于多人场景,后端刻意不放学号
   let studentNo = ''
   try {
     const vs = await loadVerify()
@@ -244,6 +256,9 @@ async function saveSchool() {
 async function saveProfile() {
   const data = await request.put('/user/me', {
     nickname: form.nickname,
+    // 传 '' 表示清空（后端归一成 null）。不能为空就不传：
+    // 不传 = 本次不改，用户删掉介绍点保存会没反应。
+    bio: form.bio,
     studentNo: form.studentNo,
     avatarUrl: form.avatarUrl,
   })

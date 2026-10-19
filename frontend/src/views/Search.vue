@@ -47,7 +47,12 @@
               <InitialAvatar class="u-avatar" :size="44" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
               <div class="u-info">
                 <div class="u-name">{{ displayName(u) }}</div>
-                <div class="u-sub">{{ maskUsername(u?.username) }}</div>
+                <!--
+                  副行改为个人介绍（2026-10-19）。理由见 UserList.vue 同处注释：
+                  原先展示的脱敏学号会泄露入学年份与专业大类，足以反推并冒充。
+                -->
+                <div class="u-sub" v-if="hasBio(u)">{{ u.bio }}</div>
+                <div class="u-sub u-sub--empty" v-else>这家伙很懒，什么都没有留下</div>
               </div>
             </div>
             <StateBlock v-if="!(results.users || []).length" variant="empty" title="没有匹配的同学" description="关键词可能太长了,试试只输入姓或昵称" action-label="改个关键词" :icon="User" @action="clearKw" />
@@ -86,7 +91,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search as searchApi } from '@/api/circle'
-import { maskUsername, displayName } from '@/utils/mask'
+import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
@@ -120,6 +125,11 @@ function clearKw() {
   q.value = ''
   results.value = {}
   searched.value = false
+}
+
+/** 与 ProfileHead / UserList 同判据：trim 后为空即「没写」 */
+function hasBio(u) {
+  return !!(u?.bio || '').trim()
 }
 
 // 从首页搜索框 / 话题跳来:读 ?kw 预填并自动搜

@@ -10,13 +10,19 @@
   -->
   <li class="item">
     <div class="item__chips">
+      <!--
+        认证申诉角标（2026-10-19）：申诉与普通意见反馈共用一张表，
+        用 content 前缀「【认证申诉】」标记。前缀去掉后再显示正文，
+        否则管理员会同时看到前缀和正文里的「学号 xxx 认证未通过」。
+      -->
+      <span v-if="isAppeal" class="chip chip--appeal">认证申诉</span>
       <span class="chip" :class="`chip--${STATUS_TONE[item.status ?? 0]}`">
         {{ FEEDBACK_STATUS_TEXT[item.status ?? 0] }}
       </span>
       <span class="chip chip--cat">{{ CATEGORY_TEXT[item.category] || '其他' }}</span>
     </div>
 
-    <p class="item__body">{{ item.content }}</p>
+    <p class="item__body">{{ bodyText }}</p>
 
     <!-- 附件:解析失败宁可显示提示,也不能整条反馈崩掉 -->
     <ul v-if="media.length" class="item__media">
@@ -85,12 +91,21 @@ import { resolveThumb, resolveUrl } from '@/utils/resolve'
 /** status -> chip 色调类名。与 AdminAnnItem 的 chip--live 等同一套命名 */
 const STATUS_TONE = { 0: 'live', 1: 'done', 2: 'off' }
 
+/** 申诉前缀，与后端 FeedbackServiceImpl.APPEAL_PREFIX 保持一致 */
+const APPEAL_PREFIX = '【认证申诉】'
+
 const props = defineProps({
   item: { type: Object, required: true },
   busy: { type: Boolean, default: false },
 })
 
 defineEmits(['adopt', 'ignore'])
+
+const isAppeal = computed(() => String(props.item?.content || '').startsWith(APPEAL_PREFIX))
+/** 去掉前缀的正文：前缀已经由角章承担，正文里再出现一次是重复 */
+const bodyText = computed(() =>
+  isAppeal.value ? String(props.item?.content || '').slice(APPEAL_PREFIX.length) : props.item?.content,
+)
 
 /** 解析失败时降级成空数组 + 标记,而不是让整个页面崩在 JSON.parse 上 */
 const parsed = computed(() => {
@@ -165,6 +180,14 @@ const timeText = computed(() => {
 .chip--cat {
   background: var(--ys-surface-2);
   color: var(--ys-fg-2);
+}
+
+/* 认证申诉（2026-10-19）：用暖色与「待处理」的绿区分开——
+   申诉有真实用户等着被解封，优先级高于普通意见反馈，必须一眼可见 */
+.chip--appeal {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
 }
 
 .item__body {

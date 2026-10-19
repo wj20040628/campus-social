@@ -100,6 +100,15 @@ public final class UserVoAssembler {
                 .id(user.getId())
                 .username(masked)
                 .nickname(user.getNickname() != null ? user.getNickname() : masked)
+                /**
+                 * 个人介绍（2026-10-19）：放 base 让 of / ofPrivate 都带。
+                 *
+                 * <p>公开字段、无敏感信息：它取代了原先展示脱敏学号的位置
+                 * （学号结构会泄露入学年份与专业大类，见 §3.3 的安全修正）。
+                 *
+                 * <p>null 表示「还没写」而非「写了空的」，前端据此显示引导文案。
+                 */
+                .bio(user.getBio())
                 .avatarUrl(user.getAvatarUrl())
                 .grade(user.getGrade())
                 .dept(user.getDept())

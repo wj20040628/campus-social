@@ -56,6 +56,22 @@ public class FeedbackServiceImpl implements FeedbackService {
     /** 单条反馈媒体上限，与发帖一致 */
     private static final int MEDIA_LIMIT = 9;
 
+    /**
+     * 认证申诉的 content 前缀（2026-10-19）。
+     *
+     * <p>{@code kind} 不落独立列，改由前缀承担：为一个布尔标记迁移表结构
+     * 不划算，而这个前缀同时满足了「管理端一眼分辨」与「用户侧仍是正常反馈」。
+     *
+     * <p><b>前缀会占用 content 的 1000 字上限</b>：用户实际可写 1000 - 前缀长度。
+     * 前缀刻意做得短（10 字）就是这个原因。
+     */
+    static final String APPEAL_PREFIX = "【认证申诉】";
+
+    /** 判定一条反馈是否为认证申诉（管理端列表用） */
+    public static boolean isAppeal(String content) {
+        return content != null && content.startsWith(APPEAL_PREFIX);
+    }
+
     private final FeedbackMapper feedbackMapper;
     private final SensitiveWordFilter sensitive;
     private final AuditService auditService;
@@ -69,6 +85,11 @@ public class FeedbackServiceImpl implements FeedbackService {
         // 与发帖 / 评论同一口径：反馈会被人看到，且会直接进入管理员审核队列
         if (sensitive.containsBlock(content)) {
             throw new BusinessException(ResultCode.SENSITIVE_WORD_BLOCKED);
+        }
+
+        // 认证申诉：加前缀落库，让管理端能与普通反馈区分（见 APPEAL_PREFIX 注释）
+        if (dto.getKind() != null && dto.getKind() == 1) {
+            content = APPEAL_PREFIX + content;
         }
 
         String mediaJson = serializeMedia(dto.getMedia());

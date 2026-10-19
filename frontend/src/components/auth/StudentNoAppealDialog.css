@@ -1,0 +1,29 @@
+/* 学号申诉弹层样式。布局全部 scoped 在 .ap 上，与 FeedbackDialog 的做法一致：
+   弹层本体是 el-dialog（非 scoped），class 只作挂载锚点。 */
+
+.ap__lead {
+  margin: 0 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+}
+
+.ap__label {
+  display: block;
+  margin-bottom: var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: 600;
+  color: var(--ys-text);
+}
+
+/* 两个输入框之间要留呼吸空间，故 label 上加一段下边距由 margin 承担不了
+   —— 这里给第二个 label 额外上边距，用相邻选择器避免逐个写类名。 */
+.ap__label + .ap__label {
+  margin-top: var(--ys-space-4);
+}
+
+.ap__error {
+  margin: var(--ys-space-3) 0 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-danger);
+}

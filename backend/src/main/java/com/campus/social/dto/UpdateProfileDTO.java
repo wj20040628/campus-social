@@ -40,6 +40,18 @@ public class UpdateProfileDTO {
     @Size(max = 64)
     private String nickname;
 
+    /**
+     * 个人介绍（2026-10-19）。
+     *
+     * <p><b>必须在本 DTO 里声明</b>：下面 {@link #rejectRetiredField} 用
+     * {@code JsonAnySetter} 兜底，未声明字段会被<b>静默忽略</b> ——
+     * 前端传了 bio 收到 200，数据却一字节没落库，比直接报错难查得多。
+     *
+     * <p>长度与 {@code user.bio} 列宽一致（200）。
+     */
+    @Size(max = 200, message = "介绍最多 200 字")
+    private String bio;
+
     @Size(max = 512)
     private String avatarUrl;
 

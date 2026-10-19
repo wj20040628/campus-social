@@ -338,29 +338,47 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         } else {
             throw new BusinessException(STUDENT_NO_MISMATCH, "学号长度须为 13 或 14 位");
         }
-        // 第 3 层：年级匹配（学号前两位 == 所选年级入学年份后两位）
+        // 第 3 层：年级匹配（第 3~6 层细节只进日志，见 mismatch 的注释）
         int gradeSuffix = grade.getEnrollYear() % 100;
         if (year != gradeSuffix) {
-            throw new BusinessException(STUDENT_NO_MISMATCH, "学号前两位与所选年级不一致");
+            mismatch(me, "L3 年级", "学号前两位=" + year + " vs 年级入学年份后两位=" + gradeSuffix);
         }
         // 第 4 层：层次匹配（学号层次标记 == 所选专业层次）
         int marker = parseLevelMarker(studentNo);
-        if (marker == 0) {
-            throw new BusinessException(STUDENT_NO_MISMATCH, "学号层次标记无法识别（应为本科 05/5、专科 06/6）");
-        }
         if (marker != major.getLevel()) {
-            throw new BusinessException(STUDENT_NO_MISMATCH, "学号层次（本科/专科）与所选专业不一致");
+            mismatch(me, "L4 层次", "学号层次标记=" + marker + " vs 专业层次=" + major.getLevel());
         }
         // 第 5 层：专业编码匹配（学号位 3-8 == 所选专业 code）
         String majorCode = studentNo.substring(2, 8);
         if (!majorCode.equals(major.getCode())) {
-            throw new BusinessException(STUDENT_NO_MISMATCH, "学号专业编码与所选专业不一致");
+            mismatch(me, "L5 专业码", "学号位3-8=" + majorCode + " vs 专业 code=" + major.getCode());
         }
         // 第 6 层：班内序号 < 70
         int seq = Integer.parseInt(studentNo.substring(len - 2));
         if (seq > MAX_CLASS_RANK) {
-            throw new BusinessException(STUDENT_NO_MISMATCH, "学号班内序号不能大于 69");
+            mismatch(me, "L6 班内序号", "末两位=" + seq + " 上限=" + MAX_CLASS_RANK);
         }
+    }
+
+    /**
+     * 第 3~6 层的统一失败出口：对外一句「不匹配」，细节进日志。
+     *
+     * <p><b>为什么必须收敛</b>(2026-10-19 安全修正)：这四层分别泄露
+     * 「前 2 位=入学年份」「层次标记=05/5 或 06/6」「位 3-8=专业 code」
+     * 「末两位&lt;70」。逐层抛出具体原因等于把学号编码规则逐条讲给攻击者——
+     * 拿到一个学号后逐条试错，五次之内即可复原整套规则，六层随即形同虚设。
+     * 这正是六层的设计意图(拦住"只知道学号、不知道规则"的人)被自己破坏的例子。
+     *
+     * <p>第 1/2 层(纯数字 / 长度)不收敛：规则已在 {@code RegisterDTO} 的
+     * {@code ^\d{13,14}$} 正则里公开，不构成额外泄露，且保留文案对真人更友好。
+     *
+     * <p>log 带 userId、层级与比对值，便于管理员在后台核对队列反查是谁、哪一层没过。
+     * 学号进日志是安全的（管理员本来就能在库里看到），对外才是敏感的。
+     */
+    private void mismatch(User me, String layer, String detail) {
+        log.warn("studentNo verify rejected: user={}, layer={}, detail={}",
+                me.getId(), layer, detail);
+        throw new BusinessException(STUDENT_NO_MISMATCH);
     }
 
     /**

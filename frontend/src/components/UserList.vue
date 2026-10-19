@@ -4,7 +4,15 @@
       <el-avatar :size="40" :src="resolveThumb(u.avatarUrl)" />
       <div class="u-info">
         <div class="u-name">{{ nick(u) }}</div>
-        <div class="u-sub">{{ mask(u) }}<template v-if="u.dept"> · {{ u.dept }}</template></div>
+        <!--
+          副行改为个人介绍（2026-10-19）。原先这里是脱敏学号，
+          但学号结构会泄露入学年份与专业大类，足以让人反推填表并冒充，
+          故不再对外展示（本人查学号走 /user/me 与导航抽屉）。
+          没写介绍时给一句静态文案，不给「点我填写」这类暗示 ——
+          别人不能替你填，暗示可点只会让人白点一下。
+        -->
+        <div class="u-sub" v-if="hasBio(u)">{{ u.bio }}</div>
+        <div class="u-sub u-sub--empty" v-else>这家伙很懒，什么都没有留下</div>
       </div>
       <el-button class="u-go-btn" link type="primary" @click.stop="go(u)">查看主页</el-button>
     </div>
@@ -31,7 +39,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { User } from '@element-plus/icons-vue'
-import { maskUsername, displayName } from '@/utils/mask'
+import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import StateBlock from '@/components/common/StateBlock.vue'
 
@@ -49,8 +57,10 @@ defineProps({
 
 defineEmits(['empty-action'])
 
-function mask(u) { return maskUsername(u?.username) }
 function nick(u) { return displayName(u) }
+
+/** 与 ProfileHead 同判据：trim 后为空即「没写」，避免只有空格时排出一行空白 */
+function hasBio(u) { return !!(u?.bio || '').trim() }
 
 function go(u) {
   const id = Number(u?.id)

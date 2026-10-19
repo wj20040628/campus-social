@@ -36,8 +36,17 @@
             <router-link v-if="usernameTaken" to="/login/form" class="field-error__link">
               去登录
             </router-link>
+            <!-- 申诉出口（2026-10-19）：被自己的规则挡在外面时用户没有出路 -->
+            <button
+              v-if="appealOpen"
+              type="button"
+              class="field-error__link field-error__link--btn"
+              @click="appealRef?.open()"
+            >我确实是本校学生，提交申诉</button>
           </p>
         </el-form-item>
+
+        <StudentNoAppealDialog ref="appealRef" :preset-student-no="form.studentNo" />
 
         <el-form-item label="昵称" prop="nickname">
           <el-input v-model="form.nickname" placeholder="展示在站内的名字" maxlength="32" />
@@ -125,6 +134,9 @@ import { useRegisterSubmit } from '@/composables/useRegisterSubmit'
 import SchoolFields from '@/components/common/SchoolFields.vue'
 import PasswordInput from '@/components/auth/PasswordInput.vue'
 import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
+import StudentNoAppealDialog from '@/components/auth/StudentNoAppealDialog.vue'
+
+const appealRef = ref(null)
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -146,6 +158,7 @@ const {
   retryable,
   fieldErrors,
   usernameTaken,
+  appealOpen,
   submit: submitRegister,
 } = useRegisterSubmit({
   form,

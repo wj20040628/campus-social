@@ -51,7 +51,7 @@ public class UserController {
     public Result<UserVO> update(@Valid @RequestBody UpdateProfileDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(authService.updateProfile(me, dto.getNickname(),
-                dto.getAvatarUrl(), dto.getStudentNo()));
+                dto.getAvatarUrl(), dto.getStudentNo(), dto.getBio()));
     }
 
     /** 设置「允许陌生人给我发消息」开关(AC-05 护栏偏好) */

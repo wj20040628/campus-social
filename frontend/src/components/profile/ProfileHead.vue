@@ -31,6 +31,25 @@
           {{ identityLine }}
         </div>
         <div v-else class="p-sub p-sub--empty">还没填学校归属</div>
+
+        <!--
+          个人介绍（2026-10-19）。位置取代了原先这里展示的脱敏学号 ——
+          学号结构会泄露入学年份与专业大类，够外人反推冒充；
+          介绍是这个产品里唯一安全又能说明「你是谁」的字段。
+
+          没写介绍时：本人点这段话直接编辑（文案本身就是按钮，不用额外按钮），
+          他人只给一句静态文案。用 button 承载文案而不是「p + 透明按钮盖住」——
+          后者依赖绝对定位对不准，且键盘 Tab 时会落到一个看不见的按钮上。
+        -->
+        <p v-if="hasBio" class="p-bio">{{ user.bio }}</p>
+        <button
+          v-else-if="isMe"
+          type="button"
+          class="p-bio p-bio--empty p-bio--action"
+          @click="$emit('edit')"
+        >点击添加介绍，让大家了解你吧</button>
+        <p v-else class="p-bio p-bio--empty">这家伙很懒，什么都没有留下</p>
+
         <router-link v-if="isMe && !verified" to="/profile" class="p-verify-link">
           去认证
         </router-link>
@@ -83,10 +102,11 @@
  * 因为它们要联动粉丝计数、未认证弹窗与路由,放进子组件会多一层双向耦合。
  */
 import { CircleCheck, ChatDotRound, Plus, WarningFilled, Setting } from '@element-plus/icons-vue'
+import { computed } from 'vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
-defineProps({
+const props = defineProps({
   user: { type: Object, required: true },
   /** 学院 · 年级名称(父级已做三级兜底) */
   identity: { type: Object, default: () => ({}) },
@@ -106,152 +126,14 @@ defineProps({
 })
 
 defineEmits(['follow', 'chat', 'edit', 'settings', 'report'])
+
+/**
+ * 有没有写过介绍。
+ *
+ * <p>判据要 trim：后端已把纯空白归一成 null，但老数据与并发写入仍可能留下
+ * 只有空格的值，模板里 v-if 用原始字符串会在主页上排出一行空白。
+ */
+const hasBio = computed(() => !!(props.user?.bio || '').trim())
 </script>
 
-<style scoped>
-.p-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ys-space-2);
-  padding: 0 0 var(--ys-space-1);
-}
-
-/* 头像行:align-end 让头像底边与信息块底边对齐,负 margin 叠上装饰带 */
-.p-id {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--ys-space-3);
-  margin-top: -26px;
-}
-
-.p-avatar {
-  flex-shrink: 0;
-  /* 白描边把头像从装饰带上「托」出来;淡投影是 token 的暖墨 shadow-1 */
-  border: 3px solid var(--ys-surface);
-  box-shadow: var(--ys-shadow-1);
-}
-
-.p-info {
-  flex: 1;
-  min-width: 0;
-  padding-bottom: 2px;
-}
-
-.p-name-row {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.p-name {
-  font-size: var(--ys-text-lg);
-  line-height: var(--ys-lh-lg);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.p-sub {
-  margin-top: 2px;
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  color: var(--ys-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.p-sub--empty {
-  color: var(--ys-meta);
-}
-
-.p-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ys-space-1);
-  font-size: var(--ys-text-xs);
-  line-height: var(--ys-lh-xs);
-  color: var(--ys-success);
-}
-
-.p-badge--off {
-  color: var(--ys-meta);
-}
-
-.p-badge__icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.p-verify-link {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-accent);
-  text-decoration: none;
-}
-
-.p-verify-link:hover {
-  color: var(--ys-accent-hover);
-}
-
-/*
- * 操作行。手机端主动作拉满宽度(小红书式),桌面端靠右:
- * el-button 根节点在组件内部,scoped 打不进去,用 :deep。
- */
-.p-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
-}
-
-.p-actions :deep(.el-button) {
-  border-radius: var(--ys-radius-full);
-}
-
-.p-actions .p-act {
-  flex: 1;
-}
-
-/* 设置齿轮:44x44 触控热区,次要视觉 */
-.p-gear {
-  flex: none;
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--ys-border);
-  background: transparent;
-  color: var(--ys-fg-2);
-  border-radius: var(--ys-radius-full);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.p-gear:hover {
-  background: var(--ys-surface-2);
-}
-
-@media (min-width: 1024px) {
-  .p-id {
-    margin-top: -36px;
-  }
-
-  .p-avatar {
-    border-width: 4px;
-  }
-
-  /* 桌面端操作行靠右,按钮恢复内容宽度 */
-  .p-actions {
-    justify-content: flex-end;
-  }
-
-  .p-actions .p-act {
-    flex: 0 0 auto;
-  }
-}
-</style>
+<style scoped src="./ProfileHead.css"></style>

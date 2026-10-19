@@ -432,7 +432,7 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     @Transactional
-    public UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo) {
+    public UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo, String bio) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(USER_CANCELLED);
@@ -441,6 +441,7 @@ public class AuthServiceImpl implements AuthService {
         String oldNickname = user.getNickname();
         String oldStudentNo = user.getStudentNo();
         String oldAvatar = user.getAvatarUrl();
+        String oldBio = user.getBio();
         // 学号变更需唯一校验；且被驳回的用户换了学号要重新进待审队列。
         // 判定细节见 StudentNoChangeSupport（那边写清了为什么这么判）。
         //
@@ -456,6 +457,14 @@ public class AuthServiceImpl implements AuthService {
         }
         if (nickname != null)
             user.setNickname(nickname);
+        /**
+         * 个人介绍（2026-10-19）。与 nickname 一样「null = 本次不改」，
+         * 所以清空介绍要传空串而不是不传 —— 前端清空时确实会传 ''。
+         * trim 掉纯空白：用户按空格提交不该在主页占一行空白。
+         */
+        if (bio != null) {
+            user.setBio(bio.trim().isEmpty() ? null : bio.trim());
+        }
         if (avatarUrl != null) {
             // 归属校验:引用 /uploads 文件必须是本人上传的;老数据/外部图床放行
             if (!uploadService.isAvatarAllowed(avatarUrl, userId)) {
@@ -468,6 +477,12 @@ public class AuthServiceImpl implements AuthService {
         StringBuilder diff = new StringBuilder();
         if (nickname != null && !nickname.equals(oldNickname))
             diff.append("昵称:").append(nullSafe(oldNickname)).append("→").append(nickname).append("; ");
+        // 介绍只记「改了/没改」不记原文：200 字进审计日志没有排查价值，
+        // 而审计表会被检索，凭一条「简介已修改」足以定位时间点。
+        // 比较用 trim 后的值，与上面落库时的归一化保持同一口径，
+        // 否则「从空改成只有空格」会被记成一次修改，而库里其实什么都没变。
+        if (bio != null && !bio.trim().equals(oldBio == null ? "" : oldBio.trim()))
+            diff.append("个人介绍:已修改; ");
         if (studentNo != null && !studentNo.isBlank() && !studentNo.equals(oldStudentNo))
             diff.append("学号:").append(nullSafe(oldStudentNo)).append("→").append(studentNo).append("; ");
         if (avatarUrl != null && !avatarUrl.equals(oldAvatar))

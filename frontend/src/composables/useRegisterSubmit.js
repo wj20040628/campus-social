@@ -35,10 +35,20 @@ export function useRegisterSubmit({ form, identity, identityInvalid, userStore, 
   })
   /** 学号是否已被注册。只有这个错才给「去登录」的出口 */
   const usernameTaken = ref(false)
+  /**
+   * 是否该给「申诉」出口（2026-10-19）。
+   *
+   * 1004(学号已被占用)与 1058(六层不过)都可能意味着「用户其实没填错」——
+   * 字典过期、学号规则有例外、恰好被规则误伤。没有这条出路时,
+   * 界面只回一句冷冰冰的「注册失败」，真实用户就只能放弃，
+   * 而他恰恰是无辜的。申诉复用反馈模块，管理员人工核对。
+   */
+  const appealOpen = ref(false)
 
   function clearErrors() {
     for (const k of Object.keys(fieldErrors)) fieldErrors[k] = ''
     usernameTaken.value = false
+    appealOpen.value = false
     formError.value = ''
     retryable.value = false
   }
@@ -76,6 +86,8 @@ export function useRegisterSubmit({ form, identity, identityInvalid, userStore, 
       if (f) {
         fieldErrors[f.field] = f.text
         if (f.action === 'login') usernameTaken.value = true
+        // 申诉出口:仅 1004/1058 带这个 action,其余字段错不给
+        if (f.action === 'appeal') appealOpen.value = true
         return
       }
       retryable.value = isNetworkFail(e)
@@ -91,6 +103,7 @@ export function useRegisterSubmit({ form, identity, identityInvalid, userStore, 
     retryable,
     fieldErrors,
     usernameTaken,
+    appealOpen,
     submit,
     clearErrors,
   }

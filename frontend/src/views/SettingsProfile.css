@@ -121,6 +121,20 @@
   color: var(--ys-fg-2);
 }
 
+/*
+  堆叠变体（2026-10-19）：个人介绍是 textarea，横向排会被 56px 标签
+  挤成一条窄缝。改纵向：标签在上、输入框占满整行。
+*/
+.sp-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ys-space-2);
+}
+
+.sp-row--stack .sp-row__label {
+  width: auto;
+}
+
 /* SchoolFields 自带 grid 与上下 label,这里改回「单列 + 左标签」的行式排布 */
 .sp-card--school { padding: var(--ys-space-1) 0; }
 

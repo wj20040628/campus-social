@@ -40,6 +40,15 @@ public class User implements Serializable {
     private String email;
 
     private String nickname;
+    /**
+     * 个人介绍（2026-10-19）。
+     *
+     * <p>上限 200 字，取 200 而不是更长：主页身份头下方一行最多显示两行，
+     * 超过两行的内容在手机上会被截断，而用户不会知道自己的介绍只露出一半。
+     *
+     * <p>允许为空（没写介绍的人很多，不该逼着填）。空时前端显示引导文案。
+     */
+    private String bio;
     private String avatarUrl;
 
     /**

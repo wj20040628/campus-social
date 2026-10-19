@@ -31,6 +31,25 @@ public class FeedbackSubmitDTO {
     @Max(value = 5, message = "反馈分类不合法")
     private Integer category;
 
+    /**
+     * 反馈性质：0普通意见（默认）/ 1学号认证申诉（2026-10-19）。
+     *
+     * <p>认证申诉复用反馈模块而非另建表：两者在管理员侧的处理动作几乎重合
+     * （都进同一个队列、都写处理说明、都能收到回复通知），单独建一张
+     * {@code appeal} 表意味着再写一套 CRUD、CRUD 之外的另一套列表页与详情页，
+     * 而两者的字段与状态机几乎相同。
+     *
+     * <p>不复用 {@code category} 区分：category 是给用户选的内容分类，
+     * 掺入流程语义会让「认证申诉」在用户侧变成一个诡异的第六个分类。
+     * 独立布尔语义字段更清晰，且将来若要给申诉加 SLA/统计都不必再动 category。
+     *
+     * <p>该字段<b>不落独立列</b>，而是由 service 序列化进 content 前缀
+     * （见 FeedbackServiceImpl#APPEAL_PREFIX），避免为一个标记迁移表结构。
+     */
+    @Min(value = 0, message = "反馈性质不合法")
+    @Max(value = 1, message = "反馈性质不合法")
+    private Integer kind;
+
     @NotBlank(message = "请描述一下遇到的问题或建议")
     @Size(max = 1000, message = "描述最多 1000 字")
     private String content;

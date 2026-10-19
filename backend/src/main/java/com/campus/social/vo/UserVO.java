@@ -20,6 +20,17 @@ public class UserVO {
      */
     private String username;
     private String nickname;
+    /**
+     * 个人介绍（2026-10-19）。
+     *
+     * <p>公开字段，null / 空串表示「还没写」，前端据此显示引导文案。
+     *
+     * <p><b>为什么用它替换原先展示的脱敏学号</b>：学号结构是
+     * 「入学年份 + 专业大类 + 专业位 + 班级」，脱敏后 {@code 2308****0678}
+     * 仍泄露前三段，足以让人反推并冒充；而介绍是这个产品里
+     * 唯一能替代「让陌生人知道你是谁」的安全字段。
+     */
+    private String bio;
     private String avatarUrl;
     private String grade;
     private String dept;

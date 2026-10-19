@@ -1,0 +1,190 @@
+/* 身份头样式外置（2026-10-19）:ProfileHead.vue 加了个人介绍后涨到 325 行,
+   顶破 300 行门禁。样式整块搬到本文件,vue 只留结构与逻辑。
+   搬完必须复检括号平衡 —— 注释里别写字面花括号,
+   check-external-css 按字符数,注释里的符号照样计入。 */
+
+.p-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  padding: 0 0 var(--ys-space-1);
+}
+
+/* 头像行:align-end 让头像底边与信息块底边对齐,负 margin 叠上装饰带 */
+.p-id {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ys-space-3);
+  margin-top: -26px;
+}
+
+.p-avatar {
+  flex-shrink: 0;
+  /* 白描边把头像从装饰带上「托」出来;淡投影是 token 的暖墨 shadow-1 */
+  border: 3px solid var(--ys-surface);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.p-info {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.p-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.p-name {
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* 个人介绍（2026-10-19）。放开两行：引言式介绍常在第二行才说完，
+   单行会把「喜欢安静的地方」截成「喜欢安静的」。 */
+.p-bio {
+  margin: var(--ys-space-1) 0 0;
+  max-width: 100%;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-fg-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 未写介绍时的弱化文案。淡到能看出「这里可以填」，
+   但不抢昵称的视觉重量 */
+.p-bio--empty {
+  color: var(--ys-muted);
+}
+
+/* 本人未写时整段可点。button 默认样式要重置，否则会在文案外面套一个灰方块 */
+.p-bio--action {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-bio--action:hover {
+  color: var(--ys-accent);
+}
+
+.p-sub {
+  margin-top: 2px;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-sub--empty {
+  color: var(--ys-meta);
+}
+
+.p-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-success);
+}
+
+.p-badge--off {
+  color: var(--ys-meta);
+}
+
+.p-badge__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.p-verify-link {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
+  text-decoration: none;
+}
+
+.p-verify-link:hover {
+  color: var(--ys-accent-hover);
+}
+
+/*
+ * 操作行。手机端主动作拉满宽度(小红书式),桌面端靠右:
+ * el-button 根节点在组件内部,scoped 打不进去,用 :deep。
+ */
+.p-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+.p-actions :deep(.el-button) {
+  border-radius: var(--ys-radius-full);
+}
+
+.p-actions .p-act {
+  flex: 1;
+}
+
+/* 设置齿轮:44x44 触控热区,次要视觉 */
+.p-gear {
+  flex: none;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ys-border);
+  background: transparent;
+  color: var(--ys-fg-2);
+  border-radius: var(--ys-radius-full);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-gear:hover {
+  background: var(--ys-surface-2);
+}
+
+@media (min-width: 1024px) {
+  .p-id {
+    margin-top: -36px;
+  }
+
+  .p-avatar {
+    border-width: 4px;
+  }
+
+  /* 桌面端操作行靠右,按钮恢复内容宽度 */
+  .p-actions {
+    justify-content: flex-end;
+  }
+
+  .p-actions .p-act {
+    flex: 0 0 auto;
+  }
+}

@@ -30,6 +30,21 @@
   color: var(--ys-accent-hover);
 }
 
+/* 申诉入口是 <button>（不是 router-link），要重置浏览器默认按钮样式：
+   默认的 border/background/font 会让它在纯文字里显得像一个灰方块。
+   display:block + 独立 padding 让它换行独占一行，与上面那句错误文案分开。 */
+.field-error__link--btn {
+  display: block;
+  margin-top: var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
 /* 倒计时文案。独立一行而不是塞在按钮里:
    按钮文案随秒数变宽窄会让整行抖动,横向重排在小屏上很明显 */
 .code-cd {
