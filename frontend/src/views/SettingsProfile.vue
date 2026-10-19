@@ -40,6 +40,15 @@
               <span class="sp-row__label">学号</span>
               <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />
             </div>
+            <!-- 邮箱:已绑定显示脱敏值;未绑定给「去绑定」入口,跳账号与安全 -->
+            <div class="sp-row">
+              <span class="sp-row__label">邮箱</span>
+              <span v-if="emailBound" class="sp-email" :title="emailMasked">{{ emailMasked }}</span>
+              <template v-else>
+                <span class="sp-email sp-email--empty">还未绑定邮箱</span>
+                <button type="button" class="sp-email-bind" @click="goBindEmail">去绑定</button>
+              </template>
+            </div>
           </div>
         </section>
 
@@ -76,23 +85,6 @@
           </div>
         </section>
 
-        <!-- 安全凭证邮箱:学号是主账号,邮箱只用于找回密码,不公开展示 -->
-        <section class="sp-group">
-          <h2 class="sp-group__label">安全邮箱</h2>
-          <div class="sp-card">
-            <button type="button" class="sp-link" @click="emailOpen = true">
-              <span class="sp-link__ic">
-                <el-icon :size="17"><Message /></el-icon>
-              </span>
-              <span class="sp-link__text">
-                <span class="sp-link__label">{{ emailBound ? emailMasked : '尚未绑定邮箱' }}</span>
-                <span class="sp-link__desc">用于找回密码,点击可{{ emailBound ? '修改' : '绑定' }}</span>
-              </span>
-              <el-icon class="sp-link__chev" :size="16"><ArrowRight /></el-icon>
-            </button>
-          </div>
-        </section>
-
         <div class="sp-savebar">
           <button type="button" class="sp-save" :disabled="saving || schoolSaving" @click="saveAll">
             {{ saving || schoolSaving ? '保存中…' : '保存' }}
@@ -102,7 +94,6 @@
     </div>
 
     <ProfileTagDialog ref="tagDialog" @saved="loadTags" />
-    <ProfileEmailDialog v-model="emailOpen" :bound="emailBound" @saved="onEmailSaved" />
   </div>
 </template>
 
@@ -114,7 +105,7 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
-import { ArrowLeft, ArrowRight, Plus, Message, CircleCheckFilled, WarningFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, CircleCheckFilled, WarningFilled } from '@element-plus/icons-vue'
 import { me as meApi } from '@/api/auth'
 import { uploadToOss } from '@/composables/useOssUpload'
 import { saveSchoolProfile, readIdentity } from '@/api/dict'
@@ -129,7 +120,6 @@ import { useDictStore } from '@/stores/dict'
 import { ofUser } from '@/api/tag'
 import SchoolFields from '@/components/common/SchoolFields.vue'
 import ProfileTagDialog from '@/views/settings/ProfileTagDialog.vue'
-import ProfileEmailDialog from '@/views/settings/ProfileEmailDialog.vue'
 
 const userStore = useUserStore()
 const dict = useDictStore()
@@ -151,7 +141,6 @@ const identityOriginal = ref({ ...IDENTITY_MODEL })
 /** 安全凭证邮箱:脱敏值 + 是否已绑定(仅「我的资料」ofPrivate 暴露) */
 const emailBound = ref(false)
 const emailMasked = ref('')
-const emailOpen = ref(false)
 
 /** 兴趣标签:页面上直接铺 chip,所以要一份「当前已选」的浅拷贝(写回走弹层) */
 const myTags = ref([])
@@ -283,9 +272,9 @@ async function saveAll() {
   }
 }
 
-function onEmailSaved(vo) {
-  emailBound.value = vo.emailBound !== false
-  emailMasked.value = vo.email || emailMasked.value
+/** 未绑邮箱时的「去绑定」:绑定能力已搬到 设置 → 账号与安全 */
+function goBindEmail() {
+  router.push('/settings/security')
 }
 
 onMounted(async () => {

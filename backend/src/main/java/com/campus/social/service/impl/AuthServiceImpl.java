@@ -9,6 +9,7 @@ import com.campus.social.dto.SchoolProfileDTO;
 import com.campus.social.dto.StudentNoVerifyDTO;
 import com.campus.social.dto.ForgotPasswordDTO;
 import com.campus.social.dto.ResetPasswordDTO;
+import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
@@ -349,6 +350,33 @@ public class AuthServiceImpl implements AuthService {
         redis.delete(REFRESH_KEY + user.getId());
         auditService.record(user.getId(), "reset_password", "user", user.getId(), "重置密码", null);
         log.info("resetPassword: uid={}", user.getId());
+    }
+
+    /**
+     * 修改密码(需登录):校验原密码通过后更新为新密码。
+     *
+     * <p>原密码不对回 400(不区分「账号不存在」,因为这里是登录态,userId 一定有效)。
+     * 新密码与原密码相同也拒绝——改密动作没有发生,却会让用户误以为旧密码已失效。
+     * 改密后不删 refresh:这是本人在登录态下主动操作,当前设备保持登录才符合预期;
+     * 找回密码(reset)才需要全量吊销,因为那是「可能被他人拿到邮箱」的场景。
+     */
+    @Override
+    @Transactional
+    public void changePassword(long userId, ChangePasswordDTO dto) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(UNAUTHORIZED, "未登录");
+        }
+        if (!JwtUtil.verifyPassword(dto.getOldPassword(), user.getPasswordHash())) {
+            throw new BusinessException(BAD_REQUEST, "原密码不正确");
+        }
+        if (JwtUtil.verifyPassword(dto.getNewPassword(), user.getPasswordHash())) {
+            throw new BusinessException(BAD_REQUEST, "新密码不能与原密码相同");
+        }
+        user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
+        userMapper.updateById(user);
+        auditService.record(userId, "change_password", "user", userId, "修改密码", null);
+        log.info("changePassword: uid={}", userId);
     }
 
     /**

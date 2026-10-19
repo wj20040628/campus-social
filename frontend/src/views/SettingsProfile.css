@@ -221,53 +221,35 @@
 
 .sp-chip--add:hover { background: var(--ys-border-soft); }
 
-/* ---------- 安全邮箱入口行 ---------- */
-.sp-link {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  width: 100%;
-  padding: var(--ys-space-3) var(--ys-space-4);
-  border: 0;
-  background: none;
-  font-family: var(--ys-font-body);
-  text-align: left;
-  cursor: pointer;
-  color: var(--ys-fg);
-}
-
-.sp-link:hover { background: var(--ys-surface-2); }
-
-.sp-link__ic {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-}
-
-.sp-link__text {
+/* ---------- 基本信息里的邮箱只读行 ---------- */
+.sp-email {
   flex: 1;
   min-width: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.sp-link__label {
-  display: block;
-  font-size: var(--ys-text-base);
-  color: var(--ys-fg);
-}
+.sp-email--empty { color: var(--ys-meta); }
 
-.sp-link__desc {
-  display: block;
-  margin-top: 2px;
+/* 未绑定时的「去绑定」小按钮:描边胶囊,不抢保存按钮的主色 */
+.sp-email-bind {
+  flex: none;
+  min-height: 28px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: transparent;
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
   font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
-.sp-link__chev { color: var(--ys-muted); }
+.sp-email-bind:hover { background: var(--ys-accent-soft); }
 
 /* ---------- 底部整宽保存 ---------- */
 .sp-savebar { padding: 0 var(--ys-space-1); }

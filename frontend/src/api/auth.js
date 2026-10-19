@@ -46,6 +46,11 @@ export function bindEmail(email, code) {
   return request.post('/user/bind-email', { email, code })
 }
 
+/** 修改密码(需登录):原密码 + 新密码。silent:错误由弹层内联提示,不弹全局 toast */
+export function changePassword(oldPassword, newPassword) {
+  return request.put('/user/password', { oldPassword, newPassword }, { silent: true })
+}
+
 export function refresh(refreshToken) {
   return request.post('/auth/refresh', { refreshToken })
 }
@@ -75,5 +80,5 @@ export function mentionCandidates(kw = '') {
 
 export default {
   login, loginByCode, register, sendCode, forgotPassword, resetPassword, bindEmail,
-  refresh, logout, me, userCard, mentionCandidates,
+  changePassword, refresh, logout, me, userCard, mentionCandidates,
 }

@@ -3,6 +3,7 @@ package com.campus.social.controller;
 import com.campus.social.common.Result;
 import com.campus.social.common.CursorPage;
 import com.campus.social.dto.UpdateProfileDTO;
+import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.entity.User;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -71,6 +72,20 @@ public class UserController {
             return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
         }
         return Result.ok(authService.bindEmail(me, dto));
+    }
+
+    /**
+     * 修改密码(需登录):校验原密码后更新为新密码。
+     * 与找回密码 {@code POST /auth/reset-password}(凭邮箱验证码)是两条独立路径。
+     */
+    @PutMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordDTO dto, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        authService.changePassword(me, dto);
+        return Result.ok();
     }
 
     /** 用户卡片(公开,看他人主页用) */

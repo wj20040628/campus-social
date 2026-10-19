@@ -7,6 +7,7 @@ import com.campus.social.dto.RefreshDTO;
 import com.campus.social.dto.SendCodeDTO;
 import com.campus.social.dto.ForgotPasswordDTO;
 import com.campus.social.dto.ResetPasswordDTO;
+import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
@@ -67,6 +68,14 @@ public interface AuthService {
      * 校验通过后改密并吊销其他设备的 refresh。
      */
     void resetPassword(ResetPasswordDTO dto);
+
+    /**
+     * 修改密码(需登录):校验原密码通过后更新为新密码。
+     *
+     * <p>与 {@link #resetPassword} 的区别:后者是无登录态、凭邮箱验证码找回;
+     * 本方法是登录态、凭原密码主动改密。
+     */
+    void changePassword(long userId, ChangePasswordDTO dto);
 
     /**
      * 绑定 / 修改安全凭证邮箱(需登录):校验绑定验证码后写入 user.email(转小写,全局唯一)。
