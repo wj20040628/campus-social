@@ -53,6 +53,22 @@
   cursor: pointer;
 }
 
+/* 「一键跳过」变体:加淡边框让其比普通「跳过」更可点 */
+.ob__skip--all {
+  border: 1px solid var(--ys-border-strong, var(--ys-border));
+  border-radius: var(--ys-radius-full);
+  padding: 0 var(--ys-space-3);
+}
+
+/* 跳过提示:告诉用户引导可跳过、后续能补,降低「必须现在填」的心理压力 */
+.ob__foot-hint {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4) 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  text-align: center;
+}
+
 .ob__brand {
   display: none;
   margin: var(--ys-space-6) 0 0;

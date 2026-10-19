@@ -50,24 +50,12 @@
         SPA 导航永久空白(leave 阶段抛错 → 收不到 transitionend → 新组件永不挂载)。
         引导页是**新用户第一次用**的路径,白屏代价最高,所以这轮一并去掉。
 
-        原本想用 :key="step" 顶上,查过会丢东西:
-          - StepTags / StepFollow **零内部 ref** —— 重建无损
-          - StepIdentity 有两个:touched(哪些字段被碰过,用于字段级提示)
-            与 fieldsRef(校验器句柄)。重建后 touched 归零,
-            用户填了一半的字段会退回「没碰过」,追问提示消失。
-        所以不加 key,只去 mode —— StepIdentity 靠 v-if/v-else-if 切换,
-        本来就会重建,key 不会改变这一点,只会额外把已渲染的也重建一次。
+        StepTags / StepFollow **零内部 ref** —— v-if/v-else-if 切换重建无损,
+        所以不加 key,只去 mode。
       -->
       <Transition :name="dir > 0 ? 'slide-left' : 'slide-right'">
-        <StepIdentity
-          v-if="step === 1"
-          ref="step1Ref"
-          v-model="identity"
-          :invalid="identityInvalid"
-        />
-
         <StepTags
-          v-else-if="step === 2"
+          v-if="step === 1"
           :groups="tagGroups"
           :picked="tagIds"
           :loading="tagLoading"
@@ -98,13 +86,29 @@
     <footer class="ob__foot">
       <p v-if="submitError" class="ob__foot-err" role="alert">{{ submitError }}</p>
 
+      <p class="ob__foot-hint">跳过后仍可补充资料，在「我的」里随时修改</p>
+
       <div class="ob__foot-row">
-        <span v-if="step === 2" class="ob__foot-meta">
+        <span v-if="step === 1" class="ob__foot-meta">
           已选 {{ tagIds.length }} 个(至少 {{ minSelect }} 个)
         </span>
-        <span v-else-if="step === 3" class="ob__foot-meta">
+        <span v-else-if="step === 2" class="ob__foot-meta">
           已关注 {{ userIds.length }} 人 · 已加入 {{ circleIds.length }} 个圈子
         </span>
+
+        <!-- 第 1 步:可「跳过」进下一步,或「一键跳过」直接进首页 -->
+        <button
+          v-if="step === 1"
+          type="button"
+          class="ob__skip"
+          @click="finish"
+        >跳过</button>
+        <button
+          v-if="step === 1"
+          type="button"
+          class="ob__skip ob__skip--all"
+          @click="onSkip"
+        >一键跳过</button>
 
         <!--
           第 3 步的按钮文案是「进友声」不是「完成」(§1.3):
@@ -134,11 +138,10 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useUserStore } from '@/stores/user'
-import { TOTAL_STEPS, IDENTITY_MODEL } from '@/constants/schoolDict'
+import { TOTAL_STEPS, SCHOOLS } from '@/constants/schoolDict'
 import { useOnboardingData, toggleIn } from '@/composables/useOnboardingData'
 import { useOnboardingFlow } from '@/composables/useOnboardingFlow'
 import SafeArea from '@/components/mobile/SafeArea.vue'
-import StepIdentity from '@/components/onboarding/StepIdentity.vue'
 import StepTags from '@/components/onboarding/StepTags.vue'
 import StepFollow from '@/components/onboarding/StepFollow.vue'
 
@@ -147,7 +150,6 @@ const userStore = useUserStore()
 
 const step = ref(1)
 const dir = ref(1) // 1=前进 -1=后退,决定过渡方向
-const step1Ref = ref(null)
 
 /**
  * 学校归属。字段名与请求体键名一致(见 useOnboardingFlow.persist),
@@ -156,7 +158,17 @@ const step1Ref = ref(null)
  * deptId / gradeId 是**字典 id**,不是自由文本:自由文本会让「计算机学院」
  * 与「计科」算两个院系,同院系推荐(AC-14)漏人。
  */
-const identity = ref({ ...IDENTITY_MODEL })
+// 注册页已收过学校/学院/年级并落库,引导页不再重复收(问题 2 修复):
+// 进入引导时直接从 userInfo 预填,避免让用户再填一遍已填过的归属。
+// schoolId 在 userInfo 里不下发(MVP 单校恒为 1),用 SCHOOLS 兜底。
+const identity = ref({
+  schoolId: userStore.userInfo?.schoolId ?? SCHOOLS[0].id,
+  deptId: userStore.userInfo?.deptId ?? null,
+  // 本专科(level)由专业派生,user 表不冗余存;这里只为级联下拉过滤维度,预填为空。
+  level: null,
+  gradeId: userStore.userInfo?.gradeId ?? null,
+  majorId: userStore.userInfo?.majorId ?? null,
+})
 
 /* 第 2/3 步数据(标签 + 推荐)与失败降级语义都在 composable 里 */
 const {
@@ -171,8 +183,8 @@ const {
  * 三个下拉都选上没有);第 3 步恒为 true —— openapi 说 followUserIds 可为空。
  */
 const canAdvance = computed(() => {
-  if (step.value === 1) return !!step1Ref.value?.valid
-  if (step.value === 2) return tagIds.value.length >= minSelect.value
+  // 第 1 步(兴趣标签)需选满最少数量才可前进;第 2 步(关注/圈子)恒可前进
+  if (step.value === 1) return tagIds.value.length >= minSelect.value
   return true
 })
 
@@ -185,7 +197,7 @@ const {
   submitting, submitError, identityInvalid,
   primaryLabel, primaryEnabled, onPrimary, onSkip,
 } = useOnboardingFlow({
-  step, identity, tagIds, userIds,
+  step, identity, tagIds, userIds, circleIds,
   canAdvance,
   goto,
   loadTags,
@@ -194,10 +206,9 @@ const {
   clearFollows,
 })
 
-const skipLabel = computed(() => (step.value === 2 ? '以后再选' : '先逛逛'))
-const skipAria = computed(() =>
-  step.value === 2 ? '跳过兴趣标签,以后再选' : '跳过关注,直接进友声',
-)
+// 跳过只出现在第 2 步(关注/圈子),语义是「先逛逛」(§1.4):直接完成并进首页
+const skipLabel = computed(() => '先逛逛')
+const skipAria = computed(() => '跳过关注,直接进友声')
 
 function pickUser(id) {
   toggleIn(userIds.value, id)
@@ -207,9 +218,10 @@ function pickCircle(id) {
   toggleIn(circleIds.value, id)
 }
 
-/** 供 useOnboardingData 回调:推荐数据回来后跳第 3 步 */
+/** 供 StepTags 的「跳过」回调:拉推荐并跳到第 2 步(关注/圈子) */
 function finish() {
-  goto(3)
+  loadRecommend()
+  goto(2)
 }
 
 /* ---------------- 返回手势拦截(AC-18) ---------------- */
@@ -226,7 +238,7 @@ function onPopState() {
     return
   }
   history.pushState(null, '', location.href)
-  ElMessage({ message: '先选完学校和年级,就一步', type: 'info' })
+  ElMessage({ message: '先选几个兴趣标签,马上就好', type: 'info' })
 }
 
 onMounted(() => {
@@ -235,6 +247,8 @@ onMounted(() => {
     router.replace('/')
     return
   }
+  // 第 1 步(兴趣标签)一进引导就拉数据,避免空白等待
+  loadTags()
   history.pushState(null, '', location.href)
   window.addEventListener('popstate', onPopState)
 })

@@ -8,7 +8,6 @@
   <div class="step2">
     <header class="step2__head">
       <h1 class="step2__title">选几个你感兴趣的</h1>
-      <p class="step2__sub">选 {{ min }} 到 {{ max }} 个,之后找搭子就是按这个匹配的</p>
     </header>
 
     <!-- 标签拉取失败:整步降级,但**不阻塞引导完成**(给「以后再选」出口) -->
@@ -16,7 +15,8 @@
       <p class="step2__err-text">标签没拉出来</p>
       <div class="step2__err-act">
         <button type="button" class="btn btn--primary" @click="$emit('retry')">重试</button>
-        <button type="button" class="btn" @click="$emit('skip')">以后再选</button>
+        <!-- 编辑态(设置页「管理兴趣」)没有「以后再选」出口:allowSkip 默认 true,保持引导原行为 -->
+        <button v-if="allowSkip" type="button" class="btn" @click="$emit('skip')">以后再选</button>
       </div>
     </div>
 
@@ -82,6 +82,8 @@ const props = defineProps({
   failed: { type: Boolean, default: false },
   minSelect: { type: Number, default: 0 },
   maxSelect: { type: Number, default: 0 },
+  /** 失败态是否提供「以后再选」出口。引导= true(默认);编辑兴趣= false */
+  allowSkip: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['toggle', 'retry', 'skip'])

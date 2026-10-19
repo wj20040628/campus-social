@@ -37,6 +37,11 @@ public class OnboardingCompleteDTO {
     @Positive(message = "年级取值不合法")
     private Long gradeId;
 
+    /** 专业字典 id，取自 GET /dict/majors（按学院 + 本专科过滤后的下拉） */
+    @NotNull(message = "请选择专业")
+    @Positive(message = "专业取值不合法")
+    private Long majorId;
+
     /**
      * 选中的兴趣标签。
      *
@@ -54,6 +59,10 @@ public class OnboardingCompleteDTO {
     /** 批量关注的用户 id，可为空 */
     @Size(max = 50, message = "单次最多关注 50 人")
     private List<Long> followUserIds;
+
+    /** 引导第 3 步勾选加入的圈子 id，可为空 */
+    @Size(max = 50, message = "单次最多加入 50 个圈子")
+    private List<Long> circleIds;
 
     public Long getSchoolId() {
         return schoolId;
@@ -79,6 +88,14 @@ public class OnboardingCompleteDTO {
         this.gradeId = gradeId;
     }
 
+    public Long getMajorId() {
+        return majorId;
+    }
+
+    public void setMajorId(Long majorId) {
+        this.majorId = majorId;
+    }
+
     public List<Long> getTagIds() {
         return tagIds;
     }
@@ -93,5 +110,13 @@ public class OnboardingCompleteDTO {
 
     public void setFollowUserIds(List<Long> followUserIds) {
         this.followUserIds = followUserIds;
+    }
+
+    public List<Long> getCircleIds() {
+        return circleIds;
+    }
+
+    public void setCircleIds(List<Long> circleIds) {
+        this.circleIds = circleIds;
     }
 }

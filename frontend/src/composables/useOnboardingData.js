@@ -102,13 +102,24 @@ export function useOnboardingData(onTagEmpty) {
     circlesFailed.value = c.status === 'rejected'
 
     if (u.status === 'fulfilled') {
+      const all = u.value?.users || []
+      // P3:只展示与当前用户有共同兴趣的同学(共同标签数>0),按共同兴趣数从多到少排序。
+      // 共同标签数由后端 selectRecommendUsers 的相关子查询算出,前端只是消费排序结果。
       // 各只取 5 条:引导是「给个起点」不是「让你挑完」(§1.3)
-      users.value = (u.value?.users || []).slice(0, 5)
+      users.value = all
+        .filter((x) => (x.commonTagCount || 0) > 0)
+        .sort((a, b) => (b.commonTagCount || 0) - (a.commonTagCount || 0))
+        .slice(0, 5)
       // 后端下发 followed:已关注的渲染为已关注态,且默认计入选中
       userIds.value = users.value.filter((x) => x.followed).map((x) => x.id)
     }
     if (c.status === 'fulfilled') {
-      circles.value = (c.value?.circles || []).slice(0, 5)
+      const all = c.value?.circles || []
+      // P3:按共同兴趣数从多到少排序。圈子目前后端没有 circle_tag 数据(§6 场景 2 未建),
+      // commonTagCount 恒为 0,排序暂时不改变顺序;待圈子标签表建成后即可自动生效。
+      circles.value = [...all]
+        .sort((a, b) => (b.commonTagCount || 0) - (a.commonTagCount || 0))
+        .slice(0, 5)
       circleIds.value = circles.value.filter((x) => x.joined).map((x) => x.id)
     }
     recLoading.value = false

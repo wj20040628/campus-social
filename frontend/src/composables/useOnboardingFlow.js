@@ -1,7 +1,6 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import * as api from '@/api/onboarding'
-import { submitStudentNo } from '@/api/verify'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { SCHOOL_PROFILE_PAYLOAD } from '@/constants/schoolDict'
@@ -24,10 +23,11 @@ import { dictWriteError, refreshDictAfterInvalid, applyDictInvalid } from '@/uti
  *    记了就一定会有漏掉的分支。
  *
  * @param {object} deps
- * @param {import('vue').Ref} deps.step        当前步(1/2/3)
- * @param {import('vue').Ref} deps.identity    学校归属 { schoolId, deptId, gradeId }
- * @param {import('vue').Ref} deps.tagIds      第 2 步已选标签
- * @param {import('vue').Ref} deps.userIds     第 3 步已关注用户
+ * @param {import('vue').Ref} deps.step        当前步(1=兴趣标签, 2=关注/圈子)
+ * @param {import('vue').Ref} deps.identity    学校归属 { schoolId, deptId, gradeId }(从 userInfo 预填,不再由引导收集)
+ * @param {import('vue').Ref} deps.tagIds      第 1 步已选标签
+ * @param {import('vue').Ref} deps.userIds     第 2 步已关注用户
+ * @param {import('vue').Ref} deps.circleIds   第 2 步已加入圈子
  * @param {() => void} deps.goto          切步(会清 submitError)
  * @param {() => void} deps.loadTags      进第 2 步时拉标签
  * @param {() => void} deps.loadRecommend 进第 3 步时拉推荐
@@ -58,9 +58,11 @@ export function useOnboardingFlow(deps) {
       [SCHOOL_PROFILE_PAYLOAD.schoolId]: deps.identity.value.schoolId,
       [SCHOOL_PROFILE_PAYLOAD.deptId]: deps.identity.value.deptId,
       [SCHOOL_PROFILE_PAYLOAD.gradeId]: deps.identity.value.gradeId,
+      [SCHOOL_PROFILE_PAYLOAD.majorId]: deps.identity.value.majorId,
       tagIds: deps.tagIds.value,
       followUserIds: deps.userIds.value,
-    })
+      circleIds: deps.circleIds.value,
+    }, { silent: true })
   }
 
   /**
@@ -73,6 +75,23 @@ export function useOnboardingFlow(deps) {
     identityInvalid.value = applyDictInvalid(deps.identity.value, bad)
     await refreshDictAfterInvalid(dict)
     return true
+  }
+
+  /**
+   * 提交失败的吸底栏文案,按错误类型分流(§5 A1):
+   * - 业务错(拦截器 reject 的 new Error,带 isBusiness):用后端 message 原文
+   * - 网络错(无 response:连接断/超时):「网络不太好,再点一次」
+   * - 其它 HTTP 错:用后端 message 兜底
+   * 字典失效(1040/1041)已在调用方先走 handleDictInvalid,不进这里。
+   */
+  function failSubmit(e) {
+    if (e?.isBusiness) {
+      submitError.value = e.message || '提交失败,再点一次'
+    } else if (!e?.response) {
+      submitError.value = '网络不太好,再点一次'
+    } else {
+      submitError.value = e?.response?.data?.message || '提交失败,再点一次'
+    }
   }
 
   /** 进首页。必须先刷 userInfo,否则守卫会按旧的 profileComplete=false 弹回来 */
@@ -93,45 +112,33 @@ export function useOnboardingFlow(deps) {
     try {
       await persist()
       if (deps.step.value === 1) {
-        // 学号核验(选填):第 1 步顺路填了学号+姓名后两位就提交核验,
-        // 让「认证」一步到位;失败(格式错/重复)抛错停在当前步,不吞。
-        const sn = (deps.identity.value.studentNo || '').trim()
-        const tail = (deps.identity.value.nameTail || '').trim()
-        if (sn) {
-          await submitStudentNo({ studentNo: sn, nameTail: tail })
-        }
+        // 第 1 步(兴趣标签)提交后,进第 2 步并拉推荐同学/圈子
         deps.goto(2)
-        deps.loadTags()
-      } else if (deps.step.value === 2) {
-        deps.goto(3)
         deps.loadRecommend()
       } else {
+        // 第 2 步(关注/圈子):完成并进首页
         await enter()
       }
     } catch (e) {
       if (await handleDictInvalid(e)) return
       // §3 错误态:**已选内容全部保留** —— 引导页丢数据是最伤的
-      submitError.value = '没提交成功,再点一次'
+      failSubmit(e)
     } finally {
       submitting.value = false
     }
   }
 
-  /** 「以后再选」/「先逛逛」:直接完成并进首页,不是退出引导(§1.4) */
+  /** 「先逛逛」:跳过关注/圈子,直接完成并进首页,不是退出引导(§1.4) */
   async function onSkip() {
-    if (deps.step.value === 2) {
-      deps.clearTags()
-      await onPrimary()
-      return
-    }
     deps.clearFollows()
     submitting.value = true
     submitError.value = ''
     try {
       await persist()
       await enter()
-    } catch {
-      submitError.value = '没提交成功,再点一次'
+    } catch (e) {
+      if (await handleDictInvalid(e)) return
+      failSubmit(e)
     } finally {
       submitting.value = false
     }

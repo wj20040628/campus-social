@@ -32,21 +32,24 @@ export function tags(size = 60) {
  *
  * 幂等键是用户维度,重复提交返回 duplicated=true,不重复写。
  *
- * 学校归属传的是**字典 id**(deptId / gradeId),不是自由文本 ——
+ * 学校归属传的是**字典 id**(deptId / gradeId / majorId),不是自由文本 ——
  * 自由文本会让「计算机学院」与「计科」算两个院系,同院系推荐(AC-14)漏人。
  * 键名从 SCHOOL_PROFILE_PAYLOAD 出,不写字面量。
  *
- * @param {{schoolId:number, deptId:number, gradeId:number,
- *          tagIds:number[], followUserIds?:number[]}} payload
+ * @param {{schoolId:number, deptId:number, gradeId:number, majorId:number,
+ *          tagIds:number[], followUserIds?:number[], circleIds?:number[]}} payload
  */
-export function complete({ schoolId = 1, deptId, gradeId, tagIds, followUserIds = [] }) {
+export function complete(payload, opts = {}) {
+  const { schoolId = 1, deptId, gradeId, majorId, tagIds, followUserIds = [], circleIds = [] } = payload
   return request.post('/onboarding/complete', {
     [SCHOOL_PROFILE_PAYLOAD.schoolId]: schoolId,
     [SCHOOL_PROFILE_PAYLOAD.deptId]: deptId,
     [SCHOOL_PROFILE_PAYLOAD.gradeId]: gradeId,
+    [SCHOOL_PROFILE_PAYLOAD.majorId]: majorId,
     tagIds,
     followUserIds,
-  })
+    circleIds,
+  }, opts)
 }
 
 /**

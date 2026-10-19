@@ -6,6 +6,7 @@ import com.campus.social.dto.OnboardingCompleteDTO;
 import com.campus.social.entity.Circle;
 import com.campus.social.entity.SchoolDept;
 import com.campus.social.entity.SchoolGrade;
+import com.campus.social.entity.SchoolMajor;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.CircleMapper;
@@ -14,6 +15,7 @@ import com.campus.social.mapper.UserTagMapper;
 import com.campus.social.service.DictService;
 import com.campus.social.service.OnboardingService;
 import com.campus.social.service.TagService;
+import com.campus.social.service.CircleService;
 import com.campus.social.vo.OnboardingCompleteVO;
 import com.campus.social.vo.OnboardingTagsVO;
 import com.campus.social.vo.RecommendCircleListVO;
@@ -60,6 +62,7 @@ public class OnboardingServiceImpl implements OnboardingService {
     private final TagService tagService;
     private final DictService dictService;
     private final OnboardingFollowSupport followSupport;
+    private final CircleService circleService;
     private final CampusProperties campus;
 
     @Override
@@ -90,11 +93,14 @@ public class OnboardingServiceImpl implements OnboardingService {
         // 错误语义变成 500 之外的模糊失败。放在最前面语义最清晰。
         SchoolDept dept = dictService.requireSelectableDept(dto.getDeptId(), schoolId);
         SchoolGrade grade = dictService.requireSelectableGrade(dto.getGradeId());
+        // 专业必须属于所选学院：与 saveSchoolProfile 同口径，防止学院与专业错配。
+        SchoolMajor major = dictService.requireSelectableMajor(dto.getMajorId(), dept.getId());
 
         // 幂等第 2 道防线：把 onboarding_step 推到 3，靠行锁串行化并发提交。
         // affected=0 说明已被并发请求抢先完成，后面的写库必须全部跳过。
         int affected = userMapper.completeOnboarding(
-                userId, schoolId, dept.getId(), dept.getName(), grade.getId(), grade.getName());
+                userId, schoolId, dept.getId(), dept.getName(), grade.getId(), grade.getName(),
+                major.getId());
         if (affected == 0) {
             log.info("onboarding complete raced: user={}", userId);
             return duplicateResult(userId);
@@ -111,7 +117,11 @@ public class OnboardingServiceImpl implements OnboardingService {
         }
         int followed = followSupport.followAll(userId, dto.getFollowUserIds());
 
-        log.info("onboarding completed: user={}, tags={}, followed={}", userId, tagIds.size(), followed);
+        // 引导第 2 步勾选的圈子:在此批量加入(幂等,重复提交无害)。
+        // 与关注同理放进 complete 这个「每步都调」的入口,避免中途中断丢数据。
+        int joined = joinCircles(userId, dto.getCircleIds());
+
+        log.info("onboarding completed: user={}, tags={}, followed={}, joined={}", userId, tagIds.size(), followed, joined);
         return OnboardingCompleteVO.builder()
                 .completed(true)
                 .duplicated(false)
@@ -119,6 +129,26 @@ public class OnboardingServiceImpl implements OnboardingService {
                 .followedCount(followed)
                 .tagCount(tagIds.size())
                 .build();
+    }
+
+    /**
+     * 引导批量加圈。逐圈加,单圈失败(圈子不存在/已封禁等)只跳过该圈、不阻断整体完成。
+     * 加圈逻辑复用 {@link CircleService#join}(其内含幂等判断与 member_count 自增)。
+     */
+    private int joinCircles(long userId, List<Long> circleIds) {
+        if (circleIds == null || circleIds.isEmpty()) {
+            return 0;
+        }
+        int n = 0;
+        for (Long cid : circleIds) {
+            try {
+                circleService.join(cid, userId);
+                n++;
+            } catch (BusinessException e) {
+                log.warn("onboarding join circle skipped: user={}, circle={}, {}", userId, cid, e.getMessage());
+            }
+        }
+        return n;
     }
 
     @Override
