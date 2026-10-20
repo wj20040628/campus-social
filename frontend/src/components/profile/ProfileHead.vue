@@ -14,6 +14,8 @@
         而头像只取一个文件、失败也只提示一句；用 button 承载语义更直白，
         「可点」这件事对键盘和读屏也可达（真 button + aria-label）。
         他人视角仍是纯 el-avatar —— 别人的头像点了不该有任何反应。
+        角标相机图标已去掉（用户反馈）：头像本身就是「这是我」的符号，
+        再压一个相机等于告诉别人「这头像是个可编辑控件」，破坏了人群里的辨识度。
       -->
       <button
         v-if="isMe"
@@ -24,9 +26,6 @@
         @click="$emit('change-avatar')"
       >
         <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
-        <span class="p-avatar-btn__cam" aria-hidden="true">
-          <el-icon :size="13"><Camera /></el-icon>
-        </span>
       </button>
       <el-avatar
         v-else
@@ -115,7 +114,7 @@
  * 本人视角的操作入口在全局抽屉(2026-10-20 移除主页上的编辑/设置按钮),
  * 空介绍的「点击添加介绍」仍走 edit 事件进编辑页。
  */
-import { Camera, CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
+import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'

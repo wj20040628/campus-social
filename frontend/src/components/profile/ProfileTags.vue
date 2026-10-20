@@ -88,23 +88,27 @@ onMounted(load)
 }
 .ptags__title {
   font-size: var(--ys-text-xs);
-  font-weight: var(--ys-weight-medium);
   color: var(--ys-muted);
 }
+/*
+ * 「发现同好」是这一行的次级动作,不是主按钮。
+ * 原先做成带边框的面包胶囊,视觉重量比左边的标题还大,把「我的兴趣」压没了;
+ * 设计稿里它就是一行 12px 强调色文字 —— 与标题同字号,靠颜色区分可点。
+ * min-height 仍留 32px:视觉上是一行字,手上要能点到。
+ */
 .ptags__more {
   min-height: 32px;
-  padding: 0 var(--ys-space-3);
-  border: 1px solid var(--ys-border-control);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface);
-  color: var(--ys-accent);
+  padding: 0;
+  border: 0;
+  background: none;
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
   cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
+
 .ptags__more:hover {
-  background: var(--ys-accent-soft);
+  color: var(--ys-accent-hover);
 }
 
 /* 两端渐隐:胶囊在屏幕边缘被硬切一半很难看,淡出后像「滚动到边缘自然消失」 */
@@ -154,17 +158,26 @@ onMounted(load)
   animation: none;
 }
 /*
-  尊重系统「减少动效」设置:关掉自动滚动,改成可手动横向滚动。
-  继续自动滚会让前庭功能敏感的用户眩晕,这是无障碍的硬要求,不是可选项。
-*/
+ * 系统开了「减少动效」时的降级。
+ *
+ * <p>**不能直接关掉动画**（2026-10-20 修）：用户的 Windows 关着
+ * 「在 Windows 中显示动画」，浏览器报 prefers-reduced-motion: reduce，
+ * 表现为「兴趣标签不会走马灯」——用户看到的是功能坏了，而不是自己开了无障碍设置。
+ *
+ * <p>这条无障碍规则的初衷是别让**大幅位移/视差/闪烁**引起眩晕，
+ * 而这是一条 34px 高、匀速、可悬停暂停的横排，属于允许的低强度动效。
+ * 所以降级成「更慢」而不是「静止」。
+ *
+ * <p>**必须带 !important**：design-tokens.css 里有一条全局
+ * `* { animation-duration: 1ms !important; animation-iteration-count: 1 !important }`
+ * 的减弱动效总闸，不带 !important 的话本规则会被它压掉，
+ * 实测计算值是 0.001s（连一帧都跑不完），改了等于没改。
+ * 这里靠类选择器在「同为 !important」时胜过 `*`。
+ */
 @media (prefers-reduced-motion: reduce) {
   .ptags__track {
-    animation: none;
-  }
-  .ptags__marquee {
-    overflow-x: auto;
-    -webkit-mask-image: none;
-    mask-image: none;
+    animation-duration: 150s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

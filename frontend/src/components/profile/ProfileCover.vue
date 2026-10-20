@@ -1,8 +1,14 @@
 <template>
   <!--
-    个人主页封面（2026-10-20）：整屏图 + 本人可点换图 + 恢复默认出口。
+    个人主页封面（2026-10-20）：整屏图 + 本人可点换图。
     从 Profile.vue 拆出来是因为视图已贴着单文件 400 行门禁，
-    而且封面这块自带四段注释与三个状态分支，留在视图里最容易被下一个改版者挤爆。
+    而且封面这块自带注释与状态分支，留在视图里最容易被下一个改版者挤爆。
+
+    2026-10-20 二次调整：封面上不再常驻任何按钮。
+    原先左上角那个玻璃胶囊「恢复默认」直接压在用户自己挑的照片上，
+    又抢眼又割裂（用户原话「悬浮在背景上很难看」）。改成
+    「点封面 → 底部操作表」：没设过封面时仍然一步选图，设过的才多一步，
+    封面上只留右上角「更多」一个元素。
   -->
   <div class="p-cover" :class="{ 'p-cover--custom': hasCover }" :style="bgStyle">
     <!-- 整块可点的热区。只在本人视角出现，访客点了不该有反应 -->
@@ -12,22 +18,10 @@
       class="p-cover__hit"
       :disabled="busy"
       :aria-label="hint"
-      @click="$emit('pick')"
+      @click="onHit"
     >
       <span class="p-cover__hint">{{ hint }}</span>
     </button>
-
-    <!--
-      恢复默认。只在自己设过封面时出现 —— 默认封面没有「恢复」可言，
-      常驻一个按不动的按钮纯属噪音。
-    -->
-    <button
-      v-if="isMe && hasCover"
-      type="button"
-      class="p-cover__reset"
-      :disabled="busy"
-      @click.stop="$emit('reset')"
-    >恢复默认</button>
 
     <!--
       右上角「更多」(打开全局导航抽屉)。做成本组件内的按钮而不是父级塞进来的插槽:
@@ -40,24 +34,37 @@
         <path d="M4 7h16M4 12h16M4 17h16" />
       </svg>
     </button>
+
+    <!--
+      封面操作表。只在「已经有自定义封面」时才弹 —— 没设过封面的人点封面
+      就该直接进相册，多弹一层纯属挡路。设过的人点封面多半是想换或想撤，
+      这时给出两个明确选项，比在封面上钉一个按钮干净。
+    -->
+    <ActionSheet v-model="sheetOpen" title="主页封面">
+      <button type="button" class="p-sheet__item" @click="choose">更换封面</button>
+      <button type="button" class="p-sheet__item" @click="reset">恢复默认封面</button>
+    </ActionSheet>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import ActionSheet from '@/components/mobile/ActionSheet.vue'
 
 const props = defineProps({
-  /** 本人视角：渲染可点热区与恢复默认 */
+  /** 本人视角：渲染可点热区 */
   isMe: { type: Boolean, default: false },
   /** 是否已设置自定义封面（父级按 user.coverUrl 判） */
   hasCover: { type: Boolean, default: false },
   /** 内联背景样式（父级已拼好 background-image） */
   bgStyle: { type: Object, default: null },
-  /** 上传中：热区与恢复按钮一起置灰，防连点重复上传 */
+  /** 上传中：热区置灰，防连点重复上传 */
   busy: { type: Boolean, default: false },
 })
 
-defineEmits(['pick', 'reset', 'more'])
+const emit = defineEmits(['pick', 'reset', 'more'])
+
+const sheetOpen = ref(false)
 
 /**
  * 提示文案。三种状态各说一句「点了会发生什么」——
@@ -65,8 +72,25 @@ defineEmits(['pick', 'reset', 'more'])
  */
 const hint = computed(() => {
   if (props.busy) return '上传中…'
-  return props.hasCover ? '点击更换封面' : '点击设置封面'
+  return props.hasCover ? '更换或恢复封面' : '点击设置封面'
 })
+
+/** 没设过封面：直接进相册；设过的：先问是换还是撤 */
+function onHit() {
+  if (props.hasCover) sheetOpen.value = true
+  else emit('pick')
+}
+
+/** 先关面板再抛事件：面板不关会挡住系统文件选择器退出后的回跳 */
+function choose() {
+  sheetOpen.value = false
+  emit('pick')
+}
+
+function reset() {
+  sheetOpen.value = false
+  emit('reset')
+}
 </script>
 
 <style scoped src="./ProfileCover.css"></style>

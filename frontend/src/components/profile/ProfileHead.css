@@ -75,25 +75,6 @@
   cursor: progress;
 }
 
-/*
- * 「可换」角标。放在右下角而不是盖在头像正中:
- * 正中会挡住脸,而头像是这个页面里唯一能认出「这是谁」的东西。
- * 描边与头像外圈同色,视觉上像头像缺了一角。
- */
-.p-avatar-btn__cam {
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--ys-bg);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-fg);
-  color: var(--ys-bg);
-}
-
 .p-info {
   flex: 1;
   min-width: 0;

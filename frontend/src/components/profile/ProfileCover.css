@@ -154,35 +154,29 @@
 }
 
 /*
- * 「恢复默认」出口。与「更多」同一套玻璃拟态，但放左上角 ——
- * 两个按钮分居两侧，窄屏上不会互相挤。
+ * 操作表里的选项。
+ * ActionSheet 自己的 .asheet__item 是 scoped 的，插槽内容带的是本组件的
+ * scope id —— 直接借用那个类名会完全失效（按钮变成浏览器默认样式）。
+ * 所以这里按同一套尺寸重写一份，而不是去动 ActionSheet 的样式。
  */
-.p-cover__reset {
-  position: absolute;
-  top: calc(var(--ys-space-3) + env(safe-area-inset-top, 0px));
-  left: var(--ys-space-4);
-  z-index: 5;
-  min-height: 32px;
-  padding: 0 var(--ys-space-3);
-  border: 1px solid var(--ys-glass-border);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-glass);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  color: var(--ys-fg);
+.p-sheet__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border: 0;
+  background: transparent;
   font-family: var(--ys-font-body);
-  font-size: var(--ys-text-xs);
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+  text-align: left;
   cursor: pointer;
-  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
-.p-cover__reset:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.p-cover__reset:disabled {
-  cursor: progress;
-  opacity: 0.6;
+.p-sheet__item:hover {
+  background: var(--ys-surface-2);
 }
 
 /* 桌面端封面更高、带圆角（与内容列 960px 的卡片感对齐） */
