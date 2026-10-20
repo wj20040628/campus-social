@@ -41,6 +41,14 @@
             </el-button>
             <el-text v-if="!act.canSignup" type="info">{{ signupBlockedReason(act) }}</el-text>
           </template>
+          <el-button
+            v-if="isCreator && act.status !== 4"
+            type="danger"
+            plain
+            @click="onCloseActivity"
+          >
+            取消活动
+          </el-button>
         </div>
       </el-card>
       <StateBlock v-else variant="error" title="这个活动不存在" description="可能已经结束或被发起人撤掉了" action-label="回圈子广场" :icon="WarningFilled" @action="router.push('/circles')" />
@@ -55,16 +63,24 @@ import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { Calendar, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import { useUserStore } from '@/stores/user'
 import {
   activityDetail,
   signup as signupApi,
   cancelSignup,
+  closeActivity,
 } from '@/api/circle'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+const myId = computed(() => userStore.userInfo?.id)
 const act = ref(null)
 const signing = ref(false)
+
+const isCreator = computed(
+  () => !!act.value && !!act.value.creatorId && act.value.creatorId === myId.value
+)
 
 const canCancel = computed(() => {
   if (!act.value) return false
@@ -121,6 +137,21 @@ async function onCancel() {
   await cancelSignup(route.params.id)
   ElMessage.success('已取消报名')
   await load()
+}
+
+async function onCloseActivity() {
+  try {
+    await ElMessageBox.confirm('确定取消该活动?已报名的人会收到通知。', '取消活动', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await closeActivity(route.params.id)
+    ElMessage.success('活动已取消,已通知报名者')
+    await load()
+  } catch {
+    // request.js 已弹错
+  }
 }
 
 onMounted(load)

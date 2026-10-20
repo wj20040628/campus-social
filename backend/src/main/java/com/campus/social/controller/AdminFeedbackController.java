@@ -37,14 +37,18 @@ public class AdminFeedbackController {
     /**
      * 反馈列表（游标分页）。
      *
-     * @param status 0待处理 1已采纳 2已忽略；不传表示全部
+     * @param status   0待处理 1已采纳 2已忽略；不传表示全部
+     * @param category 1功能建议 2使用问题 3内容问题 4界面体验 5其他；不传表示全部类型
+     * @param kind     认证申诉标记：1=只看申诉、0=只看非申诉、不传表示不限
      */
     @GetMapping
     public Result<FeedbackAdminPageVO> list(
             @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "category", required = false) Integer category,
+            @RequestParam(value = "kind", required = false) Integer kind,
             @RequestParam(value = "cursor", required = false) Long cursor,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(feedbackService.list(status, cursor, size));
+        return Result.ok(feedbackService.list(status, category, kind, cursor, size));
     }
 
     /**

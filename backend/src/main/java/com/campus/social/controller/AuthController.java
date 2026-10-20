@@ -8,8 +8,11 @@ import com.campus.social.dto.RegisterDTO;
 import com.campus.social.dto.SendCodeDTO;
 import com.campus.social.dto.ForgotPasswordDTO;
 import com.campus.social.dto.ResetPasswordDTO;
+import com.campus.social.dto.StudentNoAppealDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.AuthService;
+import com.campus.social.service.FeedbackService;
+import com.campus.social.vo.FeedbackSubmitVO;
 import com.campus.social.vo.TokenPairVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -24,10 +27,25 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final FeedbackService feedbackService;
 
     @PostMapping("/register")
     public Result<TokenPairVO> register(@Valid @RequestBody RegisterDTO dto) {
         return Result.ok(authService.register(dto));
+    }
+
+    /**
+     * 未注册用户的学号认证申诉（2026-10-19）。
+     *
+     * <p>学号校验失败的人没有账号、发不出需登录的 POST /feedback（401），
+     * 而 feedback.user_id 原本 NOT NULL 也存不进。故开这条公开端点
+     * （/auth/** 已整体在白名单），收集学号 + 联系邮箱 + 可选说明，
+     * 写进 feedback 队列（user_id 置 NULL），管理员照邮箱联系。
+     * 委托 {@link FeedbackService#submitStudentNoAppeal}，不污染 AuthService。
+     */
+    @PostMapping("/appeal-student-no")
+    public Result<FeedbackSubmitVO> appealStudentNo(@Valid @RequestBody StudentNoAppealDTO dto) {
+        return Result.ok(feedbackService.submitStudentNoAppeal(dto));
     }
 
     @PostMapping("/login")

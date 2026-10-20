@@ -20,4 +20,10 @@ public class ConversationVO {
     private String lastPreview;
     private Long lastMsgId;
     private LocalDateTime lastMsgTime;
+    /**
+     * 是否「待我回应的搭话纸条」:最后一条消息是**对方发**的、且最后活动在 24h 内。
+     * 与私信未读解耦(未读要永久累积),纸条 24h 不回应即失效(见 TabBar 角标语义)。
+     * 供 MainLayout 统计 TabBar「消息」角标用,纯计算不落库。
+     */
+    private boolean pendingReply;
 }

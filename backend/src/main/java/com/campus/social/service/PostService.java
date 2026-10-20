@@ -66,8 +66,11 @@ public interface PostService {
      */
     CommentChildrenPageVO commentChildren(long postId, long commentId, Long lastId, int size, long viewerId);
 
-    /** 某用户发的帖子 */
-    CursorPage<PostVO> myPosts(long authorId, Long lastId, int size);
+    /**
+     * 某用户发的帖子。viewerId=authorId(本人)时含待审0/驳回2,
+     * 其他人只返回已通过(status=1) —— 他人主页不得带出私有审核内容。
+     */
+    CursorPage<PostVO> myPosts(long authorId, long viewerId, Long lastId, int size);
 
     /**
      * 审核通过后写扩散:把已通过(status=1)的帖子投给作者的所有粉丝

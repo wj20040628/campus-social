@@ -105,17 +105,14 @@
 }
 
 /*
- * 手机端隐藏发布按钮(TabBar 已有),头像也隐藏(在「我的」里)。
- * 桌面端(≥1024px)把发布按钮放回右端、显示头像下拉,隐藏汉堡。
+ * 手机端(2026-10-20):发布按钮恢复显示 —— TabBar 中位已让位给「集市」,
+ * 顶栏「+」是移动端唯一常驻发帖入口;头像仍隐藏(入口在「我的」)。
+ * 桌面端(≥1024px)发布按钮为实心圆样式、显示头像下拉,隐藏汉堡。
  * 断点用字面量:本项目无 postcss-custom-media,`@media (--ys-bp-lg)` 会被
  * 浏览器静默丢弃。值 1024 = design-tokens.json 的 breakpoint.lg。
  */
 @media (max-width: 1023px) {
-  .topbar__publish {
-    display: none;
-  }
-
-  /* 「找人」只留桌面:移动端 feed 已有搜索框、/search 是主入口,顶栏右侧只留铃铛 */
+  /* 「找人」只留桌面:移动端 feed 已有搜索框、/search 是主入口 */
   .topbar__search {
     display: none;
   }

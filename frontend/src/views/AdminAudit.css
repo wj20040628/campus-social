@@ -425,6 +425,112 @@
   }
 }
 
+/* ---------------- 详情抽屉 ---------------- */
+.audit-drawer :deep(.el-drawer__body) {
+  padding: 0;
+}
+
+.ad {
+  padding: var(--ys-space-5) var(--ys-gutter-phone) calc(var(--ys-space-6) + var(--ys-safe-bottom));
+}
+
+.ad__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding-bottom: var(--ys-space-4);
+  border-bottom: 1px solid var(--ys-border-soft);
+}
+
+.ad__who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+.ad__name {
+  margin: 0;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ad__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  border: 0;
+  background: none;
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+
+.ad__list {
+  margin: var(--ys-space-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}
+
+.ad__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ys-space-3);
+}
+
+.ad__row dt {
+  flex: none;
+  width: 64px;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+}
+
+.ad__row dd {
+  flex: 1;
+  margin: 0;
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+  overflow-wrap: anywhere;
+}
+
+.ad__row--block {
+  flex-direction: column;
+  gap: var(--ys-space-1);
+}
+
+.ad__detail {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-base);
+  background: var(--ys-surface-2);
+  border-radius: var(--ys-radius-md);
+  padding: var(--ys-space-3);
+}
+
+.ad__mono {
+  font-family: var(--ys-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  .ad {
+    padding-left: var(--ys-gutter-desktop);
+    padding-right: var(--ys-gutter-desktop);
+    max-width: var(--ys-content-col);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .audit__filter,
   .log,

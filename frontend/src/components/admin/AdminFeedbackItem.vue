@@ -19,10 +19,25 @@
       <span class="chip" :class="`chip--${STATUS_TONE[item.status ?? 0]}`">
         {{ FEEDBACK_STATUS_TEXT[item.status ?? 0] }}
       </span>
-      <span class="chip chip--cat">{{ CATEGORY_TEXT[item.category] || '其他' }}</span>
+      <!--
+        申诉行不显示内容分类（2026-10-19）。认证申诉不是「使用问题」这类内容分类：
+        落库时 category 只是 NOT NULL 的兜底填充（未注册申诉没有用户选择的分类），
+        真正的区分靠上面的「认证申诉」角标。把兜底的「使用问题」摆在申诉旁边，
+        会让管理员误以为申诉被归到了使用问题。
+      -->
+      <span v-if="!isAppeal" class="chip chip--cat">{{ CATEGORY_TEXT[item.category] || '其他' }}</span>
     </div>
 
     <p class="item__body">{{ bodyText }}</p>
+
+    <!--
+      认证申诉的联系邮箱（2026-10-19）。未注册用户没有账号，邮箱是管理员
+      唯一的联系渠道，落进了 content 的「联系邮箱 xxx」段。抽出来做成
+      mailto 直连，管理员不用再手动把邮箱复制到邮件软件。
+    -->
+    <p v-if="appealMail" class="item__mail">
+      联系邮箱：<a :href="`mailto:${appealMail}`">{{ appealMail }}</a>
+    </p>
 
     <!-- 附件:解析失败宁可显示提示,也不能整条反馈崩掉 -->
     <ul v-if="media.length" class="item__media">
@@ -43,7 +58,7 @@
     <p v-else-if="mediaBroken" class="item__mediawarn">附件加载不出来</p>
 
     <p class="item__meta ys-num">
-      {{ item.userNickname || '已注销用户' }}
+      {{ submitterText }}
       <span class="item__dot">·</span>
       {{ timeText }}
     </p>
@@ -107,6 +122,27 @@ const bodyText = computed(() =>
   isAppeal.value ? String(props.item?.content || '').slice(APPEAL_PREFIX.length) : props.item?.content,
 )
 
+/**
+ * 认证申诉里的联系邮箱。未注册用户没账号，邮箱是管理员唯一联系渠道。
+ * 由后端落进 content 的「联系邮箱 xxx」段，这里按那个固定措辞抽出，
+ * 非申诉行 / 抽不到时返回空（v-if 不渲染该行）。
+ */
+const appealMail = computed(() => {
+  if (!isAppeal.value) return ''
+  const m = String(props.item?.content || '').match(/联系邮箱\s*([^\s；;，,]+)/)
+  return m ? m[1] : ''
+})
+
+/**
+ * 提交人显示名。
+ * 申诉人 user_id 为 NULL（注册没成功、还没有账号），后端联表取不到昵称。
+ * 直接显示「已注销用户」会误导（人家是从未注册），申诉行改标「未注册（申诉人）」。
+ */
+const submitterText = computed(() => {
+  if (props.item?.userNickname) return props.item.userNickname
+  return isAppeal.value ? '未注册（申诉人）' : '已注销用户'
+})
+
 /** 解析失败时降级成空数组 + 标记,而不是让整个页面崩在 JSON.parse 上 */
 const parsed = computed(() => {
   const raw = props.item.mediaJson
@@ -139,9 +175,14 @@ const timeText = computed(() => {
 </script>
 
 <style scoped>
+/* 每条反馈是一张独立圆角卡片:列表不再用「一张大卡 + 分隔线」,
+   卡片之间有间距,管理员一眼能分出边界(2026-10-19) */
 .item {
   padding: var(--ys-space-4);
   list-style: none;
+  background: var(--ys-surface);
+  border-radius: var(--ys-radius-xl);
+  box-shadow: var(--ys-shadow-1);
 }
 
 .item__chips {
@@ -199,6 +240,19 @@ const timeText = computed(() => {
   word-break: break-word;
 }
 
+/* 认证申诉的联系邮箱（2026-10-19）：未注册用户唯一联系渠道，突出为 accent 色 + 可点 mailto */
+.item__mail {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+}
+
+.item__mail a {
+  color: var(--ys-accent);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
 .item__media {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -210,9 +264,24 @@ const timeText = computed(() => {
 
 .item__cell {
   aspect-ratio: 1;
+  min-height: 0;
   overflow: hidden;
   border-radius: var(--ys-radius-lg);
   background: var(--ys-surface-2);
+}
+
+/* el-image 内部还有一层 <img>,根元素上的 object-fit 管不到它。
+   不下钻到内层 img,长截图会按原始比例把格子撑高,缩略图区变成一大片空白。
+   统一钉成 100% + cover,保证每张都是正方形缩略图。 */
+.item__cell :deep(.el-image),
+.item__cell :deep(img) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.item__cell :deep(img) {
+  object-fit: cover;
 }
 
 .item__thumb {

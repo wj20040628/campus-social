@@ -134,7 +134,8 @@
 }
 
 /*
- * 操作行。手机端主动作拉满宽度(小红书式),桌面端靠右:
+ * 操作行(2026-10-20 起仅他人视角渲染;本人的编辑/设置入口在全局抽屉)。
+ * 手机端主动作拉满宽度(小红书式),桌面端靠右:
  * el-button 根节点在组件内部,scoped 打不进去,用 :deep。
  */
 .p-actions {
@@ -149,25 +150,6 @@
 
 .p-actions .p-act {
   flex: 1;
-}
-
-/* 设置齿轮:44x44 触控热区,次要视觉 */
-.p-gear {
-  flex: none;
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--ys-border);
-  background: transparent;
-  color: var(--ys-fg-2);
-  border-radius: var(--ys-radius-full);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.p-gear:hover {
-  background: var(--ys-surface-2);
 }
 
 @media (min-width: 1024px) {

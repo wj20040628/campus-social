@@ -68,3 +68,38 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ==========================================================================
+   同意协议勾选框（2026-10-20）
+   ========================================================================== */
+
+/* 勾选行整体对齐正文：el-checkbox 默认 label 字号偏小，这里统一到 13px */
+.agree-box {
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+}
+
+/* 普通文案（"我已阅读并同意" / "和"）。
+   el-checkbox 的 label 自带 EP 主题色，这里显式给色，避免被覆盖成模板灰 */
+.agree-box__text {
+  color: var(--ys-fg-2);
+}
+
+/* 协议名做成行内文字链接：重置浏览器默认按钮样式（边框/背景/字体），
+   用 accent 色 + 下划线表明可点，与 .auth-link a 同语言 */
+.legal-link {
+  border: 0;
+  background: none;
+  margin: 0;
+  padding: 0 var(--ys-space-1);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.legal-link:hover {
+  color: var(--ys-accent-hover);
+}

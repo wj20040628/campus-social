@@ -30,4 +30,9 @@ export function unblacklist(uid) {
   return request.delete(`/relation/blacklist?uid=${uid}`)
 }
 
-export default { follow, unfollow, following, followers, status, blacklist, unblacklist }
+export function blacklistList(lastId, size = 50) {
+  const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
+  return request.get(`/relation/blacklist?${q}`)
+}
+
+export default { follow, unfollow, following, followers, status, blacklist, unblacklist, blacklistList }

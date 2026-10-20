@@ -93,11 +93,11 @@ class UploadSignatureTest {
 
     @Test
     void realValidUploadSucceedsAndWritesToDisk() {
-        String rel = svc.upload(
+        String rel = String.valueOf(svc.upload(
                 mf("photo.jpg", "image/jpeg",
                         new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10,
                                    'J', 'F', 'I', 'F', 0x00, 0x01, 0x02, 0x03}),
-                "image", 1L);
+                "image", 1L));
         assertTrue(rel.startsWith("/uploads/"), "应返回 /uploads/… 相对路径,实际 " + rel);
         assertTrue(rel.endsWith(".jpg"));
         // 落盘校验:文件确实存在于临时目录下
@@ -114,7 +114,7 @@ class UploadSignatureTest {
     private void assertOk(String ext, byte[] head) throws UnsupportedEncodingException {
         boolean video = ext.equals("mp4") || ext.equals("webm") || ext.equals("mkv");
         String kind = video ? "video" : "image";
-        String rel = svc.upload(mf("real-" + ext + "." + ext, mimeOf(ext), head), kind, 1L);
+        String rel = String.valueOf(svc.upload(mf("real-" + ext + "." + ext, mimeOf(ext), head), kind, 1L));
         assertTrue(rel.endsWith("." + ext), "返回路径应保留 .%s 后缀,实际 %s".formatted(ext, rel));
     }
 

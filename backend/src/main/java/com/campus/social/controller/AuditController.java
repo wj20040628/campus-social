@@ -31,9 +31,12 @@ public class AuditController {
             @RequestParam(value = "action", required = false) String action,
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "start", required = false) String start,
+            @RequestParam(value = "end", required = false) String end,
+            @RequestParam(value = "nickname", required = false) String nickname,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         roleService.requireAdmin(me); // 仅管理员
-        return Result.ok(auditService.queryLogs(lastId, size, action, userId, keyword));
+        return Result.ok(auditService.queryLogs(lastId, size, action, userId, keyword, start, end, nickname));
     }
 }

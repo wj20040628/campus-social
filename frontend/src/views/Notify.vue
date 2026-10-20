@@ -111,8 +111,9 @@ function setupObserver() {
 
 async function openAndRead(n) {
   // 跳转:点赞/评论/被关注 → 关联对象。
-  // 注:评论(type=3)的 targetId 存的是帖子 id,后端未存评论 id,
-  // 故目前只能跳到帖子;「定位到具体那条评论」需后端加字段(二级优先,非阻塞)
+  // 跳转兜底:目标内容已被删除/不存在时,导航失败给出友好提示而非静默无反应
+  const go = (to) => router.push(to).catch(() => ElMessage.warning('内容已删除或不存在'))
+
   const jump = () => {
     // 点赞/评论:优先用 postId(被指向的帖子 id);
     // 旧数据无 postId 时回退 targetId(点赞的 targetId 本就是帖子 id,评论的是评论 id,跳不了就退回首页)
@@ -121,9 +122,9 @@ async function openAndRead(n) {
       if (pid) {
         // 评论(type=3)定位到那条评论(后端已把评论 id 存入 targetId),点赞跳帖子顶部
         const query = n.type === 3 ? { comment: n.targetId } : {}
-        router.push({ path: `/post/${pid}`, query })
+        go({ path: `/post/${pid}`, query })
       } else {
-        router.push('/')
+        go('/')
       }
     } else if (n.type === 1) {
       // 被关注 → 关注你的人
@@ -131,18 +132,21 @@ async function openAndRead(n) {
       // 系统类通知没有「谁触发的」这个概念),拼出 /user/undefined 这种坏 URL
       // 会让 vue-router 推一个不存在的路由。TopBar.onUserCommand 已修过同一类,
       // 这里是第二个入口。拿不到 id 就落到首页,不给用户点不动的入口。
-      if (n.actorId != null) router.push(`/user/${n.actorId}`)
-      else router.push('/')
+      if (n.actorId != null) go(`/user/${n.actorId}`)
+      else go('/')
     } else if (n.type === 4) {
-      router.push(`/chat`)
+      go(`/chat`)
     } else if (n.type === 6 || n.type === 7 || n.type === 8) {
       // 内容审核结果通知:跳被审核的帖子详情
       const pid = n.postId ?? n.targetId
-      if (pid) router.push(`/post/${pid}`)
+      if (pid) go(`/post/${pid}`)
     } else if (n.type === 9) {
       // 被 @:targetId 是评论 id,跳帖子并定位到那条评论
       const pid = n.postId ?? null
-      if (pid) router.push({ path: `/post/${pid}`, query: { comment: n.targetId } })
+      if (pid) go({ path: `/post/${pid}`, query: { comment: n.targetId } })
+    } else if (n.type === 5 || n.type === 10 || n.type === 12) {
+      // 活动报名/活动取消 / 集市留言:targetId 即对应详情页 id
+      go(n.type === 10 ? `/mkt/${n.targetId}` : `/activity/${n.targetId}`)
     } else if (n.type === 11) {
       // 反馈回复:管理员回复原文已在卡片内展示,点击仅标已读,不跳转任何页面
       // (显式分支:防止后续有人给 jump 加默认回首页逻辑时误伤)

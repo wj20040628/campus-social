@@ -56,42 +56,33 @@
       </div>
     </div>
 
-    <!-- 操作行:本人(编辑资料+设置) / 他人(关注+私信+举报),手机端拉满宽度 -->
-    <div class="p-actions">
-      <template v-if="isMe">
-        <el-button type="primary" class="p-act" @click="$emit('edit')">编辑资料</el-button>
-        <button
-          type="button"
-          class="p-gear"
-          aria-label="设置"
-          @click="$emit('settings')"
-        >
-          <el-icon :size="20"><Setting /></el-icon>
-        </button>
-      </template>
-      <template v-else-if="showActions">
-        <el-button
-          :type="following ? 'default' : 'primary'"
-          :loading="followLoading"
-          :aria-pressed="!!following"
-          :aria-label="`${following ? '已关注' : '关注'} ${displayName(user)}`"
-          class="p-act"
-          @click="$emit('follow')"
-        >
-          <el-icon><Plus /></el-icon> {{ following ? '已关注' : '关注' }}
-        </el-button>
-        <!--
-          AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
-          与 PostDetail 的「搭句话」是同一套未认证处理。
-        -->
-        <el-button class="p-act" @click="$emit('chat')">
-          <el-icon><ChatDotRound /></el-icon> 发私信
-        </el-button>
-        <!-- 举报入口(AC-05 闭环):同级但不抢视觉,纯文字按钮 -->
-        <el-button class="p-report" text @click="$emit('report')">
-          <el-icon><WarningFilled /></el-icon> 举报
-        </el-button>
-      </template>
+    <!--
+      操作行(2026-10-20):本人视角不再渲染任何按钮 —— 编辑资料与设置
+      已收进全局抽屉(用户拍板移除主页上的重复入口);他人视角保留
+      关注/私信/举报,手机端拉满宽度。
+    -->
+    <div v-if="!isMe && showActions" class="p-actions">
+      <el-button
+        :type="following ? 'default' : 'primary'"
+        :loading="followLoading"
+        :aria-pressed="!!following"
+        :aria-label="`${following ? '已关注' : '关注'} ${displayName(user)}`"
+        class="p-act"
+        @click="$emit('follow')"
+      >
+        <el-icon><Plus /></el-icon> {{ following ? '已关注' : '关注' }}
+      </el-button>
+      <!--
+        AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
+        与 PostDetail 的「搭句话」是同一套未认证处理。
+      -->
+      <el-button class="p-act" @click="$emit('chat')">
+        <el-icon><ChatDotRound /></el-icon> 发私信
+      </el-button>
+      <!-- 举报入口(AC-05 闭环):同级但不抢视觉,纯文字按钮 -->
+      <el-button class="p-report" text @click="$emit('report')">
+        <el-icon><WarningFilled /></el-icon> 举报
+      </el-button>
     </div>
   </div>
 </template>
@@ -100,8 +91,10 @@
 /**
  * 身份头。**纯展示 + 抛事件**:关注与私信的真实行为在 Profile.vue,
  * 因为它们要联动粉丝计数、未认证弹窗与路由,放进子组件会多一层双向耦合。
+ * 本人视角的操作入口在全局抽屉(2026-10-20 移除主页上的编辑/设置按钮),
+ * 空介绍的「点击添加介绍」仍走 edit 事件进编辑页。
  */
-import { CircleCheck, ChatDotRound, Plus, WarningFilled, Setting } from '@element-plus/icons-vue'
+import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
@@ -125,7 +118,7 @@ const props = defineProps({
   avatarSize: { type: Number, default: 64 },
 })
 
-defineEmits(['follow', 'chat', 'edit', 'settings', 'report'])
+defineEmits(['follow', 'chat', 'edit', 'report'])
 
 /**
  * 有没有写过介绍。

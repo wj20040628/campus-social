@@ -56,6 +56,39 @@ public class SmtpMessageGateway implements MessageGateway {
         return true;
     }
 
+    @Override
+    public boolean sendNotice(String target, String subject, String htmlBody) {
+        if (target == null || !target.contains("@")) {
+            log.warn("SmtpMessageGateway 仅支持邮箱,忽略非邮箱目标: {}", target);
+            return false;
+        }
+        // 与 sendCode 同语义:立即受理,真实投递转后台,避免接口被 SMTP 卡住
+        self.deliverNoticeAsync(target, subject, htmlBody);
+        log.info("通知邮件已提交后台投递: target={}, subject={}", target, subject);
+        return true;
+    }
+
+    /** @Async:通知邮件投递(与验证码共用 mailExecutor 线程池) */
+    @Async("mailExecutor")
+    public CompletableFuture<Void> deliverNoticeAsync(String target, String subject, String htmlBody) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(target);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            mailSender.send(msg);
+            log.info("通知邮件投递成功: target={}, subject={}", target, subject);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("通知邮件投递失败: target={}, err={}", target, e.getMessage(), e);
+            CompletableFuture<Void> failed = new CompletableFuture<>();
+            failed.completeExceptionally(e);
+            return failed;
+        }
+    }
+
     /** @Async:Spring 代理在 mailExecutor 线程池上执行实际 SMTP 投递 */
     @Async("mailExecutor")
     public CompletableFuture<Void> deliverAsync(String target, String code) {

@@ -15,4 +15,20 @@ public interface MessageGateway {
      * @return 是否发送成功
      */
     boolean sendCode(String target, String code);
+
+    /**
+     * 发送自由正文通知邮件(非验证码)。
+     *
+     * <p>用于「学号认证申诉处理结果」这类没有账号、只能靠邮箱触达的通知：
+     * 申诉人注册未成功、站内通知没有收件人，处理说明必须发到其留下的联系邮箱。
+     *
+     * <p>语义与 {@link #sendCode} 一致：立即返回，真实投递在后台线程完成；
+     * 返回 true 只代表「已受理」，不代表对方一定收到。
+     *
+     * @param target   收件邮箱
+     * @param subject  邮件主题
+     * @param htmlBody HTML 正文
+     * @return 是否已受理提交
+     */
+    boolean sendNotice(String target, String subject, String htmlBody);
 }

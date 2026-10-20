@@ -41,6 +41,17 @@ export function resetPassword(studentNo, code, newPassword) {
   return request.post('/auth/reset-password', { studentNo, code, newPassword })
 }
 
+/**
+ * 学号认证申诉(2026-10-19):公开端点,无需登录 token。
+ * 提交方是「被六层校验挡下、注册没成功」的人(无账号 / 无 token),
+ * 所以走 /auth/appeal-student-no 而非需登录的 /feedback。
+ * silent:true → 全局拦截器不弹 toast,成功/失败回执全在弹层内联处理。
+ * @param {{ studentNo:string, email:string, note?:string }} payload
+ */
+export function appealStudentNo({ studentNo, email, note }) {
+  return request.post('/auth/appeal-student-no', { studentNo, email, note }, { silent: true })
+}
+
 /** 绑定 / 修改安全凭证邮箱(需登录):邮箱 + 绑定验证码 */
 export function bindEmail(email, code) {
   return request.post('/user/bind-email', { email, code })
@@ -78,7 +89,20 @@ export function mentionCandidates(kw = '') {
   return request.get(`/user/mention/candidates${q}`)
 }
 
+/** 读取通知偏好:返回 JSON 字符串或 null(=全开) */
+export function getNotifyPref() {
+  return request.get('/user/notify-pref')
+}
+
+/** 写入通知偏好:pref 为 JSON 字符串,如 {"disabled":[2,3]};传 null/''=恢复全开 */
+export function setNotifyPref(pref) {
+  return request.put('/user/notify-pref', pref, {
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 export default {
-  login, loginByCode, register, sendCode, forgotPassword, resetPassword, bindEmail,
-  changePassword, refresh, logout, me, userCard, mentionCandidates,
+  login, loginByCode, register, sendCode, forgotPassword, resetPassword, appealStudentNo,
+  bindEmail, changePassword, refresh, logout, me, userCard, mentionCandidates,
+  getNotifyPref, setNotifyPref,
 }

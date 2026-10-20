@@ -1,6 +1,5 @@
 package com.campus.social.task;
 
-import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.BanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,6 @@ import java.util.Set;
 public class BanExpireJob {
 
     private final BanService banService;
-    private final UserMapper userMapper;
 
     /** 每 5 分钟扫一次到期的封禁计划 */
     @Scheduled(cron = "0 */5 * * * ?")
@@ -40,8 +38,8 @@ public class BanExpireJob {
         int ok = 0;
         for (String userId : expired) {
             try {
-                userMapper.updateAccountStatus(Long.parseLong(userId), 0);
-                banService.clearPlan(userId);
+                // 统一走 banService.unban:清 ZSET 计划 + 恢复 status + 写审计(account_unban)
+                banService.unban(Long.parseLong(userId));
                 ok++;
             } catch (Exception e) {
                 // 不清计划：留到下一轮重试，避免一次网络抖动就让人永久封禁

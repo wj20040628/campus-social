@@ -108,7 +108,7 @@
  * 本项目没有 postcss-custom-media,`@media (--ys-bp-lg)` 会被浏览器
  * 静默丢弃(SPEC §11 的「沉默故障」之一)。
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import SideNav from './SideNav.vue'
@@ -122,6 +122,7 @@ import * as notifyApi from '@/api/notify'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const ws = getWsClient()
 
 /** 顶栏形态与 TabBar 显隐全部由路由 meta 驱动,不在组件内判断路径 */
 const showBack = computed(() => route.meta.back === true)
@@ -151,6 +152,11 @@ async function loadUnread() {
   }
 }
 
+/** WS 收到 notify 事件即重拉未读数,顶栏铃铛红点实时亮起(不再依赖整页刷新) */
+function onNotifyPush() {
+  loadUnread()
+}
+
 /**
  * 待回应的搭话纸条数(TabBar 消息角标)。
  * 现阶段后端未提供独立计数端点,故先取 0 —— 角标为 0 时 TabBar 不渲染红点,
@@ -159,9 +165,11 @@ async function loadUnread() {
 async function loadPaperCount() {
   try {
     const res = await import('@/api/chat')
-    const list = await res.conversations(0, 30)
-    // conversations 里带 stranger 未回应标记才计数,当前契约无此字段,保持 0
-    paperCount.value = Array.isArray(list) ? list.filter((c) => c?.pendingReply).length : 0
+    // conversations 返回的是 CursorPage 包装(含 .list 数组),不是裸数组
+    const page = await res.conversations(0, 30)
+    const convs = page?.list ?? []
+    // 待回应纸条:对方最后发、我还没回、24h 内(后端 pendingReply 已算好)
+    paperCount.value = convs.filter((c) => c?.pendingReply).length
   } catch {
     paperCount.value = 0
   }
@@ -176,7 +184,15 @@ onMounted(() => {
   if (userStore.hasToken) {
     loadUnread()
     loadPaperCount()
+    // 常连 notify 通道:即使不在通知页,新通知也能实时点亮顶栏红点。
+    // 与 Notify.vue 各自订阅同一事件、互不干扰。
+    ws.connect('/ws/notify')
+    ws.on('notify', onNotifyPush)
   }
+})
+
+onBeforeUnmount(() => {
+  ws.off('notify', onNotifyPush)
 })
 
 async function logout() {

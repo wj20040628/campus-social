@@ -3,51 +3,62 @@ import { ElMessage } from '@/utils/feedback'
 import dayjs from 'dayjs'
 
 /**
- * WebSocket 单例封装
- * - 连接:ws(s)://location.host/ws/{chat|notify}?access_token=xxx
- * - 断线重连:指数退避 1s → 2s → 4s → 8s → 30s(上限)
- * - 心跳:每 30s 发 ping,60s 没 pong 视为断连
- * - 鉴权:浏览器 WS 不能自定义 header,只能 query 带 token
- * - 4401(token 失效)→ 调 /auth/refresh → 重连
- * - visibilitychange:后台暂停心跳,回前台补一次
+ * WebSocket 单例封装（支持同时维护多条连接，每条对应一个 endpoint）
  *
- * 用法:
+ * <p>为什么改成「多连接」：原先 connect(path) 会先关掉已存在的连接，
+ * 导致 /ws/chat 与 /ws/notify 互斥——连上聊天就断了通知，连上通知就断了聊天。
+ * 结果顶栏「通知红点」只有整页刷新才更新，新通知来了不亮。
+ *
+ * <p>现在的模型：每个 path 一条独立连接，互不干扰。派发按消息 type 走全局
+ * subs（与具体哪条连接收到解耦），所以 chat 事件只在 /ws/chat 上收到、
+ * notify 事件只在 /ws/notify 上收到，但都统一派发给对应订阅者。
+ *
+ * 用法：
  *   const ws = getWsClient()
  *   ws.connect('/ws/chat')
  *   ws.on('chat', handler)
  *   ws.on('notify', handler)
- *   ws.close()
+ *   ws.close()            // 关全部（登出用）
+ *   ws.close('/ws/chat')  // 只关某条
  */
-
-let instance = null
-
 export function getWsClient() {
   if (!instance) instance = new WsClient()
   return instance
 }
 
+let instance = null
+
 class WsClient {
   constructor() {
-    this.socket = null
-    this.path = null
-    this.subs = {} // type -> Set<fn>
-    this.connecting = false
-    this.reconnectTimer = null
-    this.heartbeatTimer = null
-    this.lastPong = 0
-    this.backoff = 1000
-    this.closedByUser = false
+    // path -> 连接态：{ socket, reconnectTimer, heartbeatTimer, lastPong, backoff, closedByUser, onVis }
+    this.conns = {}
+    // type -> Set<fn>：全局派发表（与具体连接解耦）
+    this.subs = {}
   }
 
-  /** 连接指定 endpoint(如 /ws/chat) */
+  /** 确保某 endpoint 已连接（已连则幂等返回，不重连） */
   connect(path) {
-    if (this.socket && this.socket.readyState === 1) {
-      // 已连接,切路径需先关
-      this.close()
+    const c = this.conns[path]
+    if (c && c.socket && (c.socket.readyState === 0 || c.socket.readyState === 1)) {
+      return
     }
-    this.path = path
-    this.closedByUser = false
-    this._doConnect()
+    this._ensureConn(path)
+  }
+
+  _ensureConn(path) {
+    const c =
+      this.conns[path] ||
+      (this.conns[path] = {
+        socket: null,
+        reconnectTimer: null,
+        heartbeatTimer: null,
+        lastPong: 0,
+        backoff: 1000,
+        closedByUser: false,
+        onVis: null,
+      })
+    c.closedByUser = false
+    this._doConnect(path)
   }
 
   _wsBaseUrl() {
@@ -59,21 +70,24 @@ class WsClient {
     return `${proto}://${host}`
   }
 
-  _doConnect() {
+  _doConnect(path) {
+    const c = this.conns[path]
+    if (!c || c.closedByUser) return
     const user = useUserStore()
-    if (!user.accessToken || !this.path) return
-    const url = `${this._wsBaseUrl()}${this.path}?access_token=${encodeURIComponent(user.accessToken)}`
+    if (!user.accessToken || !path) return
+    const url = `${this._wsBaseUrl()}${path}?access_token=${encodeURIComponent(user.accessToken)}`
 
-    this.socket = new WebSocket(url)
+    const socket = new WebSocket(url)
+    c.socket = socket
 
-    this.socket.onopen = () => {
-      this.backoff = 1000 // 重置退避
-      this.lastPong = Date.now()
-      this._startHeartbeat()
-      console.log(`[ws] connected: ${this.path}`)
+    socket.onopen = () => {
+      c.backoff = 1000 // 重置退避
+      c.lastPong = Date.now()
+      this._startHeartbeat(path)
+      console.log(`[ws] connected: ${path}`)
     }
 
-    this.socket.onmessage = (evt) => {
+    socket.onmessage = (evt) => {
       let msg
       try {
         msg = JSON.parse(evt.data)
@@ -81,88 +95,92 @@ class WsClient {
         return
       }
       if (msg.type === 'pong') {
-        this.lastPong = Date.now()
+        c.lastPong = Date.now()
         return
       }
       const set = this.subs[msg.type]
       if (set) set.forEach((fn) => fn(msg.payload, msg))
     }
 
-    this.socket.onclose = (evt) => {
-      this._stopHeartbeat()
-      if (this.closedByUser) return
+    socket.onclose = (evt) => {
+      this._stopHeartbeat(path)
+      if (c.closedByUser) return
       // 4401/401 → refresh 后重连;其余 → 退避重连
       if (evt.code === 4401 || evt.code === 401 || evt.code === 1008) {
-        this._refreshAndReconnect()
+        this._refreshAndReconnect(path)
       } else {
-        this._scheduleReconnect()
+        this._scheduleReconnect(path)
       }
     }
 
-    this.socket.onerror = () => {
+    socket.onerror = () => {
       // onclose 会触发重连逻辑
     }
   }
 
-  _scheduleReconnect() {
-    if (this.closedByUser) return
-    this._stopHeartbeat()
-    const delay = this.backoff
-    this.backoff = Math.min(this.backoff * 2, 30000)
-    this.reconnectTimer = setTimeout(() => this._doConnect(), delay)
+  _scheduleReconnect(path) {
+    const c = this.conns[path]
+    if (!c || c.closedByUser) return
+    this._stopHeartbeat(path)
+    const delay = c.backoff
+    c.backoff = Math.min(c.backoff * 2, 30000)
+    c.reconnectTimer = setTimeout(() => this._doConnect(path), delay)
   }
 
-  async _refreshAndReconnect() {
+  async _refreshAndReconnect(path) {
     const user = useUserStore()
     try {
       await user.refresh()
-      this._doConnect()
+      this._doConnect(path)
     } catch (e) {
       ElMessage.warning('连接已断开,请重新登录')
-      this._scheduleReconnect()
+      this._scheduleReconnect(path)
     }
   }
 
-  _startHeartbeat() {
-    this._stopHeartbeat()
-    this.heartbeatTimer = setInterval(() => {
-      if (this.socket && this.socket.readyState === 1) {
-        this.socket.send(JSON.stringify({ type: 'ping', ts: Date.now() }))
+  _startHeartbeat(path) {
+    const c = this.conns[path]
+    this._stopHeartbeat(path)
+    c.heartbeatTimer = setInterval(() => {
+      const s = c.socket
+      if (s && s.readyState === 1) {
+        s.send(JSON.stringify({ type: 'ping', ts: Date.now() }))
         // 60s 没 pong → 视为断连
-        if (Date.now() - this.lastPong > 60000) {
-          this.socket.close()
-        }
+        if (Date.now() - c.lastPong > 60000) s.close()
       }
     }, 30000)
 
-    // visibilitychange:后台暂停,回前台补一次
-    this._onVisChange = () => {
+    // visibilitychange:后台暂停,回前台补一次(每条连接独立监听,关闭时移除)
+    c.onVis = () => {
       if (document.visibilityState === 'visible') {
-        if (this.socket && this.socket.readyState === 1) {
-          this.socket.send(JSON.stringify({ type: 'ping', ts: Date.now() }))
-          this.lastPong = Date.now()
+        const s = c.socket
+        if (s && s.readyState === 1) {
+          s.send(JSON.stringify({ type: 'ping', ts: Date.now() }))
+          c.lastPong = Date.now()
         }
       }
     }
-    document.addEventListener('visibilitychange', this._onVisChange)
+    document.addEventListener('visibilitychange', c.onVis)
   }
 
-  _stopHeartbeat() {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer)
-      this.heartbeatTimer = null
+  _stopHeartbeat(path) {
+    const c = this.conns[path]
+    if (!c) return
+    if (c.heartbeatTimer) {
+      clearInterval(c.heartbeatTimer)
+      c.heartbeatTimer = null
     }
-    if (this._onVisChange) {
-      document.removeEventListener('visibilitychange', this._onVisChange)
-      this._onVisChange = null
+    if (c.onVis) {
+      document.removeEventListener('visibilitychange', c.onVis)
+      c.onVis = null
     }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
+    if (c.reconnectTimer) {
+      clearTimeout(c.reconnectTimer)
+      c.reconnectTimer = null
     }
   }
 
-  /** 订阅某 type 的消息 */
+  /** 订阅某 type 的消息（全局派发，与具体连接无关） */
   on(type, fn) {
     if (!this.subs[type]) this.subs[type] = new Set()
     this.subs[type].add(fn)
@@ -172,13 +190,18 @@ class WsClient {
     this.subs[type]?.delete(fn)
   }
 
-  /** 主动关闭(不重连) */
-  close() {
-    this.closedByUser = true
-    this._stopHeartbeat()
-    if (this.socket) {
-      this.socket.close()
-      this.socket = null
+  /** 主动关闭（不重连）。不传 path 关全部（登出用），传 path 只关某条 */
+  close(path) {
+    if (path) {
+      const c = this.conns[path]
+      if (c) {
+        c.closedByUser = true
+        this._stopHeartbeat(path)
+        c.socket?.close()
+        c.socket = null
+      }
+      return
     }
+    for (const p of Object.keys(this.conns)) this.close(p)
   }
 }

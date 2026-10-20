@@ -7,11 +7,13 @@ import com.campus.social.entity.Activity;
 import com.campus.social.entity.ActivitySignup;
 import com.campus.social.entity.Circle;
 import com.campus.social.entity.CircleMember;
+import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ActivityMapper;
 import com.campus.social.mapper.ActivitySignupMapper;
 import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.CircleMemberMapper;
+import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.ActivityService;
 import com.campus.social.vo.ActivityVO;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,8 @@ public class ActivityServiceImpl implements ActivityService {
     private final CircleMapper circleMapper;
     private final CircleMemberMapper circleMemberMapper;
     private final com.campus.social.service.AuditService auditService;
+    private final PostNotifySupport postNotifySupport;
+    private final UserMapper userMapper;
 
     @Override
     @Transactional
@@ -58,6 +62,7 @@ public class ActivityServiceImpl implements ActivityService {
         a.setStartTime(dto.getStartTime());
         a.setEndTime(dto.getEndTime());
         a.setStatus(0); // 报名中
+        a.setCreatorId(creatorId); // 记录创建者,供报名通知(type=5)推送
         activityMapper.insert(a);
         log.info("activity created: id={}, title={}, capacity={}", a.getId(), a.getTitle(), a.getCapacity());
         return a.getId();
@@ -123,6 +128,11 @@ public class ActivityServiceImpl implements ActivityService {
         log.info("signup ok: {} -> {}", userId, activityId);
         // 审计:报名
         auditService.record(userId, "signup", "activity", activityId, "活动报名", null);
+        // 通知创建者:有人报名了他/她创建的活动(type=5)。
+        // 旧活动(迁移前创建)creator_id 为 NULL 时跳过,优雅降级不报错。
+        if (a.getCreatorId() != null && a.getCreatorId() != userId) {
+            postNotifySupport.pushNotify(a.getCreatorId(), 5, activityId, userId, null);
+        }
     }
 
     @Override
@@ -146,6 +156,40 @@ public class ActivityServiceImpl implements ActivityService {
         auditService.record(userId, "cancel_signup", "activity", activityId, "取消报名", null);
     }
 
+    @Override
+    @Transactional
+    public void cancelActivity(long activityId, long operatorId) {
+        Activity a = activityMapper.selectById(activityId);
+        if (a == null) {
+            throw new BusinessException(NOT_FOUND, "活动不存在");
+        }
+        // 仅创建者或管理员可取消整个活动
+        boolean isCreator = a.getCreatorId() != null && a.getCreatorId().longValue() == operatorId;
+        boolean isAdmin = false;
+        if (!isCreator) {
+            User op = userMapper.selectById(operatorId);
+            isAdmin = op != null && op.getRole() != null && op.getRole() == 1;
+        }
+        if (!isCreator && !isAdmin) {
+            throw new BusinessException(FORBIDDEN, "只有活动创建者或管理员可以取消活动");
+        }
+        if (a.getStatus() == 4) {
+            return; // 已取消,幂等
+        }
+        a.setStatus(4);
+        activityMapper.updateById(a);
+        // 通知所有已报名者:你报名的活动已取消(type=12)
+        List<ActivitySignup> signups = signupMapper.selectList(new LambdaQueryWrapper<ActivitySignup>()
+                .eq(ActivitySignup::getActivityId, activityId));
+        for (ActivitySignup s : signups) {
+            if (s.getUserId().equals(operatorId)) continue; // 取消者本人不必收到
+            postNotifySupport.pushNotify(s.getUserId(), 12, activityId, operatorId, null);
+        }
+        // 审计:取消活动
+        auditService.record(operatorId, "activity_cancel", "activity", activityId, "取消活动", null);
+        log.info("activity cancelled: id={}, operator={}", activityId, operatorId);
+    }
+
     private ActivityVO toVo(Activity a, long viewerId) {
         boolean signedUp = false;
         if (viewerId > 0) {
@@ -159,6 +203,7 @@ public class ActivityServiceImpl implements ActivityService {
                 .id(a.getId())
                 .title(a.getTitle())
                 .circleId(a.getCircleId())
+                .creatorId(a.getCreatorId())
                 .capacity(a.getCapacity())
                 .currentCount(a.getCurrentCount())
                 .startTime(a.getStartTime())

@@ -71,6 +71,13 @@
         <span class="auth-link__sep">·</span>
         <button type="button" class="link-btn" @click="mode = 'forgot'">忘记密码？</button>
       </div>
+
+      <!-- 协议入口(2026-10-20):登录页不强制勾选(注册时已同意),仅提供可点链接直达同一份弹窗 -->
+      <div class="auth-legal">
+        <button type="button" class="legal-link" @click="openLegal('user')">《用户协议》</button>
+        <span class="auth-legal__sep">·</span>
+        <button type="button" class="legal-link" @click="openLegal('privacy')">《隐私政策》</button>
+      </div>
     </div>
 
     <!-- 找回密码:独立态,整页替换登录卡片内容 -->
@@ -81,6 +88,9 @@
       </div>
       <ForgotPasswordForm @done="onForgotDone" @back="mode = 'login'" />
     </div>
+
+    <!-- 协议弹窗:由登录页底部《用户协议》/《隐私政策》链接调起 -->
+    <LegalAgreementDialog ref="legalRef" />
   </div>
 </template>
 
@@ -106,10 +116,15 @@ import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
 import PasswordForm from '@/components/auth/PasswordForm.vue'
 import CodeForm from '@/components/auth/CodeForm.vue'
 import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm.vue'
+import LegalAgreementDialog from '@/components/auth/LegalAgreementDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+
+// 协议弹窗 ref（2026-10-20）：登录页底部《用户协议》/《隐私政策》链接调起，不强制勾选
+const legalRef = ref(null)
+function openLegal(doc) { legalRef.value?.open(doc) }
 
 const TABS = [
   { v: 'password', l: '学号/邮箱登录' },

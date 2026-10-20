@@ -77,6 +77,31 @@
           />
         </label>
 
+        <label class="af-field">
+          <span class="af-label">操作者昵称</span>
+          <el-input
+            v-model="f.nickname"
+            placeholder="按操作者昵称筛选"
+            clearable
+            class="af-control"
+            @keyup.enter="load(true)"
+          />
+        </label>
+
+        <label class="af-field">
+          <span class="af-label">时间范围</span>
+          <el-date-picker
+            v-model="timeRange"
+            type="datetimerange"
+            range-separator="~"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :clearable="true"
+            class="af-control"
+          />
+        </label>
+
         <!-- 两条独立的失败提示,位置不同语义也不同 -->
         <p v-if="userSearchError" class="af-inline-error" role="alert">{{ userSearchError }}</p>
 
@@ -154,7 +179,8 @@
       />
 
       <ul v-else class="audit__list">
-        <li v-for="l in list" :key="l.id" class="log">
+        <li v-for="l in list" :key="l.id" class="log" role="button" tabindex="0"
+          @click="openDetail(l)" @keyup.enter="openDetail(l)">
           <el-avatar :size="34" :src="resolveThumb(l.operatorAvatar)" class="log__avatar" />
           <div class="log__body">
             <p class="log__line1">
@@ -180,6 +206,28 @@
         <p v-else-if="list.length && !hasMore" class="sentinel__tip">没有更多了</p>
       </div>
     </template>
+
+    <!-- 详情抽屉:点列表条目展开完整信息 -->
+    <el-drawer v-model="drawerOpen" :with-header="false" direction="btt" size="86%" class="audit-drawer">
+      <div v-if="selected" class="ad">
+        <div class="ad__head">
+          <el-avatar :size="40" :src="resolveThumb(selected.operatorAvatar)" />
+          <div class="ad__who">
+            <p class="ad__name">{{ selected.operatorName || '未知用户' }}</p>
+            <span class="log__tag" :class="`log__tag--${actionTag(selected.action)}`">{{ actionLabel(selected.action) }}</span>
+          </div>
+          <button type="button" class="ad__close" aria-label="关闭" @click="drawerOpen = false">
+            <el-icon :size="20"><Close /></el-icon>
+          </button>
+        </div>
+        <dl class="ad__list">
+          <div class="ad__row"><dt>操作对象</dt><dd>{{ selected.targetType || '-' }}<template v-if="selected.targetId"> #{{ selected.targetId }}</template></dd></div>
+          <div class="ad__row"><dt>时间</dt><dd class="ad__mono">{{ fmt(selected.createTime) }}</dd></div>
+          <div class="ad__row" v-if="selected.ip && selected.ip !== 'system'"><dt>IP</dt><dd class="ad__mono">{{ selected.ip }}</dd></div>
+          <div class="ad__row ad__row--block"><dt>详情</dt><dd class="ad__detail">{{ selected.detail || '-' }}</dd></div>
+        </dl>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -199,10 +247,11 @@ const router = useRouter()
 const isMobile = useIsMobile()
 const {
   denied, ACTIONS, actionLabel, actionTag, fmt,
-  f, expanded, filterOpen, activeChips, hasFilter,
+  f, timeRange, expanded, filterOpen, activeChips, hasFilter,
   userInput, userOptions, userSearchError, allUsers,
   onUserInput, pickUser, pickUserById, removeChip, resetFilters,
   list, loading, hasMore, loadFailed, load,
+  selected, drawerOpen, openDetail,
 } = useAuditLog()
 
 const userName = (u) => displayName(u) || '未命名用户'

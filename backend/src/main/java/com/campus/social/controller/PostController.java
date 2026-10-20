@@ -158,13 +158,13 @@ public class PostController {
         return Result.ok(postService.commentChildren(id, commentId, lastId, PageSize.clamp(size), me != null ? me : 0L));
     }
 
-    /** 某用户发的帖子 */
+    /** 某用户发的帖子(本人视角,含待审/驳回) */
     @GetMapping("/mine")
     public Result<CursorPage<PostVO>> myPosts(
             @RequestParam(value = "lastId", required = false) Long lastId,
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.myPosts(me, lastId, PageSize.clamp(size)));
+        return Result.ok(postService.myPosts(me, me, lastId, PageSize.clamp(size)));
     }
 }

@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -60,12 +61,42 @@ public class AuditServiceImpl implements AuditService {
         }
     }
 
+    /**
+     * 解析前端时间字符串(yyyy-MM-dd HH:mm:ss)。失败返回 null(该条件被忽略),
+     * 不让一个格式错误把整次查询拖垮。
+     */
+    private static LocalDateTime parse(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return LocalDateTime.parse(s, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @Override
-    public CursorPage<AuditLogVO> queryLogs(Long lastId, int size, String action, Long userId, String keyword) {
+    public CursorPage<AuditLogVO> queryLogs(Long lastId, int size, String action, Long userId, String keyword,
+                                            String start, String end, String nickname) {
+        // 时间范围:前端给 yyyy-MM-dd HH:mm:ss 字符串,解析失败则忽略该条件(不阻断查询)
+        LocalDateTime startLdt = parse(start);
+        LocalDateTime endLdt = parse(end);
+
+        // 操作人昵称:先反查匹配的用户 id,转为 userId IN(...);匹配不到直接返回空
+        List<Long> nicknameIds = null;
+        if (nickname != null && !nickname.isBlank()) {
+            nicknameIds = userMapper.selectIdsByNicknameLike(nickname.trim());
+            if (nicknameIds.isEmpty()) {
+                return new CursorPage<>(List.of(), null, false);
+            }
+        }
+
         LambdaQueryWrapper<AuditLog> qw = new LambdaQueryWrapper<AuditLog>()
                 .eq(action != null && !action.isBlank(), AuditLog::getAction, action)
                 .eq(userId != null, AuditLog::getUserId, userId)
-                // 关键字匹配 detail / ip / action(操作人姓名需先查 id,暂不匹配名字,够用)
+                .in(nicknameIds != null, AuditLog::getUserId, nicknameIds)
+                .ge(startLdt != null, AuditLog::getCreateTime, startLdt)
+                .le(endLdt != null, AuditLog::getCreateTime, endLdt)
+                // 关键字匹配 detail / ip / action(操作人姓名走 nickname 参数,不在这里)
                 .and(keyword != null && !keyword.isBlank(), w -> w
                         .like(AuditLog::getDetail, keyword)
                         .or().like(AuditLog::getIp, keyword)

@@ -11,6 +11,8 @@ public class ActivityVO {
     private Long id;
     private String title;
     private Long circleId;
+    /** 创建者用户 id(前端据此显示「取消活动」入口) */
+    private Long creatorId;
     private Integer capacity;
     private Integer currentCount;
     private LocalDateTime startTime;

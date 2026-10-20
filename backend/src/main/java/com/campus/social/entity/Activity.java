@@ -16,6 +16,8 @@ public class Activity implements Serializable {
 
     private String title;
     private Long circleId;
+    /** 活动创建者用户 id;迁移前旧数据为 NULL */
+    private Long creatorId;
 
     /** 名额上限,0 不限 */
     private Integer capacity;

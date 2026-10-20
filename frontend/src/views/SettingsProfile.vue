@@ -1,10 +1,6 @@
 <template>
   <div class="sp">
-    <!--
-      「我的」页的编辑资料独立页(从原 Settings.vue 抽出)。
-      2026-10-18 重排版:头像区独立成块 + 四个分组卡
-      (基本信息 / 学校信息 / 兴趣标签 / 安全邮箱),底部一个整宽保存按钮。
-    -->
+    <!-- 编辑资料独立页:头像区 + 四个分组卡(基本信息/学校信息/兴趣标签/安全邮箱),底部整宽保存 -->
     <header class="sp__bar">
       <button type="button" class="sp__bar-btn" aria-label="返回" @click="router.back()">
         <el-icon :size="22"><ArrowLeft /></el-icon>

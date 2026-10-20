@@ -2,26 +2,12 @@
   <header class="topbar">
     <!--
       顶栏两种形态由路由 meta 决定(MainLayout.vue.md §1.1):
-        无 meta.back  -> 品牌型:左 汉堡+「友声」+ 右 搜索/铃铛
-        有 meta.back  -> 返回型:左 ArrowLeft + 页面标题
+        无 meta.back  -> 品牌型:左「友声」+ 右 发布/铃铛/汉堡
+        有 meta.back  -> 返回型:左 ArrowLeft + 页面标题 + 右 铃铛/汉堡
       用 meta 而不是组件内自己算路径:activeMenu 已经是串 startsWith 判断,
       再加两种模式会变成三处互相打架的分支。
     -->
     <div class="topbar__left">
-      <!--
-        汉堡(2026-10-18 新增):手机端打开全局导航抽屉(AppDrawer),
-        桌面隐藏(CSS)—— 桌面有常驻 SideNav,再给抽屉入口是冗余。
-        只在品牌型顶栏出现;返回型顶栏左侧是返回箭头,不叠菜单。
-      -->
-      <button
-        v-if="!showBack"
-        type="button"
-        class="topbar__icon-btn topbar__menu"
-        aria-label="打开菜单"
-        @click="$emit('menu')"
-      >
-        <el-icon :size="22"><Menu /></el-icon>
-      </button>
       <button
         v-if="showBack"
         type="button"
@@ -37,9 +23,9 @@
 
     <div class="topbar__right">
       <!--
-        移动端删掉了原中间那个圆形「+」发布按钮:
-        TabBar 中位已有发布入口,两个是冗余;且它带彩色发光阴影。
-        桌面端仍保留,移到右端(见 TopBar.css 的媒体查询)。
+        发布按钮(2026-10-20 移动端恢复):TabBar 中位已让位给「集市」,
+        顶栏「+」是移动端唯一常驻发帖入口,手机/桌面两端都显示
+        (桌面为实心圆样式,见 TopBar.css 媒体查询)。
       -->
       <button
         type="button"
@@ -51,9 +37,9 @@
       </button>
 
       <!--
-        「找人」只留桌面:feed 内已有搜索框、/search 页是主入口,移动端顶栏
-        再塞一个找人与它们重叠,且移动端顶栏右侧只保留铃铛(全局未读,必须置顶栏)。
-        桌面 ≥1024 空间够、侧栏已占左边,顶栏保留 发动态/找人/铃铛/头像。
+        「找人」只留桌面:feed 内已有搜索框、/search 页是主入口,移动端
+        再塞一个找人与它们重叠。移动端右侧 = 发布/铃铛/汉堡;
+        桌面 ≥1024 空间够、侧栏已占左边,顶栏保留 发动态/找人/铃铛/头像/汉堡(隐藏)。
       -->
       <button
         type="button"
@@ -95,6 +81,36 @@
           <el-icon class="topbar__caret"><CaretBottom /></el-icon>
         </button>
       </div>
+
+      <!--
+        汉堡(2026-10-20 移到右端):全局导航抽屉(AppDrawer)入口,
+        **所有顶栏形态都渲染** —— 返回型(如「我的」页)也必须有,
+        否则用户进了二级页就找不到抽屉。桌面 CSS 隐藏(有常驻 SideNav,冗余)。
+        图标用内联 SVG 三横线(主流汉堡样式):EP 无纯三横线图标,
+        Menu 是九宫格、Fold/Expand 带箭头,观感都不对,故自绘。
+      -->
+      <button
+        type="button"
+        class="topbar__icon-btn topbar__menu"
+        aria-label="打开菜单"
+        @click="$emit('menu')"
+      >
+        <svg
+          class="topbar__burger"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 6h16M4 12h16M4 18h16"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
     </div>
   </header>
 </template>
@@ -102,7 +118,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Bell, CaretBottom, Menu, Plus, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, Bell, CaretBottom, Plus, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { resolveThumb } from '@/utils/resolve'
 import UnreadDot from '@/components/mobile/UnreadDot.vue'

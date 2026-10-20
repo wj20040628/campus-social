@@ -10,13 +10,13 @@
           拿掉会让管理员在手机上失去后台(桌面有 SideNav 不受影响)
       -->
 
-      <!-- 个人卡:头像 + 昵称 + 友声号,整行点击进编辑资料(/profile) -->
+      <!-- 个人卡:头像 + 昵称 + 学号,整行点击进编辑资料(/profile) -->
       <button type="button" class="mecard" @click="router.push('/profile')">
         <span class="mecard__ava">{{ avatarFallback }}</span>
         <span class="mecard__text">
           <span class="mecard__name">{{ userStore.userInfo?.nickname || '未登录' }}</span>
           <span class="mecard__id">
-            友声号:{{ userStore.userInfo?.studentNo || '未填写' }}<template v-if="verifyVerified"> · 已认证</template>
+            学号:{{ studentNo || userStore.userInfo?.studentNo || '未填写' }}<template v-if="verifyVerified"> · 已认证</template>
           </span>
         </span>
         <el-icon class="mecard__chev"><ArrowRight /></el-icon>
@@ -36,7 +36,7 @@
         </div>
       </el-card>
 
-      <!-- 四个分类入口 -->
+      <!-- 五个分类入口 -->
       <el-card class="settings__group">
         <div class="set-row set-row--link">
           <button type="button" class="set-row__btn" @click="router.push('/settings/security')">
@@ -54,6 +54,16 @@
             <span class="set-row__text">
               <span class="set-row__label">隐私设置</span>
               <span class="set-row__desc">陌生人消息 / 黑名单</span>
+            </span>
+            <el-icon class="set-row__chevron"><ArrowRight /></el-icon>
+          </button>
+        </div>
+        <div class="set-row set-row--link">
+          <button type="button" class="set-row__btn" @click="router.push('/settings/notify')">
+            <span class="set-row__icon"><el-icon :size="18"><Bell /></el-icon></span>
+            <span class="set-row__text">
+              <span class="set-row__label">通知设置</span>
+              <span class="set-row__desc">点赞 / 评论 / 关注提醒</span>
             </span>
             <el-icon class="set-row__chevron"><ArrowRight /></el-icon>
           </button>
@@ -131,7 +141,7 @@
  * - 陌生人消息开关在 /settings/privacy;审核记录弹层在导航抽屉
  */
 import {
-  ArrowRight, Hide, InfoFilled, Lock, Moon, Operation, Setting, SwitchButton,
+  ArrowRight, Bell, Hide, InfoFilled, Lock, Moon, Operation, Setting, SwitchButton,
 } from '@element-plus/icons-vue'
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -145,7 +155,7 @@ import ActionSheet from '@/components/mobile/ActionSheet.vue'
 const router = useRouter()
 const userStore = useUserStore()
 const { isDark, toggle: toggleTheme } = useTheme()
-const { code, load: loadVerifyStatus } = useVerifyStatus()
+const { code, studentNo, load: loadVerifyStatus } = useVerifyStatus()
 const { adminSheetOpen, goAdmin, doLogout } = useSettings()
 
 /** 已认证(个人卡展示用):只认 verify_status=1,「审核中/驳回」不标已认证 */

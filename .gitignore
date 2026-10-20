@@ -66,3 +66,13 @@ backend/pkg_out.txt
 # python 字节码缓存
 __pycache__/
 *.pyc
+
+# 浏览器自动化用的 Chrome 用户数据目录(35MB,含缓存与本地凭据,绝不入库)
+.chrome-cdp/
+
+# AI 工具本地目录
+.claude/
+.workbuddy/
+
+# 临时粘贴/调试产物
+backend/cp.txt

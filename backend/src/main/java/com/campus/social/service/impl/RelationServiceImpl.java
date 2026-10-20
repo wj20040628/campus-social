@@ -35,6 +35,7 @@ public class RelationServiceImpl implements RelationService {
     private final RelationMapper relationMapper;
     private final UserMapper userMapper;
     private final com.campus.social.service.AuditService auditService;
+    private final PostNotifySupport postNotifySupport;
 
     // ---------------------------------------------------------------- 关注
 
@@ -61,6 +62,8 @@ public class RelationServiceImpl implements RelationService {
         // 计数事务内 ±1
         userMapper.adjustFollowingCount(me, 1);
         userMapper.adjustFollowerCount(toUserId, 1);
+        // 通知被关注者:写 notify + 未读+1 + WS 实时推(同事务,与计数一致)
+        postNotifySupport.pushNotify(toUserId, 1, toUserId, me, null);
         log.info("follow: {} -> {}", me, toUserId);
     }
 
@@ -176,6 +179,30 @@ public class RelationServiceImpl implements RelationService {
         // 我的粉丝:每个 Relation 的 fromUserId 才是"关注我的人"
         List<UserVO> vos = rows.stream().limit(size)
                 .map(r -> toUserVoById(r.getFromUserId()))
+                .filter(Objects::nonNull)
+                .toList();
+        Long nextCursor = hasMore ? rows.get(size - 1).getId() : null;
+        return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    /**
+     * 我拉黑的用户列表。与 following/followers 同一套游标分页:
+     * relation 行 from_user_id=me 且 type=3(拉黑是单向的,只查我拉黑的,
+     * "拉黑我的人"不属于这份列表 —— 那是对方的操作,我不该看到也不需要看到)。
+     * to_user_id 才是被拉黑的人,组装走统一的脱敏 UserVoAssembler。
+     */
+    @Override
+    public CursorPage<UserVO> blacklistList(long me, Long lastId, int size) {
+        LambdaQueryWrapper<Relation> qw = new LambdaQueryWrapper<Relation>()
+                .eq(Relation::getFromUserId, me)
+                .eq(Relation::getType, TYPE_BLACK)
+                .lt(lastId != null, Relation::getId, lastId)
+                .orderByDesc(Relation::getId)
+                .last("LIMIT " + (size + 1));
+        List<Relation> rows = relationMapper.selectList(qw);
+        boolean hasMore = rows.size() > size;
+        List<UserVO> vos = rows.stream().limit(size)
+                .map(r -> toUserVoById(r.getToUserId()))
                 .filter(Objects::nonNull)
                 .toList();
         Long nextCursor = hasMore ? rows.get(size - 1).getId() : null;

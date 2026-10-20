@@ -25,9 +25,8 @@
     </el-card>
 
     <!--
-      黑名单管理。**后端接口待做**(GET /user/blacklist + DELETE /user/blacklist/{id}),
-      先给真实空态而不是假列表 —— 接口好了把 loadBlacklist 里的 TODO 换成真调用即可,
-      页面结构(图标行 + 列表 + 解除按钮)已在样式层备好。
+      黑名单管理。数据来自 GET /relation/blacklist(只列「我拉黑的人」),
+      解除走 DELETE /relation/blacklist?uid=(2026-10-20 接真接口,替换原空壳 TODO)。
     -->
     <el-card class="sgroup">
       <div class="srow srow--static">
@@ -37,13 +36,15 @@
           <span class="sdesc">拉黑后互相看不到对方的动态与私信</span>
         </span>
       </div>
-      <p class="bempty">{{ blacklist.length ? '' : '还没有拉黑任何人' }}</p>
+      <p v-if="!blacklist.length" class="bempty">还没有拉黑任何人</p>
       <div v-for="u in blacklist" :key="u.id" class="srow">
         <span class="bava">{{ String(u.nickname || '友').slice(0, 1) }}</span>
         <span class="stext">
           <span class="slabel">{{ u.nickname }}</span>
         </span>
-        <button type="button" class="bbtn" @click="unblockUser(u)">解除拉黑</button>
+        <button type="button" class="bbtn" :disabled="unblockingId === u.id" @click="unblockUser(u)">
+          {{ unblockingId === u.id ? '解除中…' : '解除拉黑' }}
+        </button>
       </div>
     </el-card>
   </div>
@@ -53,13 +54,14 @@
 /**
  * 隐私设置(/settings/privacy)。
  * - 陌生人消息开关:与旧设置页同一套即时保存逻辑(api/auth.setStrangerMsg)
- * - 黑名单:**后端接口待做**,当前渲染真实空态;结构已备好,接口到位后
- *   只需补 loadBlacklist/unblockUser 的调用(见下方 TODO)
+ * - 黑名单:GET/DELETE /relation/blacklist(2026-10-20 接真接口)。
+ *   解除成功后本地摘除该行,失败时请求层已弹错、列表保持原样。
  */
 import { ref, onMounted } from 'vue'
 import { ChatDotRound, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
 import { me as meApi, setStrangerMsg } from '@/api/auth'
+import { blacklistList, unblacklist } from '@/api/relation'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
 
 /* ---- 陌生人消息开关(与旧设置页同逻辑) ---- */
@@ -79,17 +81,29 @@ async function onStrangerMsgChange(val) {
   }
 }
 
-/* ---- 黑名单(待后端:GET /user/blacklist / DELETE /user/blacklist/{id}) ---- */
+/* ---- 黑名单(真接口:GET/DELETE /relation/blacklist) ---- */
 const blacklist = ref([])
+/** 正在解除的行 id:按钮转文案,防重复点 */
+const unblockingId = ref(null)
 
 async function loadBlacklist() {
-  // TODO(后端接口就绪后): const data = await blacklistApi(); blacklist.value = data?.list || []
-  blacklist.value = []
+  try {
+    const data = await blacklistList(null, 50)
+    blacklist.value = data?.list || []
+  } catch {
+    blacklist.value = []
+  }
 }
 
 async function unblockUser(u) {
-  // TODO(后端接口就绪后): await unblockApi(u.id); blacklist.value = blacklist.value.filter(x => x.id !== u.id)
-  ElMessage.info(`已准备解除 ${u.nickname} 的拉黑(等待后端接口)`)
+  unblockingId.value = u.id
+  try {
+    await unblacklist(u.id)
+    blacklist.value = blacklist.value.filter((x) => x.id !== u.id)
+    ElMessage.success(`已解除对 ${u.nickname} 的拉黑`)
+  } finally {
+    unblockingId.value = null
+  }
 }
 
 onMounted(() => {

@@ -4,6 +4,7 @@ import { logs } from '@/api/audit'
 import { mentionCandidates } from '@/api/auth'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useUserStore } from '@/stores/user'
+import { AUDIT_ACTIONS } from '@/constants/auditActions'
 
 /**
  * 操作日志页的数据与状态(AdminAudit.vue.md)
@@ -41,29 +42,11 @@ export function useAuditLog() {
   const known = computed(() => !!user.userInfo)
   if (known.value && !user.isAdmin) denied.value = true
 
-  /** 动作枚举(与后端 audit 写入一致) */
-  const ACTIONS = [
-    { v: 'login', l: '登录' },
-    { v: 'register', l: '注册' },
-    { v: 'logout', l: '退出' },
-    { v: 'update_profile', l: '改资料' },
-    { v: 'create_post', l: '发帖' },
-    { v: 'edit_post', l: '编辑帖子' },
-    { v: 'delete_post', l: '删帖' },
-    { v: 'signup', l: '活动报名' },
-    { v: 'cancel_signup', l: '取消报名' },
-    { v: 'blacklist', l: '拉黑' },
-    { v: 'review_approve', l: '审核通过' },
-    { v: 'review_reject', l: '审核驳回' },
-  ]
+  /** 动作枚举(与后端 audit 写入一致,单一数据源在 constants/auditActions.js) */
+  const ACTIONS = AUDIT_ACTIONS
 
   const actionLabel = (v) => (ACTIONS.find((a) => a.v === v) || { l: v || '-' }).l
-  const actionTag = (v) => {
-    if (v === 'review_approve') return 'success'
-    if (v === 'review_reject' || v === 'delete_post' || v === 'blacklist') return 'danger'
-    if (v === 'login' || v === 'register') return 'primary'
-    return 'info'
-  }
+  const actionTag = (v) => (ACTIONS.find((a) => a.v === v) || { t: 'info' }).t
 
   /* ---------------- 筛选状态 ---------------- */
   /**
@@ -71,7 +54,10 @@ export function useAuditLog() {
    * 分开存是因为桌面端 el-select 直接给的是 id,移动端搜索选中给的是对象 ——
    * 强行合并成一个字段,两端就得各写一次转换,迟早有一端漏。
    */
-  const f = ref({ action: '', userId: null, user: null, keyword: '' })
+  const f = ref({ action: '', userId: null, user: null, keyword: '', nickname: '' })
+
+  /** 时间范围:[开始, 结束],字符串 yyyy-MM-dd HH:mm:ss;空数组=不限 */
+  const timeRange = ref([])
 
   /** 输入的是昵称关键字;选中后输入框收成一个标签 */
   const userInput = ref('')
@@ -135,6 +121,11 @@ export function useAuditLog() {
     }
     const kw = f.value.keyword.trim()
     if (kw) chips.push({ key: 'keyword', label: `关键字：${kw}` })
+    const nm = f.value.nickname.trim()
+    if (nm) chips.push({ key: 'nickname', label: `操作者：${nm}` })
+    if (timeRange.value?.[0] && timeRange.value?.[1]) {
+      chips.push({ key: 'time', label: `时间：${timeRange.value[0]} ~ ${timeRange.value[1]}` })
+    }
     return chips
   })
 
@@ -165,6 +156,9 @@ export function useAuditLog() {
         action: f.value.action || undefined,
         userId: f.value.userId || undefined,
         keyword: f.value.keyword?.trim() || undefined,
+        nickname: f.value.nickname?.trim() || undefined,
+        start: timeRange.value?.[0] || undefined,
+        end: timeRange.value?.[1] || undefined,
       })
       list.value = reset ? data.list : [...list.value, ...data.list]
       cursor.value = data.hasMore ? data.nextCursor : null
@@ -190,7 +184,8 @@ export function useAuditLog() {
 
   /** 「清空筛选」出口:三个条件都置空并重拉第一页 */
   async function resetFilters() {
-    f.value = { action: '', userId: null, user: null, keyword: '' }
+    f.value = { action: '', userId: null, user: null, keyword: '', nickname: '' }
+    timeRange.value = []
     userInput.value = ''
     userOptions.value = []
     userSearchError.value = ''
@@ -207,6 +202,8 @@ export function useAuditLog() {
       userOptions.value = []
     }
     if (key === 'keyword') f.value.keyword = ''
+    if (key === 'nickname') f.value.nickname = ''
+    if (key === 'time') timeRange.value = []
     await load(true)
   }
 
@@ -274,14 +271,21 @@ export function useAuditLog() {
     if (searchTimer) clearTimeout(searchTimer)
   })
 
+  /* ---------------- 详情抽屉 ---------------- */
+  const selected = ref(null)
+  const drawerOpen = ref(false)
+  function openDetail(l) { selected.value = l; drawerOpen.value = true }
+
   return {
     // 权限与枚举
     denied, ACTIONS, actionLabel, actionTag, fmt,
     // 筛选
-    f, expanded, filterOpen, activeChips, hasFilter,
+    f, timeRange, expanded, filterOpen, activeChips, hasFilter,
     userInput, userOptions, searching, userSearchError, allUsers,
     onUserInput, pickUser, pickUserById, removeChip, resetFilters,
     // 列表
     list, loading, hasMore, loadFailed, load,
+    // 详情抽屉
+    selected, drawerOpen, openDetail,
   }
 }

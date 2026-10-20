@@ -104,6 +104,7 @@ public class NotifyServiceImpl implements NotifyService {
             case 4: return "给你发了私信";
             case 5: return "报名了你创建的活动";
             case 6: return "你的内容正在审核中";
+            case 12: return "你报名的活动已取消";
             case 7: return "你的内容已通过审核";
             case 8: return "你的内容未通过审核";
             case 9: return "在评论中@了你";

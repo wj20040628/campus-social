@@ -80,6 +80,19 @@ public class RelationController {
         return Result.ok();
     }
 
+    /**
+     * 我拉黑的用户列表(设置-隐私的黑名单管理用)。
+     * 只查"我拉黑的人",不查"拉黑我的人" —— 后者不该让用户看到。
+     */
+    @GetMapping("/blacklist")
+    public Result<CursorPage<UserVO>> blacklistList(
+            @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(relationService.blacklistList(me, lastId, size));
+    }
+
     @GetMapping("/status")
     public Result<RelationStatusVO> status(@RequestParam("uid") long uid, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);

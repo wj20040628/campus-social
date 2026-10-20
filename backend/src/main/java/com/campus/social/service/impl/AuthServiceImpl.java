@@ -195,16 +195,21 @@ public class AuthServiceImpl implements AuthService {
                         .or()
                         .eq(User::getEmail, id));
         if (user == null) {
+            // 审计:登录失败(账号不存在,记为系统操作)
+            auditService.record(0L, "login_fail", null, null, "username=" + id + ", 账号不存在", null);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 冻结/注销账号拒登录
         if (user.getStatus() == 1) {
+            auditService.record(user.getId(), "login_fail", null, null, "username=" + id + ", 账号已冻结", null);
             throw new BusinessException(USER_FROZEN);
         }
         if (user.getStatus() == 2) {
+            auditService.record(user.getId(), "login_fail", null, null, "username=" + id + ", 账号已注销", null);
             throw new BusinessException(USER_CANCELLED);
         }
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
+            auditService.record(user.getId(), "login_fail", null, null, "username=" + id + ", 密码错误", null);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 记住我:勾选 → refresh 7d,不勾 → 3d(见 refreshTtl)

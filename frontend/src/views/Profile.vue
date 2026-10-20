@@ -45,7 +45,6 @@
           @follow="toggleFollowAndCount"
           @chat="onChatClick"
           @edit="goEditProfile"
-          @settings="goSettings"
           @report="onReportClick"
         />
 
@@ -65,7 +64,7 @@
         <ProfileStats :user="user" @switch="switchTab" />
 
         <!--
-          分段 tab 条(2026-10-18 替代 el-tabs):小红书式贴边框 + 底部短横线。
+          分段 tab 条(2026-10-18 替代 el-tabs):
           粉丝/关注列表已进主页预拉(loadFollowers / loadFollowing),
           v-show 切换无请求竞态。
         -->
@@ -164,6 +163,8 @@
  * 数据与副作用在 useProfileData / useProfileRelations 里,本页只做编排。
  * 2026-10-18 改版:兴趣标签(ProfileTags)与三统计(ProfileStats)拆成组件、
  * el-tabs 换分段 tab 条 —— 原 326 行超门禁,拆完回到 300 内。
+ * 2026-10-20:本人视角移除编辑/设置按钮(入口在全局抽屉);
+ * 同日的竖卡瀑布流重设计经用户反馈已回退,动态恢复 PostCard 单列全宽卡。
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -252,14 +253,9 @@ function goDetail(id) {
   router.push(`/post/${id}`)
 }
 
-/** 「编辑资料」按钮:进独立编辑资料页 /profile(桌面 / 手机一致) */
+/** 「编辑资料」:空介绍文案可点进编辑页;按钮入口已收进全局抽屉(2026-10-20) */
 function goEditProfile() {
   router.push('/profile')
-}
-
-/** 设置齿轮:进设置页 /settings */
-function goSettings() {
-  router.push('/settings')
 }
 
 /** 点「举报」打开举报操作表(目标类型 1=用户) */

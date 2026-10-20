@@ -173,3 +173,42 @@
     padding-bottom: calc(var(--ys-space-8) + var(--ys-safe-bottom));
   }
 }
+
+/* ==========================================================================
+   协议入口链接（2026-10-20）
+   登录页底部《用户协议》/《隐私政策》，点击打开同一份 LegalAgreementDialog。
+   注册页也有同款 .legal-link（在 Register.css），这里放共享定义，
+   Login.vue 通过 @import 复用。
+   ========================================================================== */
+
+/* 链接容器：与 .auth-link 同位置、同字号，但更弱一档(meta 色)，表明是附属入口 */
+.auth-legal {
+  margin-top: var(--ys-space-2);
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-meta);
+}
+
+.auth-legal__sep {
+  margin: 0 var(--ys-space-1);
+  color: var(--ys-meta);
+}
+
+/* 协议名做成行内文字链接：重置浏览器默认按钮样式，accent 色 + 下划线表明可点 */
+.legal-link {
+  border: 0;
+  background: none;
+  margin: 0;
+  padding: 0 var(--ys-space-1);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.legal-link:hover {
+  color: var(--ys-accent-hover);
+}

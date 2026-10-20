@@ -1,6 +1,7 @@
 package com.campus.social.service.impl;
 
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,7 @@ public class BanServiceImpl implements BanService {
 
     private final StringRedisTemplate redis;
     private final UserMapper userMapper;
+    private final AuditService auditService;
 
     /** 解封计划最长保留天数，够覆盖最长的 30 天封禁并留余量 */
     @Value("${app.ban.max-plan-days:45}")
@@ -72,6 +74,8 @@ public class BanServiceImpl implements BanService {
     public void unban(long userId) {
         redis.opsForZSet().remove(KEY_EXPIRING, String.valueOf(userId));
         userMapper.updateAccountStatus(userId, STATUS_NORMAL);
+        // 审计:解封(到期自动 / 管理员手动),操作者记为系统
+        auditService.recordSystem("account_unban", "user", userId, "封禁到期自动解封/管理员解封");
         log.info("user unbanned by admin: user={}", userId);
     }
 

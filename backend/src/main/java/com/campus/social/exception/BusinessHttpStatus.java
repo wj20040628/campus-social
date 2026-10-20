@@ -47,6 +47,11 @@ public final class BusinessHttpStatus {
         MAPPING.put(ResultCode.VERIFY_ALREADY_DONE, HttpStatus.CONFLICT);
         MAPPING.put(ResultCode.VERIFY_ALREADY_PENDING, HttpStatus.CONFLICT);
         MAPPING.put(ResultCode.STUDENT_NO_EXISTS, HttpStatus.CONFLICT);
+        // 六层任一不过:422(请求合法但取值业务不符,与 DEPT_INVALID 同口径)。
+        // 必须登记真实状态码:不登记回落 HTTP 200,前端 1058 只留在
+        // err.businessCode、e.response 为空,registerFieldError 拿不到码,
+        // 申诉出口(学号下方「我确实是本校学生」按钮)出不来。
+        MAPPING.put(ResultCode.STUDENT_NO_MISMATCH, HttpStatus.UNPROCESSABLE_ENTITY);
 
         // F3 搭话护栏
         MAPPING.put(ResultCode.STRANGER_MSG_CLOSED, HttpStatus.FORBIDDEN);

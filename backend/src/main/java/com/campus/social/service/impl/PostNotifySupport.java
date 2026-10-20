@@ -5,11 +5,16 @@ import com.campus.social.mapper.NotifyMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AiReviewTrigger;
 import com.campus.social.websocket.WsPushService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 帖子写路径的横切能力：事务后 AI 机审触发 + 站内通知下发。
@@ -31,6 +36,9 @@ public class PostNotifySupport {
     private final UserMapper userMapper;
     private final WsPushService wsPush;
     private final AiReviewTrigger aiReviewTrigger;
+
+    /** 解析 notify_pref 用,无状态可复用 */
+    private static final ObjectMapper OM = new ObjectMapper();
 
     /**
      * 事务提交后触发 AI 机审；无事务时直接调。
@@ -69,6 +77,12 @@ public class PostNotifySupport {
      * 用户永远看不到红点；只改未读数不写 notify，点了进去是空的。
      */
     public void pushNotify(long userId, int type, long targetId, long actorId, Long postId) {
+        // 通知偏好:被用户关闭的类型不投递(免打扰)。反馈回复 type=11 走 pushFeedbackReply,不在此受限。
+        Set<Integer> disabled = parseDisabled(userMapper.selectNotifyPrefById(userId));
+        if (disabled.contains(type)) {
+            log.debug("notify skipped by pref: userId={}, type={}", userId, type);
+            return;
+        }
         Notify n = new Notify();
         n.setUserId(userId);
         n.setType(type);
@@ -80,6 +94,22 @@ public class PostNotifySupport {
         userMapper.adjustUnreadNotifyCount(userId, 1);
         // WS 实时推（离线落表，上线后 REST 拉）
         wsPush.pushNotify(userId, n.getId(), type, targetId, actorId);
+    }
+
+    /** 解析 notify_pref 列里的 disabled 类型集合;NULL/空/非法都视为全开 */
+    private Set<Integer> parseDisabled(String pref) {
+        Set<Integer> disabled = new HashSet<>();
+        if (pref == null || pref.isBlank()) return disabled;
+        try {
+            JsonNode node = OM.readTree(pref);
+            JsonNode arr = node.get("disabled");
+            if (arr != null && arr.isArray()) {
+                arr.forEach(e -> disabled.add(e.asInt()));
+            }
+        } catch (Exception e) {
+            // 坏数据不阻塞通知,当作全开
+        }
+        return disabled;
     }
 
     /**

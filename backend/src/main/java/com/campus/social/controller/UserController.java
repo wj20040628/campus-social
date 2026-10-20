@@ -75,6 +75,32 @@ public class UserController {
     }
 
     /**
+     * 读取通知偏好(免打扰):返回 notify_pref 列的 JSON 字符串,无设置时为 null(=全开)。
+     * 解析约定与 {@code PostNotifySupport.parseDisabled} 一致:null/空=全开,
+     * 否则取 disabled 数组里的类型 id 跳过投递。
+     */
+    @GetMapping("/notify-pref")
+    public Result<String> getNotifyPref(HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(userMapper.selectNotifyPrefById(me));
+    }
+
+    /**
+     * 写入通知偏好(免打扰)。
+     *
+     * <p>body 为 JSON 字符串(如 {@code {"disabled":[2,3]}});传 null 或空串视为恢复全开。
+     * 仅整列覆盖写,不读旧值——前端每次提交完整偏好。坏 JSON 由
+     * {@code PostNotifySupport.parseDisabled} 在投递时兜底(当作全开),这里不阻塞写入。
+     */
+    @PutMapping("/notify-pref")
+    public Result<Void> setNotifyPref(@RequestBody(required = false) String pref,
+                                     HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        userMapper.updateNotifyPref(me, pref);
+        return Result.ok();
+    }
+
+    /**
      * 修改密码(需登录):校验原密码后更新为新密码。
      * 与找回密码 {@code POST /auth/reset-password}(凭邮箱验证码)是两条独立路径。
      */
@@ -90,33 +116,41 @@ public class UserController {
 
     /** 用户卡片(公开,看他人主页用) */
     @GetMapping("/{id}")
-    public Result<UserVO> card(@PathVariable("id") long id) {
+    public Result<UserVO> card(@PathVariable("id") long id, HttpServletRequest req) {
         User u = userMapper.selectById(id);
         if (u == null || u.getStatus() == 2) {
             return Result.fail(com.campus.social.common.ResultCode.NOT_FOUND, "用户不存在");
         }
         UserVO vo = UserVoAssembler.of(u);
-        // 动态数按 author_id 现查 post 表(与「动态」列表同源),头部数字不再依赖漂移的冗余列
-        vo.setPostCount(postMapper.countByAuthor(id));
+        // 动态数按 author_id 现查 post 表(与「动态」列表同源),头部数字不再依赖漂移的冗余列。
+        // 口径随视角(2026-10-20):本人含待审/驳回(countByAuthor),他人只数公开帖(countPublicByAuthor)
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        vo.setPostCount(me != null && me == id
+                ? postMapper.countByAuthor(id)
+                : postMapper.countPublicByAuthor(id));
         return Result.ok(vo);
     }
 
     /**
      * 某用户发的动态(他人主页「动态」tab 用)。
      *
-     * <p>复用 {@link PostService#myPosts(long, Long, int)} 按 author_id 现查 post 表,
+     * <p>复用 {@link PostService#myPosts} 按 author_id 现查 post 表,
      * 不再依赖 /post/mine 绑死登录人。校验目标用户存在,防拿任意 id 探活。
-     * 返回公开 PostVO(不含审核态)——看别人主页不该暴露私有审核信息。
+     * 2026-10-20 修隐私泄露:此接口带登录人视角 —— 看别人主页只返回已通过
+     * (status=1)的帖子,审核中/已驳回帖此前会连内容一起返回(实测确认)。
+     * 未登录按非本人处理。
      */
     @GetMapping("/{id}/posts")
     public Result<CursorPage<PostVO>> userPosts(@PathVariable("id") long id,
                                                 @RequestParam(value = "lastId", required = false) Long lastId,
-                                                @RequestParam(value = "size", defaultValue = "20") int size) {
+                                                @RequestParam(value = "size", defaultValue = "20") int size,
+                                                HttpServletRequest req) {
         User u = userMapper.selectById(id);
         if (u == null || u.getStatus() == 2) {
             return Result.fail(com.campus.social.common.ResultCode.NOT_FOUND, "用户不存在");
         }
-        return Result.ok(postService.myPosts(id, lastId, size));
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(postService.myPosts(id, me != null ? me : 0L, lastId, size));
     }
 
     /**

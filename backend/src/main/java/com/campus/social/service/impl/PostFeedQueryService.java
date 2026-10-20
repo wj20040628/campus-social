@@ -125,20 +125,24 @@ public class PostFeedQueryService {
     }
 
     /**
-     * 我的帖子：作者看自己全部未删帖子（含 待审0/通过1/驳回2），
-     * 卡片按 status 区分标签；排除 is_deleted=1（软删）与 status=3（删除态）。
+     * 某用户的帖子列表(2026-10-20 加 viewer 视角):
+     * 本人看自己 → 全部未删帖子(含 待审0/通过1/驳回2),卡片按 status 区分标签;
+     * 其他人看 → 只返回已通过(status=1)。此前无视角区分,他人主页接口
+     * 会把作者的审核中/已驳回帖连内容一起带出去(2026-10-20 实测确认泄露)。
+     * 两种视角都排除 is_deleted=1(软删)与 status=3(删除态)。
      */
-    public CursorPage<PostVO> myPosts(long authorId, Long lastId, int size) {
+    public CursorPage<PostVO> myPosts(long authorId, long viewerId, Long lastId, int size) {
+        boolean self = viewerId == authorId;
         List<Post> rows = postMapper.selectList(new LambdaQueryWrapper<Post>()
                 .eq(Post::getAuthorId, authorId)
-                .in(Post::getStatus, List.of(0, 1, 2))
+                .in(Post::getStatus, self ? List.of(0, 1, 2) : List.of(1))
                 .lt(lastId != null, Post::getId, lastId)
                 .orderByDesc(Post::getId)
                 .last("LIMIT " + (size + 1)));
         boolean hasMore = rows.size() > size;
         List<Post> page = rows.stream().limit(size).toList();
         Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
-        return new CursorPage<>(assembler.toVoList(page, authorId), nextCursor, hasMore);
+        return new CursorPage<>(assembler.toVoList(page, viewerId), nextCursor, hasMore);
     }
 
     /** 单条详情用：转换与回填走装配器，保证与列表页展示规则完全一致 */

@@ -1,21 +1,17 @@
 <template>
   <!--
-    学号申诉弹层（2026-10-19）。
+    学号认证申诉弹层（2026-10-19）。
 
-    ## 为什么复用意见反馈而不是另建一套
-    认证申诉与普通意见反馈在管理员侧的处理动作几乎重合：都进同一个队列、
-    都写处理说明、都能收到回复通知。单独建一张 appeal 表意味着再写一套
-    列表页、详情页与状态机，而字段几乎相同。故复用 feedback，
-    用 content 前缀「【认证申诉】」标记，管理端一眼可辨（见 FeedbackServiceImpl）。
+    ## 为什么走公开端点而不是复用意见反馈
+    被六层校验挡下、注册没成功的人**没有账号、没有 token**，发不出需登录的
+    POST /feedback（直接 401）；且 feedback.user_id 原本 NOT NULL 也存不进他。
+    故开一条公开端点 POST /auth/appeal-student-no（/auth/** 已白名单放行），
+    收集学号 + 联系邮箱 + 可选说明，写进 feedback 队列（user_id 置 NULL），
+    管理员照 content 里的邮箱 mailto 联系。复用 feedback 表、不另建一张 appeal 表。
 
-    ## 为什么必须有这个出口
-    六层校验会误伤真实用户：字典过期、学号规则有例外、恰好撞上某条硬规则。
-    没有申诉通道时，界面只回一句模糊的「注册失败」——而错的人恰恰是无辜的，
-    他既不知道自己哪里填错，也没有别的路可走，只能放弃注册。
-
-    ## 收集什么
-    只收学号与补充说明。**不要求姓名比对**：无名册可比，重名又无法消歧，
-    收集了也只是给管理员一个参考项。这里刻意保持表单极简，降低提交摩擦。
+    ## 为什么必须收联系邮箱
+    没有账号就没有站内通知渠道，邮箱是管理员唯一能主动联系到提交人的路。
+    邮箱与学号一起落进 content，管理端直接 mailto，不迁表结构。
   -->
   <el-dialog
     v-model="open_"
@@ -26,7 +22,8 @@
   >
     <div class="ap">
       <p class="ap__lead">
-        如果你确实是本校学生、只是没通过校验，把下面两项填了提交，管理员会人工核对。
+        如果你确实是本校学生、只是没通过校验，把下面两项填了提交，
+        管理员会人工核对并通过邮箱联系你。
       </p>
 
       <label class="ap__label" for="ap-no">你的学号</label>
@@ -37,13 +34,21 @@
         placeholder="13~14 位学号"
       />
 
+      <label class="ap__label" for="ap-mail">联系邮箱（必填）</label>
+      <el-input
+        id="ap-mail"
+        v-model="email"
+        placeholder="管理员会据此联系你"
+        maxlength="100"
+      />
+
       <label class="ap__label" for="ap-note">补充说明（选填）</label>
       <el-input
         id="ap-note"
         v-model="note"
         type="textarea"
         :rows="4"
-        maxlength="900"
+        maxlength="500"
         show-word-limit
         resize="none"
         placeholder="比如：学院选错了、年级填错了一位，或者你确信这些信息都对但校验没通过"
@@ -63,12 +68,13 @@
 
 <script setup>
 /**
- * 提交失败提示由 request.js 全局拦截器负责，这里不重复弹。
- * 提交成功后给出明确回执：管理员会处理，且回复会走站内通知。
+ * 走公开端点 appealStudentNo（不带 token，未登录也能提交）。
+ * silent:true → 全局拦截器不弹 toast，成功/失败都由弹层内联回执。
+ * 成功文案必须给一个「等在哪里」的锚点（留意邮箱），否则用户提交完就没了下文。
  */
 import { computed, ref } from 'vue'
 import { ElMessage } from '@/utils/feedback'
-import { submitFeedback } from '@/api/feedback'
+import { appealStudentNo } from '@/api/auth'
 import { useIsMobile } from '@/composables/useBreakpoint'
 
 const props = defineProps({
@@ -82,12 +88,16 @@ const isMobile = useIsMobile()
 const open_ = ref(false)
 const saving = ref(false)
 const studentNo = ref('')
+const email = ref('')
 const note = ref('')
 const error = ref('')
 
-/** 学号必填且须为 13/14 位数字——与后端 DTO 同一口径的最小校验 */
-const canSubmit = computed(() =>
-  /^\d{13,14}$/.test((studentNo.value || '').trim()) && !saving.value,
+/** 学号须 13/14 位数字 + 联系邮箱须合法——最小校验，与后端 DTO 同口径 */
+const canSubmit = computed(
+  () =>
+    /^\d{13,14}$/.test((studentNo.value || '').trim()) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email.value || '').trim()) &&
+    !saving.value,
 )
 
 function open() {
@@ -97,6 +107,7 @@ function open() {
 
 function reset() {
   studentNo.value = ''
+  email.value = ''
   note.value = ''
   error.value = ''
 }
@@ -106,17 +117,13 @@ async function submit() {
   saving.value = true
   error.value = ''
   try {
-    // category=2「使用问题」：申诉本质是「我卡在某一步进不去」，
-    // kind=1 让服务层加「【认证申诉】」前缀，管理员端按前缀识别。
-    // 学号拼在正文里而非单独字段：申诉表结构不动，管理员在同一处看全信息。
-    const body = {
-      category: 2,
-      kind: 1,
-      content: `学号 ${studentNo.value.trim()} 认证未通过。${note.value.trim()}`.trim(),
-    }
-    await submitFeedback(body)
+    await appealStudentNo({
+      studentNo: studentNo.value.trim(),
+      email: email.value.trim(),
+      note: note.value.trim(),
+    })
     open_.value = false
-    ElMessage.success('申诉已提交，管理员会尽快处理')
+    ElMessage.success('申诉已提交，管理员会尽快处理，请留意你的邮箱')
     emit('submitted')
   } catch (e) {
     error.value = e?.isBusiness ? (e.message || '提交失败') : '网络异常，稍后再试'

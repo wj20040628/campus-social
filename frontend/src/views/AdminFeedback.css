@@ -67,19 +67,27 @@
   color: var(--ys-danger);
 }
 
+/* 每条反馈一张独立圆角卡片,用 gap 拉开。
+   之前是「一张大卡 + 发丝分隔线」,条目紧挨着,管理员分不清哪行属于哪条。 */
 .af__list {
   margin: 0;
-  padding: 0;
+  padding: 0 var(--ys-space-4) var(--ys-space-4);
   list-style: none;
-  background: var(--ys-surface);
-  border-radius: var(--ys-radius-xl);
-  box-shadow: var(--ys-shadow-1);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
 }
 
-/* 相邻条目之间用发丝线分隔,不另加 margin —— 加了会让首尾多出空隙 */
-.af__list > * + * {
-  border-top: 1px solid var(--ys-border-soft);
+/* 第二行类型筛选:紧贴第一行,去掉上方留白,避免两行 chip 之间空一大块 */
+.chips--sub {
+  padding-top: 0;
+}
+
+/* 认证申诉是优先级更高的独立类型,筛选条上用 accent 色提示它与普通内容分类不同 */
+.chips--sub .chip--appeal-filter {
+  color: var(--ys-accent);
+  border-color: var(--ys-accent-soft);
+  background: var(--ys-accent-soft);
 }
 
 .more {
@@ -102,13 +110,21 @@
   overflow: hidden;
 }
 
-@media (min-width: 1024px) {
-  .af__list > * + * {
-    /* 桌面端列表不需要通栏卡片感,留出容器边距更好读 */
-    border-top: 0;
-  }
+/* 申诉提示:这段说明会邮件发给申诉人,用 accent 色提醒管理员这是「对外」的话术,
+   而不是可以随手写内部备注的地方 */
+.af__hint {
+  margin: 0 0 var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-size: var(--ys-text-xs);
+  line-height: 1.5;
+}
 
-  .af__list > * {
-    border-bottom: 1px solid var(--ys-border-soft);
+@media (min-width: 1024px) {
+  /* 桌面端卡片间距略大一点即可;独立卡片不再需要分隔线 */
+  .af__list {
+    gap: var(--ys-space-4);
   }
 }

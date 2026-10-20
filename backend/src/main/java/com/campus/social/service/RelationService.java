@@ -32,4 +32,7 @@ public interface RelationService {
 
     /** 粉丝列表 */
     CursorPage<UserVO> followers(long me, Long lastId, int size);
+
+    /** 我拉黑的用户列表(游标 lastId):设置页黑名单管理用 */
+    CursorPage<UserVO> blacklistList(long me, Long lastId, int size);
 }

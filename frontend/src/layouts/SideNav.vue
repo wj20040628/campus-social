@@ -36,10 +36,8 @@
         <span>通知</span>
       </el-menu-item>
 
-      <el-menu-item index="/discover">
-        <el-icon><Compass /></el-icon>
-        <span>发现</span>
-      </el-menu-item>
+      <!-- 「发现」已从桌面左栏移除(2026-10-19):顶栏已有「找人」入口(/search),
+           /discover 页面本身保留(个人主页标签区仍可进),只是不再占侧栏位置。 -->
 
       <!--
         管理员项:isAdmin 为 false 时整块不渲染,不给用户一个点进去才被拒的入口。
@@ -91,7 +89,7 @@
 import { computed } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
-  Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection, Compass,
+  Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
   ChatLineSquare,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'

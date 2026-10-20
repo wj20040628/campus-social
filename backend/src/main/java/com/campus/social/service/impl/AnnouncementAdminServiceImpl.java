@@ -10,6 +10,7 @@ import com.campus.social.mapper.AnnouncementMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AnnouncementAdminService;
 import com.campus.social.service.AnnouncementReachService;
+import com.campus.social.service.AuditService;
 import com.campus.social.service.support.AnnouncementAdminListAssembler;
 import com.campus.social.vo.AdminAnnouncementPageVO;
 import com.campus.social.vo.AnnouncementPublishVO;
@@ -60,6 +61,7 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     private final WsPushService wsPush;
     private final WsSessionManager sessionManager;
     private final AnnouncementReachService reachService;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -92,6 +94,9 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
         }
         log.info("announcement created: id={}, publisher={}, status={}, pushedOnline={}",
                 a.getId(), publisherId, a.getStatus(), pushed);
+        // 审计:新建公告(草稿/发布都记,便于追溯谁发了什么)
+        auditService.record(publisherId, "announcement_create", "announcement", a.getId(),
+                "title=" + a.getTitle() + ", status=" + (publishNow ? "已发布" : "草稿"), null);
 
         return AnnouncementPublishVO.builder()
                 .id(a.getId())
@@ -164,6 +169,9 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
         }
         log.info("announcement updated: id={}, admin={}, status={}, isTop={}",
                 announcementId, adminId, a.getStatus(), a.getIsTop());
+        // 审计:编辑公告(含上下架)
+        auditService.record(adminId, "announcement_update", "announcement", a.getId(),
+                "title=" + a.getTitle() + ", status=" + a.getStatus(), null);
 
         return AnnouncementPublishVO.builder()
                 .id(a.getId())
@@ -203,7 +211,11 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     public AnnouncementRemindVO remind(long adminId, long announcementId) {
         AnnouncementRow ann = requireReadable(announcementId);
         requirePublisherOrAdmin(adminId, ann);
-        return reachService.remind(adminId, announcementId, ann.getSchoolId());
+        AnnouncementRemindVO rv = reachService.remind(adminId, announcementId, ann.getSchoolId());
+        // 审计:公告催读(向未读用户重新推送提醒)
+        auditService.record(adminId, "announcement_remind", "announcement", announcementId,
+                "公告催读 id=" + announcementId, null);
+        return rv;
     }
 
     // ---------------------------------------------------------------- 私有

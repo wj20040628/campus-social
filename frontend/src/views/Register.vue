@@ -86,8 +86,18 @@
           <SchoolFields v-model="identity" />
         </el-form-item>
 
+        <!-- 同意协议勾选框（2026-10-20）：未勾选时按钮置灰 + onSubmit 兜底拦截；协议名可点打开弹窗 -->
         <el-form-item>
-          <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
+          <el-checkbox v-model="agreed" class="agree-box">
+            <span class="agree-box__text">我已阅读并同意</span>
+            <button type="button" class="legal-link" @click.stop.prevent="openLegal('user')">《用户协议》</button>
+            <span class="agree-box__text">和</span>
+            <button type="button" class="legal-link" @click.stop.prevent="openLegal('privacy')">《隐私政策》</button>
+          </el-checkbox>
+        </el-form-item>
+
+        <el-form-item>
+          <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading" :disabled="!agreed">
             注册并登录
           </el-button>
         </el-form-item>
@@ -110,6 +120,9 @@
         <router-link to="/login/form">去登录</router-link>
       </div>
     </div>
+
+    <!-- 协议弹窗：由勾选框里的《用户协议》/《隐私政策》链接调起 -->
+    <LegalAgreementDialog ref="legalRef" />
   </div>
 </template>
 
@@ -128,19 +141,23 @@ import { reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useUserStore } from '@/stores/user'
-import { useDictStore } from '@/stores/dict'
-import { IDENTITY_MODEL, matchStudentNoDept, matchStudentNoLevel } from '@/constants/schoolDict'
+import { IDENTITY_MODEL } from '@/constants/schoolDict'
 import { useRegisterSubmit } from '@/composables/useRegisterSubmit'
 import SchoolFields from '@/components/common/SchoolFields.vue'
 import PasswordInput from '@/components/auth/PasswordInput.vue'
 import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
 import StudentNoAppealDialog from '@/components/auth/StudentNoAppealDialog.vue'
+import LegalAgreementDialog from '@/components/auth/LegalAgreementDialog.vue'
 
 const appealRef = ref(null)
 
+// 协议弹窗 + 同意状态（2026-10-20）。未勾选时注册按钮置灰，onSubmit 再兜底拦截
+const legalRef = ref(null)
+const agreed = ref(false)
+function openLegal(doc) { legalRef.value?.open(doc) }
+
 const router = useRouter()
 const userStore = useUserStore()
-const dict = useDictStore()
 
 const formRef = ref()
 const form = reactive({
@@ -169,21 +186,6 @@ const {
 })
 
 /**
- * 学院归属在表单里排在学号下方,用户可能先填学号再选学院。
- * 学生号 validator 只在 blur 时跑一次,那时 deptId 可能还空着 →
- * 3-6 位交叉校验被跳过。这里在 deptId 变化时重跑一次学号校验,
- * 保证无论填写顺序如何,学院与学号大类对不上都能拦下来。
- */
-watch(
-  () => [identity.value.deptId, identity.value.level],
-  () => {
-    if (form.studentNo && formRef.value) {
-      formRef.value.validateField('studentNo').catch(() => {})
-    }
-  },
-)
-
-/**
  * 学校归属显隐:用户填到 13/14 位合法学号时才展开(注册即认证)。
  * 否则归属区隐藏,注册只建账号不认证。
  */
@@ -208,25 +210,14 @@ const rules = {
       validator: (r, v, cb) => {
         const s = (v || '').trim()
         if (!/^\d+$/.test(s)) return cb(new Error('学号需为纯数字'))
-        // 与后端六层校验一致:非空时长度必须 13 或 14 位
+        // 非空时长度必须 13 或 14 位
         if (s.length !== 13 && s.length !== 14) return cb(new Error('学号格式不正确'))
-        // 学号末两位是班内序号,取值 00~69(镜像后端 CampusVerifyServiceImpl.MAX_CLASS_RANK=69)
+        // 末两位是班内序号,取值 00~69(镜像后端 CampusVerifyServiceImpl.MAX_CLASS_RANK=69)
         const lastTwo = Number(s.slice(-2))
         if (lastTwo > 69) return cb(new Error('学号格式不正确'))
-        // 学号位 3-6 = 专业大类编码,需与所选学院对应(镜像后端认证交叉校验)。
-        // 学院名从字典下拉取:取不到 / 大类未收录时返回 null,不拦,交后端判定。
-        const deptName = dict.deptOptions.find((d) => d.id === identity.value.deptId)?.name
-        const matched = matchStudentNoDept(s, deptName)
-        if (matched === false) {
-          return cb(new Error('学号 6 位专业代码与你所选学院不一致，请核对学号或学院'))
-        }
-        // 学号层次标记(位 11-12:本科 05/5、专科 06/6)需与所选本专科一致。
-        // 选了本科却填了专科开头的学号,基本是学院或本专科选错,提前拦下。
-        // 未选本专科 / 学号长度不符则无法判定,返回 null 不拦,交后端。
-        const levelHit = matchStudentNoLevel(s, identity.value.level)
-        if (levelHit === false) {
-          return cb(new Error('学号层次（本科/专科）与你选择的本专科不一致，请核对学号或本专科'))
-        }
+        // 学院/本专科/年级/专业与学号是否对得上,一律交后端 1058 判定,不在本地拦。
+        // 本地做归属交叉硬拦会逐条泄露学号编码规则(与后端 2026-10-19 安全修正矛盾),
+        // 而且本地一拦提交就发不出、申诉出口出不来。归属不符统一走后端的模糊文案 + 申诉按钮。
         cb()
       },
       trigger: 'blur',
@@ -281,6 +272,8 @@ const identityError = computed(() => {
  * useRegisterSubmit 里 —— 这个分界与 Login.vue 一致。
  */
 async function onSubmit() {
+  // 兜底：按钮置灰仍可能被回车绕过，这里再拦一道
+  if (!agreed.value) { ElMessage.warning('请先阅读并同意《用户协议》和《隐私政策》'); return }
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
   // 归属三项是必填(AC-18),没填满就别白发请求

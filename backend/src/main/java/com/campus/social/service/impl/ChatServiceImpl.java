@@ -40,6 +40,7 @@ public class ChatServiceImpl implements ChatService {
     private final WsPushService wsPush;
     private final WsAfterCommit wsAfterCommit;
     private final ChatGuardService chatGuardService;
+    private final PostNotifySupport postNotifySupport;
 
     @Override
     public CursorPage<ConversationVO> conversations(long me, Long lastId, int size) {
@@ -135,6 +136,16 @@ public class ChatServiceImpl implements ChatService {
         long finalMsgId = m.getId();
         long finalConvId = convId;
 
+        // 私信通知去重:仅当接收方该会话「原本未读为 0」(这条消息开启新一轮未读)才发,
+        // 避免连续消息每条都刷一条通知造成轰炸。放在 touch 之前读增量前的值。
+        ChatConversation conv = convMapper.selectById(finalConvId);
+        int recvUnreadBefore = (a == me)
+                ? (conv.getUnreadB() == null ? 0 : conv.getUnreadB())
+                : (conv.getUnreadA() == null ? 0 : conv.getUnreadA());
+        if (recvUnreadBefore == 0) {
+            postNotifySupport.pushNotify(toUserId, 4, finalConvId, me, null);
+        }
+
         // 接收方未读 +1:未读记在"没读的那个人(接收方)"头上,不是发送方
         // me 是发送方:若 me==a,则接收方 toUserId==b → 加 unread_b;反之加 unread_a
         if (a == me) {
@@ -223,13 +234,23 @@ public class ChatServiceImpl implements ChatService {
         int unread = c.getMemberA().equals(me) ? c.getUnreadA() : c.getUnreadB();
 
         String preview = "";
+        ChatMessage last = null;
         if (c.getLastMsgId() != null) {
-            ChatMessage last = msgMapper.selectById(c.getLastMsgId());
+            last = msgMapper.selectById(c.getLastMsgId());
             if (last != null && last.getContent() != null) {
                 preview = last.getContent().length() > 50
                         ? last.getContent().substring(0, 50) + "…"
                         : last.getContent();
             }
+        }
+
+        // 待回应纸条:最后一条消息来自对方(我欠回复)且最后活动在 24h 内。
+        // 用发送方方向而非 unread>0:已读但未回的纸条同样算「待回应」,24h 后自动失效。
+        boolean pending = false;
+        if (c.getLastMsgId() != null && last != null
+                && last.getSenderId() != null && !last.getSenderId().equals(me)) {
+            pending = c.getUpdateTime() != null
+                    && c.getUpdateTime().isAfter(java.time.LocalDateTime.now().minusHours(24));
         }
 
         return ConversationVO.builder()
@@ -239,6 +260,7 @@ public class ChatServiceImpl implements ChatService {
                 .lastPreview(preview)
                 .lastMsgId(c.getLastMsgId())
                 .lastMsgTime(c.getUpdateTime())
+                .pendingReply(pending)
                 .build();
     }
 

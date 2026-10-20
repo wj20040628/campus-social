@@ -22,4 +22,11 @@ public class DevModeMessageGateway implements MessageGateway {
         log.info("[DEV 模式] 验证码发送 → target={}, code={}", target, code);
         return true;
     }
+
+    @Override
+    public boolean sendNotice(String target, String subject, String htmlBody) {
+        // 本地开发:通知邮件同样只打控制台,便于联调申诉处理结果时核对正文
+        log.info("[DEV 模式] 通知邮件 → target={}, subject={}, body={}", target, subject, htmlBody);
+        return true;
+    }
 }

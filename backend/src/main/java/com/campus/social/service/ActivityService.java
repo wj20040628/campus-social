@@ -20,4 +20,7 @@ public interface ActivityService {
 
     /** 取消报名 */
     void cancel(long activityId, long userId);
+
+    /** 取消整个活动(创建者/管理员):置 status=4 并通知所有已报名者 */
+    void cancelActivity(long activityId, long operatorId);
 }

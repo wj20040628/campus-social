@@ -1,0 +1,75 @@
+/* 协议独立页样式。整页自带极简顶栏 + 居中正文，不依赖 MainLayout。
+   配色全部走 --ys-* token，与登录/注册页同源。 */
+
+.legal-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--ys-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶栏：品牌在左，返回在右，底部一条分隔线 */
+.legal-page__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ys-space-3) var(--ys-gutter-phone);
+  background: var(--ys-surface);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.legal-page__brand {
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* 返回按钮：行内文字按钮，热区撑到 44px 好按 */
+.legal-page__back {
+  border: 0;
+  background: none;
+  margin: 0;
+  padding: 0 var(--ys-space-2);
+  min-height: var(--ys-touch-min);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+.legal-page__back:hover {
+  color: var(--ys-accent-hover);
+}
+
+/* 正文：窄栏居中，桌面端最大 720px，左右留白用 gutter */
+.legal-page__body {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--ys-space-8) var(--ys-gutter-phone) var(--ys-space-12);
+}
+
+.legal-page__title {
+  margin: 0 0 var(--ys-space-6);
+  font-size: var(--ys-text-2xl);
+  line-height: var(--ys-lh-2xl);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.legal-page__p {
+  margin: 0;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  color: var(--ys-fg-2);
+  overflow-wrap: anywhere;
+}
+
+/* 段落之间留呼吸空间，用相邻选择器避免逐个写类名 */
+.legal-page__p + .legal-page__p {
+  margin-top: var(--ys-space-4);
+}

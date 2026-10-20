@@ -22,7 +22,11 @@
           </button>
 
           <nav class="adrawer__nav">
-            
+            <!-- 编辑资料:进 /profile 编辑昵称/学校信息;头部点进去是「我的主页」展示页,这里才是编辑入口 -->
+            <button type="button" class="adrawer__item" @click="go('/profile')">
+              <span class="adrawer__ic"><el-icon :size="17"><Edit /></el-icon></span>
+              编辑资料
+            </button>
 
             <!-- 通知:互动通知(/notify),未读数与顶栏铃铛同源(MainLayout 下发) -->
             <button type="button" class="adrawer__item" @click="go('/notify')">
@@ -31,41 +35,38 @@
               <UnreadDot :count="notifyUnread" noun="条通知未读" class="adrawer__dot" />
             </button>
 
-            <button type="button" class="adrawer__item" @click="goHome">
-              <span class="adrawer__ic"><el-icon :size="17"><User /></el-icon></span>
-              我的主页
-            </button>
-
-            <button type="button" class="adrawer__item" @click="go('/circles')">
-              <span class="adrawer__ic"><el-icon :size="17"><ChatRound /></el-icon></span>
-              我的圈子
-            </button>
-
+            <div class="adrawer__cap">我的内容</div>
             <!-- 我的审核记录:弹层(原设置页逻辑整体搬来,入口更全局) -->
             <button type="button" class="adrawer__item" @click="openReview">
               <span class="adrawer__ic"><el-icon :size="17"><Tickets /></el-icon></span>
               我的审核记录
             </button>
 
-            <!--
-              校内认证:**适配现有认证流程** —— 只做入口,点击跳编辑资料页
-              (/profile,学号在那里提交,审核通过即生效),不自建第二套流程。
-              verify_status=1(已认证)时隐藏;未认证/审核中/已驳回都给入口
-              (驳回的用户也需要去编辑资料重新提交)。
-            -->
-            <button v-if="verifyCode !== VERIFY_OK" type="button" class="adrawer__item" @click="go('/profile')">
-              <span class="adrawer__ic"><el-icon :size="17"><CircleCheck /></el-icon></span>
-              校内认证
-              <span class="adrawer__warn">未认证</span>
+            <div class="adrawer__cap">发现</div>
+            <button type="button" class="adrawer__item" @click="go('/discover')">
+              <span class="adrawer__ic"><el-icon :size="17"><Compass /></el-icon></span>
+              发现
+            </button>
+            <button type="button" class="adrawer__item" @click="go('/announcement')">
+              <span class="adrawer__ic"><el-icon :size="17"><Promotion /></el-icon></span>
+              公告
             </button>
 
             <div class="adrawer__cap">更多</div>
-
             <!-- 意见反馈:真表单(分类 + 描述 + 截图/录屏),提交进管理员审核队列 -->
             <button type="button" class="adrawer__item" @click="openFeedback">
               <span class="adrawer__ic"><el-icon :size="17"><Promotion /></el-icon></span>
               意见反馈
             </button>
+
+            <template v-if="userStore.isAdmin">
+              <div class="adrawer__cap">管理</div>
+              <!-- 管理后台:复用 useSettings 的 adminSheetOpen(ActionSheet 与各子页同源) -->
+              <button type="button" class="adrawer__item" @click="adminSheetOpen = true">
+                <span class="adrawer__ic"><el-icon :size="17"><Operation /></el-icon></span>
+                管理后台
+              </button>
+            </template>
           </nav>
 
           <!-- 底部固定:深色开关 + 设置 + 退出(快手式,入口从此不再藏两层)。
@@ -107,29 +108,39 @@
       el-dialog 自己带 Teleport + append-to-body,放在抽屉面板内会被
       Transition 的 v-if 一起撕掉(抽屉一关,弹层跟着消失)。
     -->
+    <!-- 管理后台弹层:复用 useSettings 的 adminSheetOpen(与设置页同源) -->
+    <ActionSheet v-model="adminSheetOpen" title="管理后台">
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/verify')">学号核验</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/review')">内容审核</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/announcement')">公告管理</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/audit')">操作日志</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/circles')">圈子处置</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/feedback')">意见反馈</button>
+    </ActionSheet>
+
     <FeedbackDialog ref="feedbackRef" />
   </Teleport>
 </template>
 
 <script setup>
 /**
- * 全局导航抽屉(2026-10-18 新增,手机端顶栏汉堡唤起)。
- * - 通知/主页/圈子/审核记录/校内认证/意见反馈 + 底部深色开关/设置/退出
- * - 桌面端(2026-10-18 下午起)头像也唤起本抽屉:原 el-dropdown 精简菜单
- *   与设计稿不符,统一成一个抽屉后两端内容完全一致
+ * 全局导航抽屉(2026-10-18 新增,手机端顶栏汉堡唤起;2026-10-19 按用户结构重构分组)。
+ * - 头部(头像+昵称+学号,点进「我的主页」) + 编辑资料 + 通知(红点)
+ *   + 我的内容(我的审核记录) + 发现(发现/公告) + 更多(意见反馈)
+ *   + 管理(isAdmin:管理后台 ActionSheet) + 底部深色开关/设置/退出
+ * - 桌面端头像也唤起本抽屉,两端内容一致
  * - 未读数由 MainLayout 下发(props),与顶栏铃铛同源,不重复请求
- * - 校内认证**只做入口**跳 /profile 适配现有流程,不自建第二套认证
- * - Teleport 到 body:抽屉要盖住 TabBar(fixed),受 MainLayout 的
- *   overflow/sticky 层叠上下文影响小
+ * - 编辑资料跳 /profile;管理后台复用 useSettings 的 adminSheetOpen(与设置页同源)
  */
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Bell, ChatRound, CircleCheck, Moon, Promotion, Setting, SwitchButton, Tickets, User,
+  Bell, Compass, Edit, Moon, Operation, Promotion, Setting, SwitchButton, Tickets,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useTheme } from '@/composables/useTheme'
-import { useVerifyStatus, VERIFY_OK, VERIFY_PENDING } from '@/composables/useVerifyStatus'
+import { useVerifyStatus, VERIFY_PENDING } from '@/composables/useVerifyStatus'
+import { useSettings } from '@/composables/useSettings'
 import { mine as myReviewApi } from '@/api/review'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import FeedbackDialog from '@/views/settings/FeedbackDialog.vue'
@@ -147,6 +158,7 @@ const emit = defineEmits(['update:modelValue', 'logout'])
 const router = useRouter()
 const userStore = useUserStore()
 const { isDark, toggle: toggleTheme } = useTheme()
+const { adminSheetOpen, goAdmin } = useSettings()
 
 /** 头像无图/拉取失败时的首字母兜底,与 TopBar 同规则 */
 const avatarFallback = computed(() => {
@@ -183,7 +195,7 @@ const { code: verifyCode, studentNo, load: loadVerifyStatus } = useVerifyStatus(
  * 学号展示。三态各说各的话,不给「未填写」这种像在催用户填表的措辞:
  * - 有学号 → 直接显示(绝大多数人)
  * - 审核中 → 「学号审核中」
- * - 没填/驳回 → 「未认证」,和下方那一行「校内认证 未认证」一致
+ * - 没填/驳回 → 「未认证」
  */
 const studentNoText = computed(() => {
   if (studentNo.value) return `学号:${studentNo.value}`
@@ -223,7 +235,7 @@ function openReview() {
 }
 
 onMounted(() => {
-  // 认证状态决定「校内认证」行显隐(单例缓存,不重复请求)
+  // 认证状态决定头部学号文案(单例缓存,不重复请求)
   loadVerifyStatus()
 })
 </script>

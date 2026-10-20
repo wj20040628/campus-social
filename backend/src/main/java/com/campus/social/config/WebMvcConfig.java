@@ -69,6 +69,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/refresh",
                         "/auth/send-code",
                         "/auth/login-code",
+                        // 学号认证申诉(2026-10-19):提交方是「注册失败、还没账号」的人,
+                        // 没有 token 也必须放行,联系邮箱随申诉落库供管理员联系。
+                        "/auth/appeal-student-no",
                         "/upload/config",
                         // 学校字典:纯只读全局参照数据,注册页(未登录)也要拉院系/年级/专业,
                         // 不放行会在打开注册页时就被 401 踢回登录页(DictController 仅 GET,无越权风险)。

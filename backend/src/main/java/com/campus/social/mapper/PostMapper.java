@@ -83,12 +83,21 @@ public interface PostMapper extends BaseMapper<Post> {
     int restoreCirclePosts(@Param("circleId") long circleId);
 
     /**
-     * 某用户发的动态数(他人主页头部「动态」数字用)。
-     * 口径与 PostFeedQueryService.myPosts 一致:status IN (0,1,2) 且未删。
+     * 某用户发的动态数(本人主页头部「动态」数字用)。
+     * 口径与 PostFeedQueryService.myPosts 本人视角一致:status IN (0,1,2) 且未删。
      * 现查 post 表而非依赖冗余计数列 —— 列漂移时列表是对的、头部也会跟着对。
      */
     @Select("SELECT COUNT(*) FROM post WHERE author_id = #{authorId} AND status IN (0,1,2) AND is_deleted = 0")
     int countByAuthor(@Param("authorId") Long authorId);
+
+    /**
+     * 某用户公开可见的动态数(2026-10-20,他人主页头部「动态」数字用)。
+     * 只数 status=1:看别人主页时,审核中/已驳回的帖子既不出现在列表,
+     * 头部数字也不该把它们算进去 —— 否则「数字 20、列表 15」对不上。
+     * 本人视角仍走 countByAuthor(含 0/2,与本人列表口径一致)。
+     */
+    @Select("SELECT COUNT(*) FROM post WHERE author_id = #{authorId} AND status = 1 AND is_deleted = 0")
+    int countPublicByAuthor(@Param("authorId") Long authorId);
 
     /**
      * 帖子全文搜索(MATCH/AGAINST,中文走 ngram 分词器)。

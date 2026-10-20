@@ -36,6 +36,17 @@ public interface FeedbackMapper extends BaseMapper<Feedback> {
             @Param("content") String content, @Param("mediaJson") String mediaJson);
 
     /**
+     * 取本连接最近一次 INSERT 的自增主键。
+     *
+     * <p>{@code insertFeedback} 用注解 SQL、没配 {@code useGeneratedKeys}，
+     * 拿不到新主键。普通反馈靠 {@code selectLatestIdByUser} 回查，但学号申诉
+     * 的 {@code user_id} 是 NULL、回查按 user_id 会查不到，故补一条
+     * {@code LAST_INSERT_ID()}（同一事务同一连接，紧跟 insert 之后取值是可靠的）。
+     */
+    @Select("SELECT LAST_INSERT_ID()")
+    Long selectLastInsertId();
+
+    /**
      * 取该用户刚插入的那条 id。
      *
      * <p>{@code insertFeedback} 用的是注解 SQL 而非 MP 的 insert，
@@ -71,10 +82,14 @@ public interface FeedbackMapper extends BaseMapper<Feedback> {
             + "LEFT JOIN user u ON u.id = f.user_id "
             + "WHERE f.is_deleted = 0 "
             + "<if test='status != null'>AND f.status = #{status} </if>"
+            + "<if test='category != null'>AND f.category = #{category} </if>"
+            + "<if test='kind != null and kind == 1'>AND f.content LIKE '【认证申诉】%' </if>"
+            + "<if test='kind != null and kind == 0'>AND f.content NOT LIKE '【认证申诉】%' </if>"
             + "<if test='cursor != null'>AND f.id &lt; #{cursor} </if>"
             + "ORDER BY f.id DESC LIMIT #{limit}"
             + "</script>")
     List<FeedbackAdminItemVO> selectAdminList(@Param("status") Integer status,
+            @Param("category") Integer category, @Param("kind") Integer kind,
             @Param("cursor") Long cursor, @Param("limit") int limit);
 
     /**

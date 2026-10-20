@@ -1,0 +1,25 @@
+/* 协议弹层样式。内容挂在 .la 容器上，弹层本体 el-dialog 非 scoped，
+   只作挂载锚点；样式与 StudentNoAppealDialog 同思路。 */
+
+/* 正文区可滚动：长协议在矮屏（如 iPhone SE 568px）也不会撑破视口。
+   60vh 给顶栏 + 底部按钮留出空间，不贴边。 */
+.la {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--ys-space-2);
+}
+
+/* 每条段落：13px / 行高略松，fg-2 比正文浅一档，读起来不刺眼 */
+.la__p {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-md);
+  color: var(--ys-fg-2);
+  /* 第一条是平台性质声明，与后面编号条款之间不额外加距 */
+  overflow-wrap: anywhere;
+}
+
+/* 段落之间留呼吸空间，用相邻选择器避免逐个写类名 */
+.la__p + .la__p {
+  margin-top: var(--ys-space-3);
+}

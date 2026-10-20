@@ -265,8 +265,8 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public CursorPage<PostVO> myPosts(long authorId, Long lastId, int size) {
-        return feedQuery.myPosts(authorId, lastId, size);
+    public CursorPage<PostVO> myPosts(long authorId, long viewerId, Long lastId, int size) {
+        return feedQuery.myPosts(authorId, viewerId, lastId, size);
     }
 
     // ---------------------------------------------------------------- 私有

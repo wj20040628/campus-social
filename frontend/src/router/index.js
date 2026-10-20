@@ -7,17 +7,9 @@ import adminRoutes from './admin'
 /**
  * 路由表
  * ------------------------------------------------------------------
- * meta 字段(依据 MainLayout.vue.md §1.1):
- *   title       浏览器标题 + 移动端顶栏标题
- *   back        true = 顶栏用「返回型」(左箭头 + 标题);不填 = 品牌型(左「友声」)
- *   hideTabBar  true = 隐藏底部 TabBar,内容区底部留白随之改变。
- *               用于会话页、帖子详情、发布页、全屏编辑器 —— 这些页面自己
- *               要占满底部(输入区 / 吸底操作栏),再叠一个 56px TabBar,
- *               在 iPhone 上会把可用高度压到半屏以下。
- *
- * 断点纪律:本页不出现任何与断点有关的逻辑。EP 的 el-col 响应式属性
- * (:xs/:sm/:md/:lg/:xl)在本项目**禁止使用** —— EP 内置断点
- * (768/992/1200/1920)与设计 Token(640/768/1024/1280/1536)完全错位。
+ * meta 字段:title(标题)、back(返回型顶栏)、hideTabBar(隐藏底栏)、
+ * ownTop(自绘顶栏)、requiresAuth/requiresAdmin(守卫)。
+ * 断点纪律:本页禁止任何断点逻辑;EP 的 el-col 响应式属性与设计 Token 错位,禁用。
  */
 const routes = [
   {
@@ -28,6 +20,23 @@ const routes = [
       { path: 'form', name: 'login', component: () => import('@/views/Login.vue'), meta: { title: '登录' } },
       { path: 'register', name: 'register', component: () => import('@/views/Register.vue'), meta: { title: '注册' } },
     ],
+  },
+
+  /* ---- 协议独立页（2026-10-20）：备案/外链用，公开可访问、无需登录 ----
+     与注册页弹窗共用 @/constants/legalDocs 同一份文本；props 静态传入 doc 决定渲染哪一份。 */
+  {
+    path: '/agreement',
+    name: 'userAgreement',
+    component: () => import('@/views/LegalPage.vue'),
+    props: { doc: 'user' },
+    meta: { title: '用户协议' },
+  },
+  {
+    path: '/privacy',
+    name: 'privacyPolicy',
+    component: () => import('@/views/LegalPage.vue'),
+    props: { doc: 'privacy' },
+    meta: { title: '隐私政策' },
   },
   {
     path: '/',
@@ -220,6 +229,12 @@ const routes = [
         name: 'settingsAbout',
         component: () => import('@/views/settings/SettingsAbout.vue'),
         meta: { requiresAuth: true, title: '关于我们', back: true },
+      },
+      {
+        path: 'settings/notify',
+        name: 'settingsNotify',
+        component: () => import('@/views/settings/SettingsNotify.vue'),
+        meta: { requiresAuth: true, title: '通知设置', back: true },
       },
     ],
   },

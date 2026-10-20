@@ -215,4 +215,11 @@ public class CircleController {
         activityService.cancel(id, me);
         return Result.ok();
     }
+
+    @PostMapping("/activity/{id}/close")
+    public Result<Void> closeActivity(@PathVariable("id") long id, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        activityService.cancelActivity(id, me);
+        return Result.ok();
+    }
 }

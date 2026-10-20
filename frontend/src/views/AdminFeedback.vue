@@ -17,6 +17,22 @@
       </button>
     </div>
 
+    <!-- 行 2:类型筛选。普通内容分类都排除申诉,「认证申诉」可单独点出来,与状态筛选叠加 -->
+    <div class="chips chips--sub" role="tablist" aria-label="反馈类型">
+      <button
+        v-for="c in TYPE_CHIPS"
+        :key="c.key"
+        type="button"
+        role="tab"
+        class="chip"
+        :class="{ 'is-on': typeIsOn(c), 'chip--appeal-filter': c.key === 'appeal' }"
+        :aria-selected="typeIsOn(c)"
+        @click="pickType(c)"
+      >
+        {{ c.label }}
+      </button>
+    </div>
+
     <p v-if="actionError" class="notice notice--danger" role="alert">{{ actionError }}</p>
 
     <!-- 权限不足(AC-20)。与 AdminReview / AdminAnnouncement 共用 StateBlock -->
@@ -54,8 +70,8 @@
       <StateBlock
         v-else-if="list.length === 0"
         variant="empty"
-        title="这个状态下没有反馈"
-        description="换一个筛选看看"
+        title="当前筛选下没有反馈"
+        description="换一个状态或类型看看"
         action-label="看全部"
         :primary="false"
         :icon="Filter"
@@ -87,11 +103,18 @@
     -->
     <el-dialog
       v-model="handleOpen"
-      :title="handleAction === 'adopt' ? '采纳这条反馈' : '忽略这条反馈'"
+      :title="handleTitle"
       :width="isMobile ? '92%' : '480px'"
       append-to-body
     >
       <p class="af__quote">{{ pending?.content }}</p>
+      <!--
+        申诉人没有账号：站内通知触达不到，处理说明只能靠邮件。
+        必须让管理员在写之前就知道「这段话会直接发给对方」，而不是当内部备注写。
+      -->
+      <p v-if="pendingIsAppeal" class="af__hint">
+        申诉人还没有账号，这段说明会通过邮件发到 TA 填写的联系邮箱。
+      </p>
       <el-input
         v-model="handleNote"
         type="textarea"
@@ -99,12 +122,12 @@
         maxlength="200"
         show-word-limit
         resize="none"
-        :placeholder="handleAction === 'adopt' ? '写清楚打算怎么改' : '写一句为什么忽略'"
+        :placeholder="handlePlaceholder"
       />
       <template #footer>
         <el-button @click="handleOpen = false">取消</el-button>
         <el-button type="primary" :loading="handling" :disabled="!handleNote.trim()" @click="submitHandle">
-          确认{{ handleAction === 'adopt' ? '采纳' : '忽略' }}
+          {{ handleConfirmText }}
         </el-button>
       </template>
     </el-dialog>
@@ -120,7 +143,7 @@
  * api 层已 suppressStatuses:[409],所以这里把「已被他人处理」翻成人话 +
  * 刷新这一条的状态,而不是让全局红条先弹一条「操作失败」。
  */
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { ChatLineSquare, Filter, WarningFilled } from '@element-plus/icons-vue'
@@ -141,12 +164,36 @@ const STATUS_CHIPS = [
   { value: null, label: '全部' },
 ]
 
+/**
+ * 类型筛选 chip。普通内容分类(1~5)都带 kind=0(排除认证申诉),
+ * 「认证申诉」带 kind=1(只看申诉),「全部类型」两个都为 null。
+ * 这样申诉不再被塞进「使用问题」等分类,也能单独点出来。
+ */
+const TYPE_CHIPS = [
+  { key: 'all', label: '全部类型', category: null, kind: null },
+  { key: 'c1', label: '功能建议', category: 1, kind: 0 },
+  { key: 'c2', label: '使用问题', category: 2, kind: 0 },
+  { key: 'c3', label: '内容问题', category: 3, kind: 0 },
+  { key: 'c4', label: '界面体验', category: 4, kind: 0 },
+  { key: 'c5', label: '其他', category: 5, kind: 0 },
+  { key: 'appeal', label: '认证申诉', category: null, kind: 1 },
+]
+
+/** 当前类型 chip 是否高亮:category 与 kind 两个维度都要对上 */
+function typeIsOn(c) {
+  return category.value === c.category && kind.value === c.kind
+}
+
 const router = useRouter()
 const userStore = useUserStore()
 const isMobile = useIsMobile()
 
 const all = ref([])
 const status = ref(0)
+/** 内容分类筛选;null=全部类型 */
+const category = ref(null)
+/** 认证申诉标记:1=只看申诉 0=只看非申诉 null=不限。普通内容分类都带 0,把申诉排出去 */
+const kind = ref(null)
 const cursor = ref(null)
 const hasMore = ref(false)
 const pendingCount = ref(0)
@@ -167,6 +214,26 @@ const handleAction = ref('adopt')
 /** 正在处置的那条;处置成功后用它就地更新,不整列表重拉 */
 const pending = ref(null)
 
+/** 申诉前缀，与后端 FeedbackServiceImpl.APPEAL_PREFIX / AdminFeedbackItem 保持一致 */
+const APPEAL_PREFIX = '【认证申诉】'
+/** 当前处置的是否为学号认证申诉。申诉人无账号，处置说明走邮件而非站内通知 */
+const pendingIsAppeal = computed(() => String(pending.value?.content || '').startsWith(APPEAL_PREFIX))
+
+const handleTitle = computed(() => {
+  if (pendingIsAppeal.value) return handleAction.value === 'adopt' ? '通过这条申诉' : '驳回这条申诉'
+  return handleAction.value === 'adopt' ? '采纳这条反馈' : '忽略这条反馈'
+})
+
+const handlePlaceholder = computed(() => {
+  if (pendingIsAppeal.value) return '这段说明会通过邮件发给申诉人，写清楚核实结果或该怎么处理'
+  return handleAction.value === 'adopt' ? '写清楚打算怎么改' : '写一句为什么忽略'
+})
+
+const handleConfirmText = computed(() => {
+  if (pendingIsAppeal.value) return handleAction.value === 'adopt' ? '确认通过' : '确认驳回'
+  return handleAction.value === 'adopt' ? '确认采纳' : '确认忽略'
+})
+
 async function load(reset = false) {
   if (reset) {
     loading.value = true
@@ -175,7 +242,12 @@ async function load(reset = false) {
     loadingMore.value = true
   }
   try {
-    const data = await adminFeedback({ status: status.value, cursor: reset ? null : cursor.value })
+    const data = await adminFeedback({
+      status: status.value,
+      category: category.value,
+      kind: kind.value,
+      cursor: reset ? null : cursor.value,
+    })
     const rows = data?.list || []
     all.value = reset ? rows : [...all.value, ...rows]
     cursor.value = data?.nextCursor ?? null
@@ -206,6 +278,17 @@ function pickStatus(v) {
   load(true)
 }
 
+/** 切换类型筛选:与 pickStatus 同构,重置游标后从第一页重拉 */
+function pickType(c) {
+  if (typeIsOn(c)) return
+  category.value = c.category
+  kind.value = c.kind
+  all.value = []
+  cursor.value = null
+  hasMore.value = false
+  load(true)
+}
+
 function openHandle(item, action) {
   pending.value = item
   handleAction.value = action
@@ -229,7 +312,12 @@ async function submitHandle() {
     handleTimeNow(item)
     if (pendingCount.value > 0) pendingCount.value -= 1
     handleOpen.value = false
-    ElMessage.success(handleAction.value === 'adopt' ? '已采纳' : '已忽略')
+    // 申诉的处理说明是发邮件给对方，提示里说清楚，避免管理员以为只是站内备注
+    ElMessage.success(
+      pendingIsAppeal.value
+        ? (handleAction.value === 'adopt' ? '已通过，处理说明已发邮件' : '已驳回，处理说明已发邮件')
+        : (handleAction.value === 'adopt' ? '已采纳' : '已忽略'),
+    )
   } catch (e) {
     // 409 = 已被别人处置了:不是故障,是竞争结果。刷新列表让管理员看到最新状态
     if (e?.response?.status === 409) {

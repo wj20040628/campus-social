@@ -54,6 +54,14 @@ public class AliyunDmMailGateway implements MessageGateway {
     private final String templateId;
     /** 邮件标题:模板模式下标题以请求为准(需与控制台模板「邮件标题」保持一致) */
     private final String subject;
+    /**
+     * 通知类邮件模板 ID(可选)。
+     *
+     * <p>验证码走 {@link #templateId}(模板 445523,只有 {@code code} 变量);而申诉处理结果
+     * 是自由正文,无法塞进验证码模板。控制台另建一个含 {@code content} 变量的模板并配到
+     * {@code app.campus.aliyun.notice-template-id} 时走模板发信;未配则回退直传 HtmlBody。
+     */
+    private final String noticeTemplateId;
     /** 凭据类型:ecs_ram_role(默认,走 ECS 实例元数据自动发/刷 STS,磁盘无 AK)/ access_key(回退环境变量 AK) */
     private final String credentialType;
     /** ECS 实例绑定的 RAM 角色名(可空,空则 SDK 自动从实例元数据发现) */
@@ -72,6 +80,7 @@ public class AliyunDmMailGateway implements MessageGateway {
             @Value("${app.campus.aliyun.tag-name:}") String tagName,
             @Value("${app.campus.aliyun.template-id:}") String templateId,
             @Value("${app.campus.aliyun.subject:系统验证码通知}") String subject,
+            @Value("${app.campus.aliyun.notice-template-id:}") String noticeTemplateId,
             @Value("${app.campus.aliyun.credential-type:ecs_ram_role}") String credentialType,
             @Value("${app.campus.aliyun.role-name:}") String roleName,
             @Lazy AliyunDmMailGateway self) {
@@ -81,6 +90,7 @@ public class AliyunDmMailGateway implements MessageGateway {
         this.tagName = tagName;
         this.templateId = templateId;
         this.subject = subject;
+        this.noticeTemplateId = noticeTemplateId;
         this.credentialType = credentialType;
         this.roleName = roleName;
         this.self = self;
@@ -125,6 +135,53 @@ public class AliyunDmMailGateway implements MessageGateway {
         self.deliverAsync(target, code);
         log.info("验证码邮件已提交阿里云 DM 后台投递: target={}", target);
         return true;
+    }
+
+    @Override
+    public boolean sendNotice(String target, String subject, String htmlBody) {
+        if (target == null || !target.contains("@")) {
+            log.warn("AliyunDmMailGateway 仅支持邮箱,忽略非邮箱目标: {}", target);
+            return false;
+        }
+        // 与 sendCode 同语义:立即受理,真实投递转后台
+        self.deliverNoticeAsync(target, subject, htmlBody);
+        log.info("通知邮件已提交阿里云 DM 后台投递: target={}, subject={}", target, subject);
+        return true;
+    }
+
+    /** @Async:通知邮件投递(自由正文,与验证码共用 mailExecutor) */
+    @Async("mailExecutor")
+    public CompletableFuture<Void> deliverNoticeAsync(String target, String subject, String htmlBody) {
+        try {
+            SingleSendMailRequest req = new SingleSendMailRequest()
+                    .setAccountName(fromAddress)
+                    .setAddressType(addressType)
+                    .setFromAlias(fromAlias)
+                    .setReplyToAddress(false)
+                    .setToAddress(target)
+                    .setSubject(subject);
+            if (noticeTemplateId != null && !noticeTemplateId.isEmpty()) {
+                // 控制台另建含 content 变量的通知模板时走模板发信
+                req.setTemplate(new SingleSendMailRequest.SingleSendMailRequestTemplate()
+                        .setTemplateId(noticeTemplateId)
+                        .setTemplateData(Map.of("content", htmlBody)));
+            } else {
+                // 未配通知模板:直传 HtmlBody(自由正文)
+                req.setHtmlBody(htmlBody);
+            }
+            if (tagName != null && !tagName.isEmpty()) {
+                req.setTagName(tagName);
+            }
+            req.setClickTrace("0");
+            client.singleSendMailWithOptions(req, new RuntimeOptions());
+            log.info("阿里云 DM 通知邮件投递成功: target={}, subject={}", target, subject);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            log.error("阿里云 DM 通知邮件投递失败: target={}, err={}", target, e.getMessage(), e);
+            CompletableFuture<Void> failed = new CompletableFuture<>();
+            failed.completeExceptionally(e);
+            return failed;
+        }
     }
 
     /** @Async:Spring 代理在 mailExecutor 线程池上执行真实 DM 调用 */

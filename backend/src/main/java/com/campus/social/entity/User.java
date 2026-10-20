@@ -51,6 +51,9 @@ public class User implements Serializable {
     private String bio;
     private String avatarUrl;
 
+    /** 通知偏好 JSON:{"disabled":[类型id]},NULL=全开 */
+    private String notifyPref;
+
     /**
      * 年级与院系：<b>id 是权威值，名称是展示快照</b>。
      *

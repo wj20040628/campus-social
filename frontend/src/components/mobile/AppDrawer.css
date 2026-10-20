@@ -137,6 +137,28 @@
   color: var(--ys-danger);
 }
 
+/* 管理后台操作表层按钮:ActionSheet 的 scoped 样式穿透不到本组件插槽,
+   这里补一份(.asheet__item 与 ActionSheet.vue / Settings.vue 同源) */
+.asheet__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border: none;
+  background: transparent;
+  font-size: var(--ys-text-base);
+  font-family: var(--ys-font-body);
+  color: var(--ys-fg);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.asheet__item:hover {
+  background: var(--ys-surface-2);
+}
+
 /* 过渡:遮罩淡入 + 面板右侧滑入;尊重系统的减少动态设置 */
 .adrawer-enter-active,
 .adrawer-leave-active {

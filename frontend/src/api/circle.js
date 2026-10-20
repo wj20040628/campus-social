@@ -90,6 +90,10 @@ export function cancelSignup(id) {
   return request.post(`/activity/${id}/cancel`)
 }
 
+export function closeActivity(id) {
+  return request.post(`/activity/${id}/close`)
+}
+
 export function search(q, type = 'all', size = 20) {
   return request.get(`/search?q=${encodeURIComponent(q)}&type=${type}&size=${size}`)
 }
@@ -99,5 +103,6 @@ export default {
   topPost, untopPost, takedownPost, movePost,
   appointAdmin, revokeAdmin, banMember, unbanMember, circleMembers,
   createActivity, activitiesByCircle, activityDetail, signup, cancelSignup,
+  closeActivity,
   search,
 }

@@ -42,13 +42,17 @@ export const AUTH_ERR = {
  * 从任意写法的错误里取业务码。
  *
  * 两条路径都要试:
- *   - HTTP 4xx/5xx(1001/1003/1020 等已登记真实状态码的):原始 axios error,
- *     码在 error.response.data.code
- *   - HTTP 200 + code!=200:拦截器 reject 的是 `new Error(message)`,**码会丢失**,
- *     此时返回 null,调用方走通用文案(不会误判成「账号被封禁」)
+ *   - HTTP 4xx/5xx(已登记真实状态码,如 1058→422 / 1003→409):原始 axios error,
+ *     `error.response.data.code` 可读。
+ *   - HTTP 200 + code!=200:GlobalExceptionHandler 对未登记业务码回落 200,
+ *     此时 axios 走成功分支、拦截器 `reject(new Error(message))` 并挂
+ *     `err.businessCode = code`(见 request.js 成功分支)。`e.response` 为空,
+ *     必须从 `err.businessCode` 取码,否则 1058 会被误判成「网络好像断了」,
+ *     注册页学号下方的「我确实是本校学生」申诉按钮永远出不来。
+ *   两处取不到(网络层失败 / 编程错误)才返回 null,调用方走通用文案。
  */
 export function authErrCode(e) {
-  const c = e?.response?.data?.code
+  const c = e?.response?.data?.code ?? e?.businessCode
   return typeof c === 'number' && Number.isFinite(c) && c > 0 ? c : null
 }
 

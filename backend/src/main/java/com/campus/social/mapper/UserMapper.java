@@ -286,9 +286,21 @@ public interface UserMapper extends BaseMapper<User> {
     List<com.campus.social.vo.UnreadUserVO> selectUnreadUsers(@Param("announcementId") Long announcementId,
             @Param("schoolId") Long schoolId, @Param("cursor") Long cursor, @Param("limit") int limit);
 
+    /** 审计:按昵称模糊反查操作人 id 列表(供日志按姓名筛选) */
+    @Select("SELECT id FROM user WHERE is_deleted = 0 AND nickname LIKE CONCAT('%', #{kw}, '%')")
+    List<Long> selectIdsByNicknameLike(@Param("kw") String kw);
+
     @Select("SELECT COUNT(*) FROM user u "
             + "WHERE u.school_id = #{schoolId} AND u.status = 0 AND u.is_deleted = 0 AND u.role = 0 "
             + "  AND NOT EXISTS (SELECT 1 FROM announcement_read r "
             + "                  WHERE r.announcement_id = #{announcementId} AND r.user_id = u.id AND r.is_deleted = 0)")
     int countUnreadUsers(@Param("announcementId") Long announcementId, @Param("schoolId") Long schoolId);
+
+    /** 仅取通知偏好列(轻量,不拉整行) */
+    @Select("SELECT notify_pref FROM user WHERE id = #{id}")
+    String selectNotifyPrefById(@Param("id") Long id);
+
+    /** 整列覆盖写通知偏好(前端传 JSON 字符串,如 {"disabled":[2,3]};空=恢复全开) */
+    @Update("UPDATE user SET notify_pref = #{pref}, update_time = NOW() WHERE id = #{id}")
+    int updateNotifyPref(@Param("id") Long id, @Param("pref") String pref);
 }
