@@ -20,6 +20,15 @@ public interface PostMapper extends BaseMapper<Post> {
     @Update("UPDATE post SET comment_count = comment_count + #{delta}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
     int adjustCommentCount(@Param("postId") Long postId, @Param("delta") int delta);
 
+    /**
+     * 收藏/取消收藏:事务内原子 ±1,与 adjustLikeCount 同构。
+     *
+     * <p>用「列 + delta」而不是「先读再写」:两个人同时收藏时,
+     * 读-改-写会互相覆盖,少算一次;交给数据库做自增才不会丢。
+     */
+    @Update("UPDATE post SET favorite_count = favorite_count + #{delta}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
+    int adjustFavoriteCount(@Param("postId") Long postId, @Param("delta") int delta);
+
     /** 浏览量:进详情原子 +1 */
     @Update("UPDATE post SET view_count = view_count + 1, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
     int adjustViewCount(@Param("postId") Long postId);
@@ -98,6 +107,24 @@ public interface PostMapper extends BaseMapper<Post> {
      */
     @Select("SELECT COUNT(*) FROM post WHERE author_id = #{authorId} AND status = 1 AND is_deleted = 0")
     int countPublicByAuthor(@Param("authorId") Long authorId);
+
+    /**
+     * 某人所有帖子的获赞总数(个人主页「获赞」指标)。
+     *
+     * <p><b>为什么实时 SUM 而不给 user 表加冗余列</b>:
+     * 冗余列要在「点赞 +1 / 取消 -1 / 删帖扣减 / 历史回填」四处维护,
+     * 漏一处数字就永久对不上且很难发现。SUM 只有一个数据源 post.like_count,
+     * 结构上不可能漂移。校园规模单用户最多几百条帖,走 author_id 索引是毫秒级。
+     *
+     * <p><b>为什么不分本人/他人视角</b>(对比 countByAuthor / countPublicByAuthor):
+     * 动态数要区分,是因为作者能看到自己的待审/驳回帖,数字必须和列表对得上;
+     * 而获赞是**别人**给的动作,别人看不到待审帖就点不了赞,两个口径实际相等。
+     *
+     * <p>COALESCE 兜住空集:新用户一条帖子都没有时 SUM 返回 NULL,
+     * 不包一层会让前端拿到 null 渲染成空白。
+     */
+    @Select("SELECT COALESCE(SUM(like_count), 0) FROM post WHERE author_id = #{authorId} AND is_deleted = 0")
+    int sumLikeCountByAuthor(@Param("authorId") Long authorId);
 
     /**
      * 帖子全文搜索(MATCH/AGAINST,中文走 ngram 分词器)。

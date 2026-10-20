@@ -108,7 +108,7 @@
  * 本项目没有 postcss-custom-media,`@media (--ys-bp-lg)` 会被浏览器
  * 静默丢弃(SPEC §11 的「沉默故障」之一)。
  */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import SideNav from './SideNav.vue'
@@ -141,6 +141,20 @@ const notifyUnread = ref(0)
 const paperCount = ref(0)
 /** 导航抽屉开关:TopBar 的汉堡按钮唤起(仅手机端渲染汉堡) */
 const drawerOpen = ref(false)
+
+/*
+  把「打开抽屉」这个能力向下开放给页面。
+
+  为什么需要:抽屉本体(AppDrawer)和 drawerOpen 都住在本组件里,
+  子页面拿不到 ref。个人主页用了 meta.ownTop 自绘顶栏,TopBar 不再渲染,
+  页面自己的「更多」按钮如果没有任何通道,点了抽屉不会动。
+
+  为什么不用「页面内再挂一个 AppDrawer」:那样会同时存在两个抽屉实例,
+  状态各管各的,未读数会重复拉取,还可能出现一个开着另一个不知道的情况。
+  provide/inject 是 Vue 官方的跨层传能力方式,一处注入,后续其它自绘顶栏
+  的页面(发布页等)也能直接 inject 复用。
+*/
+provide('openDrawer', () => { drawerOpen.value = true })
 
 /** 未读数是增强信息,拉取失败静默降级 —— 不该因为红点挂了而让用户以为系统坏了 */
 async function loadUnread() {

@@ -1,0 +1,194 @@
+/* ProfileCover.vue 的样式（2026-10-20 从 Profile.css 迁出）。
+   随组件走而不是留在视图里：封面现在有「默认渐变 / 自定义图」两套表现，
+   样式和判断它的 computed 分在两个文件，下次改必然只改一处。
+   check-external-css 按字符数数括号，注释里别写字面花括号。 */
+
+/*
+ * 封面：整屏渐变，末段落到 --ys-bg 与页面底完全同色，看不到接缝。
+ * 负 margin 抵消 .profile-inner 的左右 padding，让封面真正铺到屏幕边缘。
+ * 没设自定义图时渐变就是「默认封面」。
+ */
+.p-cover {
+  position: relative;
+  height: 260px;
+  margin: 0 calc(-1 * var(--ys-space-4));
+  background: var(--ys-cover-gradient);
+  overflow: hidden;
+}
+
+/*
+ * 淡网格纹理。桌面壁纸那种「一层平滑渐变」容易显得廉价（像纯 CSS 占位），
+ * 叠一层极淡的网格并让它向下淡出，视觉上更像一张有内容的图。
+ * mask 让纹理只出现在上半部，不会污染封面底部的渐隐区。
+ */
+.p-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--ys-cover-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ys-cover-grid) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(125% 80% at 50% 0%, #000 0%, transparent 74%);
+  mask-image: radial-gradient(125% 80% at 50% 0%, #000 0%, transparent 74%);
+  pointer-events: none;
+}
+
+/*
+ * 自定义封面。四件事缺一不可：
+ *   1) cover + center = 「自动居中裁剪」，用户随手竖拍的图不会被拉成扁片、
+ *      也不会在两侧留白；
+ *   2) 去掉网格纹理：那是给纯渐变撑场面的，盖在真实照片上像屏幕脏了；
+ *   3) 补一层底部渐隐 —— 默认渐变末段本身已经落到 --ys-bg，照片不会，
+ *      不补就会在头像上方切出一条硬边；
+ *   4) 顶部压一点暗，让白色的「更多/恢复默认」玻璃按钮在浅色照片上可辨认。
+ */
+.p-cover--custom {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.p-cover--custom::after {
+  content: none;
+}
+
+.p-cover--custom::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.22) 0%,
+    rgba(0, 0, 0, 0) 30%,
+    rgba(0, 0, 0, 0) 52%,
+    var(--ys-bg) 100%
+  );
+  pointer-events: none;
+}
+
+/*
+ * 整块可点热区（仅本人视角渲染）。
+ * 不用半透明遮罩铺满整块：封面是用户自己挑的图，常态压暗等于白换了。
+ * 提示文案只在按住 / hover / 键盘聚焦时浮现 —— 手机上「按住看提示」
+ * 已经是习惯手势，桌面端靠 hover。
+ */
+.p-cover__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-cover__hit:active:not(:disabled) {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.p-cover__hit:focus-visible {
+  outline: 2px solid var(--ys-accent);
+  outline-offset: -3px;
+}
+
+.p-cover__hit:disabled {
+  cursor: progress;
+}
+
+.p-cover__hint {
+  padding: 7px 16px;
+  border-radius: var(--ys-radius-full);
+  background: rgba(0, 0, 0, 0.42);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  opacity: 0;
+  transition: opacity var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+/* 有真实指针悬停能力的设备才做 hover 提示，触屏上 hover 会粘住不复位 */
+@media (hover: hover) {
+  .p-cover__hit:hover .p-cover__hint {
+    opacity: 1;
+  }
+}
+
+.p-cover__hit:active .p-cover__hint,
+.p-cover__hit:focus-visible .p-cover__hint {
+  opacity: 1;
+}
+
+/*
+ * 悬浮「更多」按钮：压在封面上，玻璃拟态。
+ * 顶部留 safe-area，真机有刘海/状态栏时否则会被顶到看不见的地方。
+ * 从 Profile.css 迁来（它是封面的子元素，样式跟着封面走）。
+ */
+.p-more {
+  position: absolute;
+  top: calc(var(--ys-space-3) + env(safe-area-inset-top, 0px));
+  right: var(--ys-space-4);
+  z-index: 5;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ys-glass-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: var(--ys-fg);
+  cursor: pointer;
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-more:active {
+  transform: scale(0.94);
+}
+
+/*
+ * 「恢复默认」出口。与「更多」同一套玻璃拟态，但放左上角 ——
+ * 两个按钮分居两侧，窄屏上不会互相挤。
+ */
+.p-cover__reset {
+  position: absolute;
+  top: calc(var(--ys-space-3) + env(safe-area-inset-top, 0px));
+  left: var(--ys-space-4);
+  z-index: 5;
+  min-height: 32px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-glass-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  cursor: pointer;
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-cover__reset:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.p-cover__reset:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* 桌面端封面更高、带圆角（与内容列 960px 的卡片感对齐） */
+@media (min-width: 1024px) {
+  .p-cover {
+    height: 320px;
+    border-radius: var(--ys-radius-xl);
+  }
+}

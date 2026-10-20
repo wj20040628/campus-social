@@ -34,8 +34,23 @@ public final class FileMagic {
             if (b0 == 'G' && b1 == 'I' && b2 == 'F') {
                 return true;
             }
-            // WEBP  \x1A E F F
-            return b0 == 0x1A && b1 == 'E' && b2 == 'F';
+            // WEBP  "RIFF"(0-3) + 长度(4-7) + "WEBP"(8-11)
+            //
+            // 2026-10-20 修：这里原先写的是 \x1A E F F，那是 WebM/EBML 的形态，
+            // 真实的 WebP 根本不是这个头。后果是**所有 .webp 文件都被判「内容与后缀不符」**
+            // 直接 400，包括本站自己压缩出来的 webp（ImageCompressService 输出的就是 webp）
+            // ——用户存下自己的图再传回来会被拒，从微信/相册拿的图大量是 webp。
+            //
+            // 必须再验第 8-11 字节的 "WEBP" 标签：RIFF 是通用容器，.wav/.avi 同样是 RIFF，
+            // 只看前 4 字节会把音频当图片放进来。
+            if (b0 == 'R' && b1 == 'I' && b2 == 'F' && b3 == 'F') {
+                if (head.length >= 12) {
+                    String tag = new String(head, 8, 4, java.nio.charset.StandardCharsets.US_ASCII);
+                    return "WEBP".equals(tag);
+                }
+                return false;
+            }
+            return false;
         } else {
             // MP4/MOV/QuickTime: 第 4-7 字节是 "ftyp" / "qt  "
             if (head.length >= 12) {

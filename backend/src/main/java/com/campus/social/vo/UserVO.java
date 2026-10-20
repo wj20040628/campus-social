@@ -32,6 +32,14 @@ public class UserVO {
      */
     private String bio;
     private String avatarUrl;
+    /**
+     * 个人主页自定义封面（2026-10-20）。
+     *
+     * <p>公开字段：封面本来就是给别人看的，{@code of} 与 {@code ofPrivate} 都带。
+     *
+     * <p>{@code null} = 没设置，前端回落到默认渐变封面。
+     */
+    private String coverUrl;
     private String grade;
     private String dept;
     /**
@@ -50,6 +58,23 @@ public class UserVO {
     private Integer followingCount;
     /** 该用户发的动态数(按 author_id 现查 post 表,他人主页「动态」数字用) */
     private Integer postCount;
+    /**
+     * 获赞总数(个人主页「获赞」指标)。
+     *
+     * <p>由 UserController#card 用 {@code SUM(post.like_count)} 现算填入,
+     * 不落 user 表冗余列 —— 冗余列要在点赞/取消/删帖/回填四处维护,
+     * 漏一处就永久漂移且难发现。
+     */
+    private Integer likeCount;
+    /**
+     * 我收藏的帖子数 / 我赞过的帖子数。
+     *
+     * <p><b>只在 {@code GET /user/me}(本人)填充</b>,他人主页卡片恒为 null。
+     * 这两个是纯私人数据,别人主页不需要也不该拿到。
+     * 前端用它显示「收藏 / 赞过」两个 Tab 的数字,避免列表还没加载时先显示 0 再跳变。
+     */
+    private Integer favoriteCount;
+    private Integer likedCount;
     private Integer unreadNotifyCount;
     /** 加入的圈子数(冗余计数,个人主页「圈子」展示用) */
     private Integer joinedCircleCount;

@@ -9,10 +9,31 @@
   <div class="p-head">
     <div class="p-id">
       <!--
-        el-avatar 的 size 是**属性**不是 CSS,媒体查询改不动它(设计 §7)。
-        移动端 64 / 桌面端 84 必须走 computed,不能写死。
+        头像（2026-10-20）：本人视角包一层 button，点一下直接换头像。
+        为什么不用 el-upload：那套组件自带文件列表、进度、http-request 三件套，
+        而头像只取一个文件、失败也只提示一句；用 button 承载语义更直白，
+        「可点」这件事对键盘和读屏也可达（真 button + aria-label）。
+        他人视角仍是纯 el-avatar —— 别人的头像点了不该有任何反应。
       -->
-      <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
+      <button
+        v-if="isMe"
+        type="button"
+        class="p-avatar-btn"
+        :disabled="avatarBusy"
+        :aria-label="avatarBusy ? '头像上传中' : '更换头像'"
+        @click="$emit('change-avatar')"
+      >
+        <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
+        <span class="p-avatar-btn__cam" aria-hidden="true">
+          <el-icon :size="13"><Camera /></el-icon>
+        </span>
+      </button>
+      <el-avatar
+        v-else
+        :size="avatarSize"
+        :src="resolveThumb(user.avatarUrl)"
+        class="p-avatar"
+      />
 
       <div class="p-info">
         <div class="p-name-row">
@@ -94,7 +115,7 @@
  * 本人视角的操作入口在全局抽屉(2026-10-20 移除主页上的编辑/设置按钮),
  * 空介绍的「点击添加介绍」仍走 edit 事件进编辑页。
  */
-import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
+import { Camera, CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
@@ -114,11 +135,13 @@ const props = defineProps({
    * 未登录时给一个点不动的「关注」按钮比不给更糟(AC-19)。
    */
   showActions: { type: Boolean, default: false },
-  /** 移动端 64 / 桌面端 84(属性硬编码,媒体查询改不动) */
+  /** 移动端 76 / 桌面端 88(属性硬编码,媒体查询改不动) */
   avatarSize: { type: Number, default: 64 },
+  /** 头像上传中:置灰按钮并改读屏文案,避免连点重复上传 */
+  avatarBusy: { type: Boolean, default: false },
 })
 
-defineEmits(['follow', 'chat', 'edit', 'report'])
+defineEmits(['follow', 'chat', 'edit', 'report', 'change-avatar'])
 
 /**
  * 有没有写过介绍。

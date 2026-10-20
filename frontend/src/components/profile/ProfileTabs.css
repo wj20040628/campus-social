@@ -1,0 +1,65 @@
+/*
+ * 分段 tab 条:通栏 + 滚动吸附。
+ * sticky top:0 让滚过封面后它贴在视口顶部,用户始终知道当前在看哪个列表;
+ * 背景必须是实色,否则下面的内容会从半透明的缝里透出来。
+ */
+.p-tabbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  margin: var(--ys-space-3) calc(-1 * var(--ys-space-4)) 0;
+  border-bottom: 1px solid var(--ys-border-soft);
+  background: var(--ys-bg);
+}
+
+.p-tabbar__item {
+  flex: 1;
+  min-height: var(--ys-touch-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-muted);
+  cursor: pointer;
+  position: relative;
+}
+
+.p-tabbar__item--on {
+  color: var(--ys-fg);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* 数字比标签小一号、淡一档:它是辅助信息,不能和标签抢视线 */
+.p-tabbar__num {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.p-tabbar__item--on .p-tabbar__num {
+  color: var(--ys-fg-2);
+}
+
+.p-tabbar__item--on::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 26px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--ys-accent);
+}
+
+/* 桌面端:Tab 条贴在 960px 内容列顶部,上方两角随封面一起收圆 */
+@media (min-width: 1024px) {
+  .p-tabbar {
+    border-radius: var(--ys-radius-xl) var(--ys-radius-xl) 0 0;
+  }
+}

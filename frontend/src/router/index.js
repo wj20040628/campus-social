@@ -97,7 +97,14 @@ const routes = [
         path: 'user/:id',
         name: 'userProfile',
         component: () => import('@/views/Profile.vue'),
-        meta: { requiresAuth: true, title: '个人主页', back: true },
+        /*
+          ownTop:个人主页改成抖音/快手式沉浸版式 —— 封面图整屏铺到状态栏下方,
+          不能有 52px 的纯色导航条把它截断。关掉全局顶栏后,「更多」按钮
+          由 Profile 自己画在封面上(点击仍唤起同一个全局抽屉)。
+          注意:ownTop 只是不渲染 TopBar,抽屉本体还在 MainLayout 里,
+          通过 provide('openDrawer') 交给页面调用。
+        */
+        meta: { requiresAuth: true, title: '个人主页', back: true, ownTop: true },
       },
       {
         path: 'topic/:name',

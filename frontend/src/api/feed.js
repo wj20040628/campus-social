@@ -48,6 +48,33 @@ export function unlike(id) {
   return request.delete(`/post/${id}/like`)
 }
 
+/** 收藏(幂等)。后端不会给作者发通知,收藏是私人整理动作 */
+export function favorite(id) {
+  return request.post(`/post/${id}/favorite`)
+}
+
+/** 取消收藏(幂等)。后端走物理删除,不会留下占唯一键的残留行 */
+export function unfavorite(id) {
+  return request.delete(`/post/${id}/favorite`)
+}
+
+/**
+ * 我收藏的帖子(按收藏时间倒序)。
+ *
+ * 注意 lastId 是**收藏记录 id**,不是帖子 id —— 排序依据是收藏时间,
+ * 用帖子 id 做游标会让"刚收藏一条旧帖"翻页错乱。上一页的 nextCursor 原样回传即可。
+ */
+export function favoriteList(lastId, size = 20) {
+  const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
+  return request.get(`/post/favorites?${q}`)
+}
+
+/** 我赞过的帖子(按点赞时间倒序),游标语义同 favoriteList */
+export function likedList(lastId, size = 20) {
+  const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
+  return request.get(`/post/liked?${q}`)
+}
+
 export function comment(postId, dto) {
   return request.post(`/post/${postId}/comment`, dto)
 }

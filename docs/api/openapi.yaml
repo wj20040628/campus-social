@@ -1670,6 +1670,45 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /user/cover:
+    put:
+      operationId: updateMyCover
+      tags: [user]
+      summary: 设置或清除个人主页封面
+      description: |
+        单字段设置，**「传什么就是什么」**：`coverUrl` 传 `null` 或空串
+        即恢复默认渐变封面。
+
+        与 `PUT /user/me` 拆开的理由：那边的 `null` 一律表示「本次不改」，
+        若把封面并进去，用户点「恢复默认」传 `null` 就会被当成空操作、
+        界面上毫无反应——这类静默无效最难排查。
+
+        `coverUrl` 引用 `/uploads/...` 时校验归属：必须是调用方自己上传的文件，
+        否则返回 400（防止把别人相册里的图挂到自己主页上）。
+        外部图床地址与老格式路径放行，与头像同规则。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                coverUrl:
+                  type: string
+                  nullable: true
+                  maxLength: 512
+                  description: 封面相对路径；`null` / 空串 = 恢复默认
+      responses:
+        '200':
+          description: 已更新，返回用户完整信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /user/school-profile:
     post:
       operationId: upsertSchoolProfile
@@ -3438,6 +3477,9 @@ components:
             **只有 status = 1 才会出现在任何 Feed 里**，
             前端若自行拼列表会漏掉这个过滤条件。
         likeCount: { type: integer, description: 点赞数 }
+        favoriteCount:
+          type: integer
+          description: 收藏数（冗余列，与 likeCount 同构）
         commentCount: { type: integer, description: 评论数 }
         viewCount:
           type: integer
@@ -3465,6 +3507,14 @@ components:
           description: |
             当前登录用户是否已赞。未登录时恒为 false。
             游客拿到 false 是对的——没登录不可能点过赞。
+        favorited:
+          type: boolean
+          description: |
+            当前登录用户是否已收藏。未登录时恒为 false，语义与 `liked` 一致。
+        isTop:
+          type: boolean
+          nullable: true
+          description: 是否置顶（圈子内公告/置顶帖）。普通 Feed 里恒为 false 或 null
 
     UserVO:
       type: object
@@ -3478,6 +3528,18 @@ components:
           description: 邮箱或手机号，**部分脱敏**（显示前几位 + 后几位）
         nickname: { type: string }
         avatarUrl: { type: string, nullable: true }
+        coverUrl:
+          type: string
+          nullable: true
+          description: |
+            个人主页自定义封面（相对路径 `/uploads/...`），`null` = 未设置，
+            客户端回落到默认渐变封面。公开字段，访客也能看到。
+        bio:
+          type: string
+          nullable: true
+          description: |
+            个人介绍（最多 200 字）。`null` / 空串 = 还没写，前端显示引导文案。
+            它是主页上唯一能替代「脱敏学号」说明「你是谁」的安全字段。
         grade:
           type: string
           nullable: true
@@ -3500,16 +3562,47 @@ components:
           format: int64
           nullable: true
           description: 年级字典 id，与上面的名称快照并存
+        majorId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 专业字典 id（层次由 major.level 派生，不冗余存专业名）
         followerCount: { type: integer, nullable: true }
         followingCount: { type: integer, nullable: true }
         postCount:
           type: integer
           nullable: true
           description: 该用户发的动态数(按 author_id 现查 post 表,他人主页「动态」数字用)
+        likeCount:
+          type: integer
+          nullable: true
+          description: 获赞总数（SUM(post.like_count)，主页「获赞」指标，实时聚合不落冗余列）
+        favoriteCount:
+          type: integer
+          nullable: true
+          description: |
+            我收藏的帖子数。**只在 GET /user/me（本人）填充**，他人卡片恒为 null ——
+            收藏是纯私人数据，别人主页不需要也不该拿到。
+        likedCount:
+          type: integer
+          nullable: true
+          description: 我赞过的帖子数。填充规则同 favoriteCount
+        joinedCircleCount:
+          type: integer
+          nullable: true
+          description: 加入的圈子数（冗余计数，加圈/退圈事务内 ±1）
         unreadNotifyCount:
           type: integer
           nullable: true
           description: 未读通知数（红点）
+        emailBound:
+          type: boolean
+          nullable: true
+          description: 是否已绑定安全凭证邮箱。只在 GET /user/me / PUT /user/me 返回
+        email:
+          type: string
+          nullable: true
+          description: 已绑定的脱敏邮箱（如 ze***n@campus.test）。**仅本人视图**，他人卡片不含
         verified:
           type: boolean
           nullable: true
@@ -3973,6 +4066,14 @@ components:
                 avatarUrl:
                   type: string
                   nullable: true
+                coverUrl:
+                  type: string
+                  nullable: true
+                  description: |
+                    个人主页自定义封面（相对路径 `/uploads/...`）。
+                    `null` 表示未设置，客户端回落到默认渐变封面。
+
+                    与 `avatarUrl` 一样只存相对路径，换域名/IP 不用刷库。
                 grade:
                   type: string
                   nullable: true

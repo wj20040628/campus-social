@@ -53,6 +53,29 @@ public interface PostService {
     void like(long postId, long userId);
     void unlike(long postId, long userId);
 
+    /**
+     * 收藏/取消收藏(幂等)。
+     *
+     * <p>与点赞的差别:<b>不发通知</b>。收藏是「我留着以后看」的私人整理动作,
+     * 给作者推「有人收藏了你」会造成打扰,主流产品也都不推。
+     *
+     * <p>取消收藏走物理删除,原因见 {@code PostFavoriteMapper#hardDelete}。
+     */
+    void favorite(long postId, long userId);
+    void unfavorite(long postId, long userId);
+
+    /**
+     * 我收藏的帖子(按收藏时间倒序)。
+     *
+     * <p>游标 {@code lastId} 语义是<b>收藏记录的 id</b>,不是帖子 id ——
+     * 因为排序依据是收藏时间,用帖子 id 做游标会跳页。
+     * 前端只需把上一页返回的 nextCursor 原样传回。
+     */
+    CursorPage<PostVO> favoritePosts(long userId, long viewerId, Long lastId, int size);
+
+    /** 我赞过的帖子(按点赞时间倒序),游标语义同 favoritePosts,是点赞记录 id */
+    CursorPage<PostVO> likedPosts(long userId, long viewerId, Long lastId, int size);
+
     /** 评论(非幂等,事务内 ±comment_count + notify) */
     long comment(long postId, CreateCommentDTO dto, long userId);
 

@@ -1,10 +1,20 @@
 <template>
   <!--
-    三统计(2026-10-18 从 Profile.vue 抽出)。
-    粉丝/关注是可点 button(跳对应 Tab),「动态」数字来自已加载列表,是纯 div ——
-    不能用同一元素靠 class 区分,读屏器会把不可点项也念成可点的。
+    四项统计(2026-10-20 从三项扩为四项,新增「获赞」)。
+    顺序:动态 → 获赞 → 粉丝 → 关注。
+    这是「我产出什么 → 我获得什么 → 谁在看我 → 我在看谁」的递进,
+    与抖音(获赞/互关/关注/粉丝)、快手(粉丝/关注/获赞)的排法同源:
+    数据紧贴身份头,中间不插别的模块,形成「人物档案」的整体印象。
+
+    粉丝/关注是可点 button(打开对应列表抽屉),
+    「动态」「获赞」是纯 div —— 不能用同一元素靠 class 区分,
+    读屏器会把不可点项也念成可点的。
   -->
   <div class="pstats">
+    <div v-for="s in staticStats" :key="s.label" class="pstats__item">
+      <span class="pstats__num">{{ cap(s.value) }}</span>
+      <span class="pstats__label">{{ s.label }}</span>
+    </div>
     <button
       v-for="s in clickableStats"
       :key="s.label"
@@ -15,10 +25,6 @@
       <span class="pstats__num">{{ cap(s.value) }}</span>
       <span class="pstats__label">{{ s.label }}</span>
     </button>
-    <div class="pstats__item">
-      <span class="pstats__num">{{ cap(user?.postCount ?? 0) }}</span>
-      <span class="pstats__label">动态</span>
-    </div>
   </div>
 </template>
 
@@ -32,7 +38,13 @@ const props = defineProps({
 
 defineEmits(['switch'])
 
-/** 粉丝/关注两项可点;「动态」不可点(设计 §5) */
+/** 不可点的两项:动态(我发的)、获赞(别人给的) */
+const staticStats = computed(() => [
+  { label: '动态', value: props.user?.postCount ?? 0 },
+  { label: '获赞', value: props.user?.likeCount ?? 0 },
+])
+
+/** 可点的两项:点开各自的列表抽屉(不再占用内容 Tab) */
 const clickableStats = computed(() => [
   { label: '粉丝', value: props.user?.followerCount ?? 0, tab: 'followers' },
   { label: '关注', value: props.user?.followingCount ?? 0, tab: 'following' },
@@ -40,12 +52,12 @@ const clickableStats = computed(() => [
 </script>
 
 <style scoped>
-/* 三统计:等分栅格,无卡片无竖线(设计 §1.2),数字等宽防跳动 */
+/* 四统计:等分栅格,无卡片无竖线,数字等宽防跳动 */
 .pstats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--ys-space-2);
-  margin: var(--ys-space-2) 0 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ys-space-1);
+  margin: var(--ys-space-3) 0 0;
 }
 .pstats__item {
   display: flex;

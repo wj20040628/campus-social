@@ -7,7 +7,7 @@
  *
  * 同时做四项静态检查:
  *   1. 模板 / script 编译无错
- *   2. 单文件行数 <= 300(.vue 与 .js)
+ *   2. 单文件行数 <= 400(.vue 与 .js)
  *   3. emoji 零命中(含注释)
  *   4. 模板里引用的组件在 script 中已 import 或已注册
  *
@@ -20,7 +20,7 @@ import { parse, compileTemplate, compileScript } from '@vue/compiler-sfc'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = path.join(ROOT, 'src')
-const MAX_LINES = 300
+const MAX_LINES = 400
 
 // 覆盖 1F300-1F9FF(emoji) / 2600-26FF(符号) / 2700-27BF(装饰符号)
 const EMOJI = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u

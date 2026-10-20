@@ -78,6 +78,25 @@ export function userCard(id) {
   return request.get(`/user/${id}`)
 }
 
+/**
+ * 设置 / 清除个人主页封面(2026-10-20)。
+ *
+ * <p>传 null 或 '' = 恢复默认渐变封面。**与 updateMe 的 null 语义相反**:
+ * 那边 null 是「本次不改」,这边 null 是「清空」。后端为此单独开了
+ * PUT /user/cover,不要把这两个合起来用。
+ */
+export function setCover(coverUrl) {
+  return request.put('/user/cover', { coverUrl: coverUrl || null })
+}
+
+/**
+ * 更新个人资料(昵称/头像/学号/介绍)。
+ * 只传要改的字段:null = 本次不改(与 setCover 语义相反,见上)。
+ */
+export function updateMe(patch) {
+  return request.put('/user/me', patch)
+}
+
 /** 设置「允许陌生人给我发消息」开关(enabled=true 开 / false 关) */
 export function setStrangerMsg(enabled) {
   return request.put('/user/stranger-msg', {}, { params: { enabled } })
@@ -103,6 +122,6 @@ export function setNotifyPref(pref) {
 
 export default {
   login, loginByCode, register, sendCode, forgotPassword, resetPassword, appealStudentNo,
-  bindEmail, changePassword, refresh, logout, me, userCard, mentionCandidates,
-  getNotifyPref, setNotifyPref,
+  bindEmail, changePassword, refresh, logout, me, userCard, updateMe, setCover,
+  mentionCandidates, getNotifyPref, setNotifyPref,
 }

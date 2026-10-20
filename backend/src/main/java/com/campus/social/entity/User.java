@@ -51,6 +51,18 @@ public class User implements Serializable {
     private String bio;
     private String avatarUrl;
 
+    /**
+     * 个人主页自定义封面（2026-10-20）。
+     *
+     * <p>{@code null} 表示「没设置」，前端用默认渐变封面（{@code --ys-cover-gradient}）。
+     * 不用空串表示没设置：空串会让前端拼出 {@code url('')}，浏览器会当成
+     * 「对当前文档再发一次请求」，在网络面板里表现为一条莫名其妙的重复请求。
+     *
+     * <p>只存相对路径（{@code /uploads/...}），与 {@link #avatarUrl} 同口径 ——
+     * 换域名或换 IP 时不用批量刷库。
+     */
+    private String coverUrl;
+
     /** 通知偏好 JSON:{"disabled":[类型id]},NULL=全开 */
     private String notifyPref;
 

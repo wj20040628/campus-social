@@ -3,26 +3,95 @@
    搬完必须复检括号平衡 —— 注释里别写字面花括号,
    check-external-css 按字符数,注释里的符号照样计入。 */
 
+/*
+ * 整块身份头抬到封面上方。
+ *
+ * 为什么必须显式抬升:封面 .p-cover 是 position:relative,而这里的元素是
+ * 静态定位 —— 层叠规则里**定位元素绘制在静态元素之上**,与 DOM 先后无关。
+ * 头像用负 margin 往上钻进封面区域的那部分(以及右侧昵称、学院行)
+ * 会被封面整块盖住,表现为「头像只剩半个灰圆、昵称看不见」。
+ * 实测症状见 2026-10-20 用户截图。
+ */
 .p-head {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: var(--ys-space-2);
   padding: 0 0 var(--ys-space-1);
 }
 
-/* 头像行:align-end 让头像底边与信息块底边对齐,负 margin 叠上装饰带 */
+/*
+ * 头像行:align-end 让头像底边与信息块底边对齐,负 margin 叠上封面图。
+ *
+ * 2026-10-20 从 -26 加深到 -40:封面从「72px 色带」改成「280px 整屏图」后,
+ * 头像只压 26px 会像贴在图片底边上的贴纸,压 40px 才是抖音快手那种
+ * 「头像骑在封面下沿」的层级关系。
+ */
 .p-id {
   display: flex;
   align-items: flex-end;
   gap: var(--ys-space-3);
-  margin-top: -26px;
+  margin-top: -40px;
 }
 
 .p-avatar {
   flex-shrink: 0;
-  /* 白描边把头像从装饰带上「托」出来;淡投影是 token 的暖墨 shadow-1 */
-  border: 3px solid var(--ys-surface);
+  /*
+   * 描边色用页面底色而不是卡片色:头像骑在封面渐变上,
+   * 只有和背后底色同色的描边才能把头像「挖」出来,
+   * 用 surface(纯白)会在暖米色底上显出一圈发灰的环。
+   */
+  border: 3px solid var(--ys-bg);
   box-shadow: var(--ys-shadow-1);
+}
+
+/*
+ * 本人视角的可点头像(2026-10-20)。
+ * 用 button 承载而不是给 el-avatar 加 @click:el-avatar 渲染的是 div,
+ * 直接绑 click 键盘不可达、读屏不报「按钮」,移动端也没有按压反馈。
+ *
+ * 三个 reset 必须写全 —— button 默认有 padding / border / 背景,
+ * 少写任何一个都会在圆形头像外面套出一个灰方块。
+ */
+.p-avatar-btn {
+  position: relative;
+  flex-shrink: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ys-radius-full);
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.p-avatar-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.p-avatar-btn:disabled {
+  cursor: progress;
+}
+
+/*
+ * 「可换」角标。放在右下角而不是盖在头像正中:
+ * 正中会挡住脸,而头像是这个页面里唯一能认出「这是谁」的东西。
+ * 描边与头像外圈同色,视觉上像头像缺了一角。
+ */
+.p-avatar-btn__cam {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ys-bg);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-fg);
+  color: var(--ys-bg);
 }
 
 .p-info {

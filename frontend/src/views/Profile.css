@@ -1,82 +1,68 @@
-/* Profile.vue 的样式,抽离到外部文件以控制单文件行数。 */
+/* Profile.vue 的样式,抽离到外部文件以控制单文件行数。
+   check-external-css 按字符数数括号,注释里不要出现字面花括号。 */
+
+/*
+ * ==========================================================================
+ * 2026-10-20 沉浸式改版(仿抖音/快手「我的」页)
+ *
+ * 上一版的问题(用户原话「美化整个我的主页的比例,不要旁边的留白」):
+ *   1. 整页被包在 el-card 里,卡片有边框 + 圆角,四周一圈留白像相框;
+ *   2. 封面只是一条 72px 的浅色带,不是背景图,没有沉浸感;
+ *   3. 12 个兴趣标签 wrap 成 4 行,首屏被挤得看不到 Tab。
+ *
+ * 这一版的做法:
+ *   - 去掉 el-card,内容直接通栏到屏幕边缘(移动端用负 margin 抵消
+ *     .content 的左右 gutter,见 .profile);
+ *   - 封面改 260px 整屏渐变,末段直接渐到 --ys-bg,和页面底无缝;
+ *   - 头像负 margin 压到封面上,描边用 --ys-bg 把头像「挖」出来;
+ *   - 兴趣标签改单行轮播(ProfileTags.vue),4 行 190px 压到 1 行 68px;
+ *   - Tab 加 sticky,滚过封面后吸附在顶部,始终知道在看哪个列表。
+ * ==========================================================================
+ */
+
+/*
+ * 抵消内容区的左右 gutter。
+ * 只在移动端做:桌面端内容有最大宽度、居中显示,留白是刻意的排版留白,
+ * 通栏反而会让 1440px 屏上的文字行长过宽、难读。
+ */
+@media (max-width: 1023px) {
+  .profile {
+    margin: 0 calc(-1 * var(--ys-gutter-phone));
+  }
+}
+
 .profile-inner {
   max-width: 720px;
   margin: 0 auto;
-  padding: var(--ys-space-4);
+  padding: 0 var(--ys-space-4) var(--ys-space-4);
 }
-.profile-card {
-  /* 站内正式卡片半径,与 .ys-card 一致 */
-  border-radius: var(--ys-radius-xl);
-  overflow: hidden;
-  padding: 0;
-}
-/* 加载骨架:形状对齐真实内容(装饰带+头像行),不是 5 行等宽文字条 */
+
 .profile-skeleton {
   padding: 0 0 var(--ys-space-4);
 }
+
 /* 整页替换态(用户不存在)与内容区同宽,避免大屏上孤零零一句话 */
 .profile-state {
   padding: var(--ys-space-8) var(--ys-space-4);
 }
-.profile-card :deep(.el-card__body) {
-  padding: 0;
-}
-.profile-card :deep(.el-card__body) > * {
-  padding: 0 var(--ys-space-4);
-}
 
 /*
-  装饰带(2026-10-18 改版):品牌浅青,头像的叠放锚点。
-  移动端 72px 也要显示 —— 旧版隐藏是因为它是纯灰空块不承载信息,
-  现在承担身份感且不吃首屏;桌面端 140px。
-  负边距抵消 `.el-card__body > *` 的左右 padding,让色带通到卡片边缘。
-*/
-.p-cover {
-  height: 72px;
+ * 骨架屏的封面占位。视觉与真实封面一致(同高、同渐变、同样通栏),
+ * 但不复用 .p-cover 的类名 —— 真实封面的样式已随 ProfileCover.vue 迁到
+ * ProfileCover.css,同名规则留在两个文件迟早改错地方。
+ */
+.profile-skeleton__cover {
+  height: 260px;
   margin: 0 calc(-1 * var(--ys-space-4));
-  background: var(--ys-accent-soft);
+  background: var(--ys-cover-gradient);
 }
 
 /*
-  身份头(.p-head/.p-avatar/.p-name/.p-badge/.p-actions)在 ProfileHead.vue;
-  三统计在 ProfileStats.vue;兴趣标签在 ProfileTags.vue —— 同名规则留在
-  两个文件会让下一个改样式的人改错地方,此处不再重述。
-*/
+ * 身份头(.p-head/.p-avatar/.p-name/.p-badge)在 ProfileHead.vue;
+ * 三统计在 ProfileStats.vue;兴趣标签在 ProfileTags.vue ——
+ * 同名规则留在两个文件会让下一个改样式的人改错地方,此处不再重述。
+ */
 
-/* 分段 tab 条:贴边通到卡片边缘,底部短横线指示激活项 */
-.p-tabbar {
-  display: flex;
-  margin: var(--ys-space-3) calc(-1 * var(--ys-space-4)) 0;
-  border-top: 1px solid var(--ys-border);
-  border-bottom: 1px solid var(--ys-border);
-  background: var(--ys-surface);
-}
-.p-tabbar__item {
-  flex: 1;
-  min-height: var(--ys-touch-min);
-  border: 0;
-  background: none;
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
-  color: var(--ys-fg-2);
-  cursor: pointer;
-  position: relative;
-}
-.p-tabbar__item--on {
-  color: var(--ys-accent);
-  font-weight: var(--ys-weight-medium);
-}
-.p-tabbar__item--on::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 0;
-  width: 32px;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: var(--ys-accent);
-}
 
 /* tab 内容区:上下留白由内容组件自己带,这里只兜底空态间距 */
 .p-pane {
@@ -159,19 +145,17 @@
 }
 
 /* ---------------- 桌面端(≥1024px) ----------------
- * 2026-10-18 重设计:原 720px 内容列在大屏上两侧全空,被用户点名「留白丑」。
- * 1) 内容列放宽到 960px(hero/统计/列表整体铺开,仍有最大宽度防超宽屏失焦);
- * 2) 动态列表改双列瀑布流(CSS columns,PostCard break-inside 防截断) ——
- *    这是消除留白的主要手段:同样的内容宽度翻倍后不再是一根细长条;
- * 3) 粉丝/关注列表保持单列(人名行拉太宽反而难读)。
+ * 内容列 960px 居中;动态双列瀑布流(CSS columns)。
+ * 桌面端不做通栏:文字行长超过约 100 字符会明显降低可读性。
  */
 @media (min-width: 1024px) {
   .profile-inner {
     max-width: 960px;
   }
 
-  .p-cover {
-    height: 140px;
+  .profile-skeleton__cover {
+    height: 320px;
+    border-radius: var(--ys-radius-xl);
   }
 
   .p-pane--posts {

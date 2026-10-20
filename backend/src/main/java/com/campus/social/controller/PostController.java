@@ -120,6 +120,55 @@ public class PostController {
         return Result.ok();
     }
 
+    /**
+     * 收藏(幂等)。刻意不发通知给作者 —— 收藏是私人整理动作,与点赞区分开。
+     */
+    @PostMapping("/{id}/favorite")
+    public Result<Void> favorite(@PathVariable("id") long id, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        postService.favorite(id, me);
+        return Result.ok();
+    }
+
+    /** 取消收藏(幂等),走物理删除 */
+    @DeleteMapping("/{id}/favorite")
+    public Result<Void> unfavorite(@PathVariable("id") long id, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        postService.unfavorite(id, me);
+        return Result.ok();
+    }
+
+    /**
+     * 我收藏的帖子(按收藏时间倒序)。
+     *
+     * <p>lastId 是**收藏记录 id**而非帖子 id,前端把上一页的 nextCursor 原样回传即可。
+     * 按收藏时间排序就必须用收藏记录做游标,否则今天收藏一条旧帖会让翻页错乱。
+     */
+    @GetMapping("/favorites")
+    public Result<CursorPage<PostVO>> favorites(
+            @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(401, "请先登录");
+        }
+        return Result.ok(postService.favoritePosts(me, me, lastId, PageSize.clamp(size)));
+    }
+
+    /** 我赞过的帖子(按点赞时间倒序),游标语义同 favorites */
+    @GetMapping("/liked")
+    public Result<CursorPage<PostVO>> liked(
+            @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(401, "请先登录");
+        }
+        return Result.ok(postService.likedPosts(me, me, lastId, PageSize.clamp(size)));
+    }
+
     /** 评论 */
     @PostMapping("/{id}/comment")
     public Result<Map<String, Long>> comment(@PathVariable("id") long id,

@@ -110,6 +110,12 @@ public final class UserVoAssembler {
                  */
                 .bio(user.getBio())
                 .avatarUrl(user.getAvatarUrl())
+                /**
+                 * 主页封面（2026-10-20）。公开字段：封面是给别人看的第一眼印象，
+                 * 放在 base 让 of / ofPrivate 都带 —— 若只给本人，
+                 * 访客看你的主页就永远是那张默认渐变，等于这个功能白做。
+                 */
+                .coverUrl(user.getCoverUrl())
                 .grade(user.getGrade())
                 .dept(user.getDept())
                 // 字典 id 与名称快照并存：前端要靠它区分「字典里的正式项」与

@@ -3,12 +3,15 @@ package com.campus.social.controller;
 import com.campus.social.common.Result;
 import com.campus.social.common.CursorPage;
 import com.campus.social.dto.UpdateProfileDTO;
+import com.campus.social.dto.UpdateCoverDTO;
 import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
 import com.campus.social.entity.User;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.mapper.PostMapper;
+import com.campus.social.mapper.LikeMapper;
+import com.campus.social.mapper.PostFavoriteMapper;
 import com.campus.social.service.AuthService;
 import com.campus.social.service.PostService;
 import com.campus.social.vo.UserVO;
@@ -25,13 +28,18 @@ public class UserController {
     private final AuthService authService;
     private final UserMapper userMapper;
     private final PostMapper postMapper;
+    private final LikeMapper likeMapper;
+    private final PostFavoriteMapper favoriteMapper;
     private final PostService postService;
 
     public UserController(AuthService authService, UserMapper userMapper,
-                          PostMapper postMapper, PostService postService) {
+                          PostMapper postMapper, LikeMapper likeMapper,
+                          PostFavoriteMapper favoriteMapper, PostService postService) {
         this.authService = authService;
         this.userMapper = userMapper;
         this.postMapper = postMapper;
+        this.likeMapper = likeMapper;
+        this.favoriteMapper = favoriteMapper;
         this.postService = postService;
     }
 
@@ -42,6 +50,11 @@ public class UserController {
         // 头部「动态」数字按 author_id 现查 post 表,与「动态」列表同源(不靠冗余列)
         if (vo != null) {
             vo.setPostCount(postMapper.countByAuthor(userId));
+            // 获赞总数:与 /user/{id} 同口径,否则本人主页和他人看到的主页数字不一致
+            vo.setLikeCount(postMapper.sumLikeCountByAuthor(userId));
+            // 收藏/赞过是纯私人数据,只在本人的 /me 返回,供主页两个 Tab 显示数字
+            vo.setFavoriteCount(favoriteMapper.countByUser(userId));
+            vo.setLikedCount(likeMapper.countLikedPosts(userId));
         }
         return Result.ok(vo);
     }
@@ -52,6 +65,22 @@ public class UserController {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(authService.updateProfile(me, dto.getNickname(),
                 dto.getAvatarUrl(), dto.getStudentNo(), dto.getBio()));
+    }
+
+    /**
+     * 设置 / 清除主页封面（2026-10-20）。
+     *
+     * <p>{@code body.coverUrl} 传 null 或空串 = 恢复默认渐变封面。
+     * 与 {@link #update} 拆开，是因为两者的 null 语义相反：那边 null 是「不改」，
+     * 这边 null 是「清空」。混在一个 DTO 里迟早有人把「恢复默认」写成无效空操作。
+     */
+    @PutMapping("/cover")
+    public Result<UserVO> updateCover(@Valid @RequestBody UpdateCoverDTO dto, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        return Result.ok(authService.updateCover(me, dto.getCoverUrl()));
     }
 
     /** 设置「允许陌生人给我发消息」开关(AC-05 护栏偏好) */
@@ -128,6 +157,9 @@ public class UserController {
         vo.setPostCount(me != null && me == id
                 ? postMapper.countByAuthor(id)
                 : postMapper.countPublicByAuthor(id));
+        // 获赞总数:实时 SUM 聚合。不区分本人/他人视角 —— 获赞是别人给的动作,
+        // 别人看不到待审帖就点不了赞,两个口径实际相等(详见 PostMapper 注释)
+        vo.setLikeCount(postMapper.sumLikeCountByAuthor(id));
         return Result.ok(vo);
     }
 

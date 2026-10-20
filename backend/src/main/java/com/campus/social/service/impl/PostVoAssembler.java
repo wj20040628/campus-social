@@ -3,10 +3,12 @@ package com.campus.social.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.entity.Like;
 import com.campus.social.entity.Post;
+import com.campus.social.entity.PostFavorite;
 import com.campus.social.entity.PostTopic;
 import com.campus.social.entity.Topic;
 import com.campus.social.entity.User;
 import com.campus.social.mapper.LikeMapper;
+import com.campus.social.mapper.PostFavoriteMapper;
 import com.campus.social.mapper.PostTopicMapper;
 import com.campus.social.mapper.TopicMapper;
 import com.campus.social.mapper.UserMapper;
@@ -48,6 +50,7 @@ public class PostVoAssembler {
 
     private final UserMapper userMapper;
     private final LikeMapper likeMapper;
+    private final PostFavoriteMapper favoriteMapper;
     private final TopicMapper topicMapper;
     private final PostTopicMapper postTopicMapper;
     private final SensitiveWordFilter sensitive;
@@ -58,6 +61,7 @@ public class PostVoAssembler {
         PostVO vo = baseVo(p, viewerId);
         vo.setAuthor(authorVo(p.getAuthorId()));
         vo.setTopics(topicsOfPosts(List.of(p.getId())).getOrDefault(p.getId(), List.of()));
+        vo.setFavorited(isFavorited(p.getId(), viewerId));
         return vo;
     }
 
@@ -90,6 +94,20 @@ public class PostVoAssembler {
         for (PostVO vo : vos) {
             vo.setTopics(topicMap.getOrDefault(vo.getId(), List.of()));
         }
+        // 收藏态批量:一次 IN 查询替代逐条 count,这是 Feed 里唯一消掉的 N+1。
+        // 点赞态仍逐条(LikeMapper 暂无批量接口),留作后续优化。
+        if (viewerId > 0) {
+            Map<Long, PostVO> byId = new HashMap<>();
+            for (PostVO vo : vos) {
+                byId.put(vo.getId(), vo);
+            }
+            for (Long id : favoriteMapper.selectFavoritedPostIds(viewerId, posts.stream().map(Post::getId).toList())) {
+                PostVO vo = byId.get(id);
+                if (vo != null) {
+                    vo.setFavorited(true);
+                }
+            }
+        }
         return vos;
     }
 
@@ -115,11 +133,13 @@ public class PostVoAssembler {
                 .status(p.getStatus())
                 .likeCount(p.getLikeCount())
                 .commentCount(p.getCommentCount())
+                .favoriteCount(p.getFavoriteCount() == null ? 0 : p.getFavoriteCount())
                 .viewCount(p.getViewCount())
                 .hotScore(p.getHotScore())
                 .circleId(p.getCircleId())
                 .createTime(p.getCreateTime())
                 .liked(isLiked(p.getId(), viewerId))
+                .favorited(false) // 列表走批量回填、详情走 toVo 单查,此处只给默认值
                 .isTop(p.getIsTop() != null && p.getIsTop() == 1)
                 .build();
     }
@@ -132,6 +152,16 @@ public class PostVoAssembler {
                 .eq(Like::getUserId, viewerId)
                 .eq(Like::getTargetType, TARGET_TYPE_POST)
                 .eq(Like::getTargetId, postId)) > 0;
+    }
+
+    /** 单条详情用:未登录恒 false,登录才查 */
+    private boolean isFavorited(long postId, long viewerId) {
+        if (viewerId <= 0) {
+            return false;
+        }
+        return favoriteMapper.selectCount(new LambdaQueryWrapper<PostFavorite>()
+                .eq(PostFavorite::getUserId, viewerId)
+                .eq(PostFavorite::getPostId, postId)) > 0;
     }
 
     private UserVO authorVo(Long authorId) {

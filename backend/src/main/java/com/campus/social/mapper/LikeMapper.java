@@ -17,6 +17,15 @@ public interface LikeMapper extends BaseMapper<Like> {
     @Delete("DELETE FROM `like` WHERE target_type = 1 AND target_id = #{postId}")
     int hardDeleteByPost(@Param("postId") long postId);
 
+    /**
+     * 某人赞过多少条帖子(个人主页「赞过」Tab 的数字)。
+     *
+     * <p>只数 target_type=1(帖子):评论点赞不算「赞过」的内容,
+     * 如果把评论点赞也算进去,Tab 上的数字会比列表里能看到的条目还多。
+     */
+    @Select("SELECT COUNT(*) FROM `like` WHERE user_id = #{userId} AND target_type = 1 AND is_deleted = 0")
+    int countLikedPosts(@Param("userId") long userId);
+
     /** 物理删除某评论的点赞 */
     @Delete("DELETE FROM `like` WHERE target_type = 2 AND target_id = #{commentId}")
     int hardDeleteByComment(@Param("commentId") long commentId);

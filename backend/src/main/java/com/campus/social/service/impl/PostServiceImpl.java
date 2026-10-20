@@ -23,7 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.campus.social.common.ResultCode.*;
 
@@ -55,6 +58,7 @@ public class PostServiceImpl implements PostService {
     private final FeedItemMapper feedItemMapper;
     private final CommentMapper commentMapper;
     private final LikeMapper likeMapper;
+    private final PostFavoriteMapper favoriteMapper;
     private final UserMapper userMapper;
     private final NotifyMapper notifyMapper;
     private final PostNotifySupport notifySupport;
@@ -64,6 +68,9 @@ public class PostServiceImpl implements PostService {
     private final CommentServiceImpl commentService;
     /** Feed 查询域已拆出,帖子侧只做委托 */
     private final PostFeedQueryService feedQuery;
+
+    /** 装配器:收藏/赞过列表要按记录顺序回填 VO,与 Feed 共用同一套展示规则 */
+    private final PostVoAssembler assembler;
     /** 写路径(发帖/编辑/审核联动)已拆出 */
     private final PostWriteService writeService;
     /** 写扩散,发帖与审核通过共用 */
@@ -134,6 +141,8 @@ public class PostServiceImpl implements PostService {
         commentMapper.hardDeleteByPost(postId);
         // 3. 帖子点赞
         likeMapper.hardDeleteByPost(postId);
+        // 3.5 帖子收藏(不清会让「我的收藏」里留下打不开的幽灵条目)
+        favoriteMapper.hardDeleteByPost(postId);
         // 4. feed 收件箱扩散项
         feedItemMapper.hardDeleteByPost(postId);
         // 4.5 帖子-话题关联(并回退话题 post_count)
@@ -233,6 +242,106 @@ public class PostServiceImpl implements PostService {
         if (post != null) {
             postMapper.updateHotScore(postId, Math.max(0, post.getHotScore() - 1.0));
         }
+    }
+
+    // ---------------------------------------------------------------- 收藏
+
+    @Override
+    @Transactional
+    public void favorite(long postId, long userId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
+            throw new BusinessException(POST_NOT_FOUND);
+        }
+        // 圈内封禁与点赞同口径:被封禁的人在圈内帖子上不能做任何互动
+        if (post.getCircleId() != null && circleAdminService.isBanned(post.getCircleId(), userId)) {
+            throw new BusinessException(CIRCLE_MEMBER_BANNED, "你已被圈主/圈管理封禁,无法在此圈子操作");
+        }
+        // 幂等:已收藏直接返回。唯一键 uk_fav_user_post 是最后的兜底,
+        // 真正的并发窗口靠数据库约束拦,不靠这次 selectCount
+        Long cnt = favoriteMapper.selectCount(new LambdaQueryWrapper<PostFavorite>()
+                .eq(PostFavorite::getUserId, userId)
+                .eq(PostFavorite::getPostId, postId));
+        if (cnt != null && cnt > 0) {
+            log.debug("favorite idempotent skip: {} -> {}", userId, postId);
+            return;
+        }
+        PostFavorite fav = new PostFavorite();
+        fav.setUserId(userId);
+        fav.setPostId(postId);
+        favoriteMapper.insert(fav);
+        // 计数与明细同事务:要么一起成功,要么一起回滚
+        postMapper.adjustFavoriteCount(postId, 1);
+        // 刻意不发通知 —— 见 PostService#favorite 注释
+    }
+
+    @Override
+    @Transactional
+    public void unfavorite(long postId, long userId) {
+        // 物理删除,理由同 unlike:软删残留行会锁住 uk_fav_user_post,
+        // 再收藏时 INSERT 撞 Duplicate entry
+        int deleted = favoriteMapper.hardDelete(userId, postId);
+        if (deleted == 0) {
+            return; // 没收藏过,幂等
+        }
+        postMapper.adjustFavoriteCount(postId, -1);
+    }
+
+    @Override
+    public CursorPage<PostVO> favoritePosts(long userId, long viewerId, Long lastId, int size) {
+        List<PostFavorite> rows = favoriteMapper.selectList(new LambdaQueryWrapper<PostFavorite>()
+                .eq(PostFavorite::getUserId, userId)
+                .lt(lastId != null, PostFavorite::getId, lastId)
+                .orderByDesc(PostFavorite::getId)
+                .last("LIMIT " + (size + 1)));
+        boolean hasMore = rows.size() > size;
+        List<PostFavorite> page = rows.stream().limit(size).toList();
+        Long next = hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null;
+        List<Long> postIds = page.stream().map(PostFavorite::getPostId).toList();
+        return new CursorPage<>(toVoInRecordOrder(postIds, viewerId), next, hasMore);
+    }
+
+    @Override
+    public CursorPage<PostVO> likedPosts(long userId, long viewerId, Long lastId, int size) {
+        List<Like> rows = likeMapper.selectList(new LambdaQueryWrapper<Like>()
+                .eq(Like::getUserId, userId)
+                .eq(Like::getTargetType, TARGET_TYPE_POST)
+                .lt(lastId != null, Like::getId, lastId)
+                .orderByDesc(Like::getId)
+                .last("LIMIT " + (size + 1)));
+        boolean hasMore = rows.size() > size;
+        List<Like> page = rows.stream().limit(size).toList();
+        Long next = hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null;
+        return new CursorPage<>(toVoInRecordOrder(
+                page.stream().map(Like::getTargetId).toList(), viewerId), next, hasMore);
+    }
+
+    /**
+     * 按「收藏/点赞记录的先后顺序」把帖子 id 还原成 VO 列表。
+     *
+     * <p><b>为什么不能直接 toVoList(selectBatchIds(ids))</b>:
+     * {@code IN (...)} 的返回顺序由数据库决定,与传入顺序无关。
+     * 直接拿来用会把「最近收藏在最前」的排序打乱,翻页时内容来回跳。
+     *
+     * <p>过滤掉非 status=1:作者删帖或圈内下架之后,
+     * 收藏夹里不该留下点进去打不开的幽灵条目。
+     */
+    private List<PostVO> toVoInRecordOrder(List<Long> postIds, long viewerId) {
+        if (postIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Post> byId = new HashMap<>();
+        for (Post p : postMapper.selectBatchIds(postIds)) {
+            byId.put(p.getId(), p);
+        }
+        List<Post> ordered = new ArrayList<>(postIds.size());
+        for (Long id : postIds) {
+            Post p = byId.get(id);
+            if (p != null && p.getStatus() != null && p.getStatus() == 1) {
+                ordered.add(p);
+            }
+        }
+        return assembler.toVoList(ordered, viewerId);
     }
 
     // ---------------------------------------------------------------- 评论

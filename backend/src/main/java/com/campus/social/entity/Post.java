@@ -26,6 +26,8 @@ public class Post implements Serializable {
 
     private Integer likeCount;
     private Integer commentCount;
+    /** 收藏数(与 likeCount 同构的冗余列,由 PostServiceImpl 在同事务内 ±1) */
+    private Integer favoriteCount;
     /** 浏览量 */
     private Integer viewCount;
 

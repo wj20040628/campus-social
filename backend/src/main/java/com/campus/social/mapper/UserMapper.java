@@ -303,4 +303,18 @@ public interface UserMapper extends BaseMapper<User> {
     /** 整列覆盖写通知偏好(前端传 JSON 字符串,如 {"disabled":[2,3]};空=恢复全开) */
     @Update("UPDATE user SET notify_pref = #{pref}, update_time = NOW() WHERE id = #{id}")
     int updateNotifyPref(@Param("id") Long id, @Param("pref") String pref);
+
+    /**
+     * 整列覆盖写主页封面（2026-10-20）。{@code coverUrl} 传 null 即清空回默认封面。
+     *
+     * <p><b>为什么不用 {@code updateById}</b>：MyBatis-Plus 默认的字段策略是
+     * {@code NOT_NULL} —— 实体里为 null 的字段<b>不会进 SET 子句</b>。
+     * 用它写封面时，「恢复默认」（setCoverUrl(null)）会静默失效：
+     * 接口返回 200、响应体里 coverUrl 也是 null（那是内存里的实体），
+     * 但库里那一列纹丝未动，用户刷新一下封面又回来了。
+     * 这条路只能靠显式 SQL 写 null。
+     */
+    @Update("UPDATE user SET cover_url = #{coverUrl}, update_time = NOW() "
+            + "WHERE id = #{id} AND is_deleted = 0")
+    int updateCoverUrl(@Param("id") Long id, @Param("coverUrl") String coverUrl);
 }

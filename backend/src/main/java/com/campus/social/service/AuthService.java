@@ -47,6 +47,17 @@ public interface AuthService {
     UserVO updateProfile(long userId, String nickname, String avatarUrl, String studentNo, String bio);
 
     /**
+     * 设置 / 清除个人主页封面（2026-10-20）。
+     *
+     * <p>与 {@link #updateProfile} 拆开的理由同 {@link #setStrangerMsgEnabled}：
+     * 这是单字段设置，且语义是<b>「传什么就是什么」</b>——
+     * {@code coverUrl} 为 null / 空白即恢复默认封面。
+     * {@code updateProfile} 那套「null = 本次不改」在这里会直接引发误操作：
+     * 用户点「恢复默认」传 null，结果什么也没发生。
+     */
+    UserVO updateCover(long userId, String coverUrl);
+
+    /**
      * 设置「是否允许陌生人给自己发消息」开关（AC-05 护栏偏好）。
      *
      * <p>与 {@link #updateProfile} 拆开：这是单一布尔偏好，单独端点语义更清晰，

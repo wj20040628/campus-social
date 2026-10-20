@@ -24,6 +24,7 @@ public class PostVO {
     private Integer status;          // 0审核中 1通过 2下架 3删除
     private Integer likeCount;
     private Integer commentCount;
+    private Integer favoriteCount;
     private Integer viewCount;
     /** 话题名列表(快手式 #话题#) */
     private List<String> topics;
@@ -32,6 +33,8 @@ public class PostVO {
     private LocalDateTime createTime;
     /** 当前用户是否已赞 */
     private boolean liked;
+    /** 当前用户是否已收藏 */
+    private boolean favorited;
     /** 圈内置顶 */
     private boolean isTop;
 }

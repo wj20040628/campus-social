@@ -499,6 +499,44 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
+     * 设置 / 清除主页封面（2026-10-20）。
+     *
+     * <p><b>语义：传什么就是什么。</b>空白 / null 一律落成 NULL，
+     * 也就是「恢复默认渐变封面」——这里<b>不能</b>沿用 {@code updateProfile}
+     * 那套「null = 本次不改」，否则用户点「恢复默认」传个 null 会静默无效。
+     *
+     * <p>归属校验复用 {@code isAvatarAllowed}：它判的是「这个 /uploads 路径是不是
+     * 你自己传的」，与文件名无关，封面同理。不校验的后果是任何人可以把自己封面
+     * 指向别人的图 —— 能用但不能占为己有？不，是能把别人相册里的图挂到自己主页上，
+     * 属于越权引用。
+     */
+    @Override
+    @Transactional
+    public UserVO updateCover(long userId, String coverUrl) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_CANCELLED);
+        }
+        String next = (coverUrl == null || coverUrl.isBlank()) ? null : coverUrl.trim();
+        String old = user.getCoverUrl();
+        if (next == null ? old == null : next.equals(old)) {
+            // 没变化就不写库、不记审计：反复点「恢复默认」不该在审计表里刷出一堆空记录
+            return toVo(user);
+        }
+        if (next != null && !uploadService.isAvatarAllowed(next, userId)) {
+            throw new BusinessException(BAD_REQUEST, "封面必须是您自己上传的图片");
+        }
+        // 必须走显式 SQL：updateById 会跳过 null 字段，恢复默认会静默失效
+        // （详见 UserMapper#updateCoverUrl 的注释）
+        userMapper.updateCoverUrl(userId, next);
+        user.setCoverUrl(next);
+        // 审计只记动作不记路径：路径是 40 位 uuid，写进日志既占地方又没法读
+        auditService.record(userId, "update_cover", "user", userId,
+                next == null ? "封面:恢复默认" : "封面:已更换", null);
+        return toVo(user);
+    }
+
+    /**
      * 设置陌生人搭话开关。只动 {@code stranger_msg_enabled} 一列，
      * 不走 {@link #updateProfile}（那里会连带触发学号核验流转，开关不该捅到那条链）。
      */
