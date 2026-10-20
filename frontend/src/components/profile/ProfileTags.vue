@@ -106,7 +106,6 @@ onMounted(load)
   color: var(--ys-accent);
   cursor: pointer;
 }
-
 .ptags__more:hover {
   color: var(--ys-accent-hover);
 }
@@ -118,6 +117,10 @@ onMounted(load)
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
   mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
+/*
+ * 一圈 44s:两份副本约 1700px、可视 358px → 约 39px/s,
+ * 约 3 秒过一个标签。再慢就变成「盯着它等」了(试过 150s,用户反馈太磨人)。
+ */
 .ptags__track {
   display: flex;
   width: max-content;
@@ -149,7 +152,7 @@ onMounted(load)
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
-/* 标签少:不滚动也不遮罩,避免露出空白循环 */
+/* 标签少:不滚动也不遮罩,避免露出空白循环。只剩一份副本,滚起来接缝会跳 */
 .ptags__marquee--static {
   -webkit-mask-image: none;
   mask-image: none;
@@ -158,25 +161,24 @@ onMounted(load)
   animation: none;
 }
 /*
- * 系统开了「减少动效」时的降级。
+ * 系统开了「减少动效」时,标签**照常按 44s 滚**,只是这一条必须带 !important。
  *
- * <p>**不能直接关掉动画**（2026-10-20 修）：用户的 Windows 关着
- * 「在 Windows 中显示动画」，浏览器报 prefers-reduced-motion: reduce，
- * 表现为「兴趣标签不会走马灯」——用户看到的是功能坏了，而不是自己开了无障碍设置。
+ * 为什么不能老实停掉:这是一排 12 个兴趣胶囊,没有滚动条也没有分页,
+ * 只有滚动才看得全。用户的 Windows 关着「在 Windows 中显示动画」,
+ * 浏览器常驻上报 reduce —— 一停,功能就等于没了(上一版就是这样:
+ * 用户看到的是「兴趣标签不会走马灯」,而不是「我开了无障碍设置」)。
  *
- * <p>这条无障碍规则的初衷是别让**大幅位移/视差/闪烁**引起眩晕，
- * 而这是一条 34px 高、匀速、可悬停暂停的横排，属于允许的低强度动效。
- * 所以降级成「更慢」而不是「静止」。
+ * 为什么必须 !important:design-tokens.css 里有一条全局总闸
+ * 星号选择器上的 animation-duration 1ms / animation-iteration-count 1 都带 !important,
+ * 不带 !important 会被它压成 0.001s(实测值),改了等于没改。
+ * 类选择器在「同为 !important」时胜过星号。
  *
- * <p>**必须带 !important**：design-tokens.css 里有一条全局
- * `* { animation-duration: 1ms !important; animation-iteration-count: 1 !important }`
- * 的减弱动效总闸，不带 !important 的话本规则会被它压掉，
- * 实测计算值是 0.001s（连一帧都跑不完），改了等于没改。
- * 这里靠类选择器在「同为 !important」时胜过 `*`。
+ * 只覆盖 duration 与 iteration-count,不碰 animation-play-state ——
+ * 否则会连带把上面的悬停暂停顶掉。
  */
 @media (prefers-reduced-motion: reduce) {
   .ptags__track {
-    animation-duration: 150s !important;
+    animation-duration: 44s !important;
     animation-iteration-count: infinite !important;
   }
 }
