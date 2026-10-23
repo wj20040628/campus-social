@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.campus.social.entity.FeedItem;
 import com.campus.social.entity.Post;
 import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -12,6 +13,15 @@ import java.util.List;
 
 @Mapper
 public interface FeedItemMapper extends BaseMapper<FeedItem> {
+
+    /**
+     * 幂等写收件箱(2026-10-23 加,审查 P0-7):依赖 uk_fan_post(fan_id, post_id) 唯一键,
+     * 重复扩散(审核并发通过/发帖与补扩散撞车)静默跳过而不是插出重复行。
+     * 该唯一键进 schema.sql 基线;存量库先跑 sql/fix_feed_item_unique.sql。
+     */
+    @Insert("INSERT IGNORE INTO feed_item (fan_id, author_id, post_id) "
+            + "VALUES (#{fanId}, #{authorId}, #{postId})")
+    int insertIgnore(@Param("fanId") long fanId, @Param("authorId") long authorId, @Param("postId") long postId);
 
     /** 物理删除某帖子扩散出的所有 feed_item */
     @Delete("DELETE FROM feed_item WHERE post_id = #{postId}")

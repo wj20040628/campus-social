@@ -107,22 +107,24 @@ public class ReviewServiceImpl implements ReviewService {
         if (task == null) {
             throw new BusinessException(NOT_FOUND, "审核任务不存在");
         }
-        if (task.getStatus() != 0) {
-            throw new BusinessException(ResultCode.UNPROCESSABLE, "该任务已处理");
-        }
         Post post = postMapper.selectById(task.getPostId());
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND, "帖子已被删除");
         }
-        // 1. 标记任务
-        task.setStatus(1);
-        task.setReviewerId(reviewerId);
-        task.setReason(null);
-        reviewTaskMapper.updateById(task);
+        // 1. 占坑:条件 UPDATE status=0→1(2026-10-23 修,审查 P0-7)。
+        // 旧写法 select→判→updateById 在两个管理员(或 AI+人审)并发时都能通过判重,
+        // 各自扩散一次 → 同帖双进 Feed、通知双发。影响行=0 即已被处理,拒绝。
+        if (reviewTaskMapper.casMarkProcessed(taskId, 1, reviewerId) == 0) {
+            throw new BusinessException(ResultCode.UNPROCESSABLE, "该任务已处理");
+        }
 
-        // 2. 帖子状态 0 → 1(通过)
-        post.setStatus(1);
-        postMapper.updateById(post);
+        // 2. 帖子状态 0 → 1(通过)。只更新 status 列,不整行回写 ——
+        // 快照里的 like/comment/view 计数可能在 select 之后已被并发点赞改过,
+        // updateById 全字段回写会把别人的计数抹掉(审查 P1-14)。
+        postMapper.update(new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Post>()
+                .eq(Post::getId, post.getId())
+                .set(Post::getStatus, 1)
+                .set(Post::getUpdateTime, java.time.LocalDateTime.now()));
 
         // 3. 写扩散:此时才进粉丝 Feed
         postService.fanoutOnApproved(post.getId());
@@ -143,22 +145,25 @@ public class ReviewServiceImpl implements ReviewService {
         if (task == null) {
             throw new BusinessException(NOT_FOUND, "审核任务不存在");
         }
-        if (task.getStatus() != 0) {
-            throw new BusinessException(ResultCode.UNPROCESSABLE, "该任务已处理");
-        }
         Post post = postMapper.selectById(task.getPostId());
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND, "帖子已被删除");
         }
-        // 1. 标记任务
-        task.setStatus(2);
-        task.setReviewerId(reviewerId);
-        task.setReason(reason);
-        reviewTaskMapper.updateById(task);
+        // 1. 占坑:同 approve(审查 P0-7),驳回理由随后单独 UPDATE 该列
+        if (reviewTaskMapper.casMarkProcessed(taskId, 2, reviewerId) == 0) {
+            throw new BusinessException(ResultCode.UNPROCESSABLE, "该任务已处理");
+        }
+        if (reason != null) {
+            reviewTaskMapper.update(new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ReviewTask>()
+                    .eq(ReviewTask::getId, taskId)
+                    .set(ReviewTask::getReason, reason));
+        }
 
-        // 2. 帖子状态 0 → 2(下架)
-        post.setStatus(2);
-        postMapper.updateById(post);
+        // 2. 帖子状态 0 → 2(下架)。只更新 status 列(审查 P1-14,同 approve)
+        postMapper.update(new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Post>()
+                .eq(Post::getId, post.getId())
+                .set(Post::getStatus, 2)
+                .set(Post::getUpdateTime, java.time.LocalDateTime.now()));
 
         // 3. 审计
         auditService.record(reviewerId, "review_reject", "post", post.getId(),
