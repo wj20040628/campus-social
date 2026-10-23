@@ -88,6 +88,41 @@ public class CommentServiceImpl {
         if (level < 1 || level > 3) {
             throw new BusinessException(com.campus.social.common.ResultCode.BAD_REQUEST.getCode(), "评论层级 1~3");
         }
+        /*
+         * parentId 归属校验(2026-10-23 加,审查 P0-8)。
+         *
+         * 修复前的攻击面:parentId 原样落库、通知分支也不校验 parent.postId ——
+         *   1) 提交 level=2 + parentId=<B 帖某评论 id> → 「被评论」通知精准投给 B 帖评论者
+         *      (任意人,正文由攻击者控制),可批量定向骚扰;
+         *   2) 评论行落在 A 帖但 parent_id 指向 B 帖 → 计入 A 帖 comment_count 却永不出现在
+         *      A 帖列表(幽灵评论);
+         *   3) level=1 + parentId 非空 这类矛盾组合会被树装配当成根重复挂载。
+         *
+         * 校验口径刻意**不强制 parentId 必填**:前端当前并不传 parentId(已核实零命中),
+         * 强制必填等于直接关掉二/三级回复。只做「带了就必须合法」:
+         *   - level=1 不允许带 parentId(矛盾);
+         *   - level∈(2,3) 带 parentId 时,父评论必须存在、正常态、且属于**本帖**;
+         *   - 层级必须严格相邻(2 的父是 1,3 的父是 2),防跳级挂载。
+         */
+        if (level == 1 && dto.getParentId() != null) {
+            throw new BusinessException(com.campus.social.common.ResultCode.BAD_REQUEST.getCode(),
+                    "一级评论不能指定父评论");
+        }
+        if (level > 1 && dto.getParentId() != null) {
+            Comment parent = commentMapper.selectById(dto.getParentId());
+            if (parent == null || !Integer.valueOf(1).equals(parent.getStatus())) {
+                throw new BusinessException(com.campus.social.common.ResultCode.BAD_REQUEST.getCode(),
+                        "父评论不存在");
+            }
+            if (!parent.getPostId().equals(postId)) {
+                throw new BusinessException(com.campus.social.common.ResultCode.BAD_REQUEST.getCode(),
+                        "父评论不属于本帖");
+            }
+            if (parent.getLevel() == null || parent.getLevel() != level - 1) {
+                throw new BusinessException(com.campus.social.common.ResultCode.BAD_REQUEST.getCode(),
+                        "父评论层级不匹配");
+            }
+        }
 
         Comment c = new Comment();
         c.setPostId(postId);
@@ -102,7 +137,8 @@ public class CommentServiceImpl {
 
         postMapper.adjustCommentCount(postId, 1);
         // 热度分
-        postMapper.updateHotScore(postId, post.getHotScore() + 2.0);
+        // 增量自增(审查 P1-15):之前是「查出来 +2.0 再绝对值写回」,并发下会丢增量
+        postMapper.adjustHotScore(postId, 2.0);
 
         pushCommentNotify(c, dto, post, userId);
         return c.getId();
@@ -196,7 +232,10 @@ public class CommentServiceImpl {
         for (Long mid : dto.getMentionUserIds().stream().distinct().toList()) {
             User mu = userMapper.selectById(mid);
             if (mu != null && mu.getStatus() != 2) {
-                mentioned.put(mu.getNickname() != null ? mu.getNickname() : mu.getUsername(), mu.getId());
+                // 昵称为空时回退到 username,但**必须脱敏**(审查 P1-22):
+                // username 就是学号,原样返回等于把完整学号暴露给任意访客
+                mentioned.put(mu.getNickname() != null ? mu.getNickname()
+                        : com.campus.social.assembler.UserVoAssembler.maskUsername(mu.getUsername()), mu.getId());
             }
         }
         if (mentioned.isEmpty()) {
@@ -223,7 +262,10 @@ public class CommentServiceImpl {
             notifyTarget = post.getAuthorId();
         } else if (level == 2 && dto.getParentId() != null) {
             Comment parent = commentMapper.selectById(dto.getParentId());
-            notifyTarget = parent != null ? parent.getUserId() : post.getAuthorId();
+            // 双保险(审查 P0-8):即便写入侧校验被绕过,通知目标也只认「本帖的父评论」,
+            // 否则攻击者可用别帖的评论 id 把通知定向投给任意人
+            notifyTarget = (parent != null && parent.getPostId().equals(post.getId()))
+                    ? parent.getUserId() : post.getAuthorId();
         } else {
             notifyTarget = resolveLevel3Target(dto, post);
         }

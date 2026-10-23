@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.Collection;
 import java.util.List;
 
 @Mapper
@@ -36,19 +37,76 @@ public interface PostMapper extends BaseMapper<Post> {
     @Update("UPDATE post SET hot_score = #{hotScore}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
     int updateHotScore(@Param("postId") Long postId, @Param("hotScore") double hotScore);
 
-    /** 对账:重算 like_count(真实点赞数)+ hot_score(按热度公式) */
+    /**
+     * 热度分增量(2026-10-23 加,审查 P1-15):数据库侧自增/自减,绝不读-改-写。
+     *
+     * <p>旧写法是「查出来 +1.0 再绝对值写回」:并发点赞 N 次只有 1-2 次增量真正落地,
+     * 且与走 {@code col = col ± 1} 的 like_count 必然发散(热度对不上点赞数)。
+     * GREATEST(0, ...) 防减到负数(取消点赞比点赞多时)。
+     *
+     * <p>绝对值写回版 {@link #updateHotScore} 保留给 ReconcileJob 全量重算用。
+     */
+    @Update("UPDATE post SET hot_score = GREATEST(0, hot_score + #{delta}), update_time = NOW() "
+            + "WHERE id = #{postId} AND is_deleted = 0")
+    int adjustHotScore(@Param("postId") Long postId, @Param("delta") double delta);
+
+    /**
+     * 一批圈子各自的帖数与最新一帖时间(圈子列表副行「最近动态」用)。
+     *
+     * <p>一次查回整页圈子,避免 N+1。用 Map 而不是实体:这是聚合结果,
+     * 没有对应的实体可映射;列名用下划线别名,读取时按 get("circle_id") 取。
+     *
+     * <p>status=1 是「已发布可见」口径,与帖子搜索/列表一致 —— 草稿与被屏蔽的不计,
+     * 否则会出现「显示 3 条帖子但一个都点不开」。
+     */
+    @Select("<script>" +
+            "SELECT circle_id AS circle_id, COUNT(*) AS post_cnt, MAX(create_time) AS last_at " +
+            "FROM post WHERE circle_id IN " +
+            "<foreach collection='circleIds' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "AND status = 1 AND is_deleted = 0 GROUP BY circle_id" +
+            "</script>")
+    List<java.util.Map<String, Object>> postStatsByCircles(@Param("circleIds") Collection<Long> circleIds);
+
+    /**
+     * 对账:重算 like_count(真实点赞数)+ hot_score(按热度公式) —— <b>全量</b>。
+     *
+     * <p>只在每天凌晨的低峰对账里调用。全量重算的代价是「帖子数 × 一次索引查找」，
+     * 数据量上来后是一次不容忽视的长事务，<b>不要</b>拿它做高频刷新。
+     *
+     * <p>为什么不再写 {@code update_time = NOW()}：
+     * 该列的 DDL 是 {@code ON UPDATE CURRENT_TIMESTAMP}，值真的变了才会自动更新。
+     * 显式赋值等于强行让每一行都产生新版本，即使 like_count 和 hot_score 完全没变 ——
+     * 白白产生 redo/undo、脏页刷盘和表空间膨胀。去掉之后 MySQL 会跳过未变化的行，
+     * 对账的写放大自动降到「真正有偏差的帖子数」。
+     */
     @Update("UPDATE post p SET " +
             "  like_count = (SELECT COUNT(*) FROM `like` l WHERE l.target_type = 1 AND l.target_id = p.id AND l.is_deleted = 0), " +
             "  hot_score = (p.like_count + 2 * p.comment_count) / " +
-            "             POWER(GREATEST(1, TIMESTAMPDIFF(HOUR, p.create_time, NOW()) + 2), 1.5), " +
-            "  update_time = NOW() " +
+            "             POWER(GREATEST(1, TIMESTAMPDIFF(HOUR, p.create_time, NOW()) + 2), 1.5) " +
             "WHERE p.status = 1 AND p.is_deleted = 0")
     int reconcileHotAndLikes();
 
-    /** 对账:重算 comment_count(真实评论数) */
+    /**
+     * 热度分增量刷新:只算最近 7 天发布的帖子。
+     *
+     * <p>hot_score 的公式对时间做了衰减（分母是「发布至今小时数」的 1.5 次幂），
+     * 所以这条分值的意义只存在于发布后的头几天：一个 30 天前的老帖，
+     * 无论 10 分钟刷一次还是 1 小时刷一次，都远在热门榜之外。
+     *
+     * <p>用 7 天而不是 1 天，是为了兜住「周末发的帖周一还在被互动」这种情况。
+     * 7 天外的 like_count 漂移由每天 3 点的 {@link #reconcileHotAndLikes()} 兜底。
+     */
     @Update("UPDATE post p SET " +
-            "  comment_count = (SELECT COUNT(*) FROM comment c WHERE c.post_id = p.id AND c.is_deleted = 0 AND c.status = 1), " +
-            "  update_time = NOW() " +
+            "  like_count = (SELECT COUNT(*) FROM `like` l WHERE l.target_type = 1 AND l.target_id = p.id AND l.is_deleted = 0), " +
+            "  hot_score = (p.like_count + 2 * p.comment_count) / " +
+            "             POWER(GREATEST(1, TIMESTAMPDIFF(HOUR, p.create_time, NOW()) + 2), 1.5) " +
+            "WHERE p.status = 1 AND p.is_deleted = 0 " +
+            "  AND p.create_time > DATE_SUB(NOW(), INTERVAL 7 DAY)")
+    int refreshRecentHotScore();
+
+    /** 对账:重算 comment_count(真实评论数)。同样不写 update_time,理由见上。 */
+    @Update("UPDATE post p SET " +
+            "  comment_count = (SELECT COUNT(*) FROM comment c WHERE c.post_id = p.id AND c.is_deleted = 0 AND c.status = 1) " +
             "WHERE p.is_deleted = 0")
     int reconcileComments();
 
