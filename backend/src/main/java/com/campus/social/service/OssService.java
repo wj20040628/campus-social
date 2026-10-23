@@ -87,11 +87,32 @@ public class OssService {
         GeneratePresignedUrlRequest req =
                 new GeneratePresignedUrlRequest(props.getBucket(), objectKey, HttpMethod.GET);
         req.setExpiration(expiration);
+        /*
+         * 读链路强制 Content-Type(2026-10-23 加,审查 P0-13 后半):
+         * 之前 302 后的响应类型取自对象元数据 = 客户端 PUT 时自报的 Content-Type,
+         * 配合 GIF 魔数可让 OSS 域以 text/html 渲染上传内容 = 存储型 XSS。
+         * 这里按对象后缀服务端推导并覆盖响应头,客户端上报的类型不再生效。
+         */
+        String ext = extOf(objectKey);
+        com.aliyun.oss.model.ResponseHeaderOverrides overrides =
+                new com.aliyun.oss.model.ResponseHeaderOverrides();
+        overrides.setContentType(com.campus.social.util.OssSignUtil.mimeOf(ext));
+        req.setResponseHeaders(overrides);
         if (process != null && !process.isBlank()) {
             req.setProcess(process);
         }
         URL url = readClient.generatePresignedUrl(req);
         return url.toString();
+    }
+
+    /** 取对象 key 的后缀(小写,无点);无后缀返回空串 */
+    private String extOf(String objectKey) {
+        int dot = objectKey.lastIndexOf('.');
+        int slash = objectKey.lastIndexOf('/');
+        if (dot <= slash || dot == objectKey.length() - 1) {
+            return "";
+        }
+        return objectKey.substring(dot + 1).toLowerCase();
     }
 
     /** OSS 是否可用：AK 均已配置。本地未填 AK 时为 false，upload 自动回落本地磁盘。 */
@@ -158,5 +179,33 @@ public class OssService {
     /** 对象是否存在（内网读头 1 字节；不存在 / AK 未配 / 网络失败均返回 false，fail-closed） */
     public boolean objectExists(String objectKey) {
         return readHeadBytes(objectKey, 1).length > 0;
+    }
+
+    /**
+     * 查对象真实大小(2026-10-23 加,审查 P0-14):回调里的 size 参数由请求方给出,
+     * 签发时又无法预知,不能作为大小限制的依据 —— 必须回查 OSS 元数据。
+     *
+     * @return 字节数;查不到(对象不存在/AK 未配/网络失败)返回 -1,
+     *         调用方按 fail-closed 拒绝(不能把 -1 当成"很小"放行)
+     */
+    public long objectSize(String objectKey) {
+        long via = tryStatSize(internalReadClient, objectKey);
+        if (via >= 0) {
+            return via;
+        }
+        return tryStatSize(readClient, objectKey);
+    }
+
+    private long tryStatSize(OSS client, String objectKey) {
+        if (client == null) {
+            return -1;
+        }
+        try {
+            ObjectMetadata meta = client.getObjectMetadata(props.getBucket(), objectKey);
+            return meta.getContentLength();
+        } catch (Exception e) {
+            log.debug("stat object fail: key={}", objectKey, e);
+            return -1;
+        }
     }
 }

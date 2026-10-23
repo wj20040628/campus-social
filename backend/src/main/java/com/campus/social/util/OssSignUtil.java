@@ -23,12 +23,24 @@ public final class OssSignUtil {
     private OssSignUtil() {
     }
 
-    /** HMAC-SHA256(callbackKey, objectKey),输出小写 hex。 */
-    public static String signCallback(String callbackKey, String objectKey) {
+    /**
+     * HMAC-SHA256(callbackKey, objectKey|mimeType),输出小写 hex。
+     *
+     * <p><b>2026-10-23 改(审查 P0-14)</b>:签名材料从「只签 object」扩展为
+     * {@code object + "|" + mimeType},堵住「改用扩展名/按扩展名传内容」这一类伪造 ——
+     * 旧签名只覆盖 object,mimeType 与 size 均可被省略或篡改,大小/视频开关失效。
+     *
+     * <p><b>为什么 size 不进签名</b>:签发发生在 STS 下发时(上传前),此时真实大小未知,
+     * 放进材料会导致签发端与回调端永远算不出同一个值。size 的正确性改由
+     * {@link com.campus.social.service.OssService#objectSize} 从对象元数据复核:
+     * 回调必须携带 size(缺失直接拒),且必须与 OSS 里的真实大小一致,否则拒收。
+     */
+    public static String signCallback(String callbackKey, String objectKey, String mimeType) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(callbackKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] raw = mac.doFinal(objectKey.getBytes(StandardCharsets.UTF_8));
+            String material = objectKey + "|" + (mimeType == null ? "" : mimeType);
+            byte[] raw = mac.doFinal(material.getBytes(StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder(raw.length * 2);
             for (byte b : raw) {
                 sb.append(String.format("%02x", b));

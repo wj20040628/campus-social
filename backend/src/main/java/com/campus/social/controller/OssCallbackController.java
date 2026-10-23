@@ -69,14 +69,17 @@ public class OssCallbackController {
         String mimeType = req.getParameter("mimeType");
         String sign = req.getParameter("sign");
 
-        if (object == null || sign == null) {
+        // size / mimeType 改为必填(2026-10-23 修,审查 P0-14):
+        // 之前 `if (size != null)` 意味着省略 size 即可跳过整段大小校验,
+        // maxImageBytes/maxVideoBytes/videoEnabled 三个开关形同虚设。
+        if (object == null || sign == null || mimeType == null) {
             return forbidden("missing params");
         }
-        // 1) 验签
+        // 1) 验签(材料 = object|mimeType,与 GET /upload/sts 端一致)
         if (props.getCallbackKey().isBlank()) {
             return forbidden("callback key not configured");
         }
-        String expected = OssSignUtil.signCallback(props.getCallbackKey(), object);
+        String expected = OssSignUtil.signCallback(props.getCallbackKey(), object, mimeType);
         if (!expected.equals(sign)) {
             return forbidden("sign mismatch");
         }
@@ -85,25 +88,32 @@ public class OssCallbackController {
         if (userId == null) {
             return forbidden("bad object key");
         }
-        // 3) 大小 / 视频开关(直传无 multipart 预校验,这里兜底)
-        if (size != null) {
-            try {
-                long bytes = Long.parseLong(size);
-                boolean isVideo = mimeType != null && mimeType.startsWith("video/");
-                if (isVideo && !videoEnabled) {
-                    return forbidden("video disabled");
-                }
-                long max = isVideo ? maxVideoBytes : maxImageBytes;
-                if (bytes > max) {
-                    return forbidden("too large");
-                }
-            } catch (NumberFormatException ignored) {
-                return forbidden("bad size");
-            }
+        // 3) 大小 / 视频开关。声明大小必须与 OSS 元数据里的真实大小一致 ——
+        //    签名不含 size(签发时未知),只信参数等于给伪造留口子,故回查元数据(fail-closed)。
+        long declared;
+        try {
+            declared = Long.parseLong(size);
+        } catch (NumberFormatException e) {
+            return forbidden("bad size");
+        }
+        long realSize = ossService.objectSize(object);
+        if (realSize < 0) {
+            // 查不到真实大小(对象不存在/AK 未配/网络),不能当"很小"放行
+            return forbidden("cannot stat object");
+        }
+        if (declared != realSize) {
+            return forbidden("size mismatch");
+        }
+        boolean isVideo = mimeType.startsWith("video/");
+        if (isVideo && !videoEnabled) {
+            return forbidden("video disabled");
+        }
+        long max = isVideo ? maxVideoBytes : maxImageBytes;
+        if (realSize > max) {
+            return forbidden("too large");
         }
         // 4) 魔数校验(内网拉头,免流量费)
         byte[] head = ossService.readHeadBytes(object, 16);
-        boolean isVideo = mimeType != null && mimeType.startsWith("video/");
         if (!FileMagic.matches(head, isVideo)) {
             return forbidden("content mismatch");
         }
