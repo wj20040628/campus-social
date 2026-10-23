@@ -1,18 +1,33 @@
+/*
+ * 全局导航抽屉(2026-10-20 按设计稿重排)。
+ *
+ * 这一版和上一版的视觉差异,都是在实测里撞出来的,不是审美偏好:
+ * - 关闭按钮独占顶部 44px 工具条:原本绝对定位在右上角,会和资料区
+ *   垂直居中的「›」挤在同一列(两者只差 23px),看起来像两个箭头叠在一起。
+ * - 图标从「青绿圆角方块」改成单色描边:6 个一模一样的色块不提供任何
+ *   区分度,只是六个亮点,扫读时反而慢。
+ * - 「深色模式」不在这里放三段按钮:300px 面板里会把文字挤成两行
+ *   (实测 268px 宽更明显),改成「当前值 + ›」,点开走 ActionSheet。
+ */
+
 .adrawer {
   position: fixed;
   inset: 0;
   z-index: var(--ys-z-drawer, 1220);
 }
+
 .adrawer__mask {
   position: absolute;
   inset: 0;
   background: var(--ys-overlay);
 }
+
 .adrawer__panel {
   position: absolute;
   top: 0;
   bottom: 0;
   right: 0;
+  /* 320px 宽的手机上只剩 267px,所有行都不能折行 */
   width: min(300px, 84vw);
   display: flex;
   flex-direction: column;
@@ -20,8 +35,40 @@
   border-left: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-xl) 0 0 var(--ys-radius-xl);
   box-shadow: var(--ys-shadow-2);
-  padding: var(--ys-space-4) 0 var(--ys-space-2);
+  /* 底部留出 iPhone 的 Home 指示条,否则「退出登录」贴着屏幕边 */
+  padding: 0 0 calc(var(--ys-space-2) + env(safe-area-inset-bottom, 0px));
 }
+
+/* ---------- 顶部工具条 ---------- */
+.adrawer__tool {
+  flex: none;
+  height: var(--ys-touch-min);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--ys-space-2);
+}
+
+.adrawer__close {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--ys-radius-full);
+  background: none;
+  color: var(--ys-muted);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.adrawer__close:hover {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg);
+}
+
+/* ---------- 资料头(整块可点,进我的主页) ---------- */
 .adrawer__head {
   display: flex;
   align-items: center;
@@ -35,40 +82,76 @@
   text-align: left;
   cursor: pointer;
   color: var(--ys-fg);
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
+
+.adrawer__head:hover {
+  background: var(--ys-surface-2);
+}
+
 .adrawer__headtext {
   flex: 1;
   min-width: 0;
 }
+
+/* 昵称 10 位数字 + 徽章时会把「›」挤出界,必须允许截断 */
+.adrawer__namerow {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-width: 0;
+}
+
 .adrawer__name {
-  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
+  font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
 }
+
+/* 认证徽章:口径与 ProfileHead / 设置页个人卡一致(verify_status === 1) */
+.adrawer__badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-success);
+}
+
 .adrawer__id {
   display: block;
-  margin-top: 2px;
+  margin-top: 3px;
   font-size: var(--ys-text-xs);
   color: var(--ys-meta);
 }
+
+.adrawer__chev {
+  flex: none;
+  margin-left: auto;
+  color: var(--ys-meta);
+  font-size: var(--ys-text-lg);
+  line-height: 1;
+}
+
+/* ---------- 导航 ---------- */
 .adrawer__nav {
   flex: 1;
   overflow-y: auto;
-  padding: var(--ys-space-2) var(--ys-space-3);
+  padding: var(--ys-space-1) 10px var(--ys-space-2);
 }
-.adrawer__cap {
-  padding: var(--ys-space-2) var(--ys-space-2) var(--ys-space-1);
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-}
+
 .adrawer__item {
   display: flex;
   align-items: center;
-  gap: var(--ys-space-3);
+  gap: 13px;
   width: 100%;
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-2);
+  min-height: 46px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--ys-radius-lg);
   background: none;
@@ -76,69 +159,103 @@
   font-size: var(--ys-text-base);
   color: var(--ys-fg);
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
+
 .adrawer__item:hover {
   background: var(--ys-surface-2);
 }
-.adrawer__item--static {
-  cursor: default;
-}
-.adrawer__item--static:hover {
-  background: none;
-}
-.adrawer__item--accent {
-  color: var(--ys-accent);
-  font-weight: var(--ys-weight-medium);
-}
+
+/* 图标统一单色描边 —— 颜色继承这里的 currentColor */
 .adrawer__ic {
   flex: none;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-}
-.adrawer__ic--dark {
-  background: var(--ys-surface-2);
+  width: 20px;
+  height: 20px;
   color: var(--ys-fg-2);
 }
+
 .adrawer__dot {
   margin-left: auto;
 }
-.adrawer__warn {
-  margin-left: auto;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-accent-2);
+
+/* ---------- 管理区:唯一保留分组标题与色块的地方 ---------- */
+.adrawer__admin {
+  margin: var(--ys-space-3) 10px 0;
+  padding: 6px;
+  border: 1px solid var(--ys-border-soft);
+  border-radius: 13px;
+  background: var(--ys-surface-2);
 }
+
+.adrawer__admin .adrawer__item:hover {
+  background: var(--ys-surface);
+}
+
+.adrawer__cap {
+  padding: 2px 10px var(--ys-space-1);
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  color: var(--ys-meta);
+}
+
+.adrawer__ic--admin {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+/* ---------- 底部 ---------- */
 .adrawer__foot {
+  flex: none;
   border-top: 1px solid var(--ys-border-soft);
-  padding: var(--ys-space-2) var(--ys-space-3);
+  padding: 10px 10px var(--ys-space-1);
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.adrawer__empty {
-  padding: var(--ys-space-6) var(--ys-space-4);
-  text-align: center;
-  font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
+
+/* 当前外观值的回显,替代原来的开关 */
+.adrawer__val {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
 }
 
-/* 退出登录(危险项):图标块与文字都用警示色 */
-.adrawer__item--danger {
+.adrawer__cs {
+  font-size: var(--ys-text-md);
+  line-height: 1;
+}
+
+/* 退出登录与设置之间:1px 分隔 + 8px 间距。
+   改版前两者上下相邻、间距 2px,误触一次就掉登录态。 */
+.adrawer__sep {
+  height: 1px;
+  background: var(--ys-border-soft);
+  margin: var(--ys-space-2) 10px;
+}
+
+.adrawer__item--danger,
+.adrawer__item--danger .adrawer__ic {
   color: var(--ys-danger);
 }
-.adrawer__ic--danger {
+
+.adrawer__item--danger:hover {
   background: var(--ys-danger-soft);
-  color: var(--ys-danger);
 }
 
-/* 管理后台操作表层按钮:ActionSheet 的 scoped 样式穿透不到本组件插槽,
-   这里补一份(.asheet__item 与 ActionSheet.vue / Settings.vue 同源) */
+/* ---------- ActionSheet 插槽内容 ----------
+   ActionSheet 的 scoped 样式打不进父组件插槽(插槽内容带的是本组件的
+   scope id),所以这几个类在这里补一份。 */
 .asheet__item {
   display: flex;
   align-items: center;
@@ -155,27 +272,43 @@
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
+
 .asheet__item:hover {
   background: var(--ys-surface-2);
 }
 
-/* 过渡:遮罩淡入 + 面板右侧滑入;尊重系统的减少动态设置 */
+/* 外观三选一:当前项字色变强调色 + 右侧对勾 */
+.adrawer__opt[aria-pressed='true'] {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}
+
+.adrawer__tick {
+  margin-left: auto;
+  color: var(--ys-accent);
+}
+
+/* ---------- 过渡:遮罩淡入 + 面板右侧滑入 ---------- */
 .adrawer-enter-active,
 .adrawer-leave-active {
   transition: opacity var(--ys-motion-base) var(--ys-ease-out);
 }
+
 .adrawer-enter-active .adrawer__panel,
 .adrawer-leave-active .adrawer__panel {
   transition: transform var(--ys-motion-base) var(--ys-ease-out);
 }
+
 .adrawer-enter-from,
 .adrawer-leave-to {
   opacity: 0;
 }
+
 .adrawer-enter-from .adrawer__panel,
 .adrawer-leave-to .adrawer__panel {
   transform: translateX(100%);
 }
+
 @media (prefers-reduced-motion: reduce) {
   .adrawer-enter-active,
   .adrawer-leave-active,
@@ -186,10 +319,8 @@
 }
 
 /*
- * 桌面端(≥1024px)只做宽度/字号适配。
- * 2026-10-18 用户要求「手机端也改成右边弹出」,右侧滑出已下沉到基础层
- * (.adrawer__panel 基础规则 + 进出场位移),这里只保留桌面宽度,
- * 不再重复位置与位移,避免两处规则互相覆盖。
+ * 桌面端(≥1024px)只做宽度适配。
+ * 右侧滑出已下沉到基础层,这里不再重复位置与位移,避免两处规则互相覆盖。
  */
 @media (min-width: 1024px) {
   .adrawer__panel {

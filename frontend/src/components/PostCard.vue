@@ -13,9 +13,25 @@
       </span>
       <span class="pc__who" @click.stop="goAuthor">
         <span class="pc__name">{{ post.author ? displayName(post.author) : '匿名' }}</span>
-        <span class="pc__time ys-num">{{ post.createTime }}</span>
+        <span class="pc__time ys-num">{{ timeText }}</span>
       </span>
-      <span v-if="post.circleId" class="pc__ctag">圈子</span>
+      <!--
+        圈子标签：**必须有圈名**才渲染。
+        改版前只写死「圈子」两个字（后端那时只下发 circleId、没有 circleName），
+        用户看得出「这条来自某个圈」却不知道是哪个、也点不进去 —— 等于没有信息量。
+        现在圈名由服务端按页批量下发；帖子所属圈已解散/被封禁时服务端不给名字，
+        这里随之不渲染，避免给一个点进去 404 的链接。
+      -->
+      <button
+        v-if="post.circleId && post.circleName"
+        type="button"
+        class="pc__ctag"
+        :title="`来自圈子：${post.circleName}`"
+        @click.stop="goCircle"
+      >
+        <el-icon :size="12"><Files /></el-icon>
+        <span class="pc__ctag-txt">{{ post.circleName }}</span>
+      </button>
       <span v-if="post.status === 0" class="pc__tag pc__tag--warn">审核中</span>
       <span v-else-if="post.status === 2" class="pc__tag pc__tag--danger">已驳回</span>
       <span v-if="post.isTop" class="pc__tag pc__tag--top">置顶</span>
@@ -28,7 +44,10 @@
       </div>
       <div v-if="mediaList.length" class="pc__media" :class="'pc__media--n' + Math.min(mediaList.length, 3)">
         <template v-for="(m, i) in mediaList" :key="i">
-          <el-image v-if="m.type === 'img'" :src="resolveThumb(m.url)" :preview-src-list="imgList" :initial-index="i" fit="cover" class="pc__img" loading="lazy" @click.stop />
+          <div v-if="m.type === 'img' && brokenMedia.has(i)" class="pc__img pc__img--broken" @click.stop>
+            图片已失效
+          </div>
+          <el-image v-else-if="m.type === 'img'" :src="resolveThumb(m.url)" :preview-src-list="imgList" :initial-index="i" fit="cover" class="pc__img" loading="lazy" @click.stop @error="onMediaError(i)" />
           <video v-else :src="resolveUrl(m.url)" controls class="pc__video" @click.stop></video>
         </template>
       </div>
@@ -67,34 +86,70 @@
         <el-icon :size="15"><View /></el-icon>
         <span class="ys-num">{{ post.viewCount || 0 }}</span>
       </span>
-      <!-- 自己的帖子不渲染搭话;userInfo 未加载完时可能短暂露出,刷新即修正 -->
-      <GreetButton v-if="post.author?.id && post.author.id !== userStore.userInfo?.id" :peer-id="post.author.id" class="pc__greet" @need-verify="onNeedVerify" @error="onGreetError" />
+      <!--
+        这里**没有**「搭句话」按钮（2026-10-21 移除）。
+        理由：点卡片本身就进详情、详情页有同一个按钮，列表页这个不提供任何
+        不可替代的能力；而一个 44px 实心青主按钮压在一行 13px 灰数字旁边，
+        视觉权重差 5 个层级，把 赞/藏/评/浏览 挤成一片。
+        搭话是「读完内容后」的决策动作，属于详情页与个人主页，不属于列表。
+        GreetButton 组件本身保留 —— PostDetail 与 Profile 仍在用。
+      -->
     </footer>
   </article>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Star, StarFilled, ChatLineRound, View } from '@element-plus/icons-vue'
+import { Star, StarFilled, ChatLineRound, View, Files } from '@element-plus/icons-vue'
 import ThumbUp from '@/icons/ThumbUp.vue'
-import GreetButton from '@/components/post/GreetButton.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { displayName } from '@/utils/mask'
+import { relTime } from '@/utils/relTime'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { like, unlike, favorite, unfavorite } from '@/api/feed'
-import { useUserStore } from '@/stores/user'
 import { ElMessage } from '@/utils/feedback'
 
 const props = defineProps({ post: { type: Object, required: true } })
 defineEmits(['click', 'topic'])
 
 const router = useRouter()
-const userStore = useUserStore()
+
+/**
+ * 加载失败的图片下标集合（2026-10-21）。
+ *
+ * 帖子的 media 可能指向已删除的磁盘文件（实测 post 168/169：
+ * upload_file 有记录、文件已不在）。不改 props 里的 mediaList ——
+ * 那是父组件的数据；「这张图坏了」是纯展示层事实，留在这里最合适。
+ * 用 Set 判断 O(1)；整体替换才能触发 Vue 的响应式。
+ */
+const brokenMedia = ref(new Set())
+
+function onMediaError(i) {
+  const next = new Set(brokenMedia.value)
+  next.add(i)
+  brokenMedia.value = next
+}
+
+/**
+ * 时间显示：**相对时间**，不是后端的原始 "yyyy-MM-dd HH:mm"。
+ *
+ * 改版前直接渲染 `post.createTime`，列表里满眼都是 "10-20 12:23" 这种机器格式 ——
+ * 读者要自己算「这是几天前」，而信息流最需要的恰恰是「新不新」。
+ * relTime 全站已有（CircleRow 在用同一份），这里复用，不另写一套。
+ *
+ * 1 小时内给「N 分钟前」、当天「N 小时前」、7 天内「N 天前」、
+ * 再往前退化成「9 月 15 日」（年份不同则带年份）。
+ */
+const timeText = computed(() => relTime(props.post.createTime) || props.post.createTime || '')
 
 function goDetail() { router.push(`/post/${props.post.id}`) }
 function goAuthor() { if (props.post.author?.id) router.push(`/user/${props.post.author.id}`) }
 function goTopic(name) { router.push(`/topic/${encodeURIComponent(name)}`) }
+/** 圈子标签直接进圈 —— 标签既然给出了圈名，就必须能点进那个圈 */
+function goCircle() {
+  if (props.post.circleId) router.push(`/circles/${props.post.circleId}`)
+}
 
 /** feed 内直接点赞。乐观更新 + 失败回滚,与 usePostDetailActions.toggleLike 同逻辑:
  *  回滚恢复改之前的旧值,不做「减一」推算 —— 后端可能有并发点赞,真值以服务端为准 */
@@ -112,10 +167,6 @@ async function toggleLike() {
     ElMessage.error('没点上,网络好像断了')
   }
 }
-
-/** GreetButton 回执:未认证给可操作的提示,发送失败给一句人话 */
-function onNeedVerify() { ElMessage.warning('先完成学号认证才能搭话,去「我的 - 编辑资料」') }
-function onGreetError() { ElMessage.error('没搭上,对方可能关了陌生人消息') }
 
 /**
  * 收藏/取消收藏。与 toggleLike 完全同构:乐观更新 + 失败回滚到改之前的旧值。
@@ -155,8 +206,26 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
   border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-2xl);
   box-shadow: var(--ys-shadow-1);
-  padding: var(--ys-space-4);
+  /* 16 → 15：卡片内留白收紧 1px，配合下面 .pc__body 上距 12→10，
+     短内容（「111」这种一条）不再显得中间空一大块 */
+  padding: 15px var(--ys-space-4) 12px;
   cursor: pointer;
+  /*
+   * 屏外卡片跳过布局与绘制（配合 useHomeFeed 的 200 条上限做）。
+   *
+   * 列表是「只追加」的，刷到几百条后每一次布局都要把全部卡片算一遍、
+   * 每张图都要解码，低端机上就是滑动掉帧。content-visibility:auto
+   * 让浏览器只渲染视口附近的卡片，跳过的部分既不算布局也不进绘制。
+   *
+   * contain-intrinsic-size 必须给：被跳过的元素量不出高度，不给就会
+   * 在滚动条里塌成 0，页面高度和滚动位置一起乱跳。
+   * 卡片高度从 150px（纯文字）到 400px（单图 16:10）不等，固定值只能
+   * 取中间；先写固定值给老浏览器兜底，再写 auto 形式让现代浏览器
+   * 记住每张卡的真实高度（后者不认时整条声明被丢弃，前者仍在）。
+   */
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
+  contain-intrinsic-size: auto 220px;
   transition: box-shadow var(--ys-motion-fast) var(--ys-ease-out), border-color var(--ys-motion-fast) var(--ys-ease-out);
 }
 .pc:hover { border-color: var(--ys-border-control); box-shadow: var(--ys-shadow-2); }
@@ -168,35 +237,120 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 .pc__name:hover { color: var(--ys-accent); }
 .pc__time { font-size: var(--ys-text-xs); color: var(--ys-meta); margin-top: 1px; }
 
-/* 圈子标签:辅色橙胶囊;置顶用暖墨徽章(官方感),不用彩色描边 */
-.pc__ctag, .pc__tag { flex: none; font-size: 11px; line-height: 1; padding: 5px 10px; border-radius: var(--ys-radius-full); }
-.pc__ctag { color: var(--ys-accent-2); background: var(--ys-accent-2-soft); }
+/* 状态标签(审核中/已驳回/置顶)：只读，不可点 */
+.pc__tag { flex: none; font-size: 11px; line-height: 1; padding: 5px 10px; border-radius: var(--ys-radius-full); }
+/*
+ * 圈子胶囊：可点，带圈名。
+ *
+ * 与 pc__tag 分开写而不是共用一条规则：这里是 <button>，需要
+ * 重置 border/background/font（按钮有 UA 默认样式），且要处理长圈名截断；
+ * 而 pc__tag 是 <span> 纯展示，两者只会越改越不像。
+ *
+ * max-width:158px —— 圈名最长 7 个汉字（建圈校验 3~7 字），中文 7 字约
+ * 11.5px * 7 ≈ 80px + 图标 12 + 间距 4 + padding 20 ≈ 116px，158px 留足余量；
+ * 万一历史数据有更长的名字，省略号兜底，不把作者昵称挤掉。
+ */
+.pc__ctag {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  max-width: 158px;
+  padding: 6px 10px;
+  border: 0; border-radius: var(--ys-radius-full);
+  background: var(--ys-accent-2-soft);
+  color: var(--ys-accent-2);
+  font-family: var(--ys-font-body);
+  font-size: 11.5px; font-weight: var(--ys-weight-semibold); line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.pc__ctag:hover { background: var(--ys-accent-2); color: var(--ys-accent-on); }
+/* 文字部分才做截断：图标本身不该被 ellipsis 吃掉 */
+.pc__ctag-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pc__tag--warn { color: var(--ys-warning); background: var(--ys-warning-soft); }
 .pc__tag--danger { color: var(--ys-danger); background: var(--ys-danger-soft); }
 .pc__tag--top { color: var(--ys-accent-on); background: var(--ys-fg); }
 
-.pc__body { margin-top: var(--ys-space-3); }
-.pc__text { margin: 0; font-size: var(--ys-text-md); line-height: var(--ys-lh-md); color: var(--ys-fg); white-space: pre-wrap; }
-.pc__topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--ys-space-2); }
+/* 12 → 10：见 .pc 的 padding 注释 */
+.pc__body { margin-top: 10px; }
+.pc__text {
+  margin: 0; font-size: var(--ys-text-md); line-height: var(--ys-lh-md); color: var(--ys-fg);
+  white-space: pre-wrap;
+  /* 长串（URL / 连续字母数字）必须折行，否则会把整张卡片撑破 ——
+     详情页 PostBody.css 早就这么做了，卡片这边漏了同一道防护 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.pc__topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+/*
+ * 话题 chip：长话题折行而不是撑破卡片。
+ *
+ * 后端上限已收紧到 15 字，但**存量数据里存在 40+ 字的旧话题**
+ * （旧上限 64 时入库的），前端必须兜住 —— 服务端的上限只对新数据生效。
+ * overflow-wrap:anywhere 允许在任意字符间断开，这是唯一能处理
+ * 「#1111…（无空格长数字串）」的方式；折行后胶囊会变高，属可接受代价，
+ * 总好过把整张卡片顶宽、右侧内容被裁掉。
+ */
 .pc__tpic {
   border: 0; font-family: var(--ys-font-body); font-size: var(--ys-text-xs);
   color: var(--ys-accent); background: var(--ys-accent-soft);
   border-radius: var(--ys-radius-full); padding: 4px 10px; cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere; word-break: break-word;
+  text-align: left; line-height: 1.45;
+  font-weight: var(--ys-weight-medium); /* 500：accent 落 accent-soft 上仅 4.59:1，加字重提升清晰度 */
+  /*
+   * 触控热区（2026-10-21 新增）。
+   *
+   * 原样式 padding 4px/10px，实际高度只有 24~25px，远低于 44px 基线（AC-15）。
+   * 但话题芯片通常一排好几个，直接撑到 44×44 会把卡片挤成三行 ——
+   * 视觉代价远大于收益。
+   *
+   * 折中：用 ::after 向上下各溢出，把**可点高度**补到 44
+   * 而不占布局空间（absolute 不参与流）。
+   * 宽度方向不动：芯片本身已有 51px+，横向够用。
+   * 效果是手指竖着压偏一点也能命中，而卡片高度一个像素都不变。
+   */
+  position: relative;
+}
+.pc__tpic::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
 }
 .pc__tpic:hover { color: var(--ys-accent-hover); }
 
 .pc__media { display: grid; gap: 6px; margin-top: var(--ys-space-3); }
-.pc__media--n1 { grid-template-columns: 1fr; }
+/* minmax(0,1fr) 而非 1fr：1fr 的隐含最小尺寸是 auto，图片的自然宽度会撑破列，
+   导致整个卡片横向溢出（详情页 media-grid 同样的坑） */
+.pc__media--n1 { grid-template-columns: minmax(0, 1fr); }
 .pc__media--n2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pc__media--n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pc__media--n1 .pc__img { aspect-ratio: 16 / 10; }
 .pc__media--n2 .pc__img, .pc__media--n3 .pc__img { aspect-ratio: 1; }
 .pc__img { width: 100%; border-radius: var(--ys-radius-lg); display: block; }
+/*
+ * 图片失效占位（2026-10-21）。
+ * 与正常图片同位同高（aspect-ratio 由上面 .pc__media--nN 规则给），
+ * 用暖米底 + 虚线边 + 小字：它是「这张图没了」，不是「操作失败了」，
+ * 所以不做成刺眼的报错样式。
+ */
+.pc__img--broken {
+  display: grid;
+  place-items: center;
+  background: var(--ys-surface-2);
+  border: 1px dashed var(--ys-border);
+  color: var(--ys-meta);
+  font-size: var(--ys-text-xs);
+}
 .pc__video { grid-column: 1 / -1; width: 100%; max-height: 360px; border-radius: var(--ys-radius-lg); background: #000; }
 
 .pc__foot {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
-  margin-top: var(--ys-space-3); padding-top: var(--ys-space-2);
+  display: flex; align-items: center; gap: 2px;
+  margin-top: 11px; padding-top: 9px;
   border-top: 1px solid var(--ys-border-soft);
 }
 /*
@@ -215,10 +369,17 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 }
 .pc__act:hover { background: var(--ys-surface-2); }
 .pc__act--on { color: var(--ys-accent); }
+/*
+ * 浏览数推到行尾：赞/藏/评 在左、浏览在右，形成两端对齐。
+ *
+ * 撤掉「搭句话」后这一行只剩四项。若全部左对齐，右侧会空出一大截，
+ * 看起来像「缺了个按钮」而不是「本来就只有这些」。
+ * 浏览量是四项里唯一的纯只读指标，放右端正好把「可操作」和「只读」分开。
+ */
 .pc__view {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-height: var(--ys-touch-min); min-width: 44px; padding: 0 8px;
+  margin-left: auto;
   font-size: var(--ys-text-sm); color: var(--ys-meta);
 }
-.pc__greet { margin-left: auto; }
 </style>

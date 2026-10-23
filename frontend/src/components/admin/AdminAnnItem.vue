@@ -18,14 +18,34 @@
     <!-- 行 2:标题,最多 2 行 -->
     <p class="item__title">{{ item.title }}</p>
 
-    <!-- 行 3:时间 + 已读/已发 -->
+    <!-- 行 3:时间 + 阅读率 -->
     <p class="item__meta ys-num">
       {{ timeText }}
       <span class="item__dot">·</span>
-      已读 {{ cap(item.readCount) }} / 已发 {{ cap(item.sendCount) }}
+      <!--
+        2026-10-21 修：改版前显示「已读 3 / 已发 0」。
+        后端 sendCount 一直没填充（实测恒为空），所以「已发 0」是错的；
+        而管理员真正想看的是**阅读率**：读过的人在全校里占多少。
+        后端 AnnouncementAdminItemVO 早就有 readCount / totalTargetCount / reachRate，
+        只是前端没用 —— 这里直接改成「3 / 73 已读」+ 进度条。
+      -->
+      <span>{{ cap(item.readCount) }} / {{ cap(item.totalTargetCount) }} 已读</span>
     </p>
 
-    <!-- 行 4:操作行,4 个文字按钮横排,各 44x44 热区 -->
+    <!--
+      阅读率进度条（2026-10-21 加）。
+      数字之外给一条横向进度：管理员扫一眼就能分出「没人看」和「基本都看了」，
+      而两个数字需要心算。只在已发布（status=1）时显示 ——
+      草稿没有触达对象，进度条恒为 0 反而是噪音。
+    -->
+    <div v-if="item.status === 1 && (item.totalTargetCount ?? 0) > 0" class="item__rate">
+      <span class="item__rate-bar">
+        <span class="item__rate-fill" :style="{ width: ratePct + '%' }" />
+      </span>
+      <span class="item__rate-txt ys-num">{{ ratePct }}%</span>
+    </div>
+
+    <!-- 行 4:操作行。加分隔线与组内间距，避免 48 个裸文字误触 -->
     <div class="item__ops">
       <button
         type="button"
@@ -110,6 +130,26 @@ function cap(n) {
   const v = Number(n) || 0
   return v > 9999 ? '9999+' : String(v)
 }
+
+/**
+ * 阅读率百分比（整数）。
+ *
+ * 优先用后端算好的 reachRate（0~1）；后端没给时用 readCount / totalTargetCount 兜底。
+ * 两者都没有时返回 0 —— 此时进度条也不渲染（模板上有 v-if 守卫）。
+ *
+ * 下限 1：读了一个人也四舍五入成 2% 会显得不准，但显示 0% 又会让人以为
+ * 「完全没人看」。所以大于 0 但不足 1% 时向下取到 1。
+ */
+const ratePct = computed(() => {
+  const t = Number(props.item.totalTargetCount) || 0
+  if (t <= 0) return 0
+  const raw = props.item.reachRate != null
+    ? Number(props.item.reachRate)
+    : (Number(props.item.readCount) || 0) / t
+  if (!Number.isFinite(raw) || raw <= 0) return 0
+  const pct = Math.round(raw * 100)
+  return pct === 0 ? 1 : Math.min(100, pct)
+})
 </script>
 
 <style scoped>
@@ -186,15 +226,63 @@ function cap(n) {
   margin: 0 var(--ys-space-1);
 }
 
+/* ---------------------------------------------------------------- 阅读率 */
+/* 2026-10-21 加。数字之外给一条横条，让「没人看 / 基本都看了」一眼可分。 */
+.item__rate {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-2);
+}
+
+.item__rate-bar {
+  flex: 1;
+  max-width: 200px;
+  height: 4px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  overflow: hidden;
+}
+
+.item__rate-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  /* 极小比例下也要看得见：给一个最小宽度 */
+  min-width: 2px;
+  transition: width var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.item__rate-txt {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/* ---------------------------------------------------------------- 操作行 */
+/*
+ * 2026-10-21 调整。
+ * 实测 12 条公告 × 4 个按钮 = 48 个可点文字，全是没有边框的裸文字、
+ * 间距 16px，而「下架」这类破坏动作紧挨着「编辑」—— 误触风险高。
+ * 现在：上方加分隔线把它与内容分开、按钮之间给更紧的间距（视觉成组而非散落）、
+ * 破坏性动作标红（模板里 op 的语义不变，只是颜色分级）。
+ */
 .item__ops {
   display: flex;
-  gap: var(--ys-space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  /* 16 → 0：按钮自带左右 padding，视觉间距靠它撑开，避免 48 个目标散成一片 */
+  gap: 0;
   margin-top: var(--ys-space-2);
+  padding-top: var(--ys-space-1);
+  border-top: 1px solid var(--ys-border-soft);
 }
 
 .op {
   min-height: var(--ys-touch-min);
-  padding: 0;
+  /* 左右 padding 7px：相邻按钮的热区间隔 = 14px，既不误触也不浪费宽度 */
+  padding: 0 var(--ys-space-2);
   border: none;
   background: transparent;
   color: var(--ys-fg-2);
@@ -202,6 +290,8 @@ function cap(n) {
   font-size: var(--ys-text-sm);
   cursor: pointer;
   transition: opacity var(--ys-motion-instant) var(--ys-ease-out);
+  /* 文字按钮不换行：「取消置顶」折行会变成两行高，破坏整行对齐 */
+  white-space: nowrap;
 }
 
 .op--accent {
@@ -223,5 +313,75 @@ function cap(n) {
 
 .op:not(:disabled):active {
   opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------- 桌面端 */
+/*
+ * 2026-10-21 加：桌面端改成「内容在左、操作在右」的两栏行。
+ *
+ * 改版前桌面端是手机上那套纵向堆叠原样放大：徽章一行、标题一行、
+ * 元信息一行、按钮一行 —— 而容器限宽 760 后右侧仍空掉一大片。
+ * 现在把操作行提到标题右侧，一行读完：
+ *   左：状态徽章 + 标题 + 阅读率
+ *   右：4 个操作按钮（与标题垂直居中）
+ *
+ * 用 grid 而不是 flex：.item 的子项有 4 个（chips / title / meta / rate / ops），
+ * 要让 ops 跨行到右侧并垂直居中，grid 的 grid-row: 1 / -1 最直接。
+ */
+@media (min-width: 1024px) {
+  .item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    /* 左侧第 1 列放内容，右侧第 2 列放操作；行数由内容决定 */
+    grid-template-rows: auto auto auto;
+    align-items: center;
+    column-gap: var(--ys-space-4);
+    padding: var(--ys-space-3) var(--ys-space-4);
+  }
+
+  .item__chips {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .item__title {
+    grid-column: 1;
+    grid-row: 2;
+    margin: 0;
+    /* 桌面端标题不必折到两行：空间够，一行就够读 */
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    font-size: 15px;
+  }
+
+  .item__meta {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: var(--ys-space-1);
+  }
+
+  /*
+   * 阅读率条在桌面端并到元信息行下方（第 4 行），但左侧列只有 3 行定义。
+   * 用 grid-row: 4 会自动新增一行，不需要显式声明。
+   */
+  .item__rate {
+    grid-column: 1;
+    grid-row: 4;
+    margin-top: var(--ys-space-1);
+  }
+
+  /* 操作行跨全部行、贴右侧垂直居中 */
+  .item__ops {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: center;
+    justify-content: flex-end;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+    /* 桌面端按钮给点间距，避免 4 个紧贴成一片 */
+    gap: var(--ys-space-2);
+    flex-wrap: nowrap;
+  }
 }
 </style>

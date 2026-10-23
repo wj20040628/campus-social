@@ -128,15 +128,19 @@
 /*
  * 悬浮「更多」按钮：压在封面上，玻璃拟态。
  * 顶部留 safe-area，真机有刘海/状态栏时否则会被顶到看不见的地方。
- * 从 Profile.css 迁来（它是封面的子元素，样式跟着封面走）。
+ *
+ * 【2026-10-21 从 38 改成 44】38×38 差 6px 不到最小热区。
+ * 这个按钮能直接放大 —— 它浮在封面上，周围没有需要挤的邻居，
+ * 不像行内文字按钮那样必须靠 ::after 外扩才能保持视觉尺寸。
+ * 44 看起来仍然是一个小圆钮，只是更容易按住。
  */
 .p-more {
   position: absolute;
   top: calc(var(--ys-space-3) + env(safe-area-inset-top, 0px));
   right: var(--ys-space-4);
   z-index: 5;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: 1px solid var(--ys-glass-border);

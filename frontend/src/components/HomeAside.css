@@ -1,0 +1,224 @@
+/* 高度与滚动由 Home.css 的 .home-aside 负责，这里只管内部排布 */
+.has {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}
+
+.has__box {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.has__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  margin: 0 0 var(--ys-space-2);
+}
+
+/* 小色块当模块标识:公告用辅色橙,其余用主色青 */
+.has__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+.has__sq--o {
+  background: var(--ys-accent-2);
+}
+
+/* 右侧的「全部 ›」/「换一批」/「本周」：统一轻量文字按钮 */
+.has__more,
+.has__meta {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  cursor: pointer;
+}
+.has__more:hover {
+  color: var(--ys-accent);
+}
+.has__meta {
+  cursor: default;
+}
+
+/* ============ 公告强调卡 ============ */
+.ann {
+  display: block;
+  width: 100%;
+  position: relative;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border: 0;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent-2-soft);
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.ann:hover {
+  background: var(--ys-warning-soft);
+}
+.ann__t {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  line-height: 1.45;
+  color: var(--ys-accent-2);
+}
+.ann__m {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+/* 未读点：只有后端明确给 isRead=false 才显示，不猜 */
+.ann__dot {
+  position: absolute;
+  top: var(--ys-space-2);
+  right: var(--ys-space-2);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-danger);
+}
+
+/* ============ 话题榜 ============ */
+.trow {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  border-top: 1px solid var(--ys-border-soft);
+  background: none;
+  font-family: var(--ys-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.trow:first-of-type {
+  border-top: 0;
+}
+.trow:hover .trow__name {
+  color: var(--ys-accent);
+}
+
+.trow__rank {
+  flex: none;
+  width: 14px;
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-meta);
+}
+.trow__rank--hot {
+  color: var(--ys-danger);
+}
+.trow__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.trow__cnt {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* ============ 圈子行 ============ */
+.crow2 {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  padding: 7px 0;
+  border-top: 1px solid var(--ys-border-soft);
+}
+.crow2:first-of-type {
+  border-top: 0;
+}
+.crow2__av {
+  flex: none;
+}
+.crow2__name {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.crow2__name:hover {
+  color: var(--ys-accent);
+}
+.crow2__join {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-accent);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+.crow2__join:hover:not(:disabled) {
+  background: var(--ys-accent-soft);
+}
+.crow2__join:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ============ 社区数据 ============ */
+.stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+.stat + .stat {
+  border-top: 1px solid var(--ys-border-soft);
+}
+.stat b {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.has__hint {
+  padding: var(--ys-space-2) 0;
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}

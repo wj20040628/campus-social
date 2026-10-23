@@ -5,16 +5,19 @@
         <RouterLink
           :to="item.path"
           class="tabbar__link"
+          :class="{ 'is-active': isActive(item.path) }"
           :aria-current="isActive(item.path) ? 'page' : undefined"
           :aria-label="item.ariaLabel"
         >
           <span class="tabbar__icon">
-            <el-icon :size="20"><component :is="item.icon" /></el-icon>
-            <UnreadDot v-if="item.badge > 0" :count="item.badge" noun="张纸条待回应" />
+            <NavIcon
+              :name="item.icon"
+              :size="22"
+              :stroke-width="isActive(item.path) ? ACTIVE_STROKE : IDLE_STROKE"
+            />
+            <UnreadDot v-if="item.badge > 0" :count="item.badge" noun="条未读消息" />
           </span>
-          <span class="tabbar__label" :class="{ 'is-active': isActive(item.path) }">
-            {{ item.label }}
-          </span>
+          <span class="tabbar__label">{{ item.label }}</span>
         </RouterLink>
       </li>
     </ul>
@@ -26,10 +29,14 @@
 /**
  * 移动端底部主导航(mobile-shell.md §2)
  *
- * 五个入口:首页 / 圈子 / 集市 / 消息 / 我的。
- * 中间第 3 项「集市」(校园限时活动)用凸起圆钮承载,与设计参考稿方向 A 的手机 TabBar 一致。
- * 发帖入口不在此:两端都走顶栏「+」(2026-10-20 移动端恢复),
- * TabBar 5 项锁定不可增减,因此把「发布」让位给「集市」。
+ * 五个入口:首页 / 圈子 / 集市 / 消息 / 我的 —— **五项等权**。
+ * 发帖入口不在此:两端都走顶栏「+」,TabBar 5 项锁定不可增减。
+ *
+ * [2026-10-20 改版] 去掉了中间「集市」的凸起圆钮,理由三条:
+ * ① 凸起钮等于把「集市」抬成比首页更重的入口,但它不是主路径;
+ * ② 凸起要 translateY(-8px),图标在 56px 条里上下不对称,和安全区一叠就歪;
+ * ③ 设计稿评审时五项等权的版本明显更稳。图标同时从 EP 填充图标换成
+ *    自绘描边(components/mobile/NavIcon.vue),与抽屉导航同一套口径。
  *
  * 关于第 4 项的角标语义:是**待回应的搭话纸条数**,不是私信未读数。
  * 纸条 24 小时未回应即消失,角标随之清零 —— 这与普通未读消息
@@ -37,15 +44,19 @@
  *
  * 无障碍:
  * - nav + ul + li 语义结构
- * - 当前项用 aria-current="page",**不用纯颜色区分**(另加字重)
- * - 每项 aria-label 提供完整语义(「集市活动」而不是「集市」)
+ * - 当前项用 aria-current="page",**不用纯颜色区分**(另加字重 + 图标加粗)
+ * - 每项 aria-label 提供完整语义(「集市活动广场」而不是「集市」)
  */
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { House, ChatDotSquare, Shop, ChatDotRound, User } from '@element-plus/icons-vue'
+import NavIcon from './NavIcon.vue'
 import UnreadDot from './UnreadDot.vue'
 import SafeArea from './SafeArea.vue'
 import { useUserStore } from '@/stores/user'
+
+/** 未选中 1.9 / 选中 2.05:选中态靠线宽强化,不改图标尺寸(改尺寸会横向抖动) */
+const IDLE_STROKE = 1.9
+const ACTIVE_STROKE = 2.05
 
 const props = defineProps({
   /**
@@ -65,11 +76,11 @@ const items = computed(() => {
   // userInfo 就绪后 computed 自动重算,path 纠正为真实 /user/{id},无需手动刷新。
   const meId = userStore.userInfo?.id
   return [
-    { path: '/', label: '首页', icon: House, ariaLabel: '首页', badge: 0 },
-    { path: '/circles', label: '圈子', icon: ChatDotSquare, ariaLabel: '圈子列表', badge: 0 },
-    { path: '/mkt', label: '集市', icon: Shop, ariaLabel: '集市活动广场', badge: 0 },
-    { path: '/chat', label: '消息', icon: ChatDotRound, ariaLabel: '消息与纸条', badge: props.paperCount },
-    { path: meId ? `/user/${meId}` : '/settings', label: '我的', icon: User, ariaLabel: '我的主页', badge: 0 },
+    { path: '/', label: '首页', icon: 'home', ariaLabel: '首页', badge: 0 },
+    { path: '/circles', label: '圈子', icon: 'board', ariaLabel: '圈子列表', badge: 0 },
+    { path: '/mkt', label: '集市', icon: 'bag', ariaLabel: '集市活动广场', badge: 0 },
+    { path: '/chat', label: '消息', icon: 'bubble', ariaLabel: '消息与纸条', badge: props.paperCount },
+    { path: meId ? `/user/${meId}` : '/settings', label: '我的', icon: 'user', ariaLabel: '我的主页', badge: 0 },
   ]
 })
 
@@ -112,55 +123,50 @@ function isActive(path) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* 56px 远超 AC-15 要求的 44px 触控下限 */
+  gap: 3px;
+  /* 项目没有全局 box-sizing 重置,内边距必须自己含进高度,
+     否则 56 的 min-height 会被 6+6 撑成 68,内容区留白就对不上了 */
+  box-sizing: border-box;
   min-height: var(--ys-tabbar-h);
-  gap: 2px;
+  padding: 6px 2px;
   color: var(--ys-muted);
   text-decoration: none;
   transition: color var(--ys-motion-fast) var(--ys-ease-out);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.tabbar__link:hover {
-  color: var(--ys-fg-2);
+/* 只在真有 hover 能力的设备上做悬停变色,触屏别留残影 */
+@media (hover: hover) {
+  .tabbar__link:hover {
+    color: var(--ys-fg-2);
+  }
 }
 
-.tabbar__link[aria-current='page'] {
+.tabbar__link.is-active {
   color: var(--ys-accent);
 }
 
 .tabbar__icon {
+  /* UnreadDot 是 position:absolute,必须有定位祖先,否则会跑到 .tabbar
+     (fixed)的右上角 —— 角标一直挂错位置的根因就在这里 */
   position: relative;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 .tabbar__label {
-  font-size: var(--ys-text-sm);
-  line-height: 1.2;
-  letter-spacing: var(--ys-ls-sm);
+  /* 10.5→11:设计稿按 390px 宽稿给的字号,11 在 5 等分(78px/项)下不折行 */
+  font-size: 11px;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
   font-weight: var(--ys-weight-regular);
 }
 
-/* 选中态只改字重不改尺寸 —— 改尺寸会让相邻项抖动 */
-.tabbar__label.is-active {
+/* 选中态只改字重不改字号 —— 改尺寸会让相邻项抖动 */
+.tabbar__link.is-active .tabbar__label {
   font-weight: var(--ys-weight-semibold);
-}
-
-/*
- * 中间项凸起(集市):必须用 transform,不能改 TabBar 高度。
- * 改高度会把顶栏顶穿,且影响所有继承 MainLayout 的页面。
- * 凸起圆钮是「集市」(校园活动广场)的一级入口视觉锚点,对齐设计参考稿方向 A。
- */
-.tabbar__item:nth-child(3) .tabbar__icon {
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  transform: translateY(-8px);
-  box-shadow: var(--ys-shadow-2);
 }
 
 /* 尊重系统的减弱动效偏好 */
@@ -180,5 +186,4 @@ function isActive(path) {
     display: none;
   }
 }
-
 </style>

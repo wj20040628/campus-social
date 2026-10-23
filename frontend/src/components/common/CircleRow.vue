@@ -1,88 +1,94 @@
 <template>
   <!--
-    单个圈子行(设计 §1.1)。
-    抽成组件的原因:同一份行结构在「我加入的」与「全部圈子」两个分组里各用一次,
-    且移动端行式 / 桌面端卡片式两套形态的差异全部收在这个组件内,
-    页面不需要为形态差异写分支。
+    单个圈子行(设计稿场景 3,C6-C10)。
+    手机是全宽行、桌面是卡片,形态差异全部在媒体查询里,模板只有一套。
 
-    整行是<button> 而不是 div @click(设计 §7):
-    el-card 渲染成 div,键盘用户 Tab 不到,读屏器也不知道它可点。
-
-    操作按钮按 myRole 分流:
-    - 未加入:「加入」
-    - 普通成员(3):「退出」(退圈,圈子还在)
-    - 圈主(1)/ 圈管理(2):卡片上无操作 —— 解散是圈主专属的破坏性动作,
-      不进卡片扫列表场景,收在圈子详情页里(见 CircleDetail.vue)。
+    整行是<button>而不是 div @click:键盘用户 Tab 得到,读屏器知道它可点。
+    右侧操作只有两个态(C8):
+      未加入 -> 「加入」(可点,按钮)
+      已加入 -> 「已加入」(灰底状态,点整行进详情看/退/管)
+    退出/解散不放卡片上 —— 扫列表场景不该给破坏性动作,收在详情页(用户拍板)。
   -->
   <div class="crow">
-    <!-- 整行可点区。操作按钮在下面用 @click.stop 截断冒泡 -->
     <button type="button" class="crow__open" @click="$emit('open', circle.id)">
-      <img
-        v-if="circle.avatarUrl"
+      <!--
+        F2 修法走「首字彩色圆」(C6):CircleVO 没有 avatarUrl,circle 表也没这列,
+        v-if="avatarUrl" 是永远为假的分支。InitialAvatar 同时兜住了
+        「将来后端补了头像」的 case(src 传进来就用图,图裂了回落首字)。
+        seed 传圈 id:同一个圈的颜色永远稳定,名字改了色也不跳。
+      -->
+      <InitialAvatar
         class="crow__avatar"
-        :src="resolveThumb(circle.avatarUrl)"
-        :alt="`${circle.name}的图标`"
+        :src="circle.avatarUrl ? resolveThumb(circle.avatarUrl) : ''"
+        :seed="circle.id"
+        :name="circle.name"
+        :size="48"
       />
-      <span v-else class="crow__avatar crow__avatar--blank" aria-hidden="true">
-        <ChatDotRound />
-      </span>
 
       <span class="crow__info">
-        <span class="crow__name">{{ circle.name }}</span>
-        <span class="crow__sub">{{ memberText }}</span>
+        <span class="crow__name">
+          {{ circle.name }}
+          <!-- C8:身份标签。只在已加入时出现,说明的是「我」在圈里的角色 -->
+          <span v-if="roleTag" class="crow__tag" :class="`crow__tag--${roleTag.kind}`">
+            {{ roleTag.text }}
+          </span>
+        </span>
+        <span class="crow__sub">{{ subText }}</span>
       </span>
     </button>
 
-    <button
-      v-if="!circle.joined"
-      type="button"
-      class="crow__join"
-      :aria-label="`加入 ${circle.name}`"
-      @click.stop="$emit('join', circle)"
-    >
-      加入
-    </button>
-    <!--
-      普通成员(3):「退出」。退圈是成员级动作,物理删成员行,圈子还在。
-      @click.stop 截断冒泡,不触发整行的 open 跳详情。
-      圈主(1)/ 圈管理(2):卡片上不显示任何操作按钮 —— 退出对圈主后端 422,
-      解散是圈主专属的破坏性动作,放在详情页里(用户拍板,不放卡片上)。
-    -->
-    <button
-      v-else-if="circle.myRole === 3"
-      type="button"
-      class="crow__leave"
-      :aria-label="`退出 ${circle.name}`"
-      :disabled="leaving"
-      @click.stop="$emit('leave', circle)"
-    >
-      {{ leaving ? '退出中' : '退出' }}
-    </button>
+    <div class="crow__act">
+      <button
+        v-if="!circle.joined"
+        type="button"
+        class="crow__join"
+        :aria-label="`加入 ${circle.name}`"
+        @click.stop="$emit('join', circle)"
+      >
+        加入
+      </button>
+      <!--
+        已加入的圈**不再渲染右侧标签**（2026-10-21）。
+        改版前这里是一个 min-width:72px 的灰胶囊「已加入」，把卡片右侧
+        切掉约 96px，副行拿到「2 成员 · 10 月 10 日有新帖」这种句子就被
+        ellipsis 截成「10 月 10 日...」，最关键的「有没有新帖」正好被吃掉。
+        而「已加入」是状态不是操作：卡片本身就只出现在「我的」分组里
+        （group 已经表达了「我加入过」），再加上角色标签（圈主/管理/成员）
+        也已经在标题行给出，右侧那个灰胶囊提供不了额外信息。
+        去掉后副行拿到整行宽度，长文案不再被截。
+      -->
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { CircleCheck, ChatDotRound } from '@element-plus/icons-vue'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
+import { resolveThumb } from '@/utils/resolve'
+import { relTime } from '@/utils/relTime'
 
 const props = defineProps({
   circle: { type: Object, required: true },
-  /** 该圈退圈请求进行中:「退圈」按钮进入「退出中」态并禁点 */
-  leaving: { type: Boolean, default: false },
 })
 
-defineEmits(['open', 'join', 'leave'])
+defineEmits(['open', 'join'])
 
 /**
- * 成员数 999+ 封顶(设计 §3 内容超长)。
- * 不封顶的话一个万人圈子会把行撑宽,且「12345」没有信息量。
+ * 副行(C7/C10):人数 + 最近动态,不再写「圈主: 3420232712」。
+ * 谁建的圈不影响「进不进」,活不活才影响 —— 用最新一帖的时间回答后者。
+ * 数据来自列表接口批量查回的 lastPostAt,不是 N+1。
  */
-const memberText = computed(() => {
+const subText = computed(() => {
   const n = Number(props.circle.memberCount || 0)
   const shown = n > 999 ? '999+' : String(n)
-  const owner = props.circle.owner?.nickname
-  return owner ? `${shown} 成员 · 圈主：${owner}` : `${shown} 成员`
+  const rel = relTime(props.circle.lastPostAt)
+  return rel ? `${shown} 成员 · ${rel}有新帖` : `${shown} 成员 · 还没有帖子`
+})
+
+/** 我的身份小标签(myRole:1 圈主 / 2 管理 / 3 普通成员) */
+const roleTag = computed(() => {
+  const m = { 1: { text: '圈主', kind: 'owner' }, 2: { text: '管理', kind: 'mgr' }, 3: { text: '成员', kind: 'member' } }
+  return props.circle.joined ? m[props.circle.myRole] || null : null
 })
 </script>
 
@@ -94,8 +100,7 @@ const memberText = computed(() => {
   min-height: 72px;
   padding: var(--ys-space-3) var(--ys-gutter-phone);
   border-top: 1px solid var(--ys-border-soft);
-  /* 桌面端进 grid(Circles.css .circle-rows)时,列宽由 grid 控制;
-     不设 min-width:auto 会撑到内容最宽,三行卡片挤成一排互相重叠 */
+  /* 进 grid 列时不被内容撑宽,否则卡片互相挤出重叠 */
   min-width: 0;
 }
 
@@ -104,10 +109,7 @@ const memberText = computed(() => {
   align-items: center;
   gap: var(--ys-space-3);
   flex: 1;
-  /* flex 子项默认 min-width:auto,会撑到内容最宽;卡片收窄时文本列必须能截断,
-     否则名字列把「加入/退出」按钮顶出卡片右缘(桌面端卡片重叠,见 Bug4) */
   min-width: 0;
-  /* 视觉高 72px 由 .crow 给,这里撑满让整行都是热区 */
   align-self: stretch;
   padding: 0;
   border: 0;
@@ -121,23 +123,6 @@ const memberText = computed(() => {
   opacity: 0.7;
 }
 
-.crow__avatar {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  border-radius: var(--ys-radius-lg);
-  object-fit: cover;
-}
-
-.crow__avatar--blank {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-  font-size: var(--ys-text-xl);
-}
-
 .crow__info {
   display: flex;
   flex-direction: column;
@@ -147,13 +132,39 @@ const memberText = computed(() => {
 }
 
 .crow__name {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
   font-size: var(--ys-text-base);
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg);
-  /* 圈子名 1 行截断(设计 §3) */
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.crow__tag {
+  flex: none;
+  padding: 1px var(--ys-space-2);
+  border-radius: var(--ys-radius-full);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-medium);
+  line-height: var(--ys-lh-xs);
+}
+
+.crow__tag--owner {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+.crow__tag--mgr {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+}
+
+.crow__tag--member {
+  background: transparent;
+  color: var(--ys-muted);
+  padding-left: 0;
 }
 
 .crow__sub {
@@ -164,9 +175,12 @@ const memberText = computed(() => {
   white-space: nowrap;
 }
 
-/* 「加入」胶囊按钮:44px 高、最小宽 72px(设计 §1.1) */
+.crow__act {
+  flex: none;
+}
+
+/* 「加入」:44px 热区、最小宽 72 的胶囊 */
 .crow__join {
-  flex-shrink: 0;
   min-width: 72px;
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-3);
@@ -177,9 +191,7 @@ const memberText = computed(() => {
   font-size: var(--ys-text-base);
   color: var(--ys-accent);
   cursor: pointer;
-  transition:
-    background-color var(--ys-motion-fast) var(--ys-ease-out),
-    border-color var(--ys-motion-fast) var(--ys-ease-out);
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
 .crow__join:hover {
@@ -190,94 +202,21 @@ const memberText = computed(() => {
   opacity: 0.7;
 }
 
-.crow__join:disabled {
-  border-color: var(--ys-border-control);
-  color: var(--ys-meta);
-  cursor: not-allowed;
-}
-
-.crow__joined {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ys-space-1);
-  flex-shrink: 0;
-  min-width: 72px;
-  min-height: var(--ys-touch-min);
-  justify-content: center;
-  padding: 0 var(--ys-space-3);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface-2);
-  font-size: var(--ys-text-sm);
-  color: var(--ys-fg-2);
-}
-
-.crow__joined-icon {
-  width: 16px;
-  height: 16px;
-}
 
 /*
- * 「退出」默认安静态:灰字 + 软描边,不抢注意力;hover 才给危险色。
- * 理由:退出是低频破坏性操作。一排红按钮会把「加入」的青色稀释掉,
- * 也让「我加了哪些圈」的浏览变吵。红色留给真的要退的那一刻,
- * 且 hover 同时给文字/描边/底色三个信号,不是只变一个字色。
- */
-.crow__leave {
-  flex-shrink: 0;
-  min-width: 72px;
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-3);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-full);
-  background: transparent;
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
-  color: var(--ys-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--ys-motion-fast) var(--ys-ease-out),
-    border-color var(--ys-motion-fast) var(--ys-ease-out),
-    color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.crow__leave:hover:not(:disabled) {
-  border-color: var(--ys-danger);
-  background: var(--ys-danger-soft);
-  color: var(--ys-danger);
-}
-
-.crow__leave:active:not(:disabled) {
-  opacity: 0.7;
-}
-
-.crow__leave:disabled {
-  border-color: var(--ys-border-control);
-  color: var(--ys-meta);
-  cursor: not-allowed;
-}
-
-/*
- * 桌面端(>=1024px):行变卡片。
- * 移动端是「发丝线分隔的全宽行」(信息密度优先,设计 §1.1);
- * 桌面端进了 4 列网格(Circles.css .circle-rows)后,行式分隔线会变成每张卡顶部一条突兀的横线,
- * 所以这里恢复卡片形态:白底 + 暖描边 + 轻影 + 16px 圆角 ——
- * 与 PostCard 同一套卡片语言(A 方向),hover 只升影不改色。
- *
- * 统一大小 + 文字协调:定高 118 替代 min-height,根治行间高度跳变;
- * 整块内容(头像+名字+成员数)垂直居中,而非「信息贴顶 + 按钮贴底」两端拉开 ——
- * 两端拉开在 118 定高下中间会留一大块空白、文字挤左上,看着丑(用户截图反馈)。
- * 居中后视觉重心落在卡片中线,4 列宽卡下协调;按钮也跟随居中(不单独贴底)。
- * 头像 40px(窄卡下 48 太大)、按钮收窄 60 + 字号 sm,整体协调。
- */
+  桌面(>=1024px):行变卡片。
+  C9:不再定高 118 —— 那是给不存在的信息预留的高度。
+  三段(头像+名 / 副行 / 操作)由内容撑开,同排高度由 grid 拉齐底边。
+  头像+名字一行、副行整行:用 display:contents 把 info 拆进网格,
+  一套 DOM 两个排法,模板不分叉。
+*/
 @media (min-width: 1024px) {
   .crow {
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    align-items: stretch;
     gap: var(--ys-space-2);
-    height: 118px;
     min-height: 0;
-    padding: var(--ys-space-3);
+    padding: var(--ys-space-4);
     border: 1px solid var(--ys-border);
     border-radius: var(--ys-radius-xl);
     background: var(--ys-surface);
@@ -286,34 +225,51 @@ const memberText = computed(() => {
       box-shadow var(--ys-motion-fast) var(--ys-ease-out),
       border-color var(--ys-motion-fast) var(--ys-ease-out);
   }
+
   .crow:hover {
     border-color: var(--ys-border-control);
     box-shadow: var(--ys-shadow-2);
   }
-  /* 信息块(图标+名字+成员数)横向居中排列 */
+
   .crow__open {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: var(--ys-space-3);
+    row-gap: var(--ys-space-2);
     align-items: center;
   }
-  /* 头像略收:4 列宽卡下 48px 太大,收 40 */
-  .crow__avatar {
-    width: 40px;
-    height: 40px;
+
+  .crow__info {
+    display: contents;
   }
-  /* 操作块(加入/退出)跟随居中;窄卡收窄 + 字号调小,塞得下不撑高 */
-  .crow__join,
-  .crow__leave {
-    align-self: center;
+
+  .crow__avatar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .crow__name {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .crow__sub {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    white-space: normal;
+  }
+
+  .crow__act {
+    align-self: end;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .crow__join {
     min-width: 60px;
     padding: 0 var(--ys-space-2);
     font-size: var(--ys-text-sm);
-  }
-  /* 文本列允许截断:否则卡片收窄时名字列把按钮顶出右缘(桌面重叠 Bug4) */
-  .crow__info {
-    min-width: 0;
-  }
-  /* 成员数 1 行截断:长名把第二行顶掉,定高下不会溢出 */
-  .crow__sub {
-    white-space: nowrap;
   }
 }
 </style>

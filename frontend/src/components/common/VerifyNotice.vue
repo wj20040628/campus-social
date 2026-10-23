@@ -15,15 +15,16 @@
     用警告色会让用户以为被驳回了。
 
     [三态与本组件的对应]
+      verifyStatus=0                   -> 未认证条(2026-10-21 新增,中性主色)
+      verifyStatus=1                  -> 仅 autoApproved 时出弱认证提示
+      verifyStatus=2                   -> 审核中条
       verifyStatus=3 且 rejectReason 非空 -> 驳回条(本组件的主要场景)
       verifyStatus=3 但 rejectReason 为空 -> **不渲染**(见 useVerifyStatus.showRejected)
-      verifyStatus=2                   -> 审核中条
-      verifyStatus=0/1                -> 不渲染
   -->
   <aside
-    v-if="showRejected || showPending || showWeakVerified"
+    v-if="showUnverified || showRejected || showPending || showWeakVerified"
     class="vnotice"
-    :class="showRejected ? 'vnotice--reject' : showPending ? 'vnotice--pending' : 'vnotice--weak'"
+    :class="showUnverified ? 'vnotice--unverified' : showRejected ? 'vnotice--reject' : showPending ? 'vnotice--pending' : 'vnotice--weak'"
     role="status"
   >
     <!--
@@ -31,7 +32,7 @@
       读屏用户与色觉障碍用户会完全漏掉(设计 §5:语义必须三重传达)。
     -->
     <el-icon class="vnotice__icon" :size="20" aria-hidden="true">
-      <component :is="showRejected ? WarningFilled : showPending ? Clock : CircleCheck" />
+      <component :is="showRejected ? WarningFilled : showUnverified ? Stamp : showPending ? Clock : CircleCheck" />
     </el-icon>
 
     <div class="vnotice__body">
@@ -58,6 +59,9 @@
       <p v-else-if="showPending" class="vnotice__how">
         管理员会尽快人工核验。有结果会在这里更新,不用反复刷新
       </p>
+      <p v-else-if="showUnverified" class="vnotice__how">
+        认证后才能发私信、建圈子、加入圈子、发布集市活动。发动态不需要认证。
+      </p>
       <p v-else class="vnotice__how">
         陌生人能直接给你发消息、你能发官方公告;发动态不需要认证。
         这是自动通过的弱认证,权限弱于人工审核通过。
@@ -65,7 +69,7 @@
     </div>
 
     <button v-if="!showWeakVerified" type="button" class="vnotice__btn" @click="goSubmit">
-      {{ showRejected ? '去改学号' : '查看进度' }}
+      {{ showUnverified ? '去认证' : showRejected ? '去改学号' : '查看进度' }}
     </button>
   </aside>
 </template>
@@ -76,25 +80,35 @@
  *
  * 数据与状态判定全在 useVerifyStatus(模块级单例,多页面共用一份),
  * 本组件只负责「长什么样」和点了去哪。
+ *
+ * 四态（2026-10-21 新增第一态）：
+ *   0 未认证  → 中性色 + 「四类动作受限」+ 去认证   ← 新增
+ *   1 已认证  → 只有 autoApproved 时出一条弱认证提示
+ *   2 审核中  → 中性色 + 说明在等谁
+ *   3 已驳回  → 警示色 + 驳回理由 + 去改学号
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Clock, WarningFilled, CircleCheck } from '@element-plus/icons-vue'
+import { Clock, WarningFilled, CircleCheck, Stamp } from '@element-plus/icons-vue'
 import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
 
 const router = useRouter()
-const { showRejected, showPending, rejectReason, load, code, autoApproved } = useVerifyStatus()
+const { showRejected, showPending, showUnverified, rejectReason, load, code, autoApproved } = useVerifyStatus()
 
 /**
  * 标题不写「认证被驳回」这种系统词。
  * 用户填的是学号,不是「认证」;说「学号没通过」他能立刻对上自己填的那串数字。
+ *
+ * 未认证态用「还没完成校内认证」而不是「未认证」——后者像一个错误码。
  */
 const title = computed(() =>
-  showRejected.value
-    ? '你的学号没通过核验'
-    : showPending.value
-      ? '学号正在核验中'
-      : '你已通过校内认证(自动通过)',
+  showUnverified.value
+    ? '还没完成校内认证'
+    : showRejected.value
+      ? '你的学号没通过核验'
+      : showPending.value
+        ? '学号正在核验中'
+        : '你已通过校内认证(自动通过)',
 )
 
 /**
@@ -107,15 +121,22 @@ const showWeakVerified = computed(() => code.value === VERIFY_OK && autoApproved
 /**
  * 出口。
  *
- * 去编辑资料页 /profile 而不是 Onboarding:Onboarding 是新用户引导(第 1 步选院系年级),
- * 已完成过的用户再进去会被路由到已完成的态,看不到「改学号」这个动作;
- * 编辑资料页有独立的「学号」输入框,改完点保存就走 PUT /user/me。
+ * 分两种目标（2026-10-21 调整）：
+ *   - 未认证(0)   → /onboarding 的认证步骤，那里能填归属 + 学号
+ *   - 驳回/审核中 → /profile 编辑资料页，它有独立的学号输入框，改完走 PUT /user/me
  *
- * 离开前 force 重拉:用户提交完新学号回来,这条提示必须消失 ——
- * 不重拉的话它会一直挂在页面上,用户以为没生效。
+ * 为什么未认证不去 /profile：编辑资料页假设用户已有完整归属，
+ * 而未认证用户很可能连学院年级都没填，去了也填不了学号。
+ *
+ * 离开前 force 重拉：用户提交完新学号回来，这条提示必须消失 ——
+ * 不重拉的话它会一直挂在页面上，用户以为没生效。
  */
 async function goSubmit() {
-  router.push('/profile')
+  if (showUnverified.value) {
+    router.push('/onboarding')
+  } else {
+    router.push('/profile')
+  }
   await load(true)
 }
 </script>
@@ -169,6 +190,31 @@ async function goSubmit() {
 .vnotice--weak {
   border-color: var(--ys-border);
   background: var(--ys-surface-2);
+}
+
+/*
+ * 未认证（2026-10-21 新增）。
+ *
+ * 用主色调而不是警告色：未认证是「还有一步没做」，不是「出了错」。
+ * 用橙色会让人以为账号有问题，反而降低完成认证的意愿。
+ */
+.vnotice--unverified {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+}
+
+.vnotice--unverified .vnotice__icon {
+  color: var(--ys-accent);
+}
+
+.vnotice--unverified .vnotice__btn {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+}
+
+.vnotice--unverified .vnotice__btn:hover {
+  background: var(--ys-accent-hover);
 }
 
 .vnotice--weak .vnotice__icon {

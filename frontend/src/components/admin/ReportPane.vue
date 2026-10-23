@@ -148,14 +148,27 @@
         <button type="button" class="report-pane__btn" :disabled="busy" @click="act('ignore')">
           忽略
         </button>
+        <!--
+          驳回（2026-10-21 改成一步到底）。
+          原来它写的是 `stage === 'ban' ? act('reject') : confirmBan()`，
+          而 confirmBan() 只是把 stage 切到 'ban'（展开封禁时长选择）——
+          于是管理员点「驳回」时屏幕会冒出一个「封禁时长」下拉，
+          既不合语义（驳回不封禁任何人），又让人以为点了没反应。
+          驳回是不可逆但**无副作用**的动作（不封人、不下架），不需要二段确认。
+        -->
         <button
           type="button"
           class="report-pane__btn"
           :disabled="busy"
-          @click="stage === 'ban' ? act('reject') : confirmBan()"
+          @click="act('reject')"
         >
           驳回
         </button>
+        <!--
+          「成立并封禁」保留二段确认：它要选封禁天数，且会封人、下架内容，
+          是全套操作里唯一不可撤销的重动作。第一下展开时长面板，
+          第二下才真正执行 —— 这是它该有的摩擦。
+        -->
         <button
           type="button"
           class="report-pane__btn report-pane__btn--danger"

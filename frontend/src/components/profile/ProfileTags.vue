@@ -96,7 +96,16 @@ onMounted(load)
  * 设计稿里它就是一行 12px 强调色文字 —— 与标题同字号,靠颜色区分可点。
  * min-height 仍留 32px:视觉上是一行字,手上要能点到。
  */
+/*
+ * 「编辑 / 更多」文字按钮。
+ * 设计稿里它就是一行 12px 强调色文字 —— 与标题同字号,靠颜色区分可点。
+ *
+ * 【2026-10-21 热区】min-height 32px 仍不够 44。视觉保持一行字，
+ * 用 ::after 向左右各外扩 12px、纵向撑到 44 ——
+ * 这类行内文字按钮最容易点不中，而它是进编辑页的唯一入口。
+ */
 .ptags__more {
+  position: relative;
   min-height: 32px;
   padding: 0;
   border: 0;
@@ -105,6 +114,15 @@ onMounted(load)
   font-size: var(--ys-text-xs);
   color: var(--ys-accent);
   cursor: pointer;
+}
+.ptags__more::after {
+  content: '';
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
 }
 .ptags__more:hover {
   color: var(--ys-accent-hover);

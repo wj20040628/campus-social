@@ -31,14 +31,25 @@
     <!-- 行 5:媒体区。1 图全宽 / 2 图双列 / ≥3 图三列 -->
     <div v-if="mediaList.length" class="media-grid" :class="`media-grid--${cols}`">
       <template v-for="(m, i) in mediaList" :key="i">
+        <!--
+          图片加载失败兜底（2026-10-21 加）。
+          帖子的 media 记录可能指向已被删除的磁盘文件（实测 post 168/169 就是：
+          upload_file 有记录、文件已不在），el-image 会渲染一个破图占位 ——
+          在信息流里非常扎眼。这里接 @error 把它换成一个中性的「图片已失效」块，
+          高度与图片位一致，不破坏卡片节奏。
+        -->
+        <div v-if="m.type === 'img' && brokenMedia.has(i)" class="media-img media-img--broken">
+          <span>图片已失效</span>
+        </div>
         <el-image
-          v-if="m.type === 'img'"
+          v-else-if="m.type === 'img'"
           :src="resolveThumb(m.url)"
           :preview-src-list="imgList"
           :initial-index="i"
           fit="cover"
           class="media-img"
           :alt="`帖子附图 ${imgIndex(m)}，共 ${imgList.length} 张`"
+          @error="onMediaError(i)"
         />
         <video v-else :src="resolveUrl(m.url)" controls class="media-video"></video>
       </template>
@@ -52,10 +63,27 @@
  * 解析规则是数据问题(契约里 media 字段的结构),不是展示问题,
  * 放这里会让「数据规则」散到视图层。
  */
+import { ref } from 'vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import TopicChips from '@/components/post/TopicChips.vue'
+
+/**
+ * 加载失败的图片下标集合。
+ *
+ * 为什么按「下标」记而不是改 mediaList：mediaList 是父组件传进来的 props，
+ * 改它属于跨层改数据；而「这张图坏了」纯粹是展示层事实，留在这里最合适。
+ * 用 Set 而不是数组：判断是 O(1)，模板里每次渲染都会查。
+ */
+const brokenMedia = ref(new Set())
+
+function onMediaError(i) {
+  // 触发响应式：Set 的增删要让 Vue 感知，必须整体替换
+  const next = new Set(brokenMedia.value)
+  next.add(i)
+  brokenMedia.value = next
+}
 
 defineProps({
   post: { type: Object, required: true },

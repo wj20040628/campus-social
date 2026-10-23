@@ -74,8 +74,24 @@ const overflow = computed(() => Math.max(0, clean.value.length - MAX_SHOWN))
   color: var(--ys-accent);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium); /* 500:accent 落 accent-soft 上仅 4.59:1 */
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+  /*
+   * 长话题必须折行，不能撑破容器。
+   *
+   * 后端上限已收紧到 15 字，但**存量数据里有 40+ 字的旧话题**
+   * （旧上限 64 时入库），所以前端这道防护不能省 —— 它兜的是历史数据。
+   * overflow-wrap:anywhere 是唯一能断「#1111…（无空格长数字串）」的方式；
+   * 折行后胶囊变高是可接受代价，好过卡片被顶宽、右侧内容被裁掉。
+   *
+   * text-align:left —— 折行后多行文字不能居中，否则像标题。
+   */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
+  line-height: 1.45;
 }
 
 .chips__item:hover {

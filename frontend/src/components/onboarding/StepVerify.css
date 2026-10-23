@@ -1,0 +1,121 @@
+/*
+  StepVerify.vue 的样式（2026-10-21 新增）。
+  引导流程的排版基线：单列、控件 44px 高、文案克制。
+*/
+
+.sv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+}
+
+.sv__title {
+  margin: 0;
+  font-size: var(--ys-text-2xl);
+  font-weight: var(--ys-weight-semibold);
+  line-height: var(--ys-lh-2xl);
+  color: var(--ys-fg);
+}
+
+.sv__sub {
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  line-height: 1.6;
+  color: var(--ys-muted);
+}
+
+/* 「保存学校归属」是次要动作：描边而非实底，不与下面的「提交认证」抢 */
+.sv__save {
+  min-height: var(--ys-touch-min);
+  margin-top: var(--ys-space-2);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+}
+
+.sv__save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sv__ok {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-success);
+}
+
+/* 分隔线：视觉上把「选归属」和「填学号」分成两个动作 */
+.sv__sep {
+  height: 1px;
+  margin: var(--ys-space-3) 0 var(--ys-space-2);
+  background: var(--ys-border-soft);
+}
+
+.sv__label {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg-2);
+}
+
+.sv__input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+  letter-spacing: 0.02em;
+}
+
+.sv__input:focus-visible {
+  border-color: var(--ys-accent);
+  box-shadow: var(--ys-focus-ring);
+  outline: none;
+}
+
+.sv__hint {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* 主行动按钮：整宽实底，与引导页底部操作栏同一语言 */
+.sv__submit {
+  min-height: var(--ys-touch-min);
+  margin-top: var(--ys-space-2);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  cursor: pointer;
+}
+
+.sv__submit:hover {
+  background: var(--ys-accent-hover);
+}
+
+.sv__submit:disabled {
+  border-color: var(--ys-border);
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+.sv__err {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: 1.6;
+  color: var(--ys-danger);
+}

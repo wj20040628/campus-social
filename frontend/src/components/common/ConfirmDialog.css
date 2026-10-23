@@ -1,0 +1,134 @@
+/* 统一确认框。层级要高于 ActionSheet(z-drawer) —— 确认框经常从操作表里弹出 */
+.cdlg {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--ys-z-drawer) + 10);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.cdlg__mask {
+  position: absolute;
+  inset: 0;
+  background: var(--ys-overlay);
+}
+
+.cdlg__card {
+  position: relative;
+  width: 320px;
+  max-width: 100%;
+  padding: 20px;
+  border-radius: var(--ys-radius-2xl);
+  background: var(--ys-surface);
+  box-shadow: var(--ys-shadow-3);
+  box-sizing: border-box;
+}
+
+.cdlg__t {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: var(--ys-weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ys-fg);
+}
+
+.cdlg__p {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ys-fg-2);
+}
+
+.cdlg__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ys-muted);
+}
+
+.cdlg__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* 最小高 36 而不是 44:两个按钮并排、且在对话框里,
+   不是列表行;但仍满足 32px 的鼠标最小命中 */
+.cdlg__btn {
+  min-width: 76px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: transparent;
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cdlg__btn:hover {
+  background: var(--ys-surface-2);
+}
+
+/* 主操作:实心主色 */
+.cdlg__btn--pri {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-weight: var(--ys-weight-medium);
+}
+
+.cdlg__btn--pri:hover {
+  background: var(--ys-accent);
+  opacity: 0.9;
+}
+
+/* 危险操作:实心暖橙红。用 accent-2 而不是纯红 —— 纯红读起来像系统错误,
+   而「移出群聊」是用户主动选择的动作 */
+.cdlg__btn--danger {
+  border-color: var(--ys-danger);
+  background: var(--ys-danger);
+  color: #fff;
+  font-weight: var(--ys-weight-medium);
+}
+
+.cdlg__btn--danger:hover {
+  background: var(--ys-danger);
+  opacity: 0.9;
+}
+
+/* 出现 160ms,消失 120ms,不弹跳 */
+.cdlg-enter-active .cdlg__card,
+.cdlg-leave-active .cdlg__card {
+  transition: opacity var(--ys-motion-base) var(--ys-ease-out),
+    transform var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.cdlg-enter-active .cdlg__mask,
+.cdlg-leave-active .cdlg__mask {
+  transition: opacity var(--ys-motion-base) var(--ys-ease-out);
+}
+
+.cdlg-enter-from .cdlg__card,
+.cdlg-leave-to .cdlg__card {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.cdlg-enter-from .cdlg__mask,
+.cdlg-leave-to .cdlg__mask {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdlg-enter-active .cdlg__card,
+  .cdlg-leave-active .cdlg__card,
+  .cdlg-enter-active .cdlg__mask,
+  .cdlg-leave-active .cdlg__mask {
+    transition: none;
+  }
+}

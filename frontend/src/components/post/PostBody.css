@@ -65,6 +65,20 @@
   white-space: pre-wrap;
   /* 正文不截断:长 URL 必须靠 overflow-wrap 折行,不能横向滚动(AC-15) */
   overflow-wrap: anywhere;
+  /*
+   * word-break 与 min-width 这两条是**修横向溢出**的，缺一不可：
+   *
+   * 实测（2026-10-21，真机）：正文是一长串无空格的 "dddddd…" 时，
+   * 只有 overflow-wrap:anywhere 仍然会溢出 —— 因为 .content 是 flex 容器的
+   * 子项（PostBody 的父级是普通块，但详情页 .det-body 是 flex 列），
+   * flex 子项的默认 min-width:auto 会让它「不小于内容最小宽度」，
+   * 于是被那串不折断的字符顶宽，父容器再宽也拦不住。
+   * min-width:0 把这个隐含下限去掉，折行才真正生效。
+   *
+   * word-break:break-word 兜住 anywhere 在部分旧 WebView 上的不实现。
+   */
+  min-width: 0;
+  word-break: break-word;
   font-size: var(--ys-text-md);
   line-height: var(--ys-lh-md);
   color: var(--ys-fg);
@@ -75,10 +89,21 @@
   display: grid;
   gap: var(--ys-space-1);
   padding: var(--ys-space-3) var(--ys-gutter-phone) 0;
+  /* 网格自身也不能被内容顶宽 */
+  min-width: 0;
 }
 
+/*
+ * 1fr → minmax(0, 1fr)。
+ *
+ * 这是图片「撑破网格」的根因：`1fr` 的隐含最小尺寸是 `auto`，等于
+ * 「不小于内容的自然宽度」。一张 3000px 宽的长图（截图/终端窗口截图）
+ * 在 grid 里会把这一列撑到 3000px，整页横向溢出，右侧内容被裁掉。
+ * minmax(0,1fr) 把下限压到 0，图片才会老实按容器宽度 + object-fit 裁切。
+ * 双列/三列本来就写了 minmax(0,1fr)，唯独单列这档漏了。
+ */
 .media-grid--one {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .media-grid--two {
@@ -95,6 +120,35 @@
   border-radius: var(--ys-radius-lg);
   object-fit: cover;
   display: block;
+  /* 图片本身也不许超过格子宽度（grid 列已用 minmax(0,1fr) 约束，
+     这里再兜一层，防止 el-image 内部 img 用 inline 宽度溢出） */
+  max-width: 100%;
+  min-width: 0;
+}
+
+/*
+ * 图片失效占位（2026-10-21 加）。
+ *
+ * 帖子的 media 可能指向已删除的磁盘文件（实测 post 168/169），
+ * el-image 默认渲染一个破图图标，在信息流里非常扎眼。
+ * 这里换成一个和图片位同尺寸的中性块，行高一致、不破坏卡片节奏。
+ * 用 --ys-surface-2 而不是灰色：#F4E9D8 属于暖米体系，不会像冷灰那样像报错。
+ */
+.media-img--broken {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  background: var(--ys-surface-2);
+  border: 1px dashed var(--ys-border);
+  color: var(--ys-meta);
+  font-size: var(--ys-text-xs);
+}
+
+/* 单图时与上面那条 max-height 保持一致，避免失效块比正常图还高 */
+.media-grid--one .media-img--broken {
+  aspect-ratio: auto;
+  min-height: 120px;
+  max-height: 60vh;
 }
 
 /*
