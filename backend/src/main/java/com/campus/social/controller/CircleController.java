@@ -1,15 +1,18 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.ActivityDTO;
 import com.campus.social.dto.CircleBanMemberDTO;
 import com.campus.social.dto.CircleDTO;
 import com.campus.social.dto.CircleMovePostDTO;
 import com.campus.social.interceptor.AuthInterceptor;
+import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.ActivityService;
 import com.campus.social.service.CircleAdminService;
 import com.campus.social.service.CircleService;
+import com.campus.social.vo.ActivitySignupVO;
 import com.campus.social.vo.ActivityVO;
 import com.campus.social.vo.CircleMemberVO;
 import com.campus.social.vo.CircleVO;
@@ -38,6 +41,13 @@ public class CircleController {
 
     // ---------------- 圈子 ----------------
 
+    /**
+     * 创建圈子。
+     *
+     * <p>{@code @RequireVerified}（2026-10-21 新增）：未认证用户不能创建圈子。
+     * 与「发私信」「集市发布」同属「对外主动创建设施」的动作，需先证明校内身份。
+     */
+    @RequireVerified
     @PostMapping("/circle")
     public Result<Map<String, Long>> createCircle(@Valid @RequestBody CircleDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -51,7 +61,7 @@ public class CircleController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(circleService.list(me != null ? me : 0, lastId, size));
+        return Result.ok(circleService.list(me != null ? me : 0, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/circle/{id}")
@@ -60,6 +70,13 @@ public class CircleController {
         return Result.ok(circleService.detail(id, me != null ? me : 0));
     }
 
+    /**
+     * 加入圈子。
+     *
+     * <p>{@code @RequireVerified}（2026-10-21 新增）：圈子是校内组织，
+     * 未认证（可能是校外）的人加入与「防校外骚扰」的初衷不符。
+     */
+    @RequireVerified
     @PostMapping("/circle/{id}/join")
     public Result<Void> join(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -174,7 +191,7 @@ public class CircleController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(circleService.circlePosts(id, lastId, size, me != null ? me : 0));
+        return Result.ok(circleService.circlePosts(id, lastId, PageSize.clamp(size), me != null ? me : 0));
     }
 
     // ---------------- 活动 ----------------
@@ -193,13 +210,27 @@ public class CircleController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(activityService.listByCircle(circleId, lastId, size, me != null ? me : 0));
+        return Result.ok(activityService.listByCircle(circleId, lastId, PageSize.clamp(size), me != null ? me : 0));
     }
 
     @GetMapping("/activity/{id}")
     public Result<ActivityVO> activityDetail(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(activityService.detail(id, me != null ? me : 0));
+    }
+
+    /**
+     * 活动报名者名单（2026-10-21 新增）。
+     *
+     * <p>公开可读：活动详情页的「参加的人」对所有人可见（设计稿已确认）。
+     * 只返回昵称与头像，不含学号 —— 名单公开但不泄露可定位个人的信息。
+     * 未登录时 {@code me} 为 null，viewer 传 0，{@code isMe} 恒 false。
+     */
+    @GetMapping("/activity/{id}/signups")
+    public Result<List<ActivitySignupVO>> activitySignups(@PathVariable("id") long id,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(activityService.signups(id, me != null ? me : 0));
     }
 
     @PostMapping("/activity/{id}/signup")

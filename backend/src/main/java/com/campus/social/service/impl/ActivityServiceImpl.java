@@ -15,6 +15,7 @@ import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.CircleMemberMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.ActivityService;
+import com.campus.social.vo.ActivitySignupVO;
 import com.campus.social.vo.ActivityVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.campus.social.common.ResultCode.*;
 
@@ -90,6 +93,50 @@ public class ActivityServiceImpl implements ActivityService {
             throw new BusinessException(NOT_FOUND, "活动不存在");
         }
         return toVo(a, viewerId);
+    }
+
+    /**
+     * 报名者名单（2026-10-21 新增）。
+     *
+     * <p><b>为什么在这里查而不是在 Controller 拼</b>：需要「按报名先后」排序，
+     * 而 {@code activity_signup} 的 id 自增恰好等于报名顺序（表里没有 sort 列）。
+     * 用 id 升序而不是 create_time 升序：同一秒内批量报名时 create_time 会撞，
+     * 而 id 单调唯一 —— 与举报列表用 id 做游标是同一条理由。
+     *
+     * <p><b>为什么批量查 user</b>：一个活动最多几十人，逐条查会形成 N+1；
+     * {@code selectBatchIds} 一次拿回，与 CircleAdminServiceImpl.members 同一做法。
+     *
+     * <p>不校验 viewer 的权限：报名名单是公开信息（设计稿已确认），
+     * 它只包含昵称与头像，不含学号、年级等可用于定位个人的信息。
+     */
+    @Override
+    public List<ActivitySignupVO> signups(long activityId, long viewerId) {
+        Activity a = activityMapper.selectById(activityId);
+        if (a == null) {
+            throw new BusinessException(NOT_FOUND, "活动不存在");
+        }
+        List<ActivitySignup> rows = signupMapper.selectList(
+                new LambdaQueryWrapper<ActivitySignup>()
+                        .eq(ActivitySignup::getActivityId, activityId)
+                        .orderByAsc(ActivitySignup::getId));
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<Long> userIds = rows.stream().map(ActivitySignup::getUserId).distinct().toList();
+        Map<Long, User> byId = new HashMap<>();
+        for (User u : userMapper.selectBatchIds(userIds)) {
+            byId.put(u.getId(), u);
+        }
+        return rows.stream().map(r -> {
+            User u = byId.get(r.getUserId());
+            return ActivitySignupVO.builder()
+                    .userId(r.getUserId())
+                    // 昵称缺失时退到「匿名」而不是抛错：老数据可能没有昵称
+                    .nickname(u != null && u.getNickname() != null ? u.getNickname() : "匿名")
+                    .avatarUrl(u != null ? u.getAvatarUrl() : null)
+                    .isMe(viewerId != 0 && viewerId == r.getUserId())
+                    .build();
+        }).toList();
     }
 
     @Override

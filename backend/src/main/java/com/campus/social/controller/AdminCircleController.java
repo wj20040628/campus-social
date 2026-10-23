@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.ReservedNameDTO;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -90,7 +91,7 @@ public class AdminCircleController {
             @RequestParam(value = "size", defaultValue = "100") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(circleAdminService.listForAdmin(lastId, size, me != null ? me : 0));
+        return Result.ok(circleAdminService.listForAdmin(lastId, PageSize.clamp(size), me != null ? me : 0));
     }
 
     // ---------------- 预留官方名(运营后台) ----------------
@@ -120,6 +121,6 @@ public class AdminCircleController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(circleAdminService.listReservedNames(lastId, size, me != null ? me : 0));
+        return Result.ok(circleAdminService.listReservedNames(lastId, PageSize.clamp(size), me != null ? me : 0));
     }
 }

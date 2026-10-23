@@ -18,14 +18,25 @@ import java.util.List;
 public interface MktActivityMapper extends BaseMapper<MktActivity> {
 
     /**
-     * 广场查询：仅「投放中且未满员且未过期且开启」的活动。
+     * 广场查询：投放中、开启、未过期；**包含已满员**（2026-10-21 改）。
      * 可选按一级分类过滤。按 last_launch_time DESC, id DESC 排序；
      * lastId 非空时取 id 更小的（游标向下翻页）。LIMIT size（调用方传 size+1 判 hasMore）。
+     *
+     * 【为什么去掉 is_full = 0】
+     * 原来条件是 `is_enable=1 AND is_full=0`，两者都在 WHERE 里做 AND ——
+     * 意味着「标满员」和「暂停」对广场的效果完全相同：都让活动消失。
+     * 于是「标满员」按钮除了换个状态文案之外没有任何实际作用（用户实测评测指出）。
+     *
+     * 现在把「是否想展示」（is_enable）和「人是否已找齐」（is_full）分开表达：
+     *   满员的活动**继续留在广场**，由前端用 isFull 渲染「已满」角标并收起加入入口。
+     *   理由是满员只是业务事实、不是隐私诉求 —— 别人看到「这条已满」仍有价值
+     *   （知道这个人靠谱、下次可以找他），让它消失等于这条活动白发了。
+     *   真正要求「别让人看到」的诉求，交给 is_enable=0（暂停）。
      */
     @Select("""
             <script>
             SELECT * FROM mkt_activity
-            WHERE soft_delete = 0 AND is_enable = 1 AND is_full = 0 AND expire_time &gt; NOW()
+            WHERE soft_delete = 0 AND is_enable = 1 AND expire_time &gt; NOW()
               <if test="category != null and category != ''"> AND category = #{category}</if>
               <if test="lastId != null"> AND id &lt; #{lastId}</if>
             ORDER BY last_launch_time DESC, id DESC

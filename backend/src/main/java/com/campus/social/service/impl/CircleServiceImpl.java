@@ -18,7 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 import static com.campus.social.common.ResultCode.*;
 
@@ -90,8 +92,12 @@ public class CircleServiceImpl implements CircleService {
         boolean hasMore = rows.size() > size;
         List<Circle> page = rows.stream().limit(size).toList();
         List<CircleVO> vos = page.stream().map(c -> toVo(c, me)).toList();
+        fillPostStats(vos);
         Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
-        return new CursorPage<>(vos, nextCursor, hasMore);
+        // total:可见圈子总数(不含游标条件)。给「N 个圈」用 —— 已加载条数不是总数
+        Long total = circleMapper.selectCount(new LambdaQueryWrapper<Circle>()
+                .eq(Circle::getStatus, 0));
+        return new CursorPage<>(vos, nextCursor, hasMore, total);
     }
 
     @Override
@@ -100,7 +106,52 @@ public class CircleServiceImpl implements CircleService {
         if (c == null || c.getStatus() == 1) {
             throw new BusinessException(NOT_FOUND, "圈子不存在或已封禁");
         }
-        return toVo(c, viewerId);
+        CircleVO vo = toVo(c, viewerId);
+        fillPostStats(java.util.Collections.singletonList(vo));
+        return vo;
+    }
+
+    /**
+     * 批量回填帖数与最新一帖时间(列表副行「最近动态」用)。
+     *
+     * <p>一次 SQL 查回整页圈子,不做 N+1。聚合结果没有对应实体,MyBatis 返回
+     * Map 且键是**列别名原样**(map-underscore-to-camel-case 只作用于 bean 属性,
+     * 不改 Map 的键),所以下面两个键名都要兜一下,免得换驱动/别名后静默拿到 null。
+     */
+    private void fillPostStats(List<CircleVO> vos) {
+        if (vos == null || vos.isEmpty()) return;
+        List<Long> ids = vos.stream().map(CircleVO::getId).filter(java.util.Objects::nonNull).toList();
+        if (ids.isEmpty()) return;
+
+        Map<Long, int[]> counts = new java.util.HashMap<>();
+        Map<Long, java.time.LocalDateTime> last = new java.util.HashMap<>();
+        for (java.util.Map<String, Object> r : postMapper.postStatsByCircles(ids)) {
+            Long cid = asLong(r.get("circle_id") != null ? r.get("circle_id") : r.get("circleId"));
+            if (cid == null) continue;
+            counts.put(cid, new int[]{asInt(r.get("post_cnt") != null ? r.get("post_cnt") : r.get("postCnt"))});
+            last.put(cid, asTime(r.get("last_at") != null ? r.get("last_at") : r.get("lastAt")));
+        }
+        for (CircleVO vo : vos) {
+            vo.setPostCount(counts.getOrDefault(vo.getId(), new int[]{0})[0]);
+            java.time.LocalDateTime t = last.get(vo.getId());
+            vo.setLastPostAt(t == null ? null : POST_TIME_FMT.format(t));
+        }
+    }
+
+    private static final DateTimeFormatter POST_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    private static Long asLong(Object o) {
+        return o instanceof Number n ? n.longValue() : null;
+    }
+
+    private static int asInt(Object o) {
+        return o instanceof Number n ? n.intValue() : 0;
+    }
+
+    private static java.time.LocalDateTime asTime(Object o) {
+        if (o instanceof java.time.LocalDateTime t) return t;
+        if (o instanceof java.sql.Timestamp ts) return ts.toLocalDateTime();
+        return null;
     }
 
     @Override
