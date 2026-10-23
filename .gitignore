@@ -104,3 +104,7 @@ backend/cp.txt
 *.bak
 *.tmp
 *.orig
+
+# README 预览产物（由 scripts/preview-readme.py 生成，非源文件）
+.readme-preview.html
+scripts/__pycache__/
