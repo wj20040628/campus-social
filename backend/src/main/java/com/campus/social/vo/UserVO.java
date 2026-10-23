@@ -1,15 +1,22 @@
 package com.campus.social.vo;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 /**
  * 用户卡片(脱敏,不暴露 passwordHash / studentNo 等敏感字段)
+ *
+ * <p><b>为什么需要无参构造</b>：同 PostVO —— {@code @Builder} 不生成无参构造，
+ * 而 PostVO 整个对象要存进 Redis 再反序列化回来，嵌套的 UserVO 同样需要。
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserVO {
     private Long id;
     /**

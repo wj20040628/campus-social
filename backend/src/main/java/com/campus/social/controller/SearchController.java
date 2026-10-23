@@ -7,6 +7,7 @@ import com.campus.social.entity.MktActivity;
 import com.campus.social.entity.Post;
 import com.campus.social.entity.User;
 import com.campus.social.mapper.CircleMapper;
+import com.campus.social.mapper.CircleMemberMapper;
 import com.campus.social.mapper.MktActivityMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.UserMapper;
@@ -32,13 +33,15 @@ public class SearchController {
     private final PostMapper postMapper;
     private final UserMapper userMapper;
     private final CircleMapper circleMapper;
+    private final CircleMemberMapper circleMemberMapper;
     private final MktActivityMapper mktActivityMapper;
 
     public SearchController(PostMapper postMapper, UserMapper userMapper, CircleMapper circleMapper,
-                            MktActivityMapper mktActivityMapper) {
+                            CircleMemberMapper circleMemberMapper, MktActivityMapper mktActivityMapper) {
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.circleMapper = circleMapper;
+        this.circleMemberMapper = circleMemberMapper;
         this.mktActivityMapper = mktActivityMapper;
     }
 
@@ -54,6 +57,9 @@ public class SearchController {
                     com.campus.social.common.ResultCode.BAD_REQUEST, "搜索词不能为空");
         }
         size = PageSize.clamp(size);
+        // 当前用户:圈子结果要带「我加没加过」,搜索框在登录后才出现,这里容错取 0
+        Long me = (Long) req.getAttribute(com.campus.social.interceptor.AuthInterceptor.ATTR_USER_ID);
+        long viewer = me != null ? me : 0L;
         // 帖子:FULLTEXT(ngram 中文分词)+ LIKE 兜底(短词/特殊字符场景)
         // 用户/圈子:数据量小,维持 LIKE
         String keyword = "%" + q.trim() + "%";
@@ -93,7 +99,7 @@ public class SearchController {
                     .like(Circle::getName, keyword)
                     .orderByDesc(Circle::getId)
                     .last("LIMIT " + size));
-            data.put("circles", circles.stream().map(this::toCircleVo).toList());
+            data.put("circles", toCircleVos(circles, viewer));
         }
         // 集市(校园限时活动):数据量小,LIKE。仅「已投放(is_enable=1)且未软删」的
         // 活 listings 才进搜索 —— 与帖子 status=1、圈子 status=0 的「可见」口径一致。
@@ -127,13 +133,63 @@ public class SearchController {
         return UserVoAssembler.of(u);
     }
 
-    private Map<String, Object> toCircleVo(Circle c) {
-        Map<String, Object> m = new HashMap<>();
-        m.put("id", c.getId());
-        m.put("name", c.getName());
-        m.put("memberCount", c.getMemberCount());
-        return m;
+    /**
+     * 圈子搜索结果出参(2026-10-21 从三条补齐)。
+     *
+     * 改版前只回 id / name / memberCount —— 不查关系表,所以 `joined` 恒为假:
+     * 我加过的圈在搜索结果里还显示「加入」按钮,点下去是个无效动作。
+     * 现在补齐 joined / myRole(与 /circle 列表同口径),外加帖数与最新一帖时间,
+     * 搜索结果与列表里的卡片长得一样。
+     */
+    private List<Map<String, Object>> toCircleVos(List<Circle> circles, long viewer) {
+        if (circles == null || circles.isEmpty()) return List.of();
+        List<Long> ids = circles.stream().map(Circle::getId).toList();
+
+        // 我在这些圈里的角色:一次查回,避免 N+1。非成员不出现 → myRole=0 / joined=false
+        Map<Long, Integer> roleByCircle = new HashMap<>();
+        if (viewer > 0) {
+            circleMemberMapper.selectList(new LambdaQueryWrapper<com.campus.social.entity.CircleMember>()
+                            .in(com.campus.social.entity.CircleMember::getCircleId, ids)
+                            .eq(com.campus.social.entity.CircleMember::getUserId, viewer))
+                    .forEach(m -> roleByCircle.put(m.getCircleId(),
+                            m.getRole() == null ? 3 : m.getRole()));
+        }
+
+        // 帖数 + 最新一帖时间:与列表页同一条 SQL,保持卡片副行一致
+        Map<Long, Integer> cntByCircle = new HashMap<>();
+        Map<Long, String> lastByCircle = new HashMap<>();
+        for (Map<String, Object> r : postMapper.postStatsByCircles(ids)) {
+            Object cid = r.get("circle_id") != null ? r.get("circle_id") : r.get("circleId");
+            if (!(cid instanceof Number n)) continue;
+            long id = n.longValue();
+            Object cnt = r.get("post_cnt") != null ? r.get("post_cnt") : r.get("postCnt");
+            if (cnt instanceof Number c) cntByCircle.put(id, c.intValue());
+            Object at = r.get("last_at") != null ? r.get("last_at") : r.get("lastAt");
+            if (at instanceof java.sql.Timestamp ts) {
+                lastByCircle.put(id, ts.toLocalDateTime().format(TIME_FMT));
+            } else if (at instanceof java.time.LocalDateTime t) {
+                lastByCircle.put(id, t.format(TIME_FMT));
+            }
+        }
+
+        List<Map<String, Object>> out = new java.util.ArrayList<>(circles.size());
+        for (Circle c : circles) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", c.getId());
+            m.put("name", c.getName());
+            m.put("memberCount", c.getMemberCount());
+            Integer role = roleByCircle.get(c.getId());
+            m.put("joined", role != null);
+            m.put("myRole", role == null ? 0 : role);
+            m.put("postCount", cntByCircle.getOrDefault(c.getId(), 0));
+            m.put("lastPostAt", lastByCircle.get(c.getId()));
+            out.add(m);
+        }
+        return out;
     }
+
+    private static final java.time.format.DateTimeFormatter TIME_FMT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private Map<String, Object> toMktVo(MktActivity m) {
         Map<String, Object> vo = new HashMap<>();

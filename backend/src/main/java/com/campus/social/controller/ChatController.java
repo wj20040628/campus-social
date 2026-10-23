@@ -3,8 +3,11 @@ package com.campus.social.controller;
 import com.campus.social.common.CursorPage;
 import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
+import com.campus.social.dto.ChatPrefDTO;
 import com.campus.social.dto.ChatSendDTO;
 import com.campus.social.interceptor.AuthInterceptor;
+import com.campus.social.interceptor.RequireVerified;
+import com.campus.social.service.ChatConvPrefService;
 import com.campus.social.service.ChatService;
 import com.campus.social.service.StrangerQuotaService;
 import com.campus.social.vo.ChatMessageVO;
@@ -21,10 +24,13 @@ public class ChatController {
 
     private final ChatService chatService;
     private final StrangerQuotaService quotaService;
+    private final ChatConvPrefService prefService;
 
-    public ChatController(ChatService chatService, StrangerQuotaService quotaService) {
+    public ChatController(ChatService chatService, StrangerQuotaService quotaService,
+                          ChatConvPrefService prefService) {
         this.chatService = chatService;
         this.quotaService = quotaService;
+        this.prefService = prefService;
     }
 
     @GetMapping("/conversations")
@@ -54,6 +60,16 @@ public class ChatController {
      * 两条路径同时保留并指向同一实现：等前端切换完成再摘掉旧路径，
      * 否则这一轮发版会直接把发消息功能打挂。
      */
+    /**
+     * {@code @RequireVerified}（2026-10-21 新增）：未认证用户不能发起搭话。
+     *
+     * <p>业务层 {@code ChatGuardServiceImpl} 里本来就有同样的判断，
+     * 这里再加一层注解不是重复 —— 那一层顺带管黑名单/额度/陌生人开关，
+     * 混在一处会让「未认证」这条规则埋在一堆校验里，
+     * 而注解写在端点上，「这个接口需要认证」是一眼可见的事实。
+     * 两层都保留：注解负责快速短路（不查库不建会话），业务层负责完整护栏。
+     */
+    @RequireVerified
     @PostMapping({"/send", "/message"})
     public Result<ChatSendVO> send(@Valid @RequestBody ChatSendDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -80,6 +96,20 @@ public class ChatController {
     public Result<Void> recall(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         chatService.recall(me, id);
+        return Result.ok();
+    }
+
+    /**
+     * 会话偏好：置顶 / 免打扰 / 从列表删除（手机端右滑三项）。
+     *
+     * <p>私信和群聊共用这一个入口，靠 kind 区分：targetId 私信传对方 userId、
+     * 群聊传 groupId。放在 /chat 下而不是 /group 下，是因为这是"我对这条会话的态度"，
+     * 与消息本身无关；前端右滑也只有一处调用。
+     */
+    @PostMapping("/pref")
+    public Result<Void> setPref(@Valid @RequestBody ChatPrefDTO dto, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        prefService.set(me, dto.getKind(), dto.getTargetId(), dto.getPinned(), dto.getMuted(), dto.getHidden());
         return Result.ok();
     }
 

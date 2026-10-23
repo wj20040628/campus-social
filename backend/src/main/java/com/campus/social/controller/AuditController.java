@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.AuditService;
@@ -37,6 +38,6 @@ public class AuditController {
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         roleService.requireAdmin(me); // 仅管理员
-        return Result.ok(auditService.queryLogs(lastId, size, action, userId, keyword, start, end, nickname));
+        return Result.ok(auditService.queryLogs(lastId, PageSize.clamp(size), action, userId, keyword, start, end, nickname));
     }
 }

@@ -1,5 +1,6 @@
 package com.campus.social.service.impl;
 
+import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.common.ResultCode;
 import com.campus.social.dto.FeedbackHandleDTO;
 import com.campus.social.dto.FeedbackSubmitDTO;
@@ -136,7 +137,8 @@ public class FeedbackServiceImpl implements FeedbackService {
         // user_id 为 NULL 不能按用户回查，用同连接 LAST_INSERT_ID() 取刚插的主键。
         Long id = feedbackMapper.selectLastInsertId();
         log.info("student-no appeal submitted: studentNo={}, email={}, feedbackId={}",
-                dto.getStudentNo(), dto.getEmail(), id);
+                UserVoAssembler.maskUsername(dto.getStudentNo()),
+                UserVoAssembler.maskUsername(dto.getEmail()), id);
         return FeedbackSubmitVO.builder()
                 .feedbackId(id)
                 .status(STATUS_PENDING)
@@ -228,7 +230,7 @@ public class FeedbackServiceImpl implements FeedbackService {
             messageGateway.sendNotice(email, subject, body);
         } catch (Exception e) {
             log.warn("appeal result mail failed: feedbackId={}, email={}, err={}",
-                    fb.getId(), email, e.getMessage());
+                    fb.getId(), UserVoAssembler.maskUsername(email), e.getMessage());
         }
     }
 

@@ -69,6 +69,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/refresh",
                         "/auth/send-code",
                         "/auth/login-code",
+                        /*
+                         * 找回密码两步（2026-10-21 补放行）。
+                         *
+                         * 【此前一直是 401】用户点「忘记密码？」时**本来就没登录**，
+                         * 这两个端点在白名单外，于是无论填邮箱还是学号都直接 401。
+                         * 也就是说这个功能上线以来从没真正跑通过 ——
+                         * 前端表单、后端逻辑、邮箱验证码全都写好了，卡在最后一道门上。
+                         *
+                         * 放行的安全性：两者都不泄露账号是否存在
+                         * （forgot 对不存在的账号静默成功；reset 要求验证码，
+                         * 而这个码只能发到该账号已绑定的邮箱），
+                         * 且验证码有 5 分钟 TTL 与每日次数上限（VerifyCodeService）。
+                         */
+                        "/auth/forgot-password",
+                        "/auth/reset-password",
                         // 学号认证申诉(2026-10-19):提交方是「注册失败、还没账号」的人,
                         // 没有 token 也必须放行,联系邮箱随申诉落库供管理员联系。
                         "/auth/appeal-student-no",
@@ -93,6 +108,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/admin/**")
                 .order(3);
     }
+
+    /*
+     * 注意：**不要**在这里给 "/uploads/**" 注册 ResourceHandler。
+     * 上传目录的读链路已由 MediaController 接管（P3：OSS 配好时 302 到签名 URL，
+     * 未配 AK 时读本地磁盘）。两条链路同时存在会产生歧义：
+     * ResourceHandler 先命中就直接从磁盘读，OSS 部署下则完全失效。
+     * 若这里只加拦截器白名单而不加 ResourceHandler，路径一定 404 —— 那正是
+     * 2026-10-21 之前的状态（数据库有 avatar_url、磁盘有文件、URL 却 404）。
+     */
 
     /**
      * 跨域白名单(TD-01)。

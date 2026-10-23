@@ -263,8 +263,19 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                 .nickname(row.getPublisherNickname())
                 .avatarUrl(row.getPublisherAvatar())
                 .verified(verified)
-                // AC-12：未认证不挂学校名，避免运营号冒充校方权威
-                .schoolName(verified ? campus.getSchoolName() : null)
+                /*
+                 * 2026-10-21：公告不再下发学校名。
+                 *
+                 * 原来这里是 `verified ? campus.getSchoolName() : null` ——
+                 * 已认证发布人的公告会带上「黄河交通学院」这个具体校名，
+                 * 而本平台是毕业设计原型（见 legalDocs 里的免责声明：
+                 * 「不属于黄河交通学院官方平台，与学校无任何隶属关系」）。
+                 * 公告上挂具体校名等于替学校背书，与那条免责声明直接冲突。
+                 *
+                 * 现在恒为 null：公告的权威性由 verified 标记与「官方公告」
+                 * 这个产品定位表达，不需要（也不应该）借用具体校名。
+                 */
+                .schoolName(null)
                 .build();
     }
 }

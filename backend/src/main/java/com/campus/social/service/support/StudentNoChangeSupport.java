@@ -1,5 +1,6 @@
 package com.campus.social.service.support;
 
+import com.campus.social.assembler.UserVoAssembler;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
@@ -75,12 +76,12 @@ public class StudentNoChangeSupport {
                 userMapper.approveVerify(user.getId());
                 user.setVerifyStatus(VERIFY_OK);
                 log.info("verify auto approved by profile edit: user={}, studentNo={}",
-                        user.getId(), studentNo);
+                        user.getId(), UserVoAssembler.maskUsername(studentNo));
             } else {
                 user.setVerifyStatus(VERIFY_PENDING);
             }
             log.info("verify submitted by profile edit: user={}, studentNo={}",
-                    user.getId(), studentNo);
+                    user.getId(), UserVoAssembler.maskUsername(studentNo));
         }
     }
 
@@ -151,6 +152,7 @@ public class StudentNoChangeSupport {
         // 与上面的 SQL 保持一致，否则紧随其后的 updateById 会把状态覆盖回去。
         user.setVerifyStatus(VERIFY_PENDING);
         log.info("verify resubmitted by profile edit: user={}, oldStudentNo={}, newStudentNo={}",
-                user.getId(), oldStudentNo, newStudentNo);
+                user.getId(), UserVoAssembler.maskUsername(oldStudentNo),
+                UserVoAssembler.maskUsername(newStudentNo));
     }
 }

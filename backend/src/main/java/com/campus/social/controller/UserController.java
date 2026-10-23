@@ -1,7 +1,8 @@
 package com.campus.social.controller;
 
-import com.campus.social.common.Result;
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
+import com.campus.social.common.Result;
 import com.campus.social.dto.UpdateProfileDTO;
 import com.campus.social.dto.UpdateCoverDTO;
 import com.campus.social.dto.ChangePasswordDTO;
@@ -182,7 +183,7 @@ public class UserController {
             return Result.fail(com.campus.social.common.ResultCode.NOT_FOUND, "用户不存在");
         }
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.myPosts(id, me != null ? me : 0L, lastId, size));
+        return Result.ok(postService.myPosts(id, me != null ? me : 0L, lastId, PageSize.clamp(size)));
     }
 
     /**

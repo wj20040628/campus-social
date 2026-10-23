@@ -1,5 +1,6 @@
 package com.campus.social.controller;
 
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.AnnouncementCreateDTO;
 import com.campus.social.dto.AnnouncementUpdateDTO;
@@ -99,7 +100,7 @@ public class AdminAnnouncementController {
             @RequestParam(value = "status", required = false) Integer status,
             @RequestParam(value = "cursor", required = false) Long cursor,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(adminService.adminList(campus.getSchoolId(), status, cursor, size));
+        return Result.ok(adminService.adminList(campus.getSchoolId(), status, cursor, PageSize.clamp(size)));
     }
 
     /**
@@ -114,7 +115,7 @@ public class AdminAnnouncementController {
             @RequestParam(value = "size", defaultValue = "50") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(adminService.unreadUsers(me, id, cursor, size));
+        return Result.ok(adminService.unreadUsers(me, id, cursor, PageSize.clamp(size)));
     }
 
     /**

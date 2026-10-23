@@ -1,5 +1,6 @@
 package com.campus.social.controller;
 
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.AdminVerifyRejectDTO;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -53,7 +54,7 @@ public class AdminVerifyController {
     public Result<AdminVerifyPageVO> pending(
             @RequestParam(value = "cursor", required = false) Long cursor,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(adminVerifyService.pending(cursor, size));
+        return Result.ok(adminVerifyService.pending(cursor, PageSize.clamp(size)));
     }
 
     /**

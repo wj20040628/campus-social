@@ -50,12 +50,20 @@ public class ReconcileJob {
                 users, comments, hot, circles, System.currentTimeMillis() - t0);
     }
 
-    /** 每 10 分钟:仅重算热度分(影响 Feed 排序,需较实时) */
+    /**
+     * 每 10 分钟:仅重算最近 7 天帖子的热度分。
+     *
+     * <p>为什么不刷全表:hot_score 是时间衰减函数,发布 7 天以上的帖子
+     * 无论重算多少次都排在热门榜之外,给它 10 分钟精度没有意义,
+     * 却要付出「全表 UPDATE + 每行一次 like 计数」的代价。
+     *
+     * <p>老帖的 like_count 若因异常漂移,由每天 3 点的全量对账修正。
+     */
     @Scheduled(cron = "0 */10 * * * ?")
     public void refreshHotScore() {
-        int n = postMapper.reconcileHotAndLikes();
+        int n = postMapper.refreshRecentHotScore();
         if (n > 0) {
-            log.debug("[对账] 热度分重算 {} 条", n);
+            log.debug("[对账] 近 7 天热度分重算 {} 条", n);
         }
     }
 }

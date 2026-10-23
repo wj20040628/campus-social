@@ -133,9 +133,22 @@ public final class JwtUtil {
         return Boolean.TRUE.equals(r);
     }
 
-    /** 密码哈希 */
+    /**
+     * 密码哈希。
+     *
+     * <p><b>cost 为什么是 10 而不是 12</b>：BCrypt 的 cost 每加 1 就翻倍计算量。
+     * cost=12 单次约 300ms 纯 CPU，2 核服务器每秒只能处理 5-6 次登录，
+     * 中午下课集中登录时前面的人就把 CPU 占满，后面全在排队。
+     * cost=10 单次约 70-80ms，快 4 倍，仍是 OWASP 建议的下限之上。
+     *
+     * <p><b>降低 cost 不需要迁移存量密码</b>：BCrypt 把 cost 写在哈希串里
+     * （形如 {@code $2a$12$...}），校验时 {@link #verifyPassword} 读的是
+     * 这个串自带的 cost，不是这里的常量。所以老用户用 12 建的密码照样能登录，
+     * 只有新注册和改密码才会用 10。想全量升级只能等用户下次改密码，
+     * 这是 BCrypt 的固有限制，不是实现缺陷。
+     */
     public static String hashPassword(String raw) {
-        return BCrypt.hashpw(raw, BCrypt.gensalt(12));
+        return BCrypt.hashpw(raw, BCrypt.gensalt(10));
     }
 
     public static boolean verifyPassword(String raw, String hashed) {

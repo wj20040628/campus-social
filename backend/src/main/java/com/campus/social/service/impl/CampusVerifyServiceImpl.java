@@ -1,5 +1,6 @@
 package com.campus.social.service.impl;
 
+import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.common.ResultCode;
 import com.campus.social.config.CampusProperties;
 import com.campus.social.dto.CampusEmailConfirmDTO;
@@ -192,7 +193,7 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         userMapper.markVerified(userId);
         auditService.record(userId, ACTION_EMAIL_BOUND, "user", userId, "email:" + email, "");
         auditService.record(userId, ACTION_VERIFY_PASS, "user", userId, "渠道:校园邮箱", "");
-        log.info("campus email verified: user={}, email={}", userId, email);
+        log.info("campus email verified: user={}, email={}", userId, UserVoAssembler.maskUsername(email));
         return status(userId);
     }
 
@@ -239,7 +240,7 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         // 记在 audit_log：多态、只增不删，供管理员比对
         auditService.record(userId, ACTION_STUDENT_NO_SUBMIT, "user", userId,
                 "学号:" + studentNo + " 姓名后缀:" + nameTail, "");
-        log.info("student no submitted: user={}, studentNo={}", userId, studentNo);
+        log.info("student no submitted: user={}, studentNo={}", userId, UserVoAssembler.maskUsername(studentNo));
 
         /*
          * 自动通过(格式 + 院系交叉校验都过):不再让真实用户排队等人工。
@@ -251,7 +252,7 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
             if (affected > 0) {
                 auditService.record(userId, ACTION_VERIFY_AUTO_APPROVE, "user", userId,
                         "学号:" + studentNo + " 渠道:自动通过(格式与院系交叉校验一致)", "");
-                log.info("student no auto approved: user={}, studentNo={}", userId, studentNo);
+                log.info("student no auto approved: user={}, studentNo={}", userId, UserVoAssembler.maskUsername(studentNo));
                 return StudentNoVerifyVO.builder()
                         .verifyStatus(VERIFY_OK)
                         .autoApproved(true)
@@ -417,7 +418,7 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         String domain = at < 0 ? "" : email.substring(at + 1);
         Set<String> whitelist = campus.resolveEmailDomains();
         if (whitelist.isEmpty()) {
-            log.warn("campus email domain whitelist is empty, reject all. email={}", email);
+            log.warn("campus email domain whitelist is empty, reject all. email={}", UserVoAssembler.maskUsername(email));
             throw new BusinessException(CAMPUS_EMAIL_NOT_ALLOWED,
                     "尚未配置校园邮箱域名白名单，暂时无法用邮箱认证");
         }
@@ -427,7 +428,14 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
                 return;
             }
         }
-        log.info("campus email domain rejected: email={}, domain={}", email, domain);
+        /*
+         * email 脱敏、domain 不脱敏（2026-10-21）。
+         * 域名本身不是个人敏感信息，而且它是排查「哪家学校的邮箱被拒」的唯一线索 ——
+         * 把它打码等于把这条日志最有用的部分删掉。
+         * （前一步的批量替换误伤了 domain，这里改回来。）
+         */
+        log.info("campus email domain rejected: email={}, domain={}",
+                UserVoAssembler.maskUsername(email), domain);
         throw new BusinessException(CAMPUS_EMAIL_NOT_ALLOWED, "该邮箱域名不是受信任的校园邮箱");
     }
 

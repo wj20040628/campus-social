@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.ReviewRejectDTO;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -31,7 +32,7 @@ public class ReviewController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(reviewService.myReviews(me, lastId, size));
+        return Result.ok(reviewService.myReviews(me, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/pending")
@@ -41,7 +42,7 @@ public class ReviewController {
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         roleService.requireAdmin(me); // 仅管理员
-        return Result.ok(reviewService.pending(me, lastId, size));
+        return Result.ok(reviewService.pending(me, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/processed")
@@ -51,7 +52,7 @@ public class ReviewController {
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         roleService.requireAdmin(me);
-        return Result.ok(reviewService.processed(me, lastId, size));
+        return Result.ok(reviewService.processed(me, lastId, PageSize.clamp(size)));
     }
 
     @PostMapping("/{id}/approve")
