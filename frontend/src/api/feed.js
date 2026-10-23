@@ -116,6 +116,13 @@ export function upload(file, kind = 'image') {
   fd.append('kind', kind)
   return request.post('/upload', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    /*
+     * per-request 超时(2026-10-23 加,审查 P1-35):
+     * 全局默认 30s 对 25MB 视频必然超时(4G 上传通常要 1-2 分钟),
+     * 兜底上传链路会莫名失败且提示"timeout of 30000ms exceeded"。
+     * OSS 直传早就放宽到 120s,服务端兜底不能停留在 30s。
+     */
+    timeout: 120000,
   })
 }
 

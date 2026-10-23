@@ -16,7 +16,18 @@ const routes = [
     path: '/login',
     component: AuthLayout,
     children: [
-      { path: '', redirect: '/login/form' },
+      /*
+       * 用**函数式 redirect** 而不是字符串 '/login/form'（2026-10-21 修）。
+       *
+       * 字符串 redirect 会**丢掉 query**：request.js 在 401 时跳的是
+       * `/login?returnUrl=<原页面>`，进到 /login 后被字符串重定向成
+       * `/login/form`，returnUrl 就此丢失。于是每次登录过期重新登录后
+       * 都只能回首页，而不是回到用户原本在的那一页 ——
+       * 对「正在写东西被踢出去」的场景尤其难受。
+       *
+       * 函数式 redirect 能拿到完整的 to 对象，把 query 原样带过去。
+       */
+      { path: '', redirect: (to) => ({ path: '/login/form', query: to.query }) },
       { path: 'form', name: 'login', component: () => import('@/views/Login.vue'), meta: { title: '登录' } },
       { path: 'register', name: 'register', component: () => import('@/views/Register.vue'), meta: { title: '注册' } },
     ],
@@ -135,13 +146,26 @@ const routes = [
         path: 'circles',
         name: 'circles',
         component: () => import('@/views/Circles.vue'),
-        meta: { requiresAuth: true, title: '圈子' },
+        // headTitle(C20):顶栏左上角写页面名「圈子」,不写品牌「友声」
+        meta: { requiresAuth: true, title: '圈子', headTitle: '圈子' },
       },
       {
         path: 'circles/:id',
         name: 'circleDetail',
         component: () => import('@/views/CircleDetail.vue'),
         meta: { requiresAuth: true, title: '圈子详情', back: true },
+      },
+      {
+        /*
+         * 圈子成员页（2026-10-21 新增）。
+         * 独立页而不是弹窗：成员可能几十人，弹窗里滚动很难受；
+         * 而「看成员」是会反复回来看的动作（找人、看谁在），
+         * 独立页可以返回、也能被浏览器记住位置。
+         */
+        path: 'circles/:id/members',
+        name: 'circleMembers',
+        component: () => import('@/views/CircleMembers.vue'),
+        meta: { requiresAuth: true, title: '圈子成员', back: true },
       },
       {
         path: 'activity/:id',
@@ -244,6 +268,16 @@ const routes = [
         meta: { requiresAuth: true, title: '通知设置', back: true },
       },
     ],
+  },
+  /*
+   * catch-all 兜底(2026-10-23 加,审查 P1-33):
+   * 之前没有任何兜底路由,拼错的 URL / 后端消息里的旧链接 / 失效分享链接
+   * 会渲染空 router-view —— 纯白页、无提示,用户以为站挂了。SPA 必须有兜底。
+   */
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'notFound',
+    redirect: '/',
   },
 ]
 
