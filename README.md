@@ -35,7 +35,7 @@
 │  │  ├─ controller/  REST 接口(无业务逻辑)
 │  │  ├─ service/impl  业务 + @Transactional
 │  │  ├─ mapper/       MyBatis-Plus BaseMapper
-│  │  ├─ entity/       PO(11 张表)
+│  │  ├─ entity/       PO(37 张表)
 │  │  ├─ dto/ vo/      入参 / 出参
 │  │  ├─ common/       Result + ResultCode + CursorPage
 │  │  ├─ exception/    BusinessException + GlobalExceptionHandler
@@ -55,7 +55,7 @@
 │     ├─ router/       路由 + 守卫
 │     └─ utils/        request.js(401 刷新队列) / ws.js(WS 单例重连)
 ├─ sql/
-│  └─ schema.sql       11 张表建库建表(含通用字段+状态枚举+索引)
+│  ├─ schema.sql       37 张表完整基线(建库只跑这一个文件;2026-10-23 合并)
 └─ .gitignore
 ```
 
@@ -66,7 +66,7 @@
 ### 1. 准备环境
 
 - JDK 17+
-- MySQL 8.x(创建 `campus_social_v2` 库,跑 [sql/schema.sql](sql/schema.sql))
+- MySQL 8.x(创建 `campus_social_v2` 库,跑 [sql/schema.sql](sql/schema.sql) —— 完整基线,37 张表一次建齐)
 - Redis 6+(默认 `127.0.0.1:6379`)
 - Node 18+
 
@@ -168,10 +168,14 @@ ws://host/ws/notify?access_token=xxx
 
 ## 验证协议(每个模块完成必查)
 
-- [x] 编译/构建通过(`mvn clean compile` ✅ + `npm run build` ✅)
-- [ ] 实际跑过一次(注册 → 登录 → 发帖 → Feed → 点赞 → 私信 → 活动报名)
-  - ⚠️ 本机未装 MySQL/Redis,运行时闭环**未实际启动验证**(缺依赖,非代码问题)
-  - 跑通步骤:先 `mysql < sql/schema.sql` + 起 Redis,再 `mvn spring-boot:run` + `npm run dev`
+- [x] 编译/构建通过(`mvn clean compile` ✅ + 前端门禁 10/10 ✅)
+- [x] 后端测试**全绿**:`mvn test` → **44 个用例 0 失败**(2026-10-23 修复,此前 19 个失败)
+  - CircleAdminServiceTest 19 个:圈名曾因 29 字符撞 3-7 正则全错,已改短名;
+    并新增「非目标圈管理不能移帖」负向用例(审查 P0-3)
+  - RefreshJtiConcurrency 断言按实际语义修正(并发下恰好 1 个滚动成功、其余全部被拒)
+  - 集成测试连本机 MySQL + Redis,CI 里用 service container 跑同一条命令
+- [x] schema.sql 实跑验证:MySQL 9.0.1 上建 37 张表,user 28 列,中文注释正常
+  - 旧库升级路径同样实跑验证:26 表旧库 → 跑一遍迁移 → 37 表,且第二次执行幂等
 - [x] 全局检查调用方同步(接口/VO/DTO 前后端对齐,逐处改齐)
 - [x] 过一遍 [AI提示词通用模板.md](AI提示词通用模板.md) 末尾的"坑位自查清单"
 

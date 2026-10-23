@@ -23,7 +23,9 @@ const SRC = path.join(ROOT, 'src')
 const MAX_LINES = 400
 
 // 覆盖 1F300-1F9FF(emoji) / 2600-26FF(符号) / 2700-27BF(装饰符号)
-const EMOJI = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u
+// 必须带 g:下面的 while(exec) 靠 lastIndex 前进。只写 u 时 exec 每次从头匹配、
+// lastIndex 永不前进 —— 一旦扫到第一个 emoji 就是死循环,problems 数组撑爆堆。
+const EMOJI = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

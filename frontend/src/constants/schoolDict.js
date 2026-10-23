@@ -213,8 +213,15 @@ export function matchStudentNoLevel(studentNo, level) {
   return studentLevel === Number(level)
 }
 
-/** 引导总步数,进度条 aria-valuemax 用它 */
-export const TOTAL_STEPS = 2
+/**
+ * 引导总步数，进度条 aria-valuemax 用它。
+ *
+ * 2026-10-21 从 2 改成 3：新增了第 1 步「学校归属 + 学号认证」。
+ * 放在最前面是因为它决定后续功能的可用范围
+ * （未认证不能发私信/建圈子/加圈子/发集市），
+ * 用户越早知道这件事，越不会在点了「加圈子」才被拦。
+ */
+export const TOTAL_STEPS = 3
 
 /**
  * 兜底:后端未下发 minSelect/maxSelect 时用这两个值。

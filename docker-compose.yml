@@ -37,7 +37,9 @@ services:
     container_name: cs-redis
     restart: unless-stopped
     # 容器内持久化,避免重启丢掉验证码与会话
-    command: ["redis-server", "--appendonly", "yes"]
+    # maxmemory + noeviction:Redis 里存的是验证码/封禁计划/未读数,
+    # 不能用 LRU 淘汰(封禁计划被淘汰等于该用户永不自动解封)。写满时报错比静默丢数据好。
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
     healthcheck:
@@ -68,8 +70,12 @@ services:
       REDIS_DB: "0"
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      # 学生机通常只有 2G 内存,限制 JVM 堆,避免把 MySQL / Redis 挤爆
-      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx512m"
+      # 学生机通常只有 2G 内存,限制 JVM 堆,避免把 MySQL / Redis 挤爆。
+      # 堆给 384m 的理由:堆只是 java 进程内存的一部分,堆外的 Metaspace、
+      # 线程栈、JIT 代码缓存加起来还有 300-400m。堆开 512m 时进程 RSS 约 950m,
+      # 连同 MySQL + Redis 会超过 2G 触发 swap,延迟从几十毫秒涨到几百毫秒。
+      # MaxMetaspaceSize 设上限是防止它只增不减、慢慢吃满剩余内存。
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx384m -XX:MaxMetaspaceSize=192m"
       # prod 走真实 SMTP;留空或 dev 则控制台打印验证码(仅本地用)
       APP_MESSAGE_GATEWAY: ${APP_MESSAGE_GATEWAY:-prod}
       MAIL_USERNAME: ${MAIL_USERNAME}

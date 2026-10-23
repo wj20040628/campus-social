@@ -53,6 +53,20 @@ initFontScale()
 
 app.mount('#app')
 
+/*
+ * access token 主动续期（2026-10-21）。
+ *
+ * 必须在 mount 之后启动：它内部要用 Pinia store，而 store 在 app.use(pinia)
+ * 之后才可用。放在这里而不是 onMounted —— 续期是全局后台任务，
+ * 不属于任何组件，挂到某个组件上会因为该组件卸载而停掉。
+ *
+ * 详见 utils/tokenRenew.js：15 分钟的 access token 若不主动续期，
+ * 到期时必然先吃一次 401；而 401 刷新在多通道并发下会互相吊销 refresh，
+ * 表现为「莫名被踢去登录页」。
+ */
+import { startTokenRenew } from './utils/tokenRenew'
+startTokenRenew()
+
 // 全局拉一次当前用户信息:无论刷新、新开标签还是直接进首页,
 // 都保证 userStore.userInfo 有值(否则顶栏头像/个人主页/主页按钮全部失效)。
 // 只在有 token(已登录)时拉,失败静默(拦截器已处理过期跳登录)。
