@@ -186,12 +186,23 @@ public class PostWriteService {
         boolean needsReview = contentChanged && sensitive.containsReplace(newContent);
         List<String> hitWords = needsReview ? sensitive.matchedLevel1Words(newContent) : List.of();
 
-        post.setContent(newContent);
-        post.setMedia(dto.getMedia() == null ? post.getMedia() : dto.getMedia());
+        /*
+         * 只更新真正改动的列(2026-10-23 修,审查 P1-14):
+         * 旧写法 post.setXxx(...) + updateById(post) 会把快照里的所有非 null 字段写回 ——
+         * 包括 like_count / comment_count / view_count / favorite_count / hot_score。
+         * 编辑是高频动作,「读者正在点赞」与「作者在编辑」并发时,后者用旧快照覆盖前者,
+         * 点赞数凭空消失。改成列级 UPDATE 后只碰业务确实改动的字段。
+         */
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Post> uw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Post>()
+                        .eq(Post::getId, postId)
+                        .set(Post::getContent, newContent)
+                        .set(Post::getMedia, dto.getMedia() == null ? post.getMedia() : dto.getMedia())
+                        .set(Post::getUpdateTime, java.time.LocalDateTime.now());
         if (needsReview) {
-            post.setStatus(0);
+            uw.set(Post::getStatus, 0);
         }
-        postMapper.updateById(post);
+        postMapper.update(null, uw);
 
         if (topicsChanged) {
             List<Long> oldTopicIds = topicBinder.topicIdsOf(postId);

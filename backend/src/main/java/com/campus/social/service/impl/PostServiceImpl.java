@@ -77,6 +77,8 @@ public class PostServiceImpl implements PostService {
     private final FeedFanoutService fanout;
     /** 圈内封禁拦截:点赞前查 ban_status */
     private final com.campus.social.service.CircleAdminService circleAdminService;
+    /** 首页首屏缓存:删帖后必须让它失效,否则被删内容还会在首页挂最多 60 秒 */
+    private final FeedPageCacheService feedCache;
 
     // ---------------------------------------------------------------- 发动态
 
@@ -147,12 +149,15 @@ public class PostServiceImpl implements PostService {
         feedItemMapper.hardDeleteByPost(postId);
         // 4.5 帖子-话题关联(并回退话题 post_count)
         postTopicMapper.hardDeleteByPost(postId);
-        // 5. 指向该帖/评论的通知
-        notifyMapper.hardDeleteByTarget(postId);
+        // 5. 指向该帖的所有通知(按 post_id 删,审查 P0-9:旧按 target_id 删会误删别的帖子评论的通知)
+        notifyMapper.hardDeleteByPostId(postId);
         // 6. 主表
         postMapper.hardDelete(postId);
 
         log.info("post hard-deleted: id={}, author={}", postId, authorId);
+        // 首页缓存失效(事务提交后执行)。不失效的话,帖子里已删的图片和正文
+        // 还会在首页卡片上继续展示最多 60 秒——内容是删了,但用户还能看见。
+        feedCache.invalidate();
         // 审计:删帖
         auditService.record(authorId, "delete_post", "post", postId, "物理删除+级联", null);
     }
@@ -218,7 +223,21 @@ public class PostServiceImpl implements PostService {
         like.setUserId(userId);
         like.setTargetType(TARGET_TYPE_POST);
         like.setTargetId(postId);
-        likeMapper.insert(like);
+        try {
+            likeMapper.insert(like);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            /*
+             * 并发兜底(2026-10-23 修,审查 P1-20):上面的 selectCount 检查不是原子的,
+             * 移动端双击/两个标签页同时点赞时两个请求都能通过判重,第二个 insert 撞 uk_like。
+             * 旧行为是抛 500,用户看到"点赞失败"但实际已赞成功 —— 语义错误。
+             * 这里把 DuplicateKey 当作"已赞"处理:回滚本事务(计数尚未加,不会重复),
+             * 直接返回成功。
+             */
+            log.debug("like duplicate ignored (already liked): {} -> {}", userId, postId);
+            org.springframework.transaction.interceptor.TransactionAspectSupport
+                    .currentTransactionStatus().setRollbackOnly();
+            return;
+        }
         // 同事务 ±1
         postMapper.adjustLikeCount(postId, 1);
         // 通知作者(非自己)
@@ -226,7 +245,7 @@ public class PostServiceImpl implements PostService {
             notifySupport.pushNotify(post.getAuthorId(), NOTIFY_TYPE_LIKE, postId, userId, postId);
         }
         // 热度分:简化即时 +1(HotScoreTask 定期重算更精细)
-        postMapper.updateHotScore(postId, post.getHotScore() + 1.0);
+        postMapper.adjustHotScore(postId, 1.0); // 增量自增(审查 P1-15)
     }
 
     @Override
@@ -240,7 +259,7 @@ public class PostServiceImpl implements PostService {
         postMapper.adjustLikeCount(postId, -1);
         Post post = postMapper.selectById(postId);
         if (post != null) {
-            postMapper.updateHotScore(postId, Math.max(0, post.getHotScore() - 1.0));
+            postMapper.adjustHotScore(postId, -1.0); // 增量自减,GREATEST(0,...) 防负(审查 P1-15)
         }
     }
 
@@ -269,7 +288,16 @@ public class PostServiceImpl implements PostService {
         PostFavorite fav = new PostFavorite();
         fav.setUserId(userId);
         fav.setPostId(postId);
-        favoriteMapper.insert(fav);
+        try {
+            favoriteMapper.insert(fav);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发兜底(审查 P1-20,同 like):双击/多标签同时收藏,第二个撞 uk_fav_user_post。
+            // 当作"已收藏"返回成功,不回 500。
+            log.debug("favorite duplicate ignored: {} -> {}", userId, postId);
+            org.springframework.transaction.interceptor.TransactionAspectSupport
+                    .currentTransactionStatus().setRollbackOnly();
+            return;
+        }
         // 计数与明细同事务:要么一起成功,要么一起回滚
         postMapper.adjustFavoriteCount(postId, 1);
         // 刻意不发通知 —— 见 PostService#favorite 注释
