@@ -1,5 +1,6 @@
 package com.campus.social.service.impl;
 
+import com.campus.social.common.ReportTargetType;
 import com.campus.social.mapper.ReportMapper;
 import com.campus.social.service.ReportAdminService;
 import com.campus.social.vo.ReportAdminPageVO;
@@ -89,6 +90,11 @@ public class ReportAdminServiceImpl implements ReportAdminService {
      * {@code idx_target} 上、且管理端每页最多 50 条，绝对代价可控；
      * 为此再写一套批量 IN 查询并按类型分组，代码量翻倍而收益不明显。
      * 真要优化应等举报量级上来后再做。
+     *
+     * <p><b>2026-10-21 补齐 6 档</b>：原来 switch 只有 1~4，
+     * 集市活动（6）与搭子（5）落到 default → 一律显示「内容已删除或不存在」。
+     * 也就是说管理员打开一条集市举报，<b>看不到被举报的活动是什么</b>，
+     * 只能凭 reasonType 猜 —— 这是「能收到但没法判」的典型。
      */
     private String summaryOf(ReportListVO row) {
         if (row.getTargetType() == null || row.getTargetId() == null) {
@@ -96,10 +102,16 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         }
         Long id = row.getTargetId();
         String text = switch (row.getTargetType()) {
-            case 2 -> reportMapper.selectPostContent(id);
-            case 3 -> reportMapper.selectCommentContent(id);
-            case 4 -> reportMapper.selectChatMessageContent(id);
-            case 1 -> reportMapper.selectUserNickname(id);
+            case ReportTargetType.POST -> reportMapper.selectPostContent(id);
+            case ReportTargetType.COMMENT -> reportMapper.selectCommentContent(id);
+            case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageContent(id);
+            case ReportTargetType.USER -> reportMapper.selectUserNickname(id);
+            case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivitySummary(id);
+            /*
+             * 5 搭子：buddy_post 表已建但无端点（MVP+ 第二批），
+             * 没有可查的内容 —— 保持「已删除」这个诚实的结果，
+             * 而不是硬塞一句模糊文案。
+             */
             default -> null;
         };
         if (text == null || text.isBlank()) {

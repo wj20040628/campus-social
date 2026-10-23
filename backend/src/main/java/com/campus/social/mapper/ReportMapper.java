@@ -106,6 +106,20 @@ public interface ReportMapper extends BaseMapper<Report> {
     @Select("SELECT nickname FROM user WHERE id = #{id} AND is_deleted = 0")
     String selectUserNickname(@Param("id") Long id);
 
+    /**
+     * 集市活动摘要（targetType=6）。
+     *
+     * <p>标题有值就用标题，没填标题时退到正文 —— 与前端列表卡的取值口径一致
+     * （MktCard 里是 {@code title || mainText}）。管理端看到的第一行
+     * 应该和举报人在广场上看到的是同一句话，否则他要回头对一遍才知道举报的是哪条。
+     *
+     * <p>用 CONCAT + COALESCE 而不是在 Java 里拼：一次查询拿回结果，
+     * 避免把「取标题」和「取正文」写成一个可能漏掉 null 的两段逻辑。
+     */
+    @Select("SELECT COALESCE(NULLIF(title, ''), LEFT(content, 60)) "
+            + "FROM mkt_activity WHERE id = #{id} AND soft_delete = 0")
+    String selectMktActivitySummary(@Param("id") Long id);
+
     // ---- 作者解析：封禁对象是内容的作者，不是内容本身 ------------------------
 
     @Select("SELECT author_id FROM post WHERE id = #{id} AND is_deleted = 0")
@@ -116,4 +130,48 @@ public interface ReportMapper extends BaseMapper<Report> {
 
     @Select("SELECT sender_id FROM chat_message WHERE id = #{id} AND is_deleted = 0")
     Long selectChatMessageSenderId(@Param("id") Long id);
+
+    /**
+     * 集市活动发布者（targetType=6）。
+     *
+     * <p>返回 {@code user_id} 而不是 {@code id}：后者是活动主键，
+     * 拿它去封禁等于把举报人自己封了。用 {@code soft_delete = 0} 而非 is_deleted ——
+     * mkt_activity 的软删列叫 soft_delete，与其它表不一致。
+     */
+    @Select("SELECT user_id FROM mkt_activity WHERE id = #{id} AND soft_delete = 0")
+    Long selectMktActivityOwnerId(@Param("id") Long id);
+
+    // ---- 举报成立时的内容下架（2026-10-21 修「下架不生效」） -------------------
+    /*
+     * 【为什么必须用显式 UPDATE，不能用 updateById(entity)】
+     *
+     * 项目在 application.yml 配了 MyBatis-Plus 逻辑删除：
+     *   logic-delete-field: isDeleted
+     *   logic-delete-value: 1 / logic-not-delete-value: 0
+     *
+     * 一旦字段被登记为逻辑删除字段，updateById 会**主动排除**它 ——
+     * 框架认为该字段归逻辑删除机制管，普通更新不得触及。
+     * 于是原来的 `c.setIsDeleted(1); updateById(c)` 静默失效：
+     * 日志打出「下架成功」，数据库里 is_deleted 仍是 0，内容照常展示。
+     * 这正是举报系统最不能出的问题 —— 判了等于没判。
+     *
+     * 显式 UPDATE 绕过该限制：SQL 直接写 is_deleted，不经过 MP 的字段过滤。
+     * 全部带 `AND is_deleted = 0` 条件，保证只下架一次、返回真实影响行数。
+     */
+
+    /** 帖子下架：status 1→2（与机审驳回同口径） */
+    @Update("UPDATE post SET status = 2, update_time = NOW() WHERE id = #{id} AND is_deleted = 0 AND status <> 2")
+    int takedownPost(@Param("id") Long id);
+
+    /** 评论下架：软删 + 置下架态 */
+    @Update("UPDATE comment SET is_deleted = 1, status = 2, update_time = NOW() WHERE id = #{id} AND is_deleted = 0")
+    int takedownComment(@Param("id") Long id);
+
+    /** 聊天消息下架：软删隐藏（私聊内容只在双方会话里，软删即消失） */
+    @Update("UPDATE chat_message SET is_deleted = 1, update_time = NOW() WHERE id = #{id} AND is_deleted = 0")
+    int takedownChatMessage(@Param("id") Long id);
+
+    /** 集市活动下架：管理端强制软删（不校验属主） */
+    @Update("UPDATE mkt_activity SET soft_delete = 1 WHERE id = #{id} AND soft_delete = 0")
+    int takedownMktActivity(@Param("id") Long id);
 }

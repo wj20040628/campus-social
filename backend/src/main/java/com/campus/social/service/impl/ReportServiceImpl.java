@@ -1,14 +1,13 @@
 package com.campus.social.service.impl;
 
+import com.campus.social.common.ReportTargetType;
 import com.campus.social.common.ResultCode;
 import com.campus.social.dto.ReportHandleDTO;
 import com.campus.social.dto.ReportSubmitDTO;
 import com.campus.social.entity.Report;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ReportMapper;
-import com.campus.social.mapper.PostMapper;
-import com.campus.social.mapper.CommentMapper;
-import com.campus.social.mapper.ChatMessageMapper;
+
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
 import com.campus.social.service.ReportService;
@@ -63,9 +62,11 @@ public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
     private final BanService banService;
     private final AuditService auditService;
-    private final PostMapper postMapper;
-    private final CommentMapper commentMapper;
-    private final ChatMessageMapper chatMessageMapper;
+    /*
+     * 下架不再需要各表的 Mapper：
+     * 统一走 reportMapper 的 takedownXxx（显式 UPDATE），
+     * 原因见 takedownContent 上的注释（updateById 会排除逻辑删除字段）。
+     */
 
     @Override
     @Transactional
@@ -184,36 +185,53 @@ public class ReportServiceImpl implements ReportService {
      * <p>返回被下架内容的简短描述(用于审计与日志);无内容可下架时返回 null。
      */
     private String takedownContent(Report report) {
+        /*
+         * 【全部改用 ReportMapper 里的显式 UPDATE，不再 updateById(entity)】
+         *
+         * 2026-10-21 修：项目配了 MyBatis-Plus 逻辑删除（logic-delete-field: isDeleted），
+         * updateById 会主动排除被登记的逻辑删除字段，于是
+         * `c.setIsDeleted(1); updateById(c)` **静默失效** ——
+         * 日志打「下架成功」、数据库里 is_deleted 仍是 0、内容照常展示。
+         * 实测：举报成立并封禁后，被举报的聊天消息 is_deleted 仍为 0。
+         *
+         * 现在每条都是显式 UPDATE（见 ReportMapper.takedownXxx）：
+         * SQL 直接写 is_deleted / status，不经过 MP 的字段过滤；
+         * 返回值是真实影响行数，所以「已下架过」与「刚下架」能区分开。
+         */
         return switch (report.getTargetType()) {
-            case 2 -> { // 帖子:status 1→2 下架(与机审驳回同口径)
-                var post = postMapper.selectById(report.getTargetId());
-                if (post != null && !Integer.valueOf(2).equals(post.getStatus())) {
-                    post.setStatus(2);
-                    postMapper.updateById(post);
-                    yield "帖子#" + post.getId();
-                }
-                yield post == null ? "帖子(已删)" : null;
+            case ReportTargetType.POST -> { // status 1→2 下架(与机审驳回同口径)
+                yield reportMapper.takedownPost(report.getTargetId()) > 0
+                        ? "帖子#" + report.getTargetId()
+                        : "帖子(已下架或已删)";
             }
-            case 3 -> { // 评论:直接软删 + 置下架态
-                var c = commentMapper.selectById(report.getTargetId());
-                if (c != null && !Integer.valueOf(1).equals(c.getIsDeleted())) {
-                    c.setIsDeleted(1);
-                    c.setStatus(2);
-                    commentMapper.updateById(c);
-                    yield "评论#" + c.getId();
-                }
-                yield c == null ? "评论(已删)" : null;
+            case ReportTargetType.COMMENT -> { // 软删 + 置下架态
+                yield reportMapper.takedownComment(report.getTargetId()) > 0
+                        ? "评论#" + report.getTargetId()
+                        : "评论(已下架或已删)";
             }
-            case 4 -> { // 聊天消息:软删隐藏(私聊内容只在双方会话里,下架即隐藏)
-                var m = chatMessageMapper.selectById(report.getTargetId());
-                if (m != null && !Integer.valueOf(1).equals(m.getIsDeleted())) {
-                    m.setIsDeleted(1);
-                    chatMessageMapper.updateById(m);
-                    yield "消息#" + m.getId();
-                }
-                yield m == null ? "消息(已删)" : null;
+            case ReportTargetType.CHAT_MESSAGE -> { // 软删隐藏(私聊内容只在双方会话里)
+                yield reportMapper.takedownChatMessage(report.getTargetId()) > 0
+                        ? "消息#" + report.getTargetId()
+                        : "消息(已下架或已删)";
             }
-            default -> null; // 1用户 / 5搭子:无内容可下架
+            /*
+             * 集市活动（targetType=6，2026-10-21 新增）。
+             *
+             * 【为什么不复用 5】5 在契约里是「搭子（buddy_post）」—— 表已建但无端点，
+             * 处置会被 resolveTargetUserId 拦下并回 422「搭子需上线后处理」。
+             * 而前端 MktDetail 此前传的正是 5，导致集市活动举报**能提交、不能处置**。
+             * 给集市单独一个编号，才是让「封禁作者 + 下架活动」这条链路真正可用。
+             *
+             * 用 soft_delete 而不是 is_enable：is_enable=0 表示「发布者主动暂停」，
+             * 广场查询会把两者都过滤掉，但语义上「管理员强制下架」与「作者自己暂停」
+             * 是两回事，混用会让发布者以为自己误点了暂停、进而重新开启它。
+             */
+            case ReportTargetType.MKT_ACTIVITY -> {
+                yield reportMapper.takedownMktActivity(report.getTargetId()) > 0
+                        ? "集市活动#" + report.getTargetId()
+                        : "集市活动(已下架或已删)";
+            }
+            default -> null; // 1用户 / 5搭子(未上线):无内容可下架
         };
     }
 
@@ -272,10 +290,16 @@ public class ReportServiceImpl implements ReportService {
      */
     private long resolveTargetUserId(Report report) {
         Long authorId = switch (report.getTargetType()) {
-            case 1 -> report.getTargetId();
-            case 2 -> reportMapper.selectPostAuthorId(report.getTargetId());
-            case 3 -> reportMapper.selectCommentAuthorId(report.getTargetId());
-            case 4 -> reportMapper.selectChatMessageSenderId(report.getTargetId());
+            case ReportTargetType.USER -> report.getTargetId();
+            case ReportTargetType.POST -> reportMapper.selectPostAuthorId(report.getTargetId());
+            case ReportTargetType.COMMENT -> reportMapper.selectCommentAuthorId(report.getTargetId());
+            case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageSenderId(report.getTargetId());
+            /*
+             * 集市活动（6）：封禁对象是发布者 mkt_activity.user_id。
+             * 注意用的是 user_id 而不是 id —— 后者是活动主键，封错就是把举报人封了。
+             * 2026-10-21 新增，与前端 MktDetail 的 targetType 同步（原为 5，会撞搭子语义）。
+             */
+            case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivityOwnerId(report.getTargetId());
             default -> throw new BusinessException(UNPROCESSABLE,
                     "搭子内容的封禁需在搭子模块上线后处理，请改为驳回或忽略");
         };

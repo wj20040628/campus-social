@@ -15,10 +15,18 @@ import lombok.Data;
 @Data
 public class ReportSubmitDTO {
 
-    /** 1用户 2帖子 3评论 4聊天消息 5搭子 */
+    /**
+     * 1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动。
+     *
+     * <p>上限从 5 提到 6（2026-10-21）：集市活动举报原先误用 5，
+     * 而 5 在契约里是「搭子（buddy_post，表已建但无端点）」——
+     * 结果是集市举报提交成功、管理员处置时回 422，等于举报无效。
+     * 6 是集市活动的独立编号，取值含义见
+     * {@code com.campus.social.common.ReportTargetType}。
+     */
     @NotNull(message = "举报对象类型不能为空")
     @Min(value = 1, message = "举报对象类型不合法")
-    @Max(value = 5, message = "举报对象类型不合法")
+    @Max(value = 6, message = "举报对象类型不合法")
     private Integer targetType;
 
     @NotNull(message = "举报对象不能为空")
