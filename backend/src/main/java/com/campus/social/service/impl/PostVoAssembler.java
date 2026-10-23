@@ -1,6 +1,7 @@
 package com.campus.social.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.campus.social.entity.Circle;
 import com.campus.social.entity.Like;
 import com.campus.social.entity.Post;
 import com.campus.social.entity.PostFavorite;
@@ -36,7 +37,8 @@ import java.util.Map;
  * <ul>
  *   <li>敏感词替换<b>只在展示层做</b>，DB 存原文——待审/驳回帖保留原文给审核员看；</li>
  *   <li>作者与话题必须<b>批量</b>回填，逐条查是 N+1；</li>
- *   <li>点赞态必须<b>逐条</b>查（没有批量接口），这是 Feed 页仅存的 N+1 点。</li>
+ *   <li>点赞态与收藏态也必须<b>批量</b> IN 查询（2026-10-22 起），
+ *       逐条 count 曾让一页 20 条帖子打出 20 次点赞判定，是首屏 SQL 的大头。</li>
  * </ul>
  * 规则散在各处必然出现「同一条帖在列表和详情显示不同」的不一致。
  */
@@ -53,6 +55,7 @@ public class PostVoAssembler {
     private final PostFavoriteMapper favoriteMapper;
     private final TopicMapper topicMapper;
     private final PostTopicMapper postTopicMapper;
+    private final com.campus.social.mapper.CircleMapper circleMapper;
     private final SensitiveWordFilter sensitive;
     private final ObjectMapper om;
 
@@ -62,18 +65,24 @@ public class PostVoAssembler {
         vo.setAuthor(authorVo(p.getAuthorId()));
         vo.setTopics(topicsOfPosts(List.of(p.getId())).getOrDefault(p.getId(), List.of()));
         vo.setFavorited(isFavorited(p.getId(), viewerId));
+        vo.setCircleName(circleNamesOf(List.of(p.getCircleId() == null ? -1L : p.getCircleId()))
+                .get(p.getCircleId()));
         return vo;
     }
 
     /**
-     * 列表批量转换：作者与话题都走批量查询。
+     * 列表批量转换：作者、话题、圈子名、点赞态、收藏态<b>全部批量</b>，无 N+1。
      *
-     * <p>只有点赞态是逐条查的（{@code likeMapper} 无批量接口）。
-     * 要消掉这个 N+1 得给 LikeMapper 加「查我对这批帖的点赞集合」，
-     * 那是跨模块改动，本轮拆分不扩大爆炸半径。
+     * <p>先按 viewerId=0 装配「公共骨架」（此时 liked/favorited 恒为 false），
+     * 再交给 {@link #fillViewerState} 一次性回填当前用户的点赞/收藏态。
+     * 这样拆开是为了让 Feed 首屏缓存能直接存这份公共骨架：
+     * 骨架与「谁在看」无关，可以被所有用户共享；用户态必须每次实时查。
+     *
+     * <p><b>顺序不能反</b>：调用方若先把用户态填进去再缓存，会把 A 用户的
+     * 「已赞」状态发给 B 用户。缓存写入必须发生在 fillViewerState 之前。
      */
     public List<PostVO> toVoList(List<Post> posts, long viewerId) {
-        List<PostVO> vos = posts.stream().map(p -> baseVo(p, viewerId)).toList();
+        List<PostVO> vos = new ArrayList<>(posts.stream().map(p -> baseVo(p, 0L)).toList());
         if (vos.isEmpty()) {
             return vos;
         }
@@ -94,21 +103,48 @@ public class PostVoAssembler {
         for (PostVO vo : vos) {
             vo.setTopics(topicMap.getOrDefault(vo.getId(), List.of()));
         }
-        // 收藏态批量:一次 IN 查询替代逐条 count,这是 Feed 里唯一消掉的 N+1。
-        // 点赞态仍逐条(LikeMapper 暂无批量接口),留作后续优化。
-        if (viewerId > 0) {
-            Map<Long, PostVO> byId = new HashMap<>();
-            for (PostVO vo : vos) {
-                byId.put(vo.getId(), vo);
-            }
-            for (Long id : favoriteMapper.selectFavoritedPostIds(viewerId, posts.stream().map(Post::getId).toList())) {
-                PostVO vo = byId.get(id);
-                if (vo != null) {
-                    vo.setFavorited(true);
-                }
+        // 圈子名批量:一次 IN 查询覆盖整页,避免「每张卡查一次圈名」的 N+1
+        Map<Long, String> circleNames = circleNamesOf(posts.stream().map(Post::getCircleId).toList());
+        for (PostVO vo : vos) {
+            vo.setCircleName(circleNames.get(vo.getCircleId()));
+        }
+        // 用户态(点赞+收藏)批量:两次 IN 查询覆盖整页
+        fillViewerState(vos, viewerId);
+        return vos;
+    }
+
+    /**
+     * 一次性回填当前用户的点赞态与收藏态。
+     *
+     * <p>两批查询各一次 IN，取代「每条帖子一次 COUNT」的 N+1：
+     * 一页 20 条帖子原本要打 20 次点赞判定，现在 1 次。
+     *
+     * <p>viewerId<=0（未登录）直接跳过——未登录不该看到「已赞/已收」。
+     *
+     * <p>方法对传入的 VO 对象做原地赋值，所以调用方必须保证这些 VO
+     * 是本次请求独有的对象（缓存路径每次反序列化都会产生新对象，天然满足）。
+     */
+    public void fillViewerState(List<PostVO> vos, long viewerId) {
+        if (vos == null || vos.isEmpty() || viewerId <= 0) {
+            return;
+        }
+        Map<Long, PostVO> byId = new HashMap<>();
+        for (PostVO vo : vos) {
+            byId.put(vo.getId(), vo);
+        }
+        List<Long> ids = vos.stream().map(PostVO::getId).toList();
+        for (Long id : likeMapper.selectLikedPostIds(viewerId, ids)) {
+            PostVO vo = byId.get(id);
+            if (vo != null) {
+                vo.setLiked(true);
             }
         }
-        return vos;
+        for (Long id : favoriteMapper.selectFavoritedPostIds(viewerId, ids)) {
+            PostVO vo = byId.get(id);
+            if (vo != null) {
+                vo.setFavorited(true);
+            }
+        }
     }
 
     private PostVO baseVo(Post p, long viewerId) {
@@ -162,6 +198,39 @@ public class PostVoAssembler {
         return favoriteMapper.selectCount(new LambdaQueryWrapper<PostFavorite>()
                 .eq(PostFavorite::getUserId, viewerId)
                 .eq(PostFavorite::getPostId, postId)) > 0;
+    }
+
+    /**
+     * 批量取圈子名：circleIds → circle，一次查询。
+     *
+     * <p><b>已解散/被封禁的圈不返回</b>：{@code circle.status=1} 同时表示「解散」
+     * 与「被封禁」，两种都不该让用户点进去。返回 null（而非空串）可以让前端
+     * 用「有无圈子名」区分「广场帖」和「圈已不可用」，两种情况都表现为不渲染标签。
+     *
+     * <p>{@code selectBatchIds} 只自动过滤 {@code @TableLogic} 的 is_deleted，
+     * <b>不会</b>过滤 status —— 所以这里必须显式判 status，否则解散的圈
+     * 仍会把名字下发出去。
+     */
+    private Map<Long, String> circleNamesOf(List<Long> circleIds) {
+        if (circleIds == null || circleIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        // 去重 + 剔除 null（广场帖 circleId 为空）
+        List<Long> ids = circleIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String> result = new HashMap<>();
+        for (Circle c : circleMapper.selectBatchIds(ids)) {
+            // status=1（解散/封禁）不下发名字，与 CircleServiceImpl.detail 的可见口径一致
+            if (c.getStatus() != null && c.getStatus() == 1) {
+                continue;
+            }
+            if (c.getName() != null) {
+                result.put(c.getId(), c.getName());
+            }
+        }
+        return result;
     }
 
     private UserVO authorVo(Long authorId) {

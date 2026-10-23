@@ -27,7 +27,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PostTopicBinder {
 
-    private static final int TOPIC_NAME_MAX = 64;
+    /**
+     * 话题名长度上限。
+     *
+     * <p>原为 64（跟着 topic.name 列的 VARCHAR(64) 定）。收紧到 15 是**展示侧**的要求：
+     * 话题在卡片上是胶囊、在详情页是一行 chips，15 字以内才放得下；
+     * 40 多字的「#11111111…」在 375px 下会把整个卡片撑破（前端已改为强制折行兜底，
+     * 但那是补救，不该让这种话题进得来）。
+     *
+     * <p>15 字对真实话题足够：校园场景的话题是「考研」「美食」「23届网安」这类短词，
+     * 而话题的价值恰恰在于短——太长就变成标题了。
+     *
+     * <p><b>存量数据（旧上限 64 时期入库的长话题）仍可能存在</b>，
+     * 所以前端必须保留折行兜底，不能假定服务端一定给了短话题。
+     */
+    private static final int TOPIC_NAME_MAX = 15;
 
     private final TopicMapper topicMapper;
     private final PostTopicMapper postTopicMapper;

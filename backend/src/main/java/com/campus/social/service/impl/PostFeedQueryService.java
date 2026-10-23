@@ -35,12 +35,18 @@ public class PostFeedQueryService {
     private final TopicMapper topicMapper;
     private final PostTopicMapper postTopicMapper;
     private final PostVoAssembler assembler;
+    /** 首页第一页的公共骨架缓存；只在 lastId 为空且无话题过滤时用 */
+    private final FeedPageCacheService feedCache;
 
     /**
      * 综合 Feed。
      *
      * <p>by: time(默认) | like | comment | view；order: desc(默认) | asc；topic 可选。
      * 游标用「排序列 + id」做 tie-break，保证同值时翻页稳定不重不漏。
+     *
+     * <p><b>首屏走缓存（2026-10-22）</b>：只有「第一页 + 无话题过滤」进缓存，
+     * 因为首屏是唯一被所有人反复请求的页；翻页各有各的进度，缓存命中率极低。
+     * 缓存的只是与「谁在看」无关的公共骨架，用户态每次实时回填。
      */
     public CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order, String topic) {
         boolean asc = "asc".equalsIgnoreCase(order);
@@ -58,6 +64,16 @@ public class PostFeedQueryService {
         // 排序列走白名单,不接受前端直接传列名(拼接进 SQL 的东西必须是服务端定的)
         String sortCol = resolveSortCol(by, byTime);
         String dir = asc ? "ASC" : "DESC";
+        boolean cacheable = lastId == null && !filterByTopic;
+
+        // 命中缓存：骨架可直接用，只需补上当前用户的点赞/收藏态（两次 IN 查询）
+        if (cacheable) {
+            FeedPageCacheService.Snapshot snap = feedCache.read(by, order, size);
+            if (snap != null && snap.getItems() != null) {
+                assembler.fillViewerState(snap.getItems(), viewerId);
+                return new CursorPage<>(snap.getItems(), snap.getNextCursor(), snap.isHasMore());
+            }
+        }
 
         List<Post> rows;
         // 快速路径:仅「按时间 + 倒序 + 无话题」走 Lambda(最常见默认场景);
@@ -75,7 +91,17 @@ public class PostFeedQueryService {
         boolean hasMore = rows.size() > size;
         List<Post> page = rows.stream().limit(size).toList();
         Long nextCursor = calcNextCursor(page, hasMore, byTime, by);
-        return new CursorPage<>(assembler.toVoList(page, viewerId), nextCursor, hasMore);
+
+        // 按 viewerId=0 装配公共骨架（liked/favorited 恒 false），与「谁在看」无关
+        List<PostVO> vos = assembler.toVoList(page, 0L);
+
+        // 先缓存、后回填用户态，顺序不可颠倒：
+        // 反过来会把当前用户的「已赞」写进共享缓存，下一个访问者会看到不属于他的点赞状态。
+        if (cacheable) {
+            feedCache.write(by, order, size, vos, nextCursor, hasMore);
+        }
+        assembler.fillViewerState(vos, viewerId);
+        return new CursorPage<>(vos, nextCursor, hasMore);
     }
 
     /** 话题落地页:该话题下所有已通过帖子,按时间倒序 + id 游标 */

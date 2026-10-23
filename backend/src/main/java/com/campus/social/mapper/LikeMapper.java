@@ -56,6 +56,27 @@ public interface LikeMapper extends BaseMapper<Like> {
     List<Long> selectLikedCommentIds(@Param("userId") long userId, @Param("ids") Collection<Long> ids);
 
     /**
+     * 批量判定「我对这批帖子是否已赞」，返回已赞的帖子 id 集合。
+     *
+     * <p><b>为什么必须批量</b>：Feed 一页 20 条帖子，原来的做法是每条帖子一次
+     * {@code SELECT COUNT(*)}，也就是一次首屏请求打出 20 次点赞判定查询——
+     * 首屏 SQL 里 80% 都是这些。换成一次 IN 查询后整页只剩 1 次。
+     *
+     * <p>用 {@code target_id IN (...)} 而不是按前缀/范围匹配：
+     * 这样能走 uk_like(user_id, target_type, target_id) 做等值命中，
+     * 换成范围条件后半段索引失效。
+     *
+     * <p>带上 {@code is_deleted = 0}：与 countLikedPosts 口径一致，
+     * 软删的点赞行不该显示成「已赞」。
+     */
+    @Select("<script>"
+            + "SELECT target_id FROM `like` WHERE user_id = #{userId} AND target_type = 1 "
+            + "AND is_deleted = 0 AND target_id IN "
+            + "<foreach collection='ids' item='i' open='(' separator=',' close=')'>#{i}</foreach>"
+            + "</script>")
+    List<Long> selectLikedPostIds(@Param("userId") long userId, @Param("ids") Collection<Long> ids);
+
+    /**
      * 批量取评论点赞数，返回 target_id → count。
      *
      * <p>与 {@link #selectLikedCommentIds} 拆成两条而不是一条：
