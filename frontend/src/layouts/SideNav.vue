@@ -7,6 +7,17 @@
   <aside class="side">
     <div class="brand">友声</div>
     <el-menu :default-active="activeMenu" router class="side__menu">
+      <!--
+        2026-10-21 分组改造。改版前 7 个普通项 + 6 个管理子项一路平铺，
+        浏览 / 个人 / 管理三种性质混在一列，只能靠图标区分。
+        现在按「我要干什么」分三段：浏览（去哪儿看）/ 我的（关于我的）/
+        管理后台（管理员才有）。
+
+        分组标题只写文字、不可点 —— el-menu 里塞不进裸 div，
+        用 el-menu-item 的 disabled 态承载：它不响应点击、不参与路由，
+        且保留 el-menu 的键盘导航语义。
+      -->
+      <el-menu-item index="__grp_browse__" disabled class="side__grp">浏览</el-menu-item>
       <el-menu-item index="/">
         <el-icon><House /></el-icon>
         <span>首页</span>
@@ -19,25 +30,32 @@
         <el-icon><OfficeBuilding /></el-icon>
         <span>集市</span>
       </el-menu-item>
-      <el-menu-item index="/publish">
-        <el-icon><EditPen /></el-icon>
-        <span>发动态</span>
-      </el-menu-item>
+
+      <el-menu-item index="__grp_mine__" disabled class="side__grp">我的</el-menu-item>
       <el-menu-item index="/chat">
         <el-icon><ChatDotRound /></el-icon>
         <span>消息</span>
+        <!-- 未读角标：桌面端此前完全没有这个数字，必须点进去才知道有几条 -->
+        <span v-if="chatUnread > 0" class="side__badge ys-num">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
+      </el-menu-item>
+      <el-menu-item index="/notify">
+        <el-icon><Bell /></el-icon>
+        <span>通知</span>
+        <span v-if="notifyUnread > 0" class="side__badge ys-num">{{ notifyUnread > 99 ? '99+' : notifyUnread }}</span>
       </el-menu-item>
       <el-menu-item index="/announcement">
         <el-icon><Promotion /></el-icon>
         <span>公告</span>
       </el-menu-item>
-      <el-menu-item index="/notify">
-        <el-icon><Bell /></el-icon>
-        <span>通知</span>
-      </el-menu-item>
 
-      <!-- 「发现」已从桌面左栏移除(2026-10-19):顶栏已有「找人」入口(/search),
-           /discover 页面本身保留(个人主页标签区仍可进),只是不再占侧栏位置。 -->
+      <!--
+        「发现」已从桌面左栏移除(2026-10-19):顶栏已有「找人」入口(/search),
+        /discover 页面本身保留(个人主页标签区仍可进),只是不再占侧栏位置。
+
+        「发动态」也已移出侧栏(2026-10-21):它是**动作**不是页面,
+        顶栏右侧有常驻的「发动态」主按钮,侧栏再占一格等于同一件事两个入口,
+        而且切碎了「浏览 / 我的 / 管理」的分组结构。
+      -->
 
       <!--
         管理员项:isAdmin 为 false 时整块不渲染,不给用户一个点进去才被拒的入口。
@@ -96,6 +114,14 @@ import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
   routePath: { type: String, required: true },
+  /** 通知未读数，由 MainLayout 传入（与顶栏铃铛同源，不重复请求） */
+  notifyUnread: { type: Number, default: 0 },
+  /**
+   * 消息未读数（待回应的搭话纸条数）。
+   * 复用 MainLayout 已经拿到的 paperCount —— 桌面端此前侧栏完全没有角标，
+   * 用户看不到「有几条新消息」，必须点进去才知道。
+   */
+  chatUnread: { type: Number, default: 0 },
 })
 
 const userStore = useUserStore()
@@ -115,7 +141,11 @@ const activeMenu = computed(() => {
   if (p.startsWith('/circles')) return '/circles'
   if (p.startsWith('/activity')) return '/circles'
   if (p.startsWith('/mkt')) return '/mkt'
-  if (p.startsWith('/publish')) return '/publish'
+  /*
+   * /publish 不再有侧栏菜单项（发动态已移进顶栏按钮，2026-10-21）。
+   * 但它在语义上属于首页动线，落到「首页」高亮比整列全灭更合理。
+   */
+  if (p.startsWith('/publish')) return '/'
   if (p.startsWith('/post')) return '/'
   if (p.startsWith('/user')) return '/'
   return '/'
@@ -153,5 +183,53 @@ const activeMenu = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * 分组标题（2026-10-21）。用 disabled 的 el-menu-item 承载：
+ * 不响应点击、不参与路由，但保留 el-menu 的 DOM 与键盘语义。
+ * 视觉上要「不像菜单项」：无悬停底色、字号更小、加字距、颜色更淡。
+ */
+.side__menu :deep(.el-menu-item.is-disabled.side__grp) {
+  height: 28px;
+  line-height: 28px;
+  margin-top: var(--ys-space-2);
+  padding-left: var(--ys-space-5) !important;
+  font-size: 10.5px;
+  font-weight: var(--ys-weight-semibold);
+  letter-spacing: 0.07em;
+  color: var(--ys-meta);
+  opacity: 1;              /* EP 默认给 disabled 0.25 透明度，这里要它清晰可读 */
+  background: transparent;
+  cursor: default;
+  pointer-events: none;     /* 分组标题不可交互 */
+}
+.side__menu :deep(.el-menu-item.is-disabled.side__grp:first-child) {
+  margin-top: 0;
+}
+
+/*
+ * 未读角标。定位在菜单项右侧，不挤占文字空间。
+ * 与手机端 TabBar 的 UnreadDot 同义（红底白字数字）但形态不同：
+ * 桌面侧栏空间足够，直接给数字比一个红点更有信息量。
+ */
+.side__badge {
+  position: absolute;
+  right: var(--ys-space-3);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-danger);
+  color: var(--ys-accent-on);
+  font-size: 10px;
+  line-height: 17px;
+  font-weight: var(--ys-weight-semibold);
+  text-align: center;
+}
+
+/* 菜单项本身要 relative，角标才能绝对定位 */
+.side__menu :deep(.el-menu-item) {
+  position: relative;
 }
 </style>

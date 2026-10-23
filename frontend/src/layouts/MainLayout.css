@@ -98,6 +98,26 @@
   .content--no-tabbar {
     padding-bottom: var(--ys-space-12);
   }
+
+  /*
+   * 沉浸式(会话页)在桌面必须自己钉死一屏高。
+   *
+   * 不能靠 flex 把高度传下去:上层 .shell / .layout 只有 min-height,没有 height,
+   * .content 的 flex:1 因此是内容驱动 —— 会话页消息列表几千像素高,
+   * 高度会一路塌成内容高度(实测 .th 被撑到 3735px,输入区跑到文档最底部)。
+   *
+   * 两个坑都得踩过才知道:
+   * ① `.content { flex:1 }` 会把 flex-basis 设成 0,主尺寸交给 flex 分配,
+   *    光写 height:100dvh 会被直接忽略 —— 必须同时 flex:none 让 basis 回到 auto。
+   * ② 全局没有 box-sizing:border-box 重置(默认 content-box),height 只算内容盒,
+   *    所以还要 border-box,把上 24 / 下 48 的内边距含进 100dvh,
+   *    子级 .chat 才能拿到确定的 100dvh-72。
+   */
+  .content--immersive {
+    flex: none;
+    box-sizing: border-box;
+    height: 100dvh;
+  }
 }
 
 /* 路由过渡:只做 opacity + 8px 位移,不横向滑动(与浏览器返回手势冲突) */

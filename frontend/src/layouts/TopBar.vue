@@ -15,9 +15,20 @@
         aria-label="返回上一页"
         @click="goBack"
       >
-        <el-icon :size="24"><ArrowLeft /></el-icon>
-      </button>
-      <span v-else class="topbar__brand">友声</span>
+        <el-icon :size="24"><ArrowLeft /></el-icon>      </button>
+      <!--
+        C20(2026-10-21):非返回态左上角默认品牌「友声」,但页面可以用
+        meta.headTitle 覆盖成页面名(如圈子页写「圈子」) —— 顶栏是导航,
+        用户在哪个页要一眼看到,不能靠底栏高亮去猜。品牌留给登录/个人页。
+
+        2026-10-21 桌面端补页面名：桌面 CSS 把 .topbar__brand 隐藏了
+        （左侧有常驻 SideNav，不需要再写品牌），但页面标题只在
+        「返回型」顶栏（showBack）才渲染 —— 结果实测 .topbar__left
+        宽度为 0，顶栏左边 900px 全空，只剩右边三个控件飘着。
+        现在桌面端用 .topbar__page 单独渲染页面名，手机端继续用品牌/headTitle。
+      -->
+      <span v-if="!showBack" class="topbar__brand">{{ headTitle || '友声' }}</span>
+      <span v-if="!showBack" class="topbar__page">{{ pageName }}</span>
       <h1 v-if="showBack" class="topbar__title">{{ pageTitle }}</h1>
     </div>
 
@@ -33,7 +44,28 @@
         aria-label="发一条动态"
         @click="router.push('/publish')"
       >
-        <el-icon :size="20"><Plus /></el-icon>
+        <!--
+          自绘描边加号（2026-10-21）。原来用 EP 的 <Plus />，那是**填充式**图标，
+          与右侧自绘的汉堡（描边 1.9）放在一起粗细完全不同 ——
+          两个 44px 按钮挨着，一眼能看出不是一套。
+          换成与 NavIcon 同口径的描边 SVG 后，顶栏三枚图标（+ / 汉堡 / 返回）
+          都走 stroke 1.9，视觉统一。
+
+          桌面端补文字「发动态」：发帖是最高频的主动作，一个裸图标在桌面上
+          没有分量（侧栏原本有一项「发动态」，已移除，见 SideNav 注释）。
+          手机端只留图标（空间紧，且 TabBar 让位后顶栏「+」是唯一发帖入口）。
+        -->
+        <svg
+          class="topbar__ico"
+          width="21"
+          height="21"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+        </svg>
+        <span class="topbar__pub-text">发动态</span>
       </button>
 
       <!--
@@ -50,15 +82,7 @@
         <el-icon :size="24"><Search /></el-icon>
       </button>
 
-      <button
-        type="button"
-        class="topbar__icon-btn topbar__bell"
-        :aria-label="notifyAriaLabel"
-        @click="router.push('/notify')"
-      >
-        <el-icon :size="24"><Bell /></el-icon>
-        <UnreadDot :count="notifyUnread" noun="条通知未读" />
-      </button>
+     
 
       <!--
         桌面端头像:点击打开全局导航抽屉(2026-10-18 从精简下拉菜单
@@ -118,7 +142,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Bell, CaretBottom, Plus, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, Bell, CaretBottom, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { resolveThumb } from '@/utils/resolve'
 import UnreadDot from '@/components/mobile/UnreadDot.vue'
@@ -126,6 +150,8 @@ import UnreadDot from '@/components/mobile/UnreadDot.vue'
 const props = defineProps({
   showBack: { type: Boolean, default: false },
   pageTitle: { type: String, default: '' },
+  /** 非返回态左上角文字(路由 meta.headTitle),空 = 品牌「友声」 */
+  headTitle: { type: String, default: '' },
   notifyUnread: { type: Number, default: 0 },
 })
 
@@ -145,6 +171,15 @@ const avatarFallback = computed(() => {
 const notifyAriaLabel = computed(() =>
   props.notifyUnread > 0 ? `通知，${props.notifyUnread} 条未读` : '通知'
 )
+
+/**
+ * 桌面端顶栏的页面名。
+ *
+ * 只在无返回态（一级页面）显示；返回态由 .topbar__title 负责（那里已经有 h1）。
+ * headTitle 优先（圈子页写「圈子」），否则用 meta.title，最后回落品牌。
+ * 手机端这个元素被 CSS 隐藏（见 TopBar.css），避免与品牌「友声」重复。
+ */
+const pageName = computed(() => props.headTitle || props.pageTitle || '')
 
 function goBack() {
   // 有历史就退,没有(直接输 URL 进来)就去首页 —— 退无可退时给个确定去处

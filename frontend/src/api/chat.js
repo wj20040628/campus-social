@@ -41,6 +41,19 @@ export function markRead(peerId) {
 }
 
 /**
+ * 会话偏好：置顶 / 免打扰 / 从我的列表删除（手机端右滑三项）。
+ *
+ * 三个开关都可空，只改传了的那个 —— 点「置顶」不要把 muted 一起带过去。
+ *
+ * @param {'dm'|'group'} kind
+ * @param {number} targetId 私信传对方 userId，群聊传 groupId
+ * @param {{pinned?:boolean, muted?:boolean, hidden?:boolean}} flags
+ */
+export function setConvPref(kind, targetId, flags = {}) {
+  return request.post('/chat/pref', { kind, targetId, ...flags })
+}
+
+/**
  * 今日剩余破冰额度(AC-04)。**不消耗额度**,只查询。
  * @param {number} [peerId] 传了才返回 remainingPerPeer(对特定对象的剩余条数)
  * @returns {{ dailyNewPeerLimit:number, dailyNewPeerUsed:number,
@@ -51,4 +64,4 @@ export function strangerQuota(peerId) {
   return request.get(`/chat/stranger-quota${peerId ? `?peerId=${peerId}` : ''}`)
 }
 
-export default { conversations, history, send, recall, markRead, strangerQuota }
+export default { conversations, history, send, recall, markRead, strangerQuota, setConvPref }

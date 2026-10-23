@@ -69,10 +69,16 @@ export function useRegisterSubmit({ form, identity, identityInvalid, userStore, 
       const withProfile = !!(form.studentNo && /^\d{13,14}$/.test(form.studentNo.trim()))
       const identityPayload = withProfile ? identity.value : null
       await userStore.register({
-        studentNo: (form.studentNo || '').trim(),
+        /*
+         * 2026-10-21 账号体系调整：
+         * - email 变成必填主键，emailCode 是它所有权的证明
+         * - studentNo 选填；为空时不传（不传比传空串好，后端能少一次 trim 判断）
+         */
+        email: (form.email || '').trim().toLowerCase(),
+        emailCode: (form.emailCode || '').trim(),
         password: form.password,
         nickname: (form.nickname || '').trim(),
-        email: (form.email || '').trim(),
+        ...(withProfile ? { studentNo: form.studentNo.trim() } : {}),
         identity: identityPayload,
       })
       // 注册即认证已把归属 + 认证一并落库,一次刷新拿到最新 userInfo(含 verified)

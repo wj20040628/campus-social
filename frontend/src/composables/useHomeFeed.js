@@ -16,7 +16,6 @@
  */
 import { ref, watch, nextTick, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import dayjs from 'dayjs'
 import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
 import { feedDirty } from '@/composables/useFeedRefresh'
@@ -29,6 +28,14 @@ export function useHomeFeed(isMobile) {
   const cursor = ref(null)
   const hasMore = ref(true)
   const loading = ref(false)
+  /*
+   * 加载失败态（2026-10-21 加）。
+   * loadError —— 首屏/翻页失败且已放弃自动重试，页面用它渲染错误态 + 重试按钮
+   * failStreak —— 连续失败次数；达到 2 次就停止自动重试，避免无限循环。
+   *   实测原来不限制时，拦一次接口会打出 200+ 个相同请求把页面拖死。
+   */
+  const loadError = ref(false)
+  const failStreak = ref(0)
   const sentinelEl = ref(null)
   // 排序模式:new=最新(默认,可无限刷) / hot=最热(按点赞,只看第一页)
   const searchQ = ref('')
@@ -38,13 +45,35 @@ export function useHomeFeed(isMobile) {
   let observer = null
   let lastWinScrollTop = 0
 
+  /** 列表容器本体(Home 上 ref="listEl"),裁剪时用来量锚点位置 */
+  const listEl = ref(null)
+  /**
+   * DOM 里最多保留多少条卡片。
+   *
+   * 200 是权衡结果:按每张卡 40-70 个 DOM 节点算,200 条约 1 万个节点,
+   * 是中低端机能稳定滚动的量级;再往上(500 条约 3 万节点)低端安卓
+   * 会明显掉帧,而且 KeepAlive 返回时要重新布局这一整片。
+   */
+  const MAX_POSTS = 200
+
   // 认证状态是模块级单例,这里拿到的 load 与个人主页那边是同一个函数
   const { load: loadVerifyStatus } = useVerifyStatus()
 
   function normalize(list) {
     return (list || []).map((p) => ({
       ...p,
-      createTime: dayjs(p.createTime).format('MM-DD HH:mm'),
+      /**
+       * **不要把时间格式化成 'MM-DD HH:mm' 存进 createTime**（2026-10-21 修）。
+       *
+       * 原实现在这里就把 ISO 时间压成 "10-14 16:06" 字符串，导致下游
+       * PostCard 无论怎么改都无法显示相对时间 —— relTime() 拿到
+       * "10-14 16:06" 后 Date.parse 得到 NaN（Safari 尤其如此），
+       * 只能原样回吐这个机器格式，于是列表里满眼都是 "09-15 11:35"。
+       *
+       * 时间格式化属于展示层，应该由组件（PostCard / relTime）决定，
+       * 不该在数据归一化阶段做掉。这里只保证字段存在，不改它的值。
+       */
+      createTime: p.createTime,
       media: p.media || null,
     }))
   }
@@ -60,19 +89,65 @@ export function useHomeFeed(isMobile) {
     router.push('/search') // 搜索页找用户 → 进主页关注
   }
 
+  /**
+   * 追加一批帖子,并把总数压在 MAX_POSTS 以内。
+   *
+   * 为什么不能无限追加:posts 只增不减,DOM 里 PostCard 就跟着无限涨,
+   * 而且 Home 在 <KeepAlive> 里,切到别的页面也不释放。翻到 400 条时
+   * 页面上压着近 2 万个节点,滑动掉帧、从详情页返回时要重新布局一整片。
+   *
+   * 裁剪必须补滚动位置:从头部丢掉 k 条,文档整体上移 H 像素,而用户
+   * 此刻正停在列表底部,不补的话画面会猛地往上跳一屏(内容全变了)。
+   * 做法是拿「裁剪后仍在的第一条」当锚点,改完 DOM 把它挪回原来的
+   * 屏幕位置。用 data-pid 定位而不是子元素下标 —— 列表里还会插入
+   * 骨架屏、空态和哨兵,下标随时会错位。
+   */
+  async function appendCapped(add) {
+    const merged = [...posts.value, ...add]
+    const overflow = merged.length - MAX_POSTS
+    if (overflow <= 0) {
+      posts.value = merged
+      return
+    }
+    const anchor = merged[overflow]
+    const scrollBefore = window.scrollY || 0
+    const pick = () => listEl.value?.querySelector(`[data-pid="${anchor.id}"]`) || null
+    const anchorTopBefore = pick()?.getBoundingClientRect().top
+
+    posts.value = merged.slice(overflow)
+
+    if (anchorTopBefore == null) return
+    await nextTick()
+    const el = pick()
+    if (!el) return
+    // 目标滚动量 = 锚点当前文档位置 - 它裁剪前的视口位置。
+    // 不写成「旧 scrollY + 高度差」:内容变矮时浏览器会先自行 clamp
+    // scrollY,那一步已经吃掉一部分位移,只有两个视口坐标相减才准。
+    const rect = el.getBoundingClientRect()
+    const target = Math.max(0, rect.top + (window.scrollY || 0) - anchorTopBefore)
+    if (Math.abs(target - scrollBefore) < 1) return
+    window.scrollTo(0, target)
+    // 这是程序化跳转,不是用户滑动:同步基准值,否则 onWinScroll 会把
+    // 「scrollY 突然变小」判成上滑,把刚收起的工具条又弹回来。
+    lastWinScrollTop = window.scrollY || 0
+  }
+
   // 拉 feed(按当前 tab / 筛选 / 方向)
   async function loadFeed(reset = false) {
     if (reset) {
       posts.value = []
       cursor.value = null
       hasMore.value = true
+      loadError.value = false
+      failStreak.value = 0
     }
     if (!hasMore.value || loading.value) return
     loading.value = true
     try {
       if (tab.value === 'following') {
         const data = await followingApi(cursor.value, 20)
-        posts.value = reset ? normalize(data.list) : [...posts.value, ...normalize(data.list)]
+        if (reset) posts.value = normalize(data.list)
+        else await appendCapped(normalize(data.list))
         cursor.value = data.hasMore ? data.nextCursor : null
         hasMore.value = data.hasMore
       } else {
@@ -82,14 +157,31 @@ export function useHomeFeed(isMobile) {
           by: sortMode.value === 'hot' ? 'like' : 'time',
           order: 'desc',
         })
-        posts.value = !filtered && cursor.value && !reset
-          ? [...posts.value, ...normalize(data.list)]
-          : normalize(data.list)
+        if (!filtered && cursor.value && !reset) await appendCapped(normalize(data.list))
+        else posts.value = normalize(data.list)
         cursor.value = data.hasMore && !filtered ? data.nextCursor : null
         hasMore.value = data.hasMore && !filtered
       }
+      loadError.value = false
+      failStreak.value = 0
     } catch {
-      // request.js 已弹错
+      /*
+       * 失败处理（2026-10-21 修无限重试）。
+       *
+       * 【原来的问题】catch 里什么都不做，hasMore 仍是 true。
+       * finally 里又 nextTick(setupObserver) 立刻重建 observer ——
+       * 哨兵还在视口内 → 触发 onIntersect → 又调 loadFeed → 又失败……
+       * 实测拦截一次接口会打出 200+ 个相同请求，页面冻结。
+       *
+       * 现在：连续失败 2 次就停下（hasMore=false，不再自动加载），
+       * 并置 loadError，让页面显示错误态 + 「重试」按钮。
+       * request.js 已经弹过一次 toast，这里不再重复弹，只改 UI 状态。
+       */
+      failStreak.value += 1
+      if (failStreak.value >= 2 || reset) {
+        hasMore.value = false
+        loadError.value = true
+      }
     } finally {
       loading.value = false
       nextTick(setupObserver)
@@ -187,7 +279,7 @@ export function useHomeFeed(isMobile) {
   })
 
   return {
-    tab, posts, loading, hasMore, searchQ, sortMode, sentinelEl, feedBarHidden,
-    setSort, doSearch, goFollow,
+    tab, posts, loading, hasMore, loadError, searchQ, sortMode, sentinelEl, listEl, feedBarHidden,
+    setSort, doSearch, goFollow, retryFeed: () => loadFeed(true),
   }
 }

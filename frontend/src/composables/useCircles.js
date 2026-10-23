@@ -1,6 +1,6 @@
-import { ref, computed } from 'vue'
-import { ElMessage, ElMessageBox } from '@/utils/feedback'
-import { list as listApi, join as joinApi, leave as leaveApi, disband as disbandApi, createCircle as createApi, search as searchApi } from '@/api/circle'
+import { ref, computed, watch, onScopeDispose } from 'vue'
+import { ElMessage } from '@/utils/feedback'
+import { list as listApi, join as joinApi, createCircle as createApi, search as searchApi } from '@/api/circle'
 import { useUserStore } from '@/stores/user'
 import { isIdentityVerified } from '@/utils/mask'
 
@@ -18,6 +18,13 @@ export function useCircles() {
   const cursor = ref(null)
   const hasMore = ref(true)
   const loading = ref(false)
+  /**
+   * 可见圈子总数(后端 list 返回的 total)。
+   * 用它而不是 circles.length —— 后者是「已加载条数」,无限滚动每页 20 条,
+   * 没拉完时数字是错的(第一页拉满 20 显示「20 个圈」,实际有 80)。
+   * 后端没给(null)时前端宁可不显示数字,也不显示错的。
+   */
+  const total = ref(null)
   /** 首屏列表拉取失败。翻页失败不置它 —— 已经看到内容了,不该整页变错误态 */
   const loadFailed = ref(false)
   /** 已经拉过一页。区分「没数据」与「还没拉」,否则首屏会先闪一下空态 */
@@ -39,22 +46,70 @@ export function useCircles() {
   /** 是否处于搜索态 */
   const isSearching = computed(() => keyword.value.trim().length > 0)
 
-  /** 当前要渲染的列表。搜索态下只有搜索结果,不做「我加入的/全部」分组 */
-  const rows = computed(() => (isSearching.value ? results.value : circles.value))
+  /**
+   * 「我的」= 我参与的圈子(圈主/管理/成员都算)。
+   *
+   * 2026-10-21 改口径。改版前是两个互斥分组:
+   *   joinedCircles = joined && myRole === 3  // 我加入的
+   *   createdCircles = myRole === 1           // 我创建的
+   * 于是 myRole === 2(我当管理)的圈两边都不进 —— 一个我天天要管的圈,
+   * 页面上只能在「全部圈子」里找到自己,而那里看不出跟我的关系。
+   *
+   * 现在按「我与这个圈有没有关系」分,不再按「关系是哪一种」分;
+   * 具体身份(圈主/管理/成员)用卡片上的小标签表达,不另开分组。
+   * 另外 createdCircles 原来用 myRole===1 近似「我参与创建」,
+   * 转让圈主后原创建者就从那个组里消失 —— 不再需要这个近似,缺口自动消失。
+   */
+  const myCircles = computed(() => circles.value.filter((c) => c.joined))
 
   /**
-   * 「我加入的」分组:只显示**普通成员(myRole===3)**的圈 —— 即我加入、但不是我创建的别人的圈。
-   * 排除 myRole===1(我当圈主,归「我创建的」)和 myRole===2(我当管理,非「参与」,也不展示)。
-   * 这样「我加入的」和「我创建的」两个分组不重叠(否则我建的圈会两个组都出现)。
+   * 「发现」= 剩下的圈子,与「我的」天然互斥且覆盖全集。
+   *
+   * 这里就是改版前 visibleCircles 想做的事 —— 那个 computed 的注释写着
+   * 「全部圈子里要排除已在上方出现过的,否则同一个圈子一屏出现两次」,
+   * 但 Circles.vue 的「全部圈子」分组渲染的是 circles 而不是它,
+   * 去重逻辑写了没接上,于是桌面端同一批卡片画了两遍。
+   * 现在分组只有两段,这段逻辑变成一个 filter,不存在「忘了接上」的余地。
+   *
+   * C10:发现段按最近活跃排(有帖的按最新一帖倒序,没帖的沉底)。
+   * 排序在前端做而不是后端 —— 列表接口是 id 游标分页,改 ORDER BY 会毁掉
+   * 游标语义;圈子是学校级规模(几十个),已加载集合里排一排够用。
+   * 代价:没拉完时跨页顺序可能不完美,尾部文案「排完就是全部」对此负责。
    */
-  const joinedCircles = computed(() => circles.value.filter((c) => c.joined && c.myRole === 3))
-
-  /** 「全部圈子」里要排除已在上方出现过的,否则同一个圈子一屏出现两次 */
-  const visibleCircles = computed(() =>
-    joinedCircles.value.length
-      ? circles.value.filter((c) => !c.joined)
-      : circles.value,
+  const discoverCircles = computed(() =>
+    circles.value
+      .filter((c) => !c.joined)
+      .slice()
+      .sort((a, b) => {
+        const ta = a.lastPostAt || ''
+        const tb = b.lastPostAt || ''
+        if (ta !== tb) return ta < tb ? 1 : -1 // 空串最小 -> 没帖的沉底
+        return b.id - a.id
+      }),
   )
+
+  /**
+   * 发现段分批展示(C15「换一批」)。一次给一小批,而不是把几十个圈糊一屏;
+   * 换一批 = 轮换窗口,按最近活跃的顺序看下一组,轮完回头再看就是全部。
+   * 总数 <= 一批时不显示「换一批」—— 没得换。
+   */
+  const DISCOVER_BATCH = 6
+  const discoverOffset = ref(0)
+
+  const discoverView = computed(() => {
+    const all = discoverCircles.value
+    if (all.length <= DISCOVER_BATCH) return all
+    const start = discoverOffset.value % all.length
+    return [...all.slice(start), ...all.slice(0, start)].slice(0, DISCOVER_BATCH)
+  })
+
+  const canSwapDiscover = computed(() => discoverCircles.value.length > DISCOVER_BATCH)
+
+  function swapDiscover() {
+    const n = discoverCircles.value.length
+    if (n <= DISCOVER_BATCH) return
+    discoverOffset.value = (discoverOffset.value + DISCOVER_BATCH) % n
+  }
 
   /** 顶栏「创建圈子」的守卫。AC-11:未认证给说明而不是沉默失败 */
   function openCreate() {
@@ -62,42 +117,6 @@ export function useCircles() {
     createError.value = ''
     showCreate.value = true
     return 'opened'
-  }
-
-  /**
-   * 「我创建的」分组口径。
-   * CircleVO 没有严格的「我参与创建」字段(只有 owner + myRole),
-   * 当前用 myRole===1(我是圈主)近似 —— 我当管理(2)但不是创建者的圈不算进来。
-   * 这是已知语义缺口,交付时已标注:将来要精确再补后端 /circle/mine。
-   */
-  const createdCircles = computed(() => circles.value.filter((c) => c.myRole === 1))
-
-  /**
-   * 移动端分组视图。
-   * - null:显示入口按钮组(我创建的/我加入的/全部圈子),不展开任何列表
-   * - 'created' / 'joined' / 'all':展开对应列表,点「← 返回」收起
-   * 桌面端不读 mobileView(恒渲染三个分组),mobileView 只驱动移动端模板的 v-if。
-   */
-  const mobileView = ref(null)
-
-  /** 移动端:点「我创建的」入口按钮 —— 切到 created 视图 */
-  function openCreated() {
-    mobileView.value = mobileView.value === 'created' ? null : 'created'
-  }
-
-  /** 移动端:点「我加入的」入口按钮 —— 切到 joined 视图 */
-  function openJoined() {
-    mobileView.value = mobileView.value === 'joined' ? null : 'joined'
-  }
-
-  /** 移动端:点「全部圈子」入口按钮 —— 切到 all 视图 */
-  function openAll() {
-    mobileView.value = mobileView.value === 'all' ? null : 'all'
-  }
-
-  /** 移动端:点已展开的列表区的返回按钮,回到入口按钮组 */
-  function closeMobileView() {
-    mobileView.value = null
   }
 
   async function load() {
@@ -109,6 +128,7 @@ export function useCircles() {
       circles.value = cursor.value ? [...circles.value, ...data.list] : data.list
       cursor.value = data.hasMore ? data.nextCursor : null
       hasMore.value = data.hasMore
+      total.value = data.total ?? total.value
       loaded.value = true
     } catch {
       // 只有首屏失败才整页报错:已经有内容时追加失败不该把列表清空
@@ -121,10 +141,8 @@ export function useCircles() {
   /**
    * 搜圈子。走 /search?type=circle(后端 SearchController 支持 name LIKE)。
    *
-   * **搜索结果没有 joined 字段** —— SearchController.toCircleVo 只回
-   * id/name/memberCount,不查关系表。所以结果里的圈子一律渲染成「加入」,
-   * 即使用户已经加过。这是契约缺口(已在交付报告里列给后端),
-   * 前端不做「猜它加没加」的推断:猜错就是给已加入的圈子一个无效按钮。
+   * 2026-10-21 起结果带 joined/myRole(后端 toCircleVos 与 /circle 列表同口径,
+   * 见 F3)。所以搜索结果里加过的圈渲染「已加入」,不再是无效「加入」按钮。
    */
   async function runSearch() {
     const q = keyword.value.trim()
@@ -146,6 +164,24 @@ export function useCircles() {
     }
   }
 
+  /**
+   * 输入即搜(C11):300ms 防抖。回车走 runSearch 立即搜。
+   * 防抖收在 composable 而不是模板:模板里挂 @input + setTimeout 会把
+   * 计时器泄漏在组件卸载后(路由走了还在搜)。onScopeDispose 随组件作用域回收。
+   */
+  let searchTimer = null
+  watch(keyword, () => {
+    clearTimeout(searchTimer)
+    if (!keyword.value.trim()) {
+      results.value = []
+      searchFailed.value = false
+      searching.value = false
+      return
+    }
+    searchTimer = setTimeout(runSearch, 300)
+  })
+  onScopeDispose(() => clearTimeout(searchTimer))
+
   /** 清空搜索词,回到全量列表。不重拉列表 —— 数据已经在内存里 */
   function clearSearch() {
     keyword.value = ''
@@ -154,6 +190,21 @@ export function useCircles() {
   }
 
   async function joinCircle(c) {
+    /*
+     * 未认证拦截（2026-10-21 新增）。
+     *
+     * 【为什么要前端先拦】后端已挂 @RequireVerified 会回 403，
+     * 但只靠后端的话用户看到的是「请求失败」这种通用错误 ——
+     * 他不知道原因、也不知道下一步该干什么。
+     * 前端先拦能给一句具体的话，这正是 AC-19「失败必须给说法与出路」的要求。
+     *
+     * 判据用 isIdentityVerified（读后端 verified），与「创建圈子」同一把尺子 ——
+     * 两处若用不同判据，会出现「能建圈但不能加入」这种自相矛盾。
+     */
+    if (!isIdentityVerified(userStore.userInfo)) {
+      ElMessage.warning('完成校内认证后才能加入圈子')
+      return
+    }
     try {
       await joinApi(c.id)
       c.joined = true
@@ -164,73 +215,13 @@ export function useCircles() {
     }
   }
 
-  /** 退圈(仅普通成员 myRole=3)。确认后物理删成员行,本行 joined 翻 false 回「加入」态。 */
-  const leavingCircleId = ref(null)
-
-  function isLeaving(c) {
-    return c && leavingCircleId.value === c.id
-  }
-
-  async function leaveCircle(c) {
-    try {
-      await ElMessageBox.confirm(
-        `确定退出「${c.name}」?退出后不再显示在该圈,可随时再加入。`,
-        '退出圈子',
-        { type: 'warning', confirmButtonText: '退出', cancelButtonText: '取消' },
-      )
-    } catch {
-      return
-    }
-    leavingCircleId.value = c.id
-    try {
-      await leaveApi(c.id)
-      c.joined = false
-      c.myRole = 0
-      ElMessage.success('已退出圈子')
-      // 本地翻 joined 后,该圈子会从「我加入的」分组移出(分组按 c.joined 过滤),
-      // 成员数也 -1。不用重拉整页 —— 列表数据已在内存里
-    } catch {
-      ElMessage.error('退出失败,再试一次')
-    } finally {
-      leavingCircleId.value = null
-    }
-  }
-
   /**
-   * 解散圈子(仅圈主 myRole=1):软删圈子 + 级联软删圈内帖子。
-   * 区别于退圈 —— 退圈是成员级(物理删成员行、圈子还在),
-   * 解散是圈主级(整个圈子从列表/详情/广场全部消失,数据保留可审计)。
-   * 确认后本地翻 joined=false + myRole=0,该圈从「我加入的」分组移出。
-   * 圈内其它成员下次刷新列表时,圈子已被软删(status=1)自动过滤掉。
+   * 退圈/解散不在列表页做(2026-10-21 随设计稿挪进 CircleDetail.vue):
+   * 卡片上只留「加入 / 已加入」两态(C8),破坏性动作收进详情页,
+   * 那里有自己的 useCircleDetail/useCircleAdminActions 与二次确认。
+   * 原先挂在这里的 leaveCircle/disbandCircle 一并删除 —— 没有调用方的
+   * 破坏性函数留在 composable 里只会等着被误接线。
    */
-  const disbandingCircleId = ref(null)
-
-  function isDisbanding(c) {
-    return c && disbandingCircleId.value === c.id
-  }
-
-  async function disbandCircle(c) {
-    try {
-      await ElMessageBox.confirm(
-        `确定解散「${c.name}」?解散后圈子与圈内帖子全部消失,成员需重新建圈加入。此操作不可恢复。`,
-        '解散圈子',
-        { type: 'error', confirmButtonText: '解散', cancelButtonText: '取消' },
-      )
-    } catch {
-      return
-    }
-    disbandingCircleId.value = c.id
-    try {
-      await disbandApi(c.id)
-      c.joined = false
-      c.myRole = 0
-      ElMessage.success('已解散圈子')
-    } catch {
-      ElMessage.error('解散失败,再试一次')
-    } finally {
-      disbandingCircleId.value = null
-    }
-  }
 
   async function create() {
     const name = newName.value.trim()
@@ -268,12 +259,10 @@ export function useCircles() {
   }
 
   return {
-    circles, cursor, hasMore, loading, loadFailed, loaded,
-    keyword, searching, searchFailed, results, isSearching, rows,
-    joinedCircles, visibleCircles,
-    createdCircles, mobileView, openCreated, openJoined, openAll, closeMobileView,
+    circles, cursor, hasMore, loading, loadFailed, loaded, total,
+    keyword, searching, searchFailed, results, isSearching,
+    myCircles, discoverCircles, discoverView, canSwapDiscover, swapDiscover,
     showCreate, newName, creating, createError,
-    openCreate, load, runSearch, clearSearch, joinCircle, leaveCircle, isLeaving,
-    disbandCircle, isDisbanding, create,
+    openCreate, load, runSearch, clearSearch, joinCircle, create,
   }
 }

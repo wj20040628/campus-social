@@ -167,9 +167,18 @@ export function useMediaUpload() {
 }
 
 /**
+ * 单个话题名的长度上限。
+ *
+ * <p>与后端 {@code PostTopicBinder.TOPIC_NAME_MAX} **必须保持一致**：后端超长是静默丢弃，
+ * 前端若不在这里拦，用户会看到「我明明输了这个话题、发出去却没了」，
+ * 而且没有任何报错可查。15 字是展示侧的限制（胶囊要放得下）。
+ */
+export const TOPIC_NAME_MAX = 15
+
+/**
  * 话题串 -> 话题数组(Publish.vue.md §1 行 4/5)
  *
- * 上限 5 个、单个 64 字,都按设计走。超出时**截断而不是报错** ——
+ * 上限 5 个、单个 {@link TOPIC_NAME_MAX} 字。超出的**截断而不是报错** ——
  * 用户可能一次粘贴了 8 个话题,直接拒绝整条输入比帮他留前 5 个更糟。
  *
  * max 可传 Infinity 拿全量:Publish 的「+N」必须和 chips 用同一套规则
@@ -180,10 +189,33 @@ export function parseTopics(text, max = 5) {
   const out = []
   for (const raw of String(text || '').split(/[,，\s]+/)) {
     const t = raw.trim().replace(/^#+/, '').replace(/#+$/, '').trim()
-    if (!t || t.length > 64 || seen.has(t)) continue
+    if (!t || t.length > TOPIC_NAME_MAX || seen.has(t)) continue
     seen.add(t)
     out.push(t)
     if (out.length >= max) break
+  }
+  return out
+}
+
+/**
+ * 被丢弃的话题名（太长 / 重复之外的原因），供发帖页提示用户。
+ *
+ * <p>存在的理由：`parseTopics` 对超长话题是静默跳过的。若不单独给出这份清单，
+ * 用户在话题框里输了一个 20 字的话题，chips 里不出现、发出去也没有，
+ * 既没有任何提示也不知道为什么 —— 属于「以为成功了的失败」，最难排查。
+ *
+ * @returns {string[]} 因超长被丢弃的话题（已去重、已去 # 与空白）
+ */
+export function droppedTopics(text) {
+  const seen = new Set()
+  const out = []
+  for (const raw of String(text || '').split(/[,，\s]+/)) {
+    const t = raw.trim().replace(/^#+/, '').replace(/#+$/, '').trim()
+    if (!t) continue
+    if (t.length <= TOPIC_NAME_MAX) continue
+    if (seen.has(t)) continue
+    seen.add(t)
+    out.push(t)
   }
   return out
 }

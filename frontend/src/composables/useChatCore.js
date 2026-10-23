@@ -7,6 +7,7 @@ import {
   recall as recallApi,
   markRead,
   strangerQuota,
+  setConvPref,
 } from '@/api/chat'
 import {
   myGroups as groupsApi,
@@ -74,7 +75,21 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   /** 群搜索:左侧群列表的本地过滤关键字(只过滤我加入的群,不发网络请求) */
   const groupSearchKw = ref('')
 
-  const fmt = (t) => (t ? dayjs(t).format('MM-DD HH:mm') : '')
+  /**
+   * 会话列表的时间列。
+   * 原来一律 MM-DD HH:mm，固定要 77px，把昵称挤到 103px ——
+   * 改成相对时间后最宽只有 5 个字：今天 21:34 / 昨天 / 周三 / 10-20。
+   */
+  const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const fmt = (t) => {
+    if (!t) return ''
+    const d = dayjs(t)
+    const days = dayjs().startOf('day').diff(d.startOf('day'), 'day')
+    if (days <= 0) return d.format('HH:mm')
+    if (days === 1) return '昨天'
+    if (days < 7) return WEEK[d.day()]
+    return d.format('MM-DD')
+  }
   const scrollBottom = () => onNeedScrollBottom?.()
 
   /* ---------------- 列表 ---------------- */
@@ -255,6 +270,51 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     currentKind.value === 'group' ? !!currentGroup.value : !!currentConv.value,
   )
 
+  /* ---------------- 会话偏好：置顶 / 免打扰 / 删除 ---------------- */
+
+  /** 行数据的定位口径：私信 target=peer.id，群 target=group.id（与后端 chat_conv_pref 一致） */
+  const rowTarget = (row, kind) => (kind === 'group' ? row.id : row.peer?.id)
+
+  /**
+   * 设置偏好。先改本地再落库（乐观更新），失败回滚并提示。
+   *
+   * 置顶靠重排体现：把这一行挪到所属分组最前，而不是新增「置顶」分区 ——
+   * 分组本来就有私信/群组两层，390px 下再加一层分区，标题会连成一片。
+   */
+  async function setPref(row, kind, flags) {
+    const targetId = rowTarget(row, kind)
+    if (!targetId) return
+    const listRef = kind === 'group' ? groups : convs
+    const before = listRef.value.map((x) => ({ ...x }))
+    const idx = listRef.value.findIndex((x) => rowTarget(x, kind) === targetId)
+    if (idx < 0) return
+
+    if ('pinned' in flags) listRef.value[idx] = { ...listRef.value[idx], pinned: flags.pinned }
+    if ('muted' in flags) listRef.value[idx] = { ...listRef.value[idx], muted: flags.muted }
+
+    if ('hidden' in flags) {
+      // 删除：先从列表移除；服务端记 hidden_upto 水位，对方再发消息会自动回来
+      listRef.value = listRef.value.filter((_, i) => i !== idx)
+    } else if ('pinned' in flags) {
+      const arr = [...listRef.value]
+      const [item] = arr.splice(idx, 1)
+      if (flags.pinned) arr.unshift(item)
+      else arr.push(item)
+      listRef.value = arr
+    }
+
+    try {
+      await setConvPref(kind, targetId, flags)
+    } catch (e) {
+      listRef.value = before
+      ElMessage.error(e?.message || '操作没生效，请重试')
+    }
+  }
+
+  const pinRow = (row, kind, pinned) => setPref(row, kind, { pinned })
+  const muteRow = (row, kind, muted) => setPref(row, kind, { muted })
+  const deleteRow = (row, kind) => setPref(row, kind, { hidden: true })
+
   return {
     convs,
     groups,
@@ -293,5 +353,8 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     onMuteMember,
     onMuteAll,
     loadMutedMe,
+    pinRow,
+    muteRow,
+    deleteRow,
   }
 }

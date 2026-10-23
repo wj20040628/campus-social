@@ -13,11 +13,18 @@ export function loginByCode(email, code) {
  * @param {{ studentNo:string, password:string, nickname:string, email?:string, identity?:object }} payload
  */
 export function register(payload) {
-  const { studentNo, password, nickname, email, identity } = payload
-  const body = { studentNo, password, nickname }
-  // 邮箱选填:有值才带(后端存库前转小写)
+  /*
+   * 2026-10-21：邮箱必填 + 验证码，学号选填。
+   * 与 stores/user.js 的 register 保持同一口径 —— 两处都在重组白名单请求体，
+   * 只改一处会让「走 store」和「走 api」的调用方发出不同的请求。
+   */
+  const { studentNo, password, nickname, email, emailCode, identity } = payload
+  const body = { password, nickname }
   if (email && email.trim()) body.email = email.trim()
-  // 注册即认证:填了 13/14 位学号才把学校归属一并提交;否则只注册不认证
+  if (emailCode && emailCode.trim()) body.emailCode = emailCode.trim()
+  // 学号选填：有值才带
+  if (studentNo && studentNo.trim()) body.studentNo = studentNo.trim()
+  // 注册即认证：填了学号才把学校归属一并提交；否则只注册不认证
   if (identity && identity.schoolId !== undefined) {
     body.schoolId = identity.schoolId
     body.deptId = identity.deptId
@@ -32,13 +39,13 @@ export function sendCode(target, type = 'register') {
 }
 
 /** 找回密码(第一步):提交学号,后端向绑定的安全凭证邮箱发重置验证码 */
-export function forgotPassword(studentNo) {
-  return request.post('/auth/forgot-password', { studentNo })
+export function forgotPassword(account) {
+  return request.post('/auth/forgot-password', { account })
 }
 
 /** 找回密码(第二步):学号 + 邮箱重置验证码 + 新密码 */
-export function resetPassword(studentNo, code, newPassword) {
-  return request.post('/auth/reset-password', { studentNo, code, newPassword })
+export function resetPassword(account, code, newPassword) {
+  return request.post('/auth/reset-password', { account, code, newPassword })
 }
 
 /**

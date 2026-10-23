@@ -114,6 +114,21 @@ request.interceptors.response.use(
 function handleLogout(msg) {
   const user = useUserStore()
   user.clear()
+  /*
+   * 必须清空挂起队列（2026-10-21 修）。
+   *
+   * 原来只有 flushQueue 会清这个数组，而 flushQueue 只被「刷新成功/失败」
+   * 两条路径调用。登出走的是 handleLogout，完全不碰队列，于是：
+   *   - 队列里残留的回调仍持有**上一个账号**的原始请求；
+   *   - 用户切号登录后，新一轮刷新会把这些旧回调一起唤醒，
+   *     用**新账号的 token** 重放**上一个账号的请求**（串号）。
+   * 另外几十个回调在页面已跳走之后仍执行 request(original) → 又一批 401
+   * → 又一轮 toast，表现为「刚登录就一连串报错」。
+   *
+   * 这里用 failed=true 唤醒它们（调用方会 reject 而不是重放），然后清空。
+   */
+  flushQueue(null, true)
+  isRefreshing = false
   if (msg) ElMessage.warning(msg)
   const returnUrl = window.location.pathname + window.location.search
   router.push({ path: '/login', query: { returnUrl } })

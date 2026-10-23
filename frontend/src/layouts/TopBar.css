@@ -34,6 +34,20 @@
   padding-left: var(--ys-space-2);
 }
 
+/*
+ * 桌面端页面名（2026-10-21）。
+ * 手机端隐藏：那里显示品牌「友声」，再写一遍页面名会重复。
+ * 桌面端隐藏品牌、显示页面名 —— 左侧已有常驻 SideNav 表达品牌，
+ * 顶栏该回答的是「我在哪个页面」。这样顶栏左侧不再是一片空白。
+ */
+.topbar__page {
+  display: none;
+  font-size: var(--ys-text-md);
+  line-height: var(--ys-lh-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
 .topbar__title {
   margin: 0;
   /* 1 行截断:标题再长也不能把右侧图标挤出屏幕 */
@@ -71,6 +85,26 @@
 
 .topbar__icon-btn:active {
   opacity: 0.7;
+}
+
+/*
+ * 图标口径统一（2026-10-21）。
+ *
+ * 改版前顶栏是三种粗细混在一起：`+` 是 EP 的**填充式**图标（Search 同族），
+ * 汉堡是自绘 SVG（stroke 2），铃铛又是另一种。并排放在 375px 里，
+ * 一眼能看出「不是一套东西」，观感像临时拼的。
+ *
+ * 现在统一成与底栏 NavIcon 同一套：**描边、1.9、21px**。
+ * 底栏是 22px/1.9、抽屉是 19px/1.95，顶栏取中间的 21px/1.9，
+ * 三处视觉粗细一致（尺寸差 1-2px 在视觉上不可辨，粗细一致才是关键）。
+ *
+ * 汉堡的 stroke-width 原先写在 SVG 属性上（2），这里用 CSS 覆盖统一。
+ */
+.topbar__icon-btn :deep(svg),
+.topbar__burger {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.9;
 }
 
 .topbar__avatar-wrap {
@@ -116,6 +150,11 @@
   .topbar__search {
     display: none;
   }
+
+  /* 手机端发动态只留图标：横向空间紧，且顶栏「+」是唯一发帖入口 */
+  .topbar__pub-text {
+    display: none;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -123,20 +162,49 @@
     padding: 0 var(--ys-gutter-desktop);
   }
 
-  .topbar__brand {
-    display: none;
-  }
-
+  /*
+   * 桌面端发动态：从「44×44 圆形图标按钮」改成「常规胶囊按钮 + 文字」。
+   * 它现在是桌面端唯一的发帖入口（侧栏那项已移除），一个圆点图标
+   * 承载不了这个权重；带文字后它是一个明确的主动作。
+   */
   .topbar__publish {
-    display: grid;
+    display: flex;
+    align-items: center;
+    gap: var(--ys-space-1);
+    width: auto;
+    height: 36px;
+    padding: 0 var(--ys-space-4);
+    border-radius: var(--ys-radius-full);
     background: var(--ys-accent);
     color: var(--ys-accent-on);
-    /* 原为彩色发光 0 4px 12px rgba(64,158,255,.35),命中红线;改用 --ys-shadow-2 */
     box-shadow: var(--ys-shadow-2);
   }
 
   .topbar__publish:hover {
     background: var(--ys-accent-hover);
+  }
+
+  .topbar__pub-text {
+    display: inline;
+    font-family: var(--ys-font-body);
+    font-size: var(--ys-text-sm);
+    font-weight: var(--ys-weight-semibold);
+  }
+
+  /* 胶囊按钮里的加号略小，与文字视觉平衡 */
+  .topbar__publish .topbar__ico {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2.1;
+  }
+
+  .topbar__brand {
+    display: none;
+  }
+
+  /* 桌面端改用页面名（品牌已在左侧 SideNav 表达） */
+  .topbar__page {
+    display: block;
   }
 
   .topbar__avatar-wrap {

@@ -82,6 +82,18 @@ export function activityDetail(id) {
   return request.get(`/activity/${id}`)
 }
 
+/**
+ * 活动报名者名单（2026-10-21 新增）。
+ *
+ * 公开可读，后端只返回昵称 + 头像 + isMe。
+ * 与活动详情拆成两个请求而不是塞进 ActivityVO：
+ * 名单是「可能变、可能很长」的数据，详情是「一次拿全」，
+ * 拆开后详情页可以先渲染主体、名单后到，不会因为名单慢而整页等。
+ */
+export function activitySignups(id) {
+  return request.get(`/activity/${id}/signups`)
+}
+
 export function signup(id) {
   return request.post(`/activity/${id}/signup`)
 }

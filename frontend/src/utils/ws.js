@@ -34,6 +34,32 @@ class WsClient {
     this.conns = {}
     // type -> Set<fn>：全局派发表（与具体连接解耦）
     this.subs = {}
+    /*
+     * 跨连接去重表：dedupKey -> 首次收到的时刻。
+     * 见 socket.onmessage 里的说明 —— 同一个用户开着 /ws/chat 与 /ws/notify
+     * 两条连接，而后端按 userId 广播、不区分端点，同一条消息会到两次。
+     */
+    this._recentMsgs = new Map()
+  }
+
+  /**
+   * 为一条 WS 消息算去重键（同一条 JSON 在两条连接上算出来必然相同）。
+   *
+   * 字段选择：能唯一标识「这次事件」的那些。
+   *   chat / group_msg       → msgId
+   *   chat_read / *_recalled → msgId 或 convId 组合
+   *   notify                 → 后端下发的 id
+   * 都没有时返回 null（不去重，宁可重复也不误吞）。
+   *
+   * 必须把 msg.ts 也算进去：消息内容相同的两条新消息（比如连发两个「好」）
+   * 有各自的 ts 与 msgId，不会因此被误判成重复。
+   */
+  _dedupKey(msg) {
+    const p = msg?.payload
+    if (!p) return null
+    const id = p.msgId ?? p.id ?? p.notifyId
+    if (id == null) return null
+    return `${msg.type}:${id}:${msg.ts ?? ''}`
   }
 
   /** 确保某 endpoint 已连接（已连则幂等返回，不重连） */
@@ -97,6 +123,35 @@ class WsClient {
       if (msg.type === 'pong') {
         c.lastPong = Date.now()
         return
+      }
+      /*
+       * 跨连接去重（2026-10-21 修「消息显示两次」）。
+       *
+       * 【为什么会重复】前端开着两条 WS：/ws/chat 与 /ws/notify；
+       * 而后端 WsSessionManager.broadcast(userId, ...) 遍历的是
+       * 「该 userId 的所有 session」，**不区分端点**（见 broadcast 实现）。
+       * 于是同一条 chat 推送会到达两条连接，各自的 socket.onmessage 都会执行。
+       * 而 subs 是全局共享的 Map<type, Set<fn>>，同一个 handler 就被调用了两次
+       * —— 接收方 messages.value.push() 两次，界面出现两条一模一样的消息。
+       *
+       * 【怎么去】按「消息身份」做短窗口去重：
+       *   key = type + 该消息里能唯一标识它的字段 + payload.ts
+       * 两条连接收到的是同一条 JSON，key 相同；窗口 2 秒后自然过期，
+       * 不会影响后续真正的新消息（即使内容完全一样，ts 也不同）。
+       */
+      const key = this._dedupKey(msg)
+      if (key) {
+        const now = Date.now()
+        if (this._recentMsgs.has(key) && now - this._recentMsgs.get(key) < 2000) {
+          return
+        }
+        this._recentMsgs.set(key, now)
+        // 顺手清理过期项，避免这张表无限增长（只在写入时扫，开销可忽略）
+        if (this._recentMsgs.size > 200) {
+          for (const [k, t] of this._recentMsgs) {
+            if (now - t > 2000) this._recentMsgs.delete(k)
+          }
+        }
       }
       const set = this.subs[msg.type]
       if (set) set.forEach((fn) => fn(msg.payload, msg))

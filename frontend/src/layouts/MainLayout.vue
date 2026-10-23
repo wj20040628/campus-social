@@ -8,7 +8,12 @@
 
     <div class="shell">
       <!-- 桌面侧栏;手机端 display:none,不进入可聚焦树 -->
-      <SideNav class="layout__side" :route-path="route.path" />
+      <SideNav
+        class="layout__side"
+        :route-path="route.path"
+        :notify-unread="notifyUnread"
+        :chat-unread="paperCount"
+      />
 
       <div class="col">
         <!--
@@ -23,9 +28,20 @@
           v-if="!ownTop"
           :show-back="showBack"
           :page-title="pageTitle"
+          :head-title="headTitle"
           :notify-unread="notifyUnread"
           @menu="drawerOpen = true"
         />
+
+        <!--
+          认证状态提示条（2026-10-21 提到布局层，全站可见）。
+          【为什么从页面级挪到这里】改版后未认证是个常见的真实状态（注册只要求邮箱），
+          而它带来四个限制：发私信 / 建圈子 / 加圈子 / 发集市。
+          原来它只在首页和个人主页出现，用户在圈子页点「加入」被拒时
+          根本没见过这条提示 —— 只在失败那一刻才知道规则，是最差的信息架构。
+          放布局层后，任何页面都能提前看到「还差一步」。
+        -->
+        <VerifyNotice />
 
         <main
           id="main-content"
@@ -108,13 +124,14 @@
  * 本项目没有 postcss-custom-media,`@media (--ys-bp-lg)` 会被浏览器
  * 静默丢弃(SPEC §11 的「沉默故障」之一)。
  */
-import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 import TabBar from '@/components/mobile/TabBar.vue'
 import AppDrawer from '@/components/mobile/AppDrawer.vue'
+import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import { useUserStore } from '@/stores/user'
 import { getWsClient } from '@/utils/ws'
 import * as notifyApi from '@/api/notify'
@@ -128,6 +145,8 @@ const ws = getWsClient()
 const showBack = computed(() => route.meta.back === true)
 const hideTabBar = computed(() => route.meta.hideTabBar === true)
 const pageTitle = computed(() => route.meta.title || '友声')
+/** 非返回态左上角文字(C20):页面名覆盖品牌,空串 = 用品牌「友声」 */
+const headTitle = computed(() => route.meta.headTitle || '')
 /** 页面自带顶栏(引导页 / 全屏编辑器)时不渲染全站顶栏 */
 const ownTop = computed(() => route.meta.ownTop === true)
 
@@ -156,11 +175,41 @@ const drawerOpen = ref(false)
 */
 provide('openDrawer', () => { drawerOpen.value = true })
 
-/** 未读数是增强信息,拉取失败静默降级 —— 不该因为红点挂了而让用户以为系统坏了 */
+/*
+ * 角标清零能力（2026-10-21 加）。
+ *
+ * 问题：用户点「通知」进页面、把通知都看了，左侧/顶栏的数字却还在 ——
+ * 要刷新整页才消失。因为角标状态住在 MainLayout，而「标记已读」发生在
+ * Notify.vue / Chat.vue 内部，两边没有通道。
+ *
+ * 这里把清零函数 provide 下去：
+ *   clearNotifyBadge() —— 通知页标记已读后调用
+ *   clearChatBadge()   —— 消息页读完会话后调用
+ *
+ * 为什么是「清零」而不是「重拉」：用户已经进页面了，角标的语义就是
+ * 「有新东西你看不到」。他正在看，所以立刻归零是符合直觉的即时反馈；
+ * 之后仍会由路由监听 / WS 推送在有新增时重新拉准值。
+ */
+provide('clearNotifyBadge', () => {
+  notifyUnread.value = 0
+})
+
+provide('clearChatBadge', () => {
+  paperCount.value = 0
+})
+
+/**
+ * 未读通知数（顶栏铃铛 / 侧栏「通知」/ 抽屉）。
+ *
+ * 【2026-10-21 修 bug】改版前读的是 `data?.unread`，而后端 /notify/unread
+ * 实际返回的是 `{ count: 0 }` —— 字段名对不上，`data.unread` 恒为 undefined，
+ * 于是 `?? 0` 永远给出 0，红点根本不会亮。
+ * 现在两者都兼容（count 优先），字段再改名也不会静默失效。
+ */
 async function loadUnread() {
   try {
     const data = await notifyApi.unread()
-    notifyUnread.value = data?.unread ?? 0
+    notifyUnread.value = data?.count ?? data?.unread ?? 0
   } catch {
     notifyUnread.value = 0
   }
@@ -172,22 +221,96 @@ function onNotifyPush() {
 }
 
 /**
- * 待回应的搭话纸条数(TabBar 消息角标)。
- * 现阶段后端未提供独立计数端点,故先取 0 —— 角标为 0 时 TabBar 不渲染红点,
- * 不会给用户一个恒为 0 的假角标。后端补端点后改这里即可。
+ * 消息未读条数（TabBar / 侧栏「消息」角标）= 私信未读 + 群未读。
+ *
+ * 【2026-10-21 修 bug #1】改版前数的是 `convs.filter(c => c.pendingReply).length` —
+ * 那是「待回应会话数」，不是未读消息数。只要有一条会话需要回复，
+ * 角标就恒为 1，无论后来来了多少条消息都不变 —— 用户反馈的「一直是 1」就是它。
+ * 改成对 conversations 里每个会话的 `unread` 求和。
+ *
+ * 【2026-10-21 修 bug #2】群聊未读此前完全没被计入：
+ * 群消息在 GroupVO.myUnread 里（后端 GroupServiceImpl 算好的），
+ * 而这里只查了私信会话列表，于是「群里有人说话」角标毫无反应。
+ * 角标语义是「有几个地方在等你」，群消息同样算 —— 现在两路合并累加。
+ *
+ * 取数：私信会话前 30 条 + 我加入的群前 50 个。
+ * 这是正常用户不可能撑满的量；未读超过 99 时 UI 显示 99+，再大也没有区分意义。
+ * 任一路失败不影响另一路（各自 catch），避免一个接口抖动把角标清零。
  */
 async function loadPaperCount() {
-  try {
-    const res = await import('@/api/chat')
-    // conversations 返回的是 CursorPage 包装(含 .list 数组),不是裸数组
-    const page = await res.conversations(0, 30)
-    const convs = page?.list ?? []
-    // 待回应纸条:对方最后发、我还没回、24h 内(后端 pendingReply 已算好)
-    paperCount.value = convs.filter((c) => c?.pendingReply).length
-  } catch {
+  const [chatApi, groupApi] = await Promise.all([
+    import('@/api/chat').catch(() => null),
+    import('@/api/group').catch(() => null),
+  ])
+  if (!chatApi) {
     paperCount.value = 0
+    return
+  }
+
+  /*
+   * 两路并行而不是串行：少一个 RTT。
+   * 注意分别 catch —— 私信挂了不该让群未读也归零，反之亦然。
+   */
+  const [dmUnread, groupUnread] = await Promise.all([
+    chatApi.conversations(0, 30)
+      .then((page) => (page?.list ?? []).reduce((s, c) => s + (Number(c?.unread) || 0), 0))
+      .catch(() => 0),
+    loadGroupUnread(groupApi),
+  ])
+
+  paperCount.value = dmUnread + groupUnread
+}
+
+/**
+ * 群未读汇总。
+ *
+ * myGroups（GET /group）是现成端点，返回里的 GroupVO.myUnread
+ * 由后端按「入群水位线之后的消息数」算好，无需新增接口。
+ *
+ * 失败返回 0 而不是抛错：群列表拿不到时，角标至少还能反映私信未读，
+ * 比整块归零诚实。
+ */
+async function loadGroupUnread(groupApi) {
+  if (!groupApi) return 0
+  try {
+    const data = await groupApi.myGroups(null, 50)
+    return (data?.list ?? []).reduce((s, g) => s + (Number(g?.myUnread) || 0), 0)
+  } catch {
+    return 0
   }
 }
+
+/*
+ * 角标随页面切换刷新（2026-10-21 加）。
+ *
+ * 改版前两个角标只在 onMounted 拉一次 —— 用户读完消息、回到首页，
+ * 「消息 1」还在那儿亮着，要刷新整页才消失。
+ *
+ * 现在的规则：
+ *   进入聊天/通知页 → 不清零也不拉（清零由页面自己 inject 后调用；
+ *     布局也不该在这时把值拉回来覆盖掉）
+ *   离开聊天/通知页 → 重拉一次拿准值
+ *   其他跳页 → 什么都不做，避免每跳一次打两个请求
+ */
+watch(
+  () => route.fullPath,
+  (to, from) => {
+    if (!userStore.hasToken) return
+    const isChat = (r) => String(r?.name || '').startsWith('chat')
+    const isNotify = (r) => r?.name === 'notify'
+    /*
+     * 进入这两个页面时不拉数：
+     * 页面自己会 clearXxxBadge() 清零，若这里再 loadUnread()，
+     * 请求返回的旧值会把刚清零的角标又覆盖回去（实测角标仍是 3）。
+     */
+    if (isChat(to) || isNotify(to)) return
+    // 离开时才重拉，拿的是「读完之后」的真实值
+    if (isChat(from) || isNotify(from)) {
+      loadPaperCount()
+      loadUnread()
+    }
+  },
+)
 
 onMounted(() => {
   // 兜底:进布局时若 userInfo 还没加载(token 有效但没拉过),拉一次,
@@ -196,8 +319,17 @@ onMounted(() => {
     userStore.fetchMe().catch(() => {})
   }
   if (userStore.hasToken) {
-    loadUnread()
-    loadPaperCount()
+    /*
+     * 首屏就落在聊天/通知页时不要拉数（2026-10-21）。
+     * 否则：页面 onMounted 里清零 → 这里晚一步的 loadUnread() 返回旧值 →
+     * 角标又被点亮。用户在通知页里却看到左侧「通知 3」，很矛盾。
+     */
+    const startName = String(route.name || '')
+    const onFeedPage = startName === 'notify' || startName.startsWith('chat')
+    if (!onFeedPage) {
+      loadUnread()
+      loadPaperCount()
+    }
     // 常连 notify 通道:即使不在通知页,新通知也能实时点亮顶栏红点。
     // 与 Notify.vue 各自订阅同一事件、互不干扰。
     ws.connect('/ws/notify')

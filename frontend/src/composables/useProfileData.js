@@ -1,5 +1,4 @@
 import { ref, computed } from 'vue'
-import dayjs from 'dayjs'
 import { me as meApi, userCard } from '@/api/auth'
 import { myPosts as myPostsApi, userPosts as userPostsApi } from '@/api/feed'
 import { mine as myReviewsApi } from '@/api/review'
@@ -29,7 +28,8 @@ export function useProfileData(targetId, myId, dict) {
   function normalize(list) {
     return (list || []).map((p) => ({
       ...p,
-      createTime: dayjs(p.createTime).format('MM-DD HH:mm'),
+      /* 保留原始 ISO 时间：展示层 PostCard 用 relTime() 生成相对时间（2026-10-21 修） */
+      createTime: p.createTime,
     }))
   }
 

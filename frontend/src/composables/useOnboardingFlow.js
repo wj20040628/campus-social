@@ -45,6 +45,13 @@ export function useOnboardingFlow(deps) {
   /** 后端判定的无效字段,透传给第 1 步的 SchoolFields 做字段级提示 */
   const identityInvalid = ref({})
 
+  /**
+   * 主按钮文案。
+   *
+   * 2026-10-21 步数从 2 改 3（新增第 1 步认证），所以「最后一步」从 2 变成 3。
+   * 最后一步的文案是「进友声」而不是「完成」：这一步的语义是
+   * 「你可以开始用了」，不是「你提交了一份表单」（§1.3）。
+   */
   const primaryLabel = computed(() => (deps.step.value === 3 ? '进友声' : '下一步'))
 
   const primaryEnabled = computed(() => {
@@ -111,12 +118,23 @@ export function useOnboardingFlow(deps) {
     identityInvalid.value = {} // 清掉上一次的失效判定,否则提示会一直挂着
     try {
       await persist()
+      /*
+       * 三步步进（2026-10-21 从两步改三步）：
+       *   1 学号认证 → 2 兴趣标签 → 3 关注/圈子 → 进首页
+       *
+       * 第 1 步的认证本身由 StepVerify 组件内部完成（它直接调 /verify/student-no），
+       * 这里 persist() 只是把归属一并落到 onboarding 的口径里，然后推进。
+       */
       if (deps.step.value === 1) {
-        // 第 1 步(兴趣标签)提交后,进第 2 步并拉推荐同学/圈子
+        // 第 1 步（认证）提交后进第 2 步，需要先有标签数据
         deps.goto(2)
+        deps.loadTags()
+      } else if (deps.step.value === 2) {
+        // 第 2 步（兴趣标签）提交后进第 3 步，拉推荐同学/圈子
+        deps.goto(3)
         deps.loadRecommend()
       } else {
-        // 第 2 步(关注/圈子):完成并进首页
+        // 第 3 步（关注/圈子）：完成并进首页
         await enter()
       }
     } catch (e) {

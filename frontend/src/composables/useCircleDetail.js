@@ -12,7 +12,6 @@
  *   - 加入只本地改 joined 不重拉(不让页面闪一下)
  */
 import { ref } from 'vue'
-import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import {
   detail as detailApi,
@@ -70,7 +69,9 @@ export function useCircleDetail(circleId) {
       const data = await circlePosts(circleId.value, null, 50)
       posts.value = (data?.list || []).map((p) => ({
         ...p,
-        createTime: dayjs(p.createTime).format('MM-DD HH:mm'),
+        /* 保留原始 ISO 时间：展示层 PostCard 用 relTime() 生成相对时间。
+           在这里压成 'MM-DD HH:mm' 会让 relTime 解析失败、退回机器格式（2026-10-21 修） */
+        createTime: p.createTime,
       }))
     } catch {
       // 内容拉失败保留空列表 + 让空态的出口是「重试」而不是「发第一条」
