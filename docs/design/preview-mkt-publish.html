@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 发布活动 精修设计稿</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px; --ys-r-full:9999px;
+  --ys-sh1:0 1px 2px rgba(36,28,21,.06);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 90px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);-webkit-font-smoothing:antialiased}
+
+.hd{max-width:1400px;margin:0 auto 36px}
+.hd h1{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:14px;line-height:1.75}
+.hd p b{color:#3a3128}
+
+.row{max-width:1400px;margin:0 auto 66px}
+.row > h2{font-size:15px;font-weight:650;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.row > h2 .num{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:12px}
+.row > .note{margin:0 0 18px 32px;font-size:13px;color:#7a6f63;line-height:1.7}
+.row > .note b{color:#3a3128}
+
+.pair{display:flex;gap:52px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:10px}
+.pane__tag{font-size:11.5px;font-weight:650;letter-spacing:.06em}
+.pane__tag--before{color:#a8785f}
+.pane__tag--after{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;position:relative;background:var(--ys-bg);
+  box-shadow:0 0 0 9px #1c1917,0 0 0 11px #3a3531,0 24px 46px rgba(28,25,23,.28);display:flex;flex-direction:column}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.scr{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.desk{width:1180px;height:740px;border-radius:12px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 1px #cbbfa8,0 20px 46px rgba(60,45,28,.2);display:flex;flex-direction:column}
+.desk__bar{flex:none;height:32px;background:#e6dccb;display:flex;align-items:center;gap:7px;padding:0 13px;border-bottom:1px solid #d8ccb7}
+.desk__dot{width:10px;height:10px;border-radius:50%}
+.desk__url{flex:1;height:19px;border-radius:5px;background:#f3ece0;margin-left:9px;display:flex;align-items:center;padding:0 10px;font-size:10.5px;color:#8a7d6b;font-family:ui-monospace,monospace}
+.desk__body{flex:1;display:flex;overflow:hidden;position:relative}
+
+/* 侧栏 */
+.side{width:190px;flex:none;background:var(--ys-surface);border-right:1px solid var(--ys-border);display:flex;flex-direction:column;overflow:hidden}
+.side__b{padding:16px 18px 12px;font-size:16.5px;font-weight:600}
+.side__g{padding:9px 18px 4px;font-size:10.5px;font-weight:650;letter-spacing:.07em;color:#a4967f}
+.side__i{display:flex;align-items:center;gap:9px;height:35px;margin:1px 7px;padding:0 11px;border-radius:8px;font-size:13px;color:var(--ys-fg-2)}
+.side__i svg{width:17px;height:17px;flex:none;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side__i.on{background:var(--ys-accent-soft);color:var(--ys-accent);font-weight:600}
+.side__i.dim{color:var(--ys-muted)}
+
+/* 顶栏 */
+.tb{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);
+  display:flex;align-items:center;gap:10px;padding:0 16px}
+.tb__bk{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg)}
+.tb__bk svg{width:19px;height:19px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tb__t{flex:1;margin:0;font-size:16.5px;font-weight:600}
+.tb__sub{font-size:12.5px;color:var(--ys-muted)}
+
+/* AFTER:顶栏只保留标题与返回，提交只在吸底 —— 唯一入口 */
+.form{flex:1;overflow-y:auto;padding:14px 16px 0}
+.wrap{max-width:640px;margin:0 auto}
+
+/* AFTER:字段分组卡片 */
+.fcard{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 14px 12px;margin-bottom:11px}
+.flabel{display:flex;align-items:baseline;gap:5px;font-size:12.5px;font-weight:600;color:var(--ys-fg-2);margin-bottom:8px}
+.req{color:var(--ys-danger);font-weight:400}
+.fhint{font-size:11.5px;color:var(--ys-meta);margin:7px 0 0;line-height:1.55}
+
+.tin{display:flex;align-items:center;height:44px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);padding:0 13px;gap:8px}
+.tin input{flex:1;border:0;outline:0;background:none;font-size:14px;font-family:var(--font);color:var(--ys-fg);min-width:0}
+.tin input::placeholder{color:var(--ys-meta)}
+.tin__chev{flex:none;color:var(--ys-muted)}
+.tin__chev svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+.ta{width:100%;min-height:120px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);
+  padding:11px 13px;font-size:14px;line-height:1.65;font-family:var(--font);color:var(--ys-meta);resize:vertical}
+.tacount{text-align:right;font-size:11.5px;color:var(--ys-meta);margin-top:5px;font-variant-numeric:tabular-nums}
+
+/* AFTER:时长 5 个按钮一行等分网格，不再是 flex-wrap 让「自填」折到第二行 */
+.dgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.dbtn{height:42px;border:1px solid var(--ys-border);border-radius:9px;background:var(--ys-surface);
+  color:var(--ys-fg-2);font-size:12.5px;font-family:var(--font);display:flex;align-items:center;justify-content:center}
+.dbtn.on{background:var(--ys-accent);border-color:var(--ys-accent);color:#fff;font-weight:600}
+.dbtn--custom{grid-column:1 / -1}
+
+/* AFTER:数字输入用 stepper 更贴合「期望人数/价格」的语义 */
+.stepper{display:flex;align-items:center;gap:0;border:1px solid var(--ys-border);border-radius:10px;overflow:hidden;height:44px;background:var(--ys-surface)}
+.stepper__b{width:46px;height:100%;border:0;background:var(--ys-surface-2);color:var(--ys-fg-2);font-size:17px;font-family:var(--font);display:flex;align-items:center;justify-content:center}
+.stepper__v{flex:1;text-align:center;font-size:15px;font-variant-numeric:tabular-nums;color:var(--ys-fg)}
+
+/* 吸底 */
+.foot{flex:none;background:var(--ys-surface);border-top:1px solid var(--ys-border);padding:9px 16px 11px}
+.foot__r{max-width:640px;margin:0 auto}
+.foot__btn{width:100%;min-height:44px;border:1px solid var(--ys-accent);border-radius:var(--ys-r-full);
+  background:var(--ys-accent);color:#fff;font-size:15px;font-weight:600;font-family:var(--font)}
+
+.disc{background:var(--ys-surface-2);border-radius:var(--ys-r-lg);padding:11px 13px;font-size:11.5px;line-height:1.6;color:var(--ys-muted);margin-bottom:12px}
+
+/* AFTER:桌面右栏「发布须知」 */
+.dmain{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.dtop{flex:none;height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:12px;padding:0 22px}
+.dtop__t{font-size:15.5px;font-weight:600}
+.dtop__r{margin-left:auto;display:flex;align-items:center;gap:8px}
+.dcontent{flex:1;display:flex;gap:26px;padding:16px 24px 0;justify-content:center;overflow:hidden}
+.dcol{width:640px;flex:none;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.daside{width:268px;flex:none;display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 15px;box-shadow:var(--ys-sh1)}
+.panel h3{margin:0 0 9px;font-size:12.5px;font-weight:650;display:flex;align-items:center;gap:6px}
+.panel h3 .sq{width:7px;height:7px;border-radius:2px;background:var(--ys-accent)}
+.prow{display:flex;align-items:baseline;justify-content:space-between;padding:6px 0;font-size:12.5px;color:var(--ys-muted)}
+.prow+.prow{border-top:1px solid var(--ys-border-soft)}
+.prow b{color:var(--ys-fg);font-weight:650}
+.ptip{font-size:12px;line-height:1.75;color:var(--ys-muted);margin:0}
+.ptip b{color:var(--ys-fg-2)}
+/* 预览卡 */
+.pvcard{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 14px}
+.pvcat{font-size:11px;line-height:1.5;padding:2px 8px;border-radius:5px;background:var(--ys-accent-2-soft);color:var(--ys-accent-2);font-weight:600}
+.pvtitle{font-size:14px;font-weight:600;margin:8px 0 4px;color:var(--ys-fg)}
+.pvcont{font-size:12px;color:var(--ys-muted);margin:0 0 8px;line-height:1.5}
+.pvmeta{font-size:11px;color:var(--ys-meta);display:flex;gap:8px}
+
+/* 标注 */
+.marks{max-width:1400px;margin:16px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px}
+.mk{display:flex;gap:9px;font-size:12.5px;line-height:1.65;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;font-size:10.5px;font-weight:700;background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.bad{background:#f3dcd7;color:#a8392b}
+.mk .i.good{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+.mk code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>友声 · 发布活动 精修设计稿</h1>
+  <p>左：当前真实截图。右：同尺寸精修。配色沿用现有暖米 token。</p>
+  <p><b>实测 4 个问题：①顶栏和吸底各有一个提交按钮，都能提交 ②桌面端吸底按钮宽 1211px、表单只有 720px ③「自填」时长效输入框在手机上折到第二行 ④桌面端右侧 500px 全空</b></p>
+</div>
+
+<!-- ========== 1. 手机端 ========== -->
+<div class="row">
+  <h2><span class="num">1</span>手机端 · 390×844</h2>
+  <p class="note">核心问题：<b>两个提交按钮</b>、<b>「自填」折行</b>、<b>字段靠间距勉强区分</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="phone"><img src="../../.design-shots/mkt-pub-m390.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">发布活动</h1>
+          <!-- AFTER：顶栏不再放提交按钮，只留标题 -->
+        </div>
+
+        <div class="form"><div class="wrap">
+          <!-- AFTER：字段分组成卡 -->
+          <div class="fcard">
+            <div class="flabel">一级分类 <span class="req">*</span></div>
+            <div class="tin">
+              <input placeholder="选一个分类" readonly>
+              <span class="tin__chev"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+          </div>
+
+          <div class="fcard">
+            <div class="flabel">详情 <span class="req">*</span></div>
+            <div class="ta">把时间、地点、费用、怎么联系（在平台内）说清楚</div>
+            <div class="tacount">0 / 500</div>
+          </div>
+
+          <div class="fcard">
+            <div class="flabel">投放时长 <span class="req">*</span></div>
+            <!-- AFTER：5 个等分网格，一行排完 -->
+            <div class="dgrid">
+              <button class="dbtn">1 小时</button>
+              <button class="dbtn">3 小时</button>
+              <button class="dbtn on">6 小时</button>
+              <button class="dbtn">12 小时</button>
+              <button class="dbtn dbtn--custom">自填</button>
+            </div>
+            <p class="fhint">单次最长 12 小时，到期自动下架（记录保留，可重新激活）</p>
+          </div>
+
+          <div class="fcard">
+            <div class="flabel">期望人数</div>
+            <div class="stepper"><button class="stepper__b">−</button><div class="stepper__v">0</div><button class="stepper__b">+</button></div>
+            <p class="fhint">填 0 就是不限，人数仅供参考</p>
+          </div>
+
+          <div class="fcard">
+            <div class="flabel">价格</div>
+            <div class="stepper"><button class="stepper__b">−</button><div class="stepper__v">0.00</div><button class="stepper__b">+</button></div>
+            <p class="fhint">填 0 = 免费</p>
+          </div>
+
+          <div class="fcard">
+            <div class="flabel">地点</div>
+            <div class="tin"><input placeholder="如 东门小卖部" readonly></div>
+          </div>
+
+          <div class="disc">温馨提示：本平台仅提供信息展示与线上沟通渠道。所有线下见面、交易，请务必提高安全意识，自行承担风险。请勿私下进行大额转账。</div>
+        </div></div>
+
+        <!-- AFTER：唯一的提交入口 -->
+        <div class="foot"><div class="foot__r"><button class="foot__btn">发布活动</button></div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">1</span><div><b>两个提交按钮，都能提交</b>：顶栏 <code>.mpub__submit</code>（文案「发布」）和吸底 <code>.mpub__foot-btn</code>（文案「发布活动」）绑的是**同一个 <code>submit</code> 函数**。同一屏里两个「发布」入口、文案还不一致，用户不知道该点哪个，也会怀疑「点上面那个是不是不完整」。留一个即可。</div></div>
+    <div class="mk"><span class="i bad">2</span><div><b>「自填」时长效折到第二行</b>：实测 <code>durTops: [325]</code> 在桌面端是一行，但手机上 4 个胶囊 + 88px 输入框超过 326px 容器宽，于是「自填」折到第二行，孤零零占一整行。改成 5 等分网格后一行排完。</div></div>
+    <div class="mk"><span class="i bad">3</span><div><b>字段之间只靠间距区分</b>：现在是一整片米色底 + 各组之间 16px 空隙，六个字段视觉上完全同级。改成每组一张白卡后，字段边界一眼可辨。</div></div>
+    <div class="mk"><span class="i good">4</span><div><b>保留</b>：<code>expireTime</code> 必须按本地东八区墙钟序列化（注释里那个 <code>toISOString()</code> 会发 UTC 导致短时长落在过去的坑写得很清楚）、敏感词前端预检 + 后端最终判据的双层设计 —— 这两处逻辑是对的，不动。</div></div>
+  </div>
+</div>
+
+<!-- ========== 2. 桌面端 ========== -->
+<div class="row">
+  <h2><span class="num">2</span>桌面端 · 吸底按钮横跨整屏</h2>
+  <p class="note">实测：表单 <b>720px</b>，而吸底按钮 <b>1211px</b>、顶栏 <b>1243px</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="desk" style="width:900px;height:520px">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/mkt/publish</span>
+        </div>
+        <div class="desk__body"><img src="../../.design-shots/mkt-pub-d1512.png" style="width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="desk">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/mkt/publish</span>
+        </div>
+        <div class="desk__body">
+          <div class="side">
+            <div class="side__b">友声</div>
+            <div class="side__g">浏览</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>首页</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg>圈子</div>
+            <div class="side__i on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>集市</div>
+            <div class="side__g">我的</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>消息</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>通知</div>
+            <div class="side__i dim"><svg viewBox="0 0 24 24"><path d="M4 9.6h2.4L11 6v12l-4.6-3.6H4a1.1 1.1 0 0 1-1.1-1.1v-2.6A1.1 1.1 0 0 1 4 9.6Z"/></svg>公告</div>
+          </div>
+
+          <div class="dmain">
+            <div class="dtop">
+              <span class="dtop__t">发布活动</span>
+              <span class="tb__sub">发布后 12 小时内有效</span>
+            </div>
+
+            <div class="dcontent">
+              <div class="dcol">
+                <div class="fcard">
+                  <div class="flabel">一级分类 <span class="req">*</span></div>
+                  <div class="tin"><input placeholder="选一个分类" readonly><span class="tin__chev"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div>
+                </div>
+                <div class="fcard">
+                  <div class="flabel">详情 <span class="req">*</span></div>
+                  <div class="ta" style="min-height:96px">把时间、地点、费用、怎么联系（在平台内）说清楚</div>
+                  <div class="tacount">0 / 500</div>
+                </div>
+                <div class="fcard">
+                  <div class="flabel">投放时长 <span class="req">*</span></div>
+                  <div class="dgrid">
+                    <button class="dbtn">1 小时</button><button class="dbtn">3 小时</button>
+                    <button class="dbtn on">6 小时</button><button class="dbtn">12 小时</button>
+                    <button class="dbtn dbtn--custom">自填</button>
+                  </div>
+                  <p class="fhint">单次最长 12 小时，到期自动下架（记录保留，可重新激活）</p>
+                </div>
+              </div>
+
+              <!-- AFTER：桌面右栏。现在右侧 500px 全空 -->
+              <div class="daside">
+                <div class="panel">
+                  <h3><span class="sq"></span>发布须知</h3>
+                  <p class="ptip"><b>先选分类再写详情</b>，详情里把时间、地点、费用说清。<br><b>投放最长 12 小时</b>，到期自动下架，可重新激活。</p>
+                </div>
+                <div class="panel">
+                  <h3><span class="sq"></span>卡片会长这样</h3>
+                  <div class="pvcard">
+                    <span class="pvcat">跑腿代办</span>
+                    <p class="pvtitle">东门取快递</p>
+                    <p class="pvcont">东门菜鸟驿站，取件码后会发你。</p>
+                    <div class="pvmeta"><span>东门 · ¥5</span><span>目标 2 人</span></div>
+                  </div>
+                </div>
+                <div class="panel">
+                  <h3><span class="sq"></span>安全提示</h3>
+                  <p class="ptip"><b>不要写手机号、微信号</b>，沟通只在平台留言区。<br>涉及金钱请当面结清，<b>拒绝转账</b>。</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- AFTER：吸底按钮收进 640 列宽，不再横跨整屏 -->
+            <div class="foot" style="border-radius:0"><div class="foot__r" style="max-width:640px;margin:0 auto"><button class="foot__btn">发布活动</button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">5</span><div><b>吸底按钮 1211px、表单 720px</b>：实测 <code>.mpub__foot-btn w=1211</code>，而 <code>.mpf w=720</code> —— 按钮比表单宽 491px，横跨整个内容区。宽 1200 的一根主按钮在桌面上既难看也不像话。收进 640 列宽。</div></div>
+    <div class="mk"><span class="i bad">6</span><div><b>桌面端右侧 500px 空白</b>：内容列 720px，1512 视口下右边整片空。补三块：发布须知 / 卡片预览 / 安全提示。卡片预览尤其有用 —— 用户发布前能看见自己的活动长什么样。</div></div>
+    <div class="mk"><span class="i good">7</span><div><b>建议</b>：把「一级分类 / 详情 / 时长」三个必填项放左列，选填的「期望人数 / 价格 / 地点」可以在桌面端右列或第二屏 —— 但当前数据量下不建议拆，保持单列滚动更稳。</div></div>
+    <div class="mk"><span class="i good">8</span><div><b>保留</b>：<code>:teleported="false"</code>（下拉不传送到 body，避免移动端定位错乱）、<code>show-word-limit</code> 的 0/500 计数、编辑模式隐藏时长选择 —— 这三处判断都对。</div></div>
+  </div>
+</div>
+
+</body>
+</html>

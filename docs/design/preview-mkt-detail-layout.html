@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 活动详情页 结构重设计</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px; --ys-r-full:9999px;
+  --ys-sh1:0 1px 2px rgba(36,28,21,.06);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 100px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);-webkit-font-smoothing:antialiased;line-height:1.6}
+
+.hd{max-width:1320px;margin:0 auto 34px}
+.hd h1{font-size:27px;margin:0 0 12px;letter-spacing:-.01em}
+.hd p{margin:0 0 8px;color:#6b6156;font-size:14px}
+.hd p b{color:#2e261d}
+
+.sec{max-width:1320px;margin:0 auto 56px}
+.sec > h2{font-size:16px;font-weight:700;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.sec > h2 .n{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--ys-fg);color:#fff;font-size:12px;flex:none}
+.sec > .sub{margin:0 0 20px 34px;font-size:13px;color:#7a6f63}
+.sec > .sub b{color:#3a3128}
+
+.pair{display:flex;gap:48px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:10px}
+.ptag{font-size:11.5px;font-weight:650;letter-spacing:.06em}
+.ptag--before{color:#a8785f}
+.ptag--after{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;position:relative;background:var(--ys-bg);
+  box-shadow:0 0 0 9px #1c1917,0 0 0 11px #3a3531,0 24px 46px rgba(28,25,23,.28);display:flex;flex-direction:column}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.scr{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.tb{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);
+  display:flex;align-items:center;gap:10px;padding:0 16px}
+.tb__bk{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg)}
+.tb__bk svg{width:19px;height:19px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tb__t{flex:1;margin:0;font-size:16.5px;font-weight:600}
+.tb__ic{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg-2)}
+.tb__ic svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+.body{flex:1;overflow:hidden;padding:14px 16px 0}
+.wrap{width:100%;max-width:640px;margin:0 auto}
+
+/* 标签行 */
+.catrow{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.cat{font-size:11px;line-height:1.5;padding:2px 8px;border-radius:5px;background:var(--ys-accent-2-soft);color:var(--ys-accent-2);font-weight:600}
+.sub{font-size:11.5px;color:var(--ys-muted)}
+.timer{margin-left:auto;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--ys-fg-2);font-variant-numeric:tabular-nums}
+.timer--warn{color:var(--ys-warning)}
+.timer svg{width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
+.report{flex:none;font-size:11px;color:var(--ys-meta);background:none;border:0;padding:0 4px;font-family:var(--font)}
+
+.title{margin:0 0 8px;font-size:21px;line-height:1.4;font-weight:600;letter-spacing:-.005em}
+.content{margin:0 0 14px;font-size:14.5px;line-height:1.65;color:var(--ys-fg-2);white-space:pre-wrap}
+.infolist{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);overflow:hidden;margin-bottom:14px}
+.inforow{display:flex;align-items:center;gap:10px;padding:10px 13px;font-size:13px}
+.inforow+.inforow{border-top:1px solid var(--ys-border-soft)}
+.inforow svg{width:15px;height:15px;flex:none;stroke:var(--ys-accent-2);stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.inforow__k{flex:none;width:4.5em;color:var(--ys-muted)}
+.inforow__v{flex:1;min-width:0;color:var(--ys-fg);font-weight:500}
+
+/* AFTER：发布者放最上 */
+.pubtop{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--ys-border-soft);margin-bottom:14px}
+.pubtop__ava{width:36px;height:36px;border-radius:50%;background:#D8E8E0;display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--ys-fg);flex:none;overflow:hidden}
+.pubtop__ava img{width:100%;height:100%;object-fit:cover}
+.pubtop__main{flex:1;min-width:0}
+.pubtop__n{font-size:13.5px;font-weight:600;color:var(--ys-fg)}
+.pubtop__d{font-size:11.5px;color:var(--ys-muted);margin-top:1px}
+.pubtop__more{flex:none;font-size:11.5px;color:var(--ys-accent);text-decoration:none}
+
+/* 留言 */
+.cm{margin-top:16px}
+.cm__head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cm__h{font-size:13.5px;font-weight:650;color:var(--ys-fg-2);margin:0}
+.cm__n{font-size:11.5px;color:var(--ys-meta)}
+.cm__act{margin-left:auto;min-height:34px;padding:0 14px;border:1px solid var(--ys-accent);border-radius:var(--ys-r-full);
+  background:var(--ys-accent);color:#fff;font-size:12.5px;font-weight:600;font-family:var(--font)}
+
+/* 留言抽屉 */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ys-surface);border-radius:18px 18px 0 0;
+  box-shadow:0 -8px 28px rgba(36,28,21,.16);padding:14px 16px 18px;z-index:5}
+.sheet__h{display:flex;align-items:center;margin-bottom:10px}
+.sheet__t{font-size:14.5px;font-weight:650}
+.sheet__x{margin-left:auto;width:32px;height:32px;display:grid;place-items:center;border:0;background:none;color:var(--ys-muted)}
+.sheet__ta{width:100%;min-height:88px;border:1px solid var(--ys-border);border-radius:10px;padding:10px 12px;
+  font-size:14px;line-height:1.6;font-family:var(--font);color:var(--ys-fg);background:var(--ys-surface)}
+.sheet__foot{display:flex;align-items:center;gap:10px;margin-top:10px}
+.sheet__count{font-size:11.5px;color:var(--ys-meta);font-variant-numeric:tabular-nums}
+.sheet__send{margin-left:auto;min-height:40px;padding:0 22px;border:0;border-radius:var(--ys-r-full);
+  background:var(--ys-accent);color:#fff;font-size:13.5px;font-weight:600;font-family:var(--font)}
+
+/* 风险弹窗 */
+.modal{position:absolute;inset:0;background:rgba(36,28,21,.42);display:grid;place-items:center;z-index:9;padding:24px}
+.dialog{width:100%;max-width:320px;background:var(--ys-surface);border-radius:16px;padding:20px 18px 16px;box-shadow:0 12px 40px rgba(36,28,21,.24)}
+.dialog__t{margin:0 0 10px;font-size:16px;font-weight:650;display:flex;align-items:center;gap:8px}
+.dialog__t svg{width:18px;height:18px;stroke:var(--ys-warning);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.dialog__b{margin:0 0 14px;font-size:12.5px;line-height:1.7;color:var(--ys-fg-2)}
+.dialog__b b{color:var(--ys-fg)}
+.dialog__check{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ys-muted);margin-bottom:16px}
+.dialog__box{width:16px;height:16px;border:1.5px solid var(--ys-border-control);border-radius:4px;flex:none}
+.dialog__box--on{background:var(--ys-accent);border-color:var(--ys-accent);position:relative}
+.dialog__box--on::after{content:'';position:absolute;left:4.2px;top:1.2px;width:5px;height:9px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(42deg)}
+.dialog__ok{width:100%;min-height:42px;border:0;border-radius:var(--ys-r-lg);background:var(--ys-accent);color:#fff;font-size:14px;font-weight:600;font-family:var(--font)}
+
+/* 列表页留言条 */
+.cmitem{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--ys-border-soft)}
+.cmitem__ava{width:28px;height:28px;border-radius:50%;background:#E8DDC8;display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ys-fg-2);flex:none}
+.cmitem__b{flex:1;min-width:0}
+.cmitem__n{font-size:12px;font-weight:600;color:var(--ys-fg-2)}
+.cmitem__t{font-size:13px;color:var(--ys-fg-2);margin:2px 0 3px;line-height:1.55;overflow-wrap:anywhere}
+.cmitem__m{font-size:11px;color:var(--ys-meta);display:flex;gap:10px}
+.cmitem__empty{padding:24px 0 8px;text-align:center;font-size:12.5px;color:var(--ys-muted)}
+
+/* 顺序对比 */
+.order{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.order__col{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:15px 17px}
+.order__col h3{margin:0 0 11px;font-size:13.5px;font-weight:650}
+.order__col ol{margin:0;padding-left:20px;font-size:12.5px;color:#544a3f;line-height:2}
+.order__col li.move{color:var(--ys-accent);font-weight:650}
+.order__col li.del{color:#a8392b;text-decoration:line-through}
+
+/* 标注 */
+.marks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px;margin:14px auto 0;max-width:1320px}
+.mk{display:flex;gap:9px;font-size:12.5px;line-height:1.62;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;font-size:10.5px;font-weight:700;background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.bad{background:#f3dcd7;color:#a8392b}
+.mk .i.good{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+.mk code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11.5px}
+
+.note{background:var(--ys-warning-soft);border-left:3px solid var(--ys-warning);border-radius:0 var(--ys-r-lg) var(--ys-r-lg) 0;padding:12px 16px;margin:14px 0;font-size:12.5px;color:#544a3f}
+.note b{color:var(--ys-warning)}
+.note--info{background:var(--ys-accent-soft);border-left-color:var(--ys-accent)}
+.note--info b{color:var(--ys-accent)}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>活动详情页 · 结构重设计</h1>
+  <p>针对你的四点：①发布者挪到最上面 ②风险警告改弹窗 + 可勾选不再提醒 ③活动信息下面直接是留言 ④留言输入框怎么处理</p>
+</div>
+
+<!-- ========== 1. 顺序调整 ========== -->
+<div class="sec">
+  <h2><span class="n">1</span>信息顺序：发布者上前、警告让位</h2>
+  <p class="sub">现在的顺序把「谁发的」放在很后面，用户读完信息才看到人；而大段免责声明横在中间，把正文和留言隔开。</p>
+
+  <div class="order">
+    <div class="order__col">
+      <h3>现在</h3>
+      <ol>
+        <li>分类 · 王者荣耀 · 倒计时</li>
+        <li>标题「今晚开黑缺一个打野」</li>
+        <li>正文「晚上八点，钻石以上」</li>
+        <li>信息卡（地点/价格/人数/剩余）</li>
+        <li class="del">免责声明（大段文字，占 4 行）</li>
+        <li>发布者（头像 + 昵称 + 时间）</li>
+        <li>分割线</li>
+        <li>留言区（提示 + 警示 + 输入框 + 列表）</li>
+      </ol>
+    </div>
+    <div class="order__col">
+      <h3>改后</h3>
+      <ol>
+        <li class="move">发布者（头像 + 昵称 + 时间）← 提到最上</li>
+        <li>分类 · 王者荣耀 · 倒计时</li>
+        <li>标题「今晚开黑缺一个打野」</li>
+        <li>正文「晚上八点，钻石以上」</li>
+        <li>信息卡（地点/价格/人数/剩余）</li>
+        <li class="move">留言区 ← 紧接信息卡</li>
+        <li class="del">免责声明（改成首次弹窗）</li>
+        <li class="del">分割线（不再需要）</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i good">✓</span><div><b>发布者提到最上</b>：集市是「找一个人办事」的场景 —— 用户第二个想知道的就是「这人靠谱吗」。现在它被 4 行免责声明隔在很后面，等于把最重要的信任信号藏了。</div></div>
+    <div class="mk"><span class="i bad">✗</span><div><b>免责声明挤出正文区</b>：它占 4 行、颜色又比正文还重（暖底块），读者会以为它才是正文。这类「每次都要看的免责」适合做成一次性提示，而不是常驻。</div></div>
+  </div>
+</div>
+
+<!-- ========== 2. 前后对照 ========== -->
+<div class="sec">
+  <h2><span class="n">2</span>手机端前后对照</h2>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--before">现在</div>
+      <div class="phone"><img src="../../.design-shots/detail-final-m390.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--after">改后</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">活动详情</h1>
+          <button class="tb__ic"><svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg></button>
+        </div>
+
+        <div class="body"><div class="wrap">
+          <!-- AFTER ①：发布者最上 -->
+          <div class="pubtop">
+            <div class="pubtop__ava"><img src="../../.design-shots/avatar-sample.png" onerror="this.style.display='none'" alt=""></div>
+            <div class="pubtop__main">
+              <div class="pubtop__n">3420232712</div>
+              <div class="pubtop__d">2 小时前发布</div>
+            </div>
+            <a class="pubtop__more" href="#">主页 ›</a>
+          </div>
+
+          <div class="catrow">
+            <span class="cat">游戏组队</span>
+            <span class="sub">王者荣耀</span>
+            <span class="timer timer--warn"><svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7.5V12l3 2"/></svg>剩 3 时 18 分</span>
+            <button class="report">举报</button>
+          </div>
+
+          <h2 class="title">今晚开黑缺一个打野</h2>
+          <p class="content">晚上八点，钻石以上，缺打野位。</p>
+
+          <div class="infolist">
+            <div class="inforow"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg><span class="inforow__k">地点</span><span class="inforow__v">线上</span></div>
+            <div class="inforow"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7"/></svg><span class="inforow__k">价格</span><span class="inforow__v">免费</span></div>
+            <div class="inforow"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg><span class="inforow__k">期望人数</span><span class="inforow__v">5 人</span></div>
+            <div class="inforow"><svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7.5V12l3 2"/></svg><span class="inforow__k">剩余</span><span class="inforow__v" style="color:var(--ys-warning)">剩 3 时 18 分</span></div>
+          </div>
+
+          <!-- AFTER ③：留言紧接信息卡 -->
+          <div class="cm">
+            <div class="cm__head">
+              <p class="cm__h">留言</p>
+              <span class="cm__n">3 条</span>
+              <button class="cm__act">写留言</button>
+            </div>
+
+            <div class="cmitem">
+              <div class="cmitem__ava">W</div>
+              <div class="cmitem__b">
+                <div class="cmitem__n">WJ</div>
+                <p class="cmitem__t">我有空，一起！</p>
+                <div class="cmitem__m"><span>10 分钟前</span><span>举报</span></div>
+              </div>
+            </div>
+            <div class="cmitem">
+              <div class="cmitem__ava">3</div>
+              <div class="cmitem__b">
+                <div class="cmitem__n">3420232712</div>
+                <p class="cmitem__t">加一个，我打野位。</p>
+                <div class="cmitem__m"><span>8 分钟前</span><span>举报</span></div>
+              </div>
+            </div>
+            <div class="cmitem">
+              <div class="cmitem__ava">W</div>
+              <div class="cmitem__b">
+                <div class="cmitem__n">WJ</div>
+                <p class="cmitem__t">八点我在线上等</p>
+                <div class="cmitem__m"><span>5 分钟前</span><span>举报</span></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i good">1</span><div><b>发布者第一眼可见</b>：头像 + 昵称 + 发布时间 + 「主页 ›」。点主页能看这人的历史活动与认证 —— 这是「这条活动可不可信」的主要依据。</div></div>
+    <div class="mk"><span class="i good">2</span><div><b>留言紧跟信息卡</b>：读完全部信息，下一个动作就是「我要不要留一句」。原来中间隔着免责声明和分割线，是纯打断。</div></div>
+    <div class="mk"><span class="i good">3</span><div><b>输入框收进抽屉</b>：见第 4 节。</div></div>
+    <div class="mk"><span class="i good">4</span><div><b>免责声明挪走</b>：改成首次进入时弹一次，见第 3 节。页面主体不再被 4 行警告占据。</div></div>
+  </div>
+</div>
+
+<!-- ========== 3. 风险警告改弹窗 ========== -->
+<div class="sec">
+  <h2><span class="n">3</span>风险警告：常驻 → 首次弹窗 + 「不再提醒」</h2>
+  <p class="sub">现在的免责声明在页面上出现 <b>两次</b>（信息区下方一大段 + 留言区上方一条橙色警示），每次都占 4 行以上。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--after">首次进入时弹出</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">活动详情</h1>
+        </div>
+        <div class="body" style="opacity:.45"><div class="wrap">
+          <div class="pubtop">
+            <div class="pubtop__ava">3</div>
+            <div class="pubtop__main"><div class="pubtop__n">3420232712</div><div class="pubtop__d">2 小时前发布</div></div>
+          </div>
+          <div class="catrow"><span class="cat">游戏组队</span><span class="sub">王者荣耀</span></div>
+          <h2 class="title">今晚开黑缺一个打野</h2>
+        </div></div>
+
+        <div class="modal">
+          <div class="dialog">
+            <h3 class="dialog__t"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>安全提示</h3>
+            <p class="dialog__b">
+              本平台仅提供信息展示与线上沟通渠道，<b>不参与任何线下交易</b>。<br>
+              见面请在<b>校内公共区域</b>，涉及金钱请当面结清，<b>拒绝私下转账</b>。
+            </p>
+            <label class="dialog__check">
+              <span class="dialog__box"></span>不再提醒
+            </label>
+            <button class="dialog__ok">我知道了</button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--after">勾选后，页面干净了</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">活动详情</h1>
+        </div>
+        <div class="body"><div class="wrap">
+          <div class="pubtop">
+            <div class="pubtop__ava">3</div>
+            <div class="pubtop__main"><div class="pubtop__n">3420232712</div><div class="pubtop__d">2 小时前发布</div></div>
+            <a class="pubtop__more" href="#">主页 ›</a>
+          </div>
+          <div class="catrow">
+            <span class="cat">游戏组队</span><span class="sub">王者荣耀</span>
+            <span class="timer timer--warn">剩 3 时 18 分</span>
+            <button class="report">举报</button>
+          </div>
+          <h2 class="title">今晚开黑缺一个打野</h2>
+          <p class="content">晚上八点，钻石以上，缺打野位。</p>
+          <div class="infolist">
+            <div class="inforow"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/></svg><span class="inforow__k">地点</span><span class="inforow__v">线上</span></div>
+            <div class="inforow"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7"/></svg><span class="inforow__k">价格</span><span class="inforow__v">免费</span></div>
+          </div>
+          <div class="cm" style="margin-top:14px">
+            <div class="cm__head"><p class="cm__h">留言</p><span class="cm__n">3 条</span><button class="cm__act">写留言</button></div>
+            <div class="cmitem"><div class="cmitem__ava">W</div><div class="cmitem__b"><div class="cmitem__n">WJ</div><p class="cmitem__t">我有空，一起！</p><div class="cmitem__m"><span>10 分钟前</span></div></div></div>
+          </div>
+          <!-- AFTER：勾选后仍有一条极轻的行内提示 -->
+          <p style="margin:14px 0 0;font-size:11px;color:var(--ys-meta);text-align:center">本平台不参与线下交易 · <span style="color:var(--ys-accent)">安全须知</span></p>
+        </div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i good">1</span><div><b>首次进入弹一次</b>：用 <code>localStorage</code> 记 <code>mkt_risk_ack</code>。这类「你已知晓风险」的告知，法律意义在于<b>知悉过</b>，不需要每屏都重复。</div></div>
+    <div class="mk"><span class="i good">2</span><div><b>勾选「不再提醒」</b>：勾了就永久跳过；不勾则下次进入还会弹。这样既尊重「我知道，别烦我」的用户，也保留了每次提醒。</div></div>
+    <div class="mk"><span class="i good">3</span><div><b>勾选后仍有极轻兜底</b>：页面底部一行 11px 灰字「本平台不参与线下交易 · 安全须知（可点开）」—— 不是常驻大块，但也不是完全消失。点「安全须知」能重新打开全文。</div></div>
+    <div class="mk"><span class="i bad">✗</span><div><b>留言区上方那条橙色警示一起去掉</b>：它现在和弹窗内容重复。改成：只有<b>首次写留言</b>时在输入框下方给一行行内提示（「请勿留手机号」），不再整块常驻。</div></div>
+  </div>
+</div>
+
+<!-- ========== 4. 留言输入框 ========== -->
+<div class="sec">
+  <h2><span class="n">4</span>留言输入框：常驻 textarea → 「写留言」按钮 + 底部抽屉</h2>
+  <p class="sub">你问的这一点，我的判断是：<b>手机端必须改成按钮 + 抽屉</b>，桌面端保留常驻输入框。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--after">点「写留言」弹出</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">活动详情</h1>
+        </div>
+        <div class="body" style="opacity:.5"><div class="wrap">
+          <div class="pubtop"><div class="pubtop__ava">3</div><div class="pubtop__main"><div class="pubtop__n">3420232712</div><div class="pubtop__d">2 小时前发布</div></div></div>
+          <div class="catrow"><span class="cat">游戏组队</span><span class="sub">王者荣耀</span></div>
+          <h2 class="title">今晚开黑缺一个打野</h2>
+        </div></div>
+
+        <!-- AFTER：底部抽屉 -->
+        <div class="sheet">
+          <div class="sheet__h">
+            <span class="sheet__t">写留言</span>
+            <button class="sheet__x"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          </div>
+          <div class="sheet__ta" style="color:var(--ys-meta)">说点什么，例如「我有空，一起！」</div>
+          <div class="sheet__foot">
+            <span class="sheet__count">0 / 500</span>
+            <button class="sheet__send">发出去</button>
+          </div>
+          <p style="margin:8px 0 0;font-size:11px;color:var(--ys-meta)">请勿留手机号、微信号等隐私信息</p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:320px">
+      <div class="ptag ptag--after">为什么这么改</div>
+
+      <table style="width:100%;border-collapse:collapse;background:var(--ys-surface);border-radius:12px;overflow:hidden;font-size:12.5px">
+        <tr><th style="padding:10px 12px;background:var(--ys-surface-2);text-align:left;font-weight:650">问题</th><th style="padding:10px 12px;background:var(--ys-surface-2);text-align:left;font-weight:650">说明</th></tr>
+        <tr>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft);white-space:nowrap">占屏</td>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">常驻 textarea 至少 90px 高（含边框与按钮），而多数访客只看不留言 —— 这块空间对他们是纯浪费。</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft);white-space:nowrap">键盘遮挡</td>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">手机点进 textarea 后键盘弹起，页面会被顶起，而输入框可能正好在键盘下方 —— 现在已经要额外处理。</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft);white-space:nowrap">误触</td>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">滚动时手指容易碰到 textarea，直接弹键盘打断浏览。</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft);white-space:nowrap">抽屉优势</td>
+          <td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">抽屉是<b>主动发起</b>的，键盘弹起时抽屉跟着上移，输入区天然在可视区顶部；关闭后页面回到原位。</td>
+        </tr>
+      </table>
+
+      <div class="note note--info">
+        <b>桌面端不改成抽屉。</b>桌面没有键盘遮挡问题，常驻输入框更顺手（可以边读留言边写）。保留现在的做法，只在 <code>&lt;1024px</code> 用按钮 + 抽屉。
+      </div>
+
+      <div class="note">
+        <b>列表页不放输入框。</b>详情页「留言 N 条」下面直接是列表，每条只显示「昵称 / 内容 / 时间 / 举报」。写留言统一从右上角「写留言」进 —— 一个入口，不散落。
+      </div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i good">1</span><div><b>入口在留言区标题右侧</b>：<code>留言 3 条 ······ [写留言]</code>。位置固定，不随列表长度变化。</div></div>
+    <div class="mk"><span class="i good">2</span><div><b>抽屉里的结构</b>：标题 + 关闭、textarea（自动聚焦）、字数 0/500、主按钮「发出去」、一行隐私提示。隐私提示只在<b>写留言时</b>出现，读完就收。</div></div>
+    <div class="mk"><span class="i good">3</span><div><b>空态</b>：还没有留言时，标题下方显示「还没有留言 · 来做第一个」，右侧按钮变成「写第一条」。空态也提供入口，不只依赖右上角。</div></div>
+    <div class="mk"><span class="i good">4</span><div><b>草稿保留</b>：抽屉意外关闭（点遮罩/按 ESC）时保留草稿，下次打开还在。现有的 <code>submitError</code> 保留草稿逻辑可以复用。</div></div>
+  </div>
+</div>
+
+<!-- ========== 5. 落地清单 ========== -->
+<div class="sec">
+  <h2><span class="n">5</span>落地清单</h2>
+  <table style="width:100%;border-collapse:collapse;background:var(--ys-surface);border-radius:12px;overflow:hidden;font-size:12.5px">
+    <tr>
+      <th style="padding:10px 12px;background:var(--ys-surface-2);text-align:left;width:5%">#</th>
+      <th style="padding:10px 12px;background:var(--ys-surface-2);text-align:left;width:30%">改动</th>
+      <th style="padding:10px 12px;background:var(--ys-surface-2);text-align:left;width:12%">端</th>
+      <th style="padding:10px 12px;background:var(--ys-surface-2);text-align:left">说明</th>
+    </tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">1</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">发布者块移到模板最前</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">纯 DOM 顺序调整；顺带把头像尺寸从 34 → 36、加「主页 ›」入口</td></tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">2</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">删除信息区下方的大段免责</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">改由弹窗承担</td></tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">3</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">新增风险弹窗组件</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)"><code>localStorage.mkt_risk_ack</code> 控制；勾选「不再提醒」后永久跳过</td></tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">4</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">页面底部加一行极轻兜底提示</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">11px 灰字，可点开重看全文</td></tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">5</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">留言区移到信息卡之后、去掉分割线</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">DOM 顺序</td></tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">6</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">留言输入框：手机改抽屉、桌面保留</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">MktComments 内部按断点分叉；提交逻辑不变</td></tr>
+    <tr><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">7</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">删除留言区上方常驻橙色警示</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">前端</td><td style="padding:10px 12px;border-top:1px solid var(--ys-border-soft)">改成抽屉内一行小字</td></tr>
+  </table>
+
+  <div class="note">
+    <b>后端零改动。</b>七项全部是前端结构与交互调整，接口和字段都不动。
+  </div>
+
+  <div class="note note--info">
+    <b>需要你确认：</b>风险弹窗的「不再提醒」勾选后永久跳过 —— 这符合大多数 App 做法，但如果这是课程作业、导师要求每次进入都必须看到风险告知，那就不要「不再提醒」这个勾选框，只保留「我知道了」。
+  </div>
+</div>
+
+</body>
+</html>

@@ -2285,6 +2285,123 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+
+  # ---------------------------------------------------------------------------
+  # 圈子成员 / 活动报名者（2026-10-21 补录）
+  #
+  # 这两条此前没进契约，但端点早已存在并被前端使用 —— 契约漏记本身是问题：
+  # 「端点清单以本文件为唯一依据」这句写在文件头上，漏了就等于没有依据。
+  # ---------------------------------------------------------------------------
+
+  /circle/{id}/members:
+    get:
+      operationId: circleMembers
+      tags: [circle]
+      summary: 圈子成员列表
+      description: |
+        按角色排序（1 圈主 / 2 圈管理 / 3 成员）返回该圈全部成员。
+
+        **可见范围：所有人**（含非成员与未登录）。圈子是公开组织，
+        「里面有哪些人」是加入决策的一部分。因此这里只下发
+        昵称、头像、年级、学院 —— **不含学号**（SPEC AC-12）。
+
+        含 `banStatus`：前端据此把已封禁成员从公开列表里滤掉，
+        圈主/圈管理在管理面板内仍能看到他们。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 成员数组，按 role 升序
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: 成功 }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId: { type: integer, format: int64 }
+                        nickname: { type: string }
+                        avatarUrl: { type: string, nullable: true }
+                        role:
+                          type: integer
+                          description: 1 圈主 / 2 圈管理 / 3 普通成员
+                          enum: [1, 2, 3]
+                        banStatus:
+                          type: integer
+                          description: 圈内封禁 0 正常 / 1 封禁
+                          enum: [0, 1]
+                        banUntil:
+                          type: string
+                          format: date-time
+                          nullable: true
+                          description: 封禁到期；null 表示长期封禁或未封禁
+                        joinTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        grade:
+                          type: string
+                          nullable: true
+                          description: 年级，如「2023级」（字典化前的老用户可能为 null）
+                        dept:
+                          type: string
+                          nullable: true
+                          description: 学院名称（同上，可能为 null）
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /activity/{id}/signups:
+    get:
+      operationId: activitySignups
+      tags: [activity]
+      summary: 活动报名者名单
+      description: |
+        按报名先后（`activity_signup.id` 升序）返回该活动的报名者。
+
+        **为什么用 id 而不是 create_time 排序**：同一秒内批量报名时
+        create_time 会撞，而 id 单调唯一。
+
+        **可见范围：所有人**。这类活动常是线下见面，
+        「知道同去的是谁」直接影响来不来、也关系到安全。
+        因此只下发昵称与头像 —— 不含学号、年级、学院。
+
+        与 `/activity/{id}` 拆成两个端点：名单是「可能变、可能很长」的数据，
+        详情是「一次拿全」。拆开后详情页可以先渲染主体、名单后到。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 报名者数组，按报名先后
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 200 }
+                  message: { type: string, example: 成功 }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId: { type: integer, format: int64 }
+                        nickname: { type: string }
+                        avatarUrl: { type: string, nullable: true }
+                        isMe:
+                          type: boolean
+                          description: 是否为当前查看者自己（未登录时恒 false）
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
 
   # ---------------------------------------------------------------------------
@@ -2452,8 +2569,11 @@ components:
       properties:
         targetType:
           type: integer
-          description: 1用户 2帖子 3评论 4聊天消息 5搭子
-          enum: [1, 2, 3, 4, 5]
+          description: |
+            1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动
+            - 5搭子：buddy_post 表已建但无端点，只支持驳回/忽略，封禁会回 422
+            - 6集市活动：2026-10-21 新增。此前集市误用 5，导致举报能提交、管理员无法处置
+          enum: [1, 2, 3, 4, 5, 6]
           example: 4
         targetId:
           type: integer
@@ -3658,6 +3778,12 @@ components:
         lastMsgId: { type: integer, format: int64, nullable: true }
         lastPreview: { type: string, nullable: true }
         lastMsgTime: { type: string, format: date-time, nullable: true }
+        pinned:
+          type: boolean
+          description: 我对该群的置顶(chat_conv_pref),列表排序先排 pinned
+        muted:
+          type: boolean
+          description: 我对该群的免打扰(chat_conv_pref)
 
     MemberItem:
       type: object
@@ -3667,6 +3793,9 @@ components:
         isOwner: { type: boolean }
         isSelf: { type: boolean }
         muted: { type: boolean }
+        joinDate:
+          type: string
+          description: 入群日期 MM-dd(成员表 create_time 格式化,不是完整时间戳)
 
     GroupMemberInfoVO:
       type: object
@@ -3688,6 +3817,9 @@ components:
         isOwner: { type: boolean }
         isSelf: { type: boolean }
         muted: { type: boolean }
+        joinDate:
+          type: string
+          description: 入群日期 MM-dd(嵌套 MemberItem 字段,此处拍平给 verify-contract)
 
     GroupMessageVO:
       type: object
@@ -4636,3 +4768,4 @@ components:
         message:
           type: string
           example: 成功
+

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 集市广场 精修设计稿</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px; --ys-r-full:9999px;
+  --ys-sh1:0 1px 2px rgba(36,28,21,.06);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 90px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);-webkit-font-smoothing:antialiased}
+
+.hd{max-width:1400px;margin:0 auto 36px}
+.hd h1{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:14px;line-height:1.75}
+.hd p b{color:#3a3128}
+
+.row{max-width:1400px;margin:0 auto 66px}
+.row > h2{font-size:15px;font-weight:650;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.row > h2 .num{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:12px}
+.row > .note{margin:0 0 18px 32px;font-size:13px;color:#7a6f63;line-height:1.7}
+.row > .note b{color:#3a3128}
+
+.pair{display:flex;gap:52px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:10px}
+.pane__tag{font-size:11.5px;font-weight:650;letter-spacing:.06em}
+.pane__tag--before{color:#a8785f}
+.pane__tag--after{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;position:relative;background:var(--ys-bg);
+  box-shadow:0 0 0 9px #1c1917,0 0 0 11px #3a3531,0 24px 46px rgba(28,25,23,.28);display:flex;flex-direction:column}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.scr{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.desk{width:1180px;height:740px;border-radius:12px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 1px #cbbfa8,0 20px 46px rgba(60,45,28,.2);display:flex;flex-direction:column}
+.desk__bar{flex:none;height:32px;background:#e6dccb;display:flex;align-items:center;gap:7px;padding:0 13px;border-bottom:1px solid #d8ccb7}
+.desk__dot{width:10px;height:10px;border-radius:50%}
+.desk__url{flex:1;height:19px;border-radius:5px;background:#f3ece0;margin-left:9px;display:flex;align-items:center;padding:0 10px;font-size:10.5px;color:#8a7d6b;font-family:ui-monospace,monospace}
+.desk__body{flex:1;display:flex;overflow:hidden;position:relative}
+
+/* 侧栏 */
+.side{width:190px;flex:none;background:var(--ys-surface);border-right:1px solid var(--ys-border);display:flex;flex-direction:column;overflow:hidden}
+.side__b{padding:16px 18px 12px;font-size:16.5px;font-weight:600}
+.side__g{padding:9px 18px 4px;font-size:10.5px;font-weight:650;letter-spacing:.07em;color:#a4967f}
+.side__i{display:flex;align-items:center;gap:9px;height:35px;margin:1px 7px;padding:0 11px;border-radius:8px;font-size:13px;color:var(--ys-fg-2)}
+.side__i svg{width:17px;height:17px;flex:none;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side__i.on{background:var(--ys-accent-soft);color:var(--ys-accent);font-weight:600}
+.side__i.dim{color:var(--ys-muted)}
+
+/* 顶栏 */
+.tb{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);
+  display:flex;align-items:center;gap:10px;padding:0 16px}
+.tb__bk{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg)}
+.tb__bk svg{width:19px;height:19px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tb__t{flex:1;margin:0;font-size:16.5px;font-weight:600}
+.tb__stat{font-size:12.5px;color:var(--ys-muted)}
+.tb__ic{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg-2)}
+.tb__ic svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* 内容 */
+.body{flex:1;overflow:hidden;padding:14px 16px 0}
+.wrap{width:100%;max-width:900px;margin:0 auto}
+
+/* 工具条：AFTER 把发布按钮塞进顶栏、分类改成单行横滑 */
+.toolrow{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.chips{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;flex:1;padding:2px 0;
+  -webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 16px),transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 16px),transparent 100%)}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:34px;padding:0 14px;border-radius:var(--ys-r-full);border:1px solid var(--ys-border);
+  background:var(--ys-surface);color:var(--ys-fg-2);font-size:13px;font-family:var(--font);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px}
+.chip svg{width:13px;height:13px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.chip.on{background:var(--ys-accent);border-color:var(--ys-accent);color:#fff;font-weight:600}
+.chip__n{font-size:11px;opacity:.7;font-variant-numeric:tabular-nums}
+
+/* Tab */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--ys-border-soft);margin-bottom:14px}
+.tab{position:relative;height:42px;display:flex;align-items:center;padding:0 2px;margin-right:26px;
+  font-size:14.5px;color:var(--ys-muted);background:none;border:0;font-family:var(--font)}
+.tab.on{color:var(--ys-accent);font-weight:600}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2.5px;border-radius:2px;background:var(--ys-accent)}
+.tab__n{margin-left:5px;font-size:11.5px;color:var(--ys-meta);font-variant-numeric:tabular-nums}
+
+/* 活动卡片：AFTER 用网格双列 */
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.acard{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 14px;
+  display:flex;flex-direction:column;gap:8px}
+.acard__h{display:flex;align-items:center;gap:7px}
+.acat{font-size:11px;line-height:1.5;padding:2px 8px;border-radius:5px;background:var(--ys-accent-2-soft);color:var(--ys-accent-2);font-weight:600}
+.asub{font-size:11px;color:var(--ys-muted)}
+.atitle{margin:0;font-size:14.5px;line-height:1.45;font-weight:600;color:var(--ys-fg);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.acont{margin:0;font-size:12.5px;line-height:1.5;color:var(--ys-muted);
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.ameta{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ys-meta);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.ameta svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px}
+/* 剩余时间：AFTER 加紧迫感 */
+.afoot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:8px;border-top:1px solid var(--ys-border-soft)}
+.left{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.left--urgent{color:var(--ys-danger)}
+.left--soon{color:var(--ys-warning)}
+.left--ok{color:var(--ys-muted)}
+.left svg{width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.slots{margin-left:auto;font-size:11.5px;color:var(--ys-fg-2);font-variant-numeric:tabular-nums}
+.slots b{font-weight:600}
+/* 进度条：名额占用 */
+.pbar{height:3px;border-radius:2px;background:var(--ys-surface-2);overflow:hidden;margin-top:2px}
+.pbar__f{height:100%;border-radius:2px;background:var(--ys-accent)}
+
+/* 空态 AFTER */
+.empty{display:flex;flex-direction:column;align-items:center;gap:9px;padding:38px 20px 14px;text-align:center}
+.empty svg{width:34px;height:34px;stroke:var(--ys-muted);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.empty__t{font-size:16px;font-weight:600;color:var(--ys-fg)}
+.empty__d{font-size:13px;color:var(--ys-muted);line-height:1.6;max-width:280px}
+.empty__btn{margin-top:4px;min-height:40px;padding:0 22px;border-radius:var(--ys-r-full);border:0;
+  background:var(--ys-accent);color:#fff;font-size:13.5px;font-weight:600;font-family:var(--font)}
+/* AFTER：空态下方补「热门分类」入口，把空白用起来 */
+.emptycats{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:18px;max-width:320px}
+.emptycats .chip{min-height:32px;font-size:12px}
+
+/* TabBar */
+.tb2{flex:none;height:56px;display:flex;background:var(--ys-surface);border-top:1px solid var(--ys-border)}
+.tbi{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ys-muted)}
+.tbi.on{color:var(--ys-accent)}
+.tbi svg{width:21px;height:21px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tbi span{font-size:11px}
+
+.dmain{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.dtop{flex:none;height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:12px;padding:0 22px}
+.dtop__t{font-size:15.5px;font-weight:600}
+.dtop__r{margin-left:auto;display:flex;align-items:center;gap:8px}
+.dtop__pub{height:32px;padding:0 14px;border:0;border-radius:var(--ys-r-full);background:var(--ys-accent);color:#fff;font-size:12.5px;font-weight:600;font-family:var(--font);display:inline-flex;align-items:center;gap:5px}
+.dtop__pub svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round}
+
+/* 标注 */
+.marks{max-width:1400px;margin:16px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px}
+.mk{display:flex;gap:9px;font-size:12.5px;line-height:1.65;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;font-size:10.5px;font-weight:700;background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.bad{background:#f3dcd7;color:#a8392b}
+.mk .i.good{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+.mk code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>友声 · 集市广场 精修设计稿</h1>
+  <p>左：当前真实截图。右：同尺寸精修。配色沿用现有暖米 token。</p>
+  <p><b>实测 3 个硬问题：①分类 chip <code>chipCount=9</code>、<code>hasAllChip=false</code> —— 没有「全部」，点选后无法取消筛选 ②手机端 chip 折成 3 行占 148px（屏高 1/5） ③广场实测 0 条、我的发布 4 条全部已过期，页面下半屏全空</b></p>
+</div>
+
+<!-- ========== 1. 手机端 ========== -->
+<div class="row">
+  <h2><span class="num">1</span>手机端 · 390×844</h2>
+  <p class="note">核心问题：<b>分9个 chip 占掉三行</b>、<b>发布按钮浮在右上与 chip 打架</b>、<b>无法取消筛选</b>、<b>空态下面 500px 全空</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="phone"><img src="../../.design-shots/mkt-m390.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <h1 class="tb__t">集市</h1>
+          <span class="tb__stat">4 个活动</span>
+          <button class="tb__ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="tb__ic"><svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg></button>
+        </div>
+
+        <div class="body"><div class="wrap">
+          <!-- AFTER：分类单行横滑 + 「全部」在最前 -->
+          <div class="toolrow">
+            <div class="chips">
+              <button class="chip on">全部<span class="chip__n">4</span></button>
+              <button class="chip">游戏组队<span class="chip__n">4</span></button>
+              <button class="chip">跑腿代办</button>
+              <button class="chip">拼车出行</button>
+              <button class="chip">旅游结伴</button>
+              <button class="chip">学习搭子</button>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <button class="tab on">广场</button>
+            <button class="tab">我的发布<span class="tab__n">4</span></button>
+          </div>
+
+          <div class="grid">
+            <div class="acard">
+              <div class="acard__h">
+                <span class="acat">游戏组队</span>
+              </div>
+              <p class="atitle">周末上午篮球场找三个搭子一起约球玩</p>
+              <p class="acont">周末上午学校操场，AA 买水，带上球鞋就行。</p>
+              <div class="ameta">
+                <span><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>学校操场</span>
+              </div>
+              <div class="afoot">
+                <span class="left left--ok"><svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7.5V12l3 2"/></svg>还剩 8 小时</span>
+                <span class="slots"><b>2</b> / 4 人</span>
+              </div>
+              <div class="pbar"><span class="pbar__f" style="width:50%"></span></div>
+            </div>
+
+            <div class="acard">
+              <div class="acard__h">
+                <span class="acat">游戏组队</span>
+                <span class="asub">王者荣耀</span>
+              </div>
+              <p class="atitle">今晚开黑缺一个</p>
+              <p class="acont">晚上八点，缺个打野，钻石以上。</p>
+              <div class="ameta"><span>线上</span></div>
+              <div class="afoot">
+                <span class="left left--soon"><svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7.5V12l3 2"/></svg>还剩 2 小时</span>
+                <span class="slots"><b>3</b> / 5 人</span>
+              </div>
+              <div class="pbar"><span class="pbar__f" style="width:60%"></span></div>
+            </div>
+          </div>
+        </div></div>
+
+        <div class="tb2">
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg><span>首页</span></div>
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg><span>圈子</span></div>
+          <div class="tbi on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>集市</span></div>
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg><span>消息</span></div>
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0"/><path d="M4 20a8 8 0 0 1 16 0"/></svg><span>我的</span></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">1</span><div><b>没有「全部」，点选后无法取消筛选</b>：实测 <code>chipCount=9</code>、<code>hasAllChip=false</code>。9 个 chip 全是具体分类，而 <code>pickCategory(c)</code> 只做 <code>category.value = c</code> —— 一旦点了「跑腿代办」，就再也回不到「看全部」的状态，只能刷新页面。这是功能性缺陷，不是审美问题。</div></div>
+    <div class="mk"><span class="i bad">2</span><div><b>9 个 chip 在手机上折成 3 行、高 148px</b>：实测 <code>chipTops=[125,177,229]</code> 三行，占掉视口（844）的 17.5%。而它们只是**筛选器**，不是内容 —— 一个筛选器吃掉近 1/5 屏，留给活动列表的空间就不够了。改成单行横滑 + 右侧渐隐。</div></div>
+    <div class="mk"><span class="i bad">3</span><div><b>发布按钮浮在右上、与 chip 打架</b>：<code>.mkt__tools</code> 是 <code>justify-content:flex-end</code> 的独立一行，发布按钮独占一行 44px 高，下面是三行 chip —— 屏幕上四行都是「控制项」，没有一个像素是内容。把发布按钮挪进顶栏。</div></div>
+    <div class="mk"><span class="i good">4</span><div><b>空态下方补热门分类</b>：实测内容到 <code>y=488</code> 就结束，视口 900，下方 412px 全空。空态里给几个热门分类入口，让用户有「换个分类看看」的动作，而不是只盯着一个「去发布」。</div></div>
+  </div>
+</div>
+
+<!-- ========== 2. 活动卡片 ========== -->
+<div class="row">
+  <h2><span class="num">2</span>活动卡片 · 关键信息缺失</h2>
+  <p class="note">集市是「限时活动」，但卡片上<b>看不出还剩多久、还差几个人</b> —— 而这两项正是决定「点不点」的全部依据。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在（单列铺满）</div>
+      <div class="phone"><div class="scr" style="background:var(--ys-bg);padding:14px 16px">
+        <div class="acard" style="width:100%">
+          <div class="acard__h"><span class="acat">游戏组队</span><span class="asub">王者荣耀</span></div>
+          <p class="atitle">周末上午篮球场找三个搭子一起约球玩</p>
+          <p class="acont">周末上午学校操场，AA 买水，带上球鞋就行。</p>
+          <p style="margin:0;font-size:11.5px;color:var(--ys-meta)">游戏组队 · 王者荣耀</p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后（关键信息补齐）</div>
+      <div class="phone"><div class="scr" style="background:var(--ys-bg);padding:14px 16px">
+        <div class="acard" style="width:100%">
+          <div class="acard__h"><span class="acat">游戏组队</span><span class="asub">王者荣耀</span></div>
+          <p class="atitle">周末上午篮球场找三个搭子一起约球玩</p>
+          <p class="acont">周末上午学校操场，AA 买水，带上球鞋就行。</p>
+          <div class="ameta">
+            <span><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>学校操场</span>
+            <span>·</span>
+            <span>免费</span>
+          </div>
+          <div class="afoot">
+            <span class="left left--soon"><svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7.5V12l3 2"/></svg>还剩 2 小时</span>
+            <span class="slots"><b>3</b> / 5 人</span>
+          </div>
+          <div class="pbar"><span class="pbar__f" style="width:60%"></span></div>
+        </div>
+      </div></div>
+      <div class="marks" style="grid-template-columns:1fr;margin-top:6px;max-width:390px">
+        <div class="mk"><span class="i bad">5</span><div><b>没有剩余时间</b>：集市是「限时」活动，后端有 <code>expireTime</code>，但卡片上只有分类和标题。用户不知道「还来不来得及」—— 这是限时活动的第一决策依据。</div></div>
+        <div class="mk"><span class="i bad">6</span><div><b>没有名额进度</b>：后端有 <code>targetNum</code> 与 <code>isFull</code>，卡片上没体现。而「还差 2 人」正是「我要不要加入」的第二决策依据。</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 3. 桌面端 ========== -->
+<div class="row">
+  <h2><span class="num">3</span>桌面端 · 1180px 宽却没有内容承载</h2>
+  <p class="note">实测内容列 <b>1180px</b>，而卡片是单列铺满 —— 一行一个活动，宽度全浪费。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="desk" style="width:900px;height:520px">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/mkt</span>
+        </div>
+        <div class="desk__body"><img src="../../.design-shots/mkt-d1512.png" style="width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="desk">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/mkt</span>
+        </div>
+        <div class="desk__body">
+          <div class="side">
+            <div class="side__b">友声</div>
+            <div class="side__g">浏览</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>首页</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg>圈子</div>
+            <div class="side__i on"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>集市</div>
+            <div class="side__g">我的</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>消息</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>通知</div>
+            <div class="side__i dim"><svg viewBox="0 0 24 24"><path d="M4 9.6h2.4L11 6v12l-4.6-3.6H4a1.1 1.1 0 0 1-1.1-1.1v-2.6A1.1 1.1 0 0 1 4 9.6Z"/></svg>公告</div>
+          </div>
+
+          <div class="dmain">
+            <div class="dtop">
+              <span class="dtop__t">集市</span>
+              <span style="font-size:12.5px;color:var(--ys-muted)">4 个活动进行中</span>
+              <div class="dtop__r">
+                <button class="dtop__pub"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>发布活动</button>
+              </div>
+            </div>
+
+            <div style="flex:1;overflow:hidden;padding:16px 24px 0">
+              <div style="max-width:1000px;margin:0 auto">
+                <div class="toolrow">
+                  <div class="chips">
+                    <button class="chip on">全部<span class="chip__n">4</span></button>
+                    <button class="chip">游戏组队<span class="chip__n">4</span></button>
+                    <button class="chip">跑腿代办</button>
+                    <button class="chip">拼车出行</button>
+                    <button class="chip">旅游结伴</button>
+                    <button class="chip">学习搭子</button>
+                    <button class="chip">运动约伴</button>
+                    <button class="chip">干饭搭子</button>
+                    <button class="chip">闲置互助</button>
+                    <button class="chip">其它</button>
+                  </div>
+                </div>
+                <div class="tabs">
+                  <button class="tab on">广场</button>
+                  <button class="tab">我的发布<span class="tab__n">4</span></button>
+                </div>
+                <!-- AFTER：桌面三列网格 -->
+                <div class="grid grid--3">
+                  <div class="acard">
+                    <div class="acard__h"><span class="acat">游戏组队</span></div>
+                    <p class="atitle">周末上午篮球场找三个搭子一起约球玩</p>
+                    <p class="acont">周末上午学校操场，AA 买水，带上球鞋就行。</p>
+                    <div class="ameta"><span>学校操场 · 免费</span></div>
+                    <div class="afoot">
+                      <span class="left left--ok">还剩 8 小时</span>
+                      <span class="slots"><b>2</b> / 4</span>
+                    </div>
+                    <div class="pbar"><span class="pbar__f" style="width:50%"></span></div>
+                  </div>
+                  <div class="acard">
+                    <div class="acard__h"><span class="acat">游戏组队</span><span class="asub">王者荣耀</span></div>
+                    <p class="atitle">今晚开黑缺一个打野</p>
+                    <p class="acont">晚上八点，钻石以上，缺打野位。</p>
+                    <div class="ameta"><span>线上 · 免费</span></div>
+                    <div class="afoot">
+                      <span class="left left--soon">还剩 2 小时</span>
+                      <span class="slots"><b>3</b> / 5</span>
+                    </div>
+                    <div class="pbar"><span class="pbar__f" style="width:60%"></span></div>
+                  </div>
+                  <div class="acard">
+                    <div class="acard__h"><span class="acat">跑腿代办</span></div>
+                    <p class="atitle">帮忙从东门取个快递</p>
+                    <p class="acont">东门菜鸟驿站，取件码后会发你。</p>
+                    <div class="ameta"><span>东门 · ¥5</span></div>
+                    <div class="afoot">
+                      <span class="left left--urgent">还剩 30 分钟</span>
+                      <span class="slots"><b>0</b> / 1</span>
+                    </div>
+                    <div class="pbar"><span class="pbar__f" style="width:0%"></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">7</span><div><b>1180px 宽 + 单列卡片</b>：实测 <code>.mkt-inner w=1180</code>，而卡片是单列铺满 —— 一个活动占满 1180px，标题只有十几个字，右侧全是空白。改成三列网格，同样的宽度能放 3 个活动。</div></div>
+    <div class="mk"><span class="i bad">8</span><div><b>桌面端顶栏没有任何信息</b>：左侧只有「集市」二字，没有「几个活动进行中」。而且发布按钮仍是内容区里的一行，占掉 44px 高度。</div></div>
+    <div class="mk"><span class="i good">9</span><div><b>保留</b>：分类 chip 的选中态（青底白字）、Tab（广场 / 我的发布）的下划线指示、空态图标 + 双行文案 + 主按钮 —— 这三处的语义和层级都对，只调布局不改语义。</div></div>
+    <div class="mk"><span class="i good">10</span><div><b>数据现实</b>：广场实测 0 条、我的发布 4 条**全部已过期**（<code>expire</code> 都早于今天）。所以「空」不只是布局问题，也是没有有效数据。设计稿里的卡片用真实字段结构（category / subTag / title / content / location / price / targetNum）还原。</div></div>
+  </div>
+</div>
+
+</body>
+</html>

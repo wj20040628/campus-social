@@ -138,7 +138,20 @@ After=network.target mysql.service redis.service
 [Service]
 Type=simple
 WorkingDirectory=/opt/app
-ExecStart=/usr/bin/java -Xmx512m -jar /opt/app/campus-social.jar
+# ---- JVM 内存参数：2核2G 机器的关键 ----
+# -Xms256m -Xmx384m  堆的初始值和上限都压到 384m。
+#   为什么不给 512m：堆只是 JVM 进程内存的一部分，堆外还有
+#   Metaspace（约 110m）、线程栈、JIT 编译代码缓存、GC 自身结构。
+#   堆给 512m 时，整个 java 进程实际占的物理内存（RSS）约 950m，
+#   加上 MySQL(~600m) + Redis(~150m) + 系统(~200m) 就超 2G，只能靠 swap，
+#   一旦开始换页，接口延迟从几十毫秒涨到几百毫秒，表现为「没人访问也很卡」。
+# -XX:MaxMetaspaceSize=192m  给 Metaspace 设上限。
+#   不限的话它是按需增长、只增不减，跑久了会慢慢吃满剩余内存；
+#   设了上限会在超限时抛 OutOfMemoryError: Metaspace 并退出，
+#   由 systemd 的 Restart=on-failure 拉起，比整机 swap 卡死好排查。
+# 线程数上限不在这里配，已写进 application.yml（server.tomcat.threads.max=100），
+# 改那一处即可，不必重启机器。
+ExecStart=/usr/bin/java -Xms256m -Xmx384m -XX:MaxMetaspaceSize=192m -jar /opt/app/campus-social.jar
 # 关停时给点时间让 Flyway/连接池优雅退出
 TimeoutStopSec=30
 Restart=on-failure
@@ -327,11 +340,113 @@ nginx -s reload
 
 ## 10. 2核2G 容量调优（必做）
 
-- JVM 已限堆 `-Xmx512m`（见 systemd ExecStart）。若还 OOM，降到 `-Xmx384m`，但 MyBatis/连接池别开太大。
-- MySQL：`/etc/mysql/mysql.conf.d/mysqld.cnf` 加
-  `innodb_buffer_pool_size = 256M`，避免吃光内存触发 swap。
-- Nginx 默认够用；`worker_processes auto; worker_connections 1024;` 即可。
-- Redis 默认最大内存不限，建议 `maxmemory 128mb` + `maxmemory-policy allkeys-lru`，防止缓存撑爆。
+这台机器的瓶颈是**内存**，不是 CPU、也不是带宽。2G 总内存要同时养活四样东西：
+
+| 组件 | 常驻内存（调优前） | 调优后 | 说明 |
+|------|-------------------|--------|------|
+| 系统 + Nginx + journald | 约 210M | 约 210M | 有下限，压不动 |
+| MySQL 8.0 | 约 620M | 约 400M | buffer pool + 每连接缓冲 + performance_schema |
+| Redis | 约 150M | 约 60M | 实际数据量很小，占用主要来自默认不设上限 |
+| JVM（`-Xmx512m`） | 约 950M | 约 750M | 堆 512M→384M，堆外还有 Metaspace 等 |
+| **合计** | **约 1930M** | **约 1420M** | 调优前几乎没有 page cache，MySQL 反复读盘 |
+
+调优前的状态不是「慢」，是「不稳」：剩余内存不足 120M，MySQL 拿不到文件缓存，一旦并发上来就触发 swap，延迟从几十毫秒跳到几百毫秒。下面四步按顺序做。
+
+### 10.1 JVM 堆
+
+已在第 5 节的 systemd `ExecStart` 里改成 `-Xms256m -Xmx384m -XX:MaxMetaspaceSize=192m`，改完执行：
+
+```bash
+systemctl daemon-reload
+systemctl restart campus
+```
+
+### 10.2 MySQL
+
+编辑 `/etc/mysql/mysql.conf.d/mysqld.cnf`，在 `[mysqld]` 段落下追加：
+
+```ini
+# 缓冲池：缓存表和索引的数据页。2G 机器给 128M 是上限，再大就把系统挤进 swap。
+# 单实例部署必须配 innodb_buffer_pool_instances = 1，
+# 否则 MySQL 会把 128M 平均切成多份，每份都很小，命中率反而下降。
+innodb_buffer_pool_size = 128M
+innodb_buffer_pool_instances = 1
+
+# performance_schema 是性能诊断库，默认开启要吃掉约 150-200M 内存。
+# 关掉后仍可用 SHOW STATUS / SHOW PROCESSLIST 看基础指标，
+# 只是查不到 performance_schema 里的细粒度等待事件。
+# 2G 机器上这笔内存换给 buffer pool 更划算；以后换 4G/8G 再打开。
+performance_schema = OFF
+
+# 连接数上限。连接池只开 8 条，50 是留给人肉排查和备份脚本的余量。
+# 每条 MySQL 连接在服务端要占约 300-500K，50 条约 20M。
+max_connections = 50
+```
+
+```bash
+systemctl restart mysql
+mysql -ucampus -p -e "SHOW VARIABLES LIKE 'innodb_buffer_pool_size'; SHOW VARIABLES LIKE 'performance_schema';"
+```
+
+### 10.3 Redis
+
+Redis 里存的是**验证码、封禁计划、未读数**，不是可随时丢失的页面缓存。因此不设淘汰策略，改为「限额 + 满了就报错」：
+
+```bash
+redis-cli -a '<你的Redis密码>' CONFIG SET maxmemory 128mb
+redis-cli -a '<你的Redis密码>' CONFIG SET maxmemory-policy noeviction
+# 持久化到配置文件，否则重启失效
+```
+
+```conf
+# 追加到 /etc/redis/redis.conf
+maxmemory 128mb
+maxmemory-policy noeviction
+```
+
+> 为什么不用 `allkeys-lru`：LRU 会按「最久未用」淘汰任意 key，验证码被淘汰只是让用户重发一次，但**封禁计划被淘汰就意味着这个用户永远不会自动解封**——这是数据错误，不是缓存穿透。`noeviction` 在内存写满时返回错误，问题会暴露在日志里而不是悄悄丢数据。实际数据量远低于 128M，这个上限只是保险丝。
+
+### 10.4 swap（保命，不是性能方案）
+
+```bash
+fallocate -l 2G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+# swappiness=10：尽量只用物理内存，真到紧张时才换页。
+# 默认值 60 会让内核过早把热数据换出去，2G 机器上表现为「无缘无故变慢」。
+sysctl -w vm.swappiness=10
+echo 'vm.swappiness=10' >> /etc/sysctl.conf
+free -m
+```
+
+### 10.5 连接池与线程数
+
+这两项已在代码侧配好，**不要**在服务器上改：
+
+- `application.yml` → `spring.datasource.hikari`：池子上限 8、拿不到连接 3 秒失败（默认 30 秒会把 Tomcat 线程一起拖满）。
+- `application.yml` → `server.tomcat.threads.max`：200 降到 100（2 核跑 200 条线程只是增加上下文切换）。
+
+### 10.6 验证调优效果
+
+```bash
+free -m                                  # available 应大于 300M
+vmstat 1 5                               # si/so 两列必须是 0，非 0 就是还在换页
+ps -o rss=,vsz= -p $(pgrep -f campus-social.jar)   # 看 java 进程实际 RSS，调优后应在 750M 左右
+curl -s localhost:8080/actuator/health   # 应为 {"status":"UP"}
+```
+
+### 10.7 这台机器的容量上限与扩容顺序
+
+- 日常稳定支撑约 **80–150 人同时在用**，长连接在线约 300–500 人，课间集中冷启动 20–40 人就会排队。
+- 容量不够时按这个顺序加，不要乱花钱：
+  1. **首页 feed 第一页进 Redis 缓存 60 秒** —— 零成本，砍掉最大热点查询。
+  2. **BCrypt cost 12 → 10** —— 登录耗时降到约 1/4（现在 2 核每秒只能处理 5–6 次登录，中午下课会排长队）。
+  3. **前端静态资源挂 CDN** —— 3Mbps 出带宽是首屏瓶颈，图片已走 OSS 签名 URL 不占带宽，JS/CSS 再上 CDN 后 ECS 只出 JSON。
+  4. **升到 2核4G** —— 真正解决问题的一步，内存翻倍后 swap 消失。
+  5. **后端多实例** —— 前提是先把 `WsSessionManager` 改成 Redis pub/sub。它现在是单机内存态，直接开第二个实例会漏推消息。
+
 
 ---
 

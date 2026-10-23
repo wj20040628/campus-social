@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 桌面端首页精修设计稿</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-hover:#0a5e75; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px; --ys-r-full:9999px;
+  --ys-sh1:0 1px 2px rgba(36,28,21,.06); --ys-sh2:0 2px 8px rgba(36,28,21,.08);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 90px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);-webkit-font-smoothing:antialiased}
+
+.hd{max-width:1480px;margin:0 auto 40px}
+.hd h1{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:14px;line-height:1.75}
+
+.row{max-width:1480px;margin:0 auto 72px}
+.row > h2{font-size:15px;font-weight:650;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.row > h2 .num{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:12px}
+.row > .note{margin:0 0 20px 32px;font-size:13px;color:#7a6f63;line-height:1.7}
+.row > .note b{color:#3a3128}
+
+/* 桌面框 */
+.desk{width:1120px;height:720px;border-radius:12px;overflow:hidden;position:relative;background:var(--ys-bg);
+  box-shadow:0 0 0 1px #cbbfa8,0 22px 50px rgba(60,45,28,.22);display:flex;flex-direction:column}
+.desk__bar{flex:none;height:34px;background:#e6dccb;display:flex;align-items:center;gap:7px;padding:0 14px;border-bottom:1px solid #d8ccb7}
+.desk__dot{width:10px;height:10px;border-radius:50%}
+.desk__url{flex:1;height:20px;border-radius:5px;background:#f3ece0;margin-left:10px;display:flex;align-items:center;
+  padding:0 10px;font-size:10.5px;color:#8a7d6b;font-family:ui-monospace,monospace}
+.desk__body{flex:1;display:flex;overflow:hidden;position:relative}
+
+/* ===== 侧栏 ===== */
+.side{width:180px;flex:none;background:var(--ys-surface);border-right:1px solid var(--ys-border);display:flex;flex-direction:column}
+.side__brand{padding:17px 20px 13px;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.side__grp{padding:10px 20px 5px;font-size:10.5px;font-weight:650;letter-spacing:.07em;color:#a4967f;text-transform:uppercase}
+.side__i{display:flex;align-items:center;gap:10px;height:38px;margin:1px 8px;padding:0 12px;border-radius:8px;
+  font-size:13.5px;color:var(--ys-fg-2);position:relative}
+.side__i svg{width:18px;height:18px;flex:none;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side__i--on{background:var(--ys-accent-soft);color:var(--ys-accent);font-weight:600}
+.side__i--badge::after{content:"3";position:absolute;right:11px;min-width:17px;height:17px;border-radius:9px;
+  background:var(--ys-danger);color:#fff;font-size:10px;font-weight:650;display:grid;place-items:center;padding:0 4px}
+.side__sep{height:1px;background:var(--ys-border-soft);margin:9px 16px}
+
+/* ===== 顶栏 ===== */
+.top{flex:none;height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);
+  display:flex;align-items:center;gap:14px;padding:0 22px}
+/* 关键:补上桌面端缺失的页面标题 */
+.top__title{font-size:15.5px;font-weight:600;letter-spacing:-.005em}
+.top__crumb{font-size:12.5px;color:var(--ys-meta)}
+.top__right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.top__search{display:flex;align-items:center;gap:7px;height:34px;width:230px;padding:0 12px;
+  border:1px solid var(--ys-border);border-radius:var(--ys-r-full);background:var(--ys-surface-2);color:var(--ys-meta);font-size:12.5px}
+.top__search svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round}
+.top__btn{width:34px;height:34px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg-2);border-radius:8px}
+.top__btn svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.top__pub{height:34px;display:flex;align-items:center;gap:6px;padding:0 15px;border:0;border-radius:var(--ys-r-full);
+  background:var(--ys-accent);color:#fff;font-size:13px;font-weight:600;font-family:var(--font)}
+.top__pub svg{width:16px;height:16px;stroke:currentColor;stroke-width:2.1;fill:none;stroke-linecap:round}
+.top__ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#8fa36b,#5c7a48);
+  display:grid;place-items:center;color:#fff;font-size:12px;font-weight:600}
+
+/* ===== 内容区 ===== */
+.main{flex:1;overflow:hidden;padding:20px 22px 0;display:flex;gap:22px;justify-content:center}
+.col{width:588px;flex:none;display:flex;flex-direction:column;min-height:0}
+/* 右栏比主栏窄,且内部可独立滚动(修掉当前「右栏早结束、下面全空」) */
+.aside{width:296px;flex:none;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+
+/* Tab + 工具条 */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--ys-border-soft);margin-bottom:12px}
+.tab{position:relative;height:42px;display:flex;align-items:center;padding:0 2px;margin-right:26px;
+  font-size:14.5px;color:var(--ys-muted)}
+.tab--on{color:var(--ys-accent);font-weight:600}
+.tab--on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2.5px;border-radius:2px;background:var(--ys-accent)}
+.tools{display:flex;gap:10px;margin-bottom:12px;align-items:center}
+.search{flex:1;display:flex;align-items:center;height:38px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);overflow:hidden}
+.search__in{flex:1;padding:0 13px;font-size:13px;color:var(--ys-meta)}
+.search__b{height:100%;padding:0 15px;border:0;border-left:1px solid var(--ys-border-soft);
+  background:var(--ys-surface);color:var(--ys-accent);font-size:13px;font-weight:600;font-family:var(--font)}
+.seg{display:flex;gap:2px;padding:3px;background:var(--ys-surface-2);border-radius:var(--ys-r-full)}
+.seg button{height:32px;padding:0 13px;border:0;border-radius:var(--ys-r-full);background:none;
+  font-size:12.5px;color:var(--ys-muted);font-family:var(--font)}
+.seg button.on{background:var(--ys-surface);color:var(--ys-accent);font-weight:600;box-shadow:var(--ys-sh1)}
+
+/* 卡片 */
+.list{display:flex;flex-direction:column;gap:11px}
+.card{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-2xl);
+  box-shadow:var(--ys-sh1);padding:14px 16px 11px}
+.ch{display:flex;align-items:center;gap:10px}
+.ava{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--ys-fg);background:#D8E8E0;overflow:hidden}
+.ava--img{background:linear-gradient(135deg,#5b3a7d,#2f4a6b)}
+.ava--img2{background:linear-gradient(135deg,#3f7a4a,#6b8f3a)}
+.who{flex:1;min-width:0}
+.nm{font-size:14.5px;font-weight:600;line-height:1.3}
+.tm{font-size:11.5px;color:var(--ys-meta);margin-top:1px;font-variant-numeric:tabular-nums}
+.ctag{display:inline-flex;align-items:center;gap:4px;max-width:150px;padding:5px 9px;border:0;border-radius:var(--ys-r-full);
+  background:var(--ys-accent-2-soft);color:var(--ys-accent-2);font-size:11px;font-weight:600;font-family:var(--font);white-space:nowrap}
+.ctag svg{width:11px;height:11px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.txt{margin:9px 0 0;font-size:15px;line-height:1.55;color:var(--ys-fg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{border:0;font-size:11.5px;color:var(--ys-accent);background:var(--ys-accent-soft);border-radius:var(--ys-r-full);
+  padding:3px 9px;font-family:var(--font);font-weight:500}
+.pf{display:flex;align-items:center;gap:1px;margin-top:10px;padding-top:8px;border-top:1px solid var(--ys-border-soft)}
+.act{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 7px;border:0;border-radius:var(--ys-r-full);
+  background:none;font-size:12.5px;color:var(--ys-fg-2);font-variant-numeric:tabular-nums;font-family:var(--font)}
+.act svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.act.on{color:var(--ys-accent)}
+.act.on svg{fill:var(--ys-accent)}
+.view{margin-left:auto;display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 7px;
+  font-size:12.5px;color:var(--ys-meta);font-variant-numeric:tabular-nums}
+.view svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== 右栏(重做) ===== */
+.box{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 15px;box-shadow:var(--ys-sh1)}
+.box__h{display:flex;align-items:center;gap:6px;margin-bottom:9px}
+.box__h h3{margin:0;font-size:12.5px;font-weight:650;letter-spacing:.01em}
+.box__more{margin-left:auto;font-size:11px;color:var(--ys-meta)}
+/* 公告:从「标题+日期」两列改成「有一条最新公告」的单条强调 */
+.ann{border-radius:9px;background:var(--ys-accent-2-soft);padding:10px 12px;margin-bottom:2px}
+.ann__t{font-size:13px;font-weight:600;color:var(--ys-accent-2);line-height:1.45}
+.ann__m{font-size:11px;color:#9a6a45;margin-top:3px;font-variant-numeric:tabular-nums}
+/* 话题:带排名,当前只列名+数字,没有「热度」感 */
+.trow{display:flex;align-items:center;gap:9px;padding:6px 0}
+.trow + .trow{border-top:1px solid var(--ys-border-soft)}
+.rank{flex:none;width:14px;font-size:11.5px;font-weight:700;color:var(--ys-meta);font-variant-numeric:tabular-nums}
+.rank--hot{color:var(--ys-danger)}
+.tname{flex:1;min-width:0;font-size:12.5px;color:var(--ys-fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcnt{flex:none;font-size:11px;color:var(--ys-meta);font-variant-numeric:tabular-nums}
+/* 圈子:加成员数与「加入」轻动作 */
+.crow2{display:flex;align-items:center;gap:8px;padding:7px 0}
+.crow2 + .crow2{border-top:1px solid var(--ys-border-soft)}
+.cav{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ys-fg)}
+.cname{flex:1;min-width:0;font-size:12.5px;color:var(--ys-fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cjoin{flex:none;height:24px;padding:0 9px;border:1px solid var(--ys-accent);border-radius:var(--ys-r-full);
+  background:transparent;color:var(--ys-accent);font-size:11px;font-weight:600;font-family:var(--font)}
+/* 右栏底部:当前是一大片空白,补一个「社区数据」轻块 */
+.stat{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:var(--ys-muted)}
+.stat b{color:var(--ys-fg);font-weight:650;font-variant-numeric:tabular-nums}
+
+/* 标注 */
+.marks{max-width:1480px;margin:16px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px}
+.mk{display:flex;gap:9px;font-size:12.5px;line-height:1.65;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;font-size:10.5px;font-weight:700;
+  background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.bad{background:#f3dcd7;color:#a8392b}
+.mk .i.good{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+
+.wrap{display:flex;gap:52px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:10px}
+.pane__tag{font-size:11.5px;font-weight:650;letter-spacing:.06em;color:#8a7f72}
+.pane__tag--before{color:#a8785f}
+.pane__tag--after{color:var(--ys-accent)}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>友声 · 桌面端首页精修设计稿</h1>
+  <p>左：当前真实截图（1440×900 实测）。右：同尺寸精修。配色完全沿用现有暖米 token。</p>
+  <p><b>实测发现的核心问题：右栏在 y=657 就结束了，而主栏一路到 2530px —— 页面下方 1800px 右半边全空。</b></p>
+</div>
+
+<!-- ========== 1. 整页 ========== -->
+<div class="row">
+  <h2><span class="num">1</span>整页对比 · 1440×900</h2>
+  <p class="note">三处结构性改动：<b>顶栏补页面标题</b>、<b>右栏改成可独立滚动的完整侧列</b>、<b>主栏限宽收紧</b>。</p>
+  <div class="wrap">
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="desk">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173</span>
+        </div>
+        <div class="desk__body"><img src="../../.design-shots/desk-1440.png" style="width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="desk">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173</span>
+        </div>
+        <div class="desk__body">
+          <!-- 侧栏 -->
+          <div class="side">
+            <div class="side__brand">友声</div>
+            <div class="side__grp">浏览</div>
+            <div class="side__i side__i--on"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>首页</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg>圈子</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>集市</div>
+            <div class="side__sep"></div>
+            <div class="side__grp">我的</div>
+            <div class="side__i side__i--badge"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>消息</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>通知</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M4 9.6h2.4L11 6v12l-4.6-3.6H4a1.1 1.1 0 0 1-1.1-1.1v-2.6A1.1 1.1 0 0 1 4 9.6Z"/><path d="M14.4 9.2a4 4 0 0 1 0 5.6"/></svg>公告</div>
+            <div class="side__sep"></div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>管理后台</div>
+          </div>
+
+          <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+            <!-- 顶栏:补页面标题 -->
+            <div class="top">
+              <span class="top__title">首页</span>
+              <span class="top__crumb">关注 8 人 · 今日 3 条新动态</span>
+              <div class="top__right">
+                <div class="top__search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>搜索帖子 / 用户 / 圈子</div>
+                <button class="top__btn"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+                <button class="top__pub"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>发动态</button>
+                <div class="top__ava">W</div>
+              </div>
+            </div>
+
+            <!-- 主栏 + 右栏 -->
+            <div class="main">
+              <div class="col">
+                <div class="tabs"><span class="tab tab--on">关注</span><span class="tab">全部</span></div>
+                <div class="tools">
+                  <div class="search"><span class="search__in">搜索帖子 / 用户 / 圈子</span><button class="search__b">搜索</button></div>
+                  <div class="seg"><button class="on">最新</button><button>最热</button></div>
+                </div>
+                <div class="list">
+                  <div class="card">
+                    <div class="ch">
+                      <div class="ava ava--img"></div>
+                      <div class="who"><div class="nm">WJ</div><div class="tm">9 月 15 日</div></div>
+                      <button class="ctag"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg>考研圈</button>
+                    </div>
+                    <p class="txt">111</p>
+                    <div class="chips"><button class="chip">#社团</button></div>
+                    <div class="pf">
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="M7 21V9l5-6 1.2 1a2 2 0 0 1 .7 2.1L12.7 9H19a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.6 20H7Z"/><path d="M7 9H3v12h4"/></svg>0</button>
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9 12 3Z"/></svg>0</button>
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>0</button>
+                      <span class="view"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><path d="M12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>7</span>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="ch">
+                      <div class="ava">3</div>
+                      <div class="who"><div class="nm">3420232712</div><div class="tm">9 月 25 日</div></div>
+                    </div>
+                    <p class="txt">999</p>
+                    <div class="pf">
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="M7 21V9l5-6 1.2 1a2 2 0 0 1 .7 2.1L12.7 9H19a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.6 20H7Z"/><path d="M7 9H3v12h4"/></svg>0</button>
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9 12 3Z"/></svg>0</button>
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>0</button>
+                      <span class="view"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><path d="M12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>9</span>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="ch">
+                      <div class="ava ava--img2"></div>
+                      <div class="who"><div class="nm">WJ</div><div class="tm">9 月 18 日</div></div>
+                    </div>
+                    <p class="txt">333</p>
+                    <div class="pf">
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="M7 21V9l5-6 1.2 1a2 2 0 0 1 .7 2.1L12.7 9H19a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.6 20H7Z"/><path d="M7 9H3v12h4"/></svg>0</button>
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9 12 3Z"/></svg>0</button>
+                      <button class="act"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>1</button>
+                      <span class="view"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><path d="M12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 右栏 -->
+              <div class="aside">
+                <div class="box">
+                  <div class="box__h"><h3>公告</h3><span class="box__more">全部 ›</span></div>
+                  <div class="ann">
+                    <div class="ann__t">22222</div>
+                    <div class="ann__m">10-12 · 教务处</div>
+                  </div>
+                </div>
+                <div class="box">
+                  <div class="box__h"><h3>热门话题</h3><span class="box__more">本周</span></div>
+                  <div class="trow"><span class="rank rank--hot">1</span><span class="tname"># 美食</span><span class="tcnt">2 条</span></div>
+                  <div class="trow"><span class="rank rank--hot">2</span><span class="tname"># 社团</span><span class="tcnt">2 条</span></div>
+                  <div class="trow"><span class="rank">3</span><span class="tname"># 课程</span><span class="tcnt">1 条</span></div>
+                </div>
+                <div class="box">
+                  <div class="box__h"><h3>推荐圈子</h3><span class="box__more">换一批</span></div>
+                  <div class="crow2"><span class="cav" style="background:#F6D9C9">羽</span><span class="cname">羽毛球</span><span class="cjoin">加入</span></div>
+                  <div class="crow2"><span class="cav" style="background:#D8E8E0">2</span><span class="cname">23级</span><span class="cjoin">加入</span></div>
+                  <div class="crow2"><span class="cav" style="background:#EFE0C8">5</span><span class="cname">555</span><span class="cjoin">加入</span></div>
+                </div>
+                <div class="box">
+                  <div class="box__h"><h3>社区</h3></div>
+                  <div class="stat"><span>本周新帖</span><b>18</b></div>
+                  <div class="stat"><span>活跃圈子</span><b>4</b></div>
+                  <div class="stat"><span>在校认证</span><b>86%</b></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">1</span><div><b>右栏下方 1800px 空白</b>：实测右栏 <code>.has</code> 高 556px 就在 y=657 结束，主栏一路到 2530px。右半边下 3/4 是空的 —— 这是桌面端最刺眼的问题。修法：<code>.has</code> 加 <code>max-height:calc(100dvh - 顶栏)</code> + <code>overflow:auto</code>，让它成为独立滚动的完整侧列。</div></div>
+    <div class="mk"><span class="i bad">2</span><div><b>顶栏左侧是完全空的</b>：<code>.topbar__left</code> 宽度实测为 0 —— 桌面端隐藏了品牌字，而页面标题只在「返回型」顶栏才渲染。于是顶栏只剩右边三个控件，左边 900px 全空。修法：桌面端用 <code>meta.title</code> 在左侧渲染页面名。</div></div>
+    <div class="mk"><span class="i good">3</span><div><b>主栏限宽收紧</b>：当前主栏 680px（比 <code>--ys-content-col</code> 的 640 还宽），长正文每行超过 40 字。收到 588px，右栏 296px，两者合计 + gap 与原宽度接近，但阅读行长更舒服。</div></div>
+  </div>
+</div>
+
+<!-- ========== 2. 侧栏 ========== -->
+<div class="row">
+  <h2><span class="num">2</span>侧栏 · 13 个平铺项没有分组</h2>
+  <p class="note">实测侧栏有 <b>13 个 el-menu-item</b>（7 个普通 + 6 个管理子项）全部平铺，浏览、个人、管理三种性质混在一起。终稿按性质分三段。</p>
+  <div class="marks" style="margin-top:0">
+    <div class="mk"><span class="i bad">4</span><div><b>没有分组，13 项一路排下来</b>：首页/圈子/集市（浏览）和 消息/通知/公告（我的）与管理后台混在一列，全靠图标区分。加分组标题后，用户能按「我要干什么」扫视，而不是逐项读文字。</div></div>
+    <div class="mk"><span class="i bad">5</span><div><b>「发动态」占一个导航位</b>：它是动作不是页面。放在侧栏意味着每次发帖都要在导航里找。移进顶栏做常驻按钮（右侧青色主按钮），侧栏只留真正的目的地。</div></div>
+    <div class="mk"><span class="i good">6</span><div><b>未读数没有出现在侧栏</b>：手机端 TabBar 有机读角标，桌面侧栏没有任何数字。用户在桌面看不到「有几条新消息」，必须点进去才知道。补角标。</div></div>
+    <div class="mk"><span class="i good">7</span><div><b>保留</b>：13 项里的管理后台默认折叠、管理员才渲染 —— 这个逻辑是对的，不动。</div></div>
+  </div>
+</div>
+
+<!-- ========== 3. 右栏细节 ========== -->
+<div class="row">
+  <h2><span class="num">3</span>右栏三个模块 · 信息密度太低</h2>
+  <p class="note">当前每个模块都是「标题 + 若干行『名字 …… 数字』」，没有一个模块能一眼看出<b>「为什么我该点它」</b>。</p>
+  <div class="marks" style="margin-top:0">
+    <div class="mk"><span class="i bad">8</span><div><b>公告只显示标题和日期</b>（「22222 / 10-12」）：看不出是谁发的、什么级别。改成暖橙底的单条强调卡，补来源；多条时再退化成列表。</div></div>
+    <div class="mk"><span class="i bad">9</span><div><b>「热门话题」没有排名和量级</b>：只有 <code># 美食 2</code>，2 是什么？条数还是热度？加序号（前二用危险色）+「2 条」，让它像榜。</div></div>
+    <div class="mk"><span class="i bad">10</span><div><b>推荐圈子无法就地加入</b>：显示「羽毛球 1 人」，要加入必须点进圈子。补一个轻量「加入」按钮，右栏才有行动价值。</div></div>
+    <div class="mk"><span class="i good">11</span><div><b>补「社区」数据块</b>：右栏底部原本是空白。填一组真实可算的社区指标（本周新帖/活跃圈子/认证率），既填满空间又给社区「有人气」的信号。</div></div>
+  </div>
+</div>
+
+<!-- ========== 4. 卡片密度 ========== -->
+<div class="row">
+  <h2><span class="num">4</span>卡片 · 桌面端没有利用横向空间</h2>
+  <p class="note">桌面卡片宽 680px，但内容全是左对齐的单列，右侧 500px 只有「考研圈」一个标签。</p>
+  <div class="marks" style="margin-top:0">
+    <div class="mk"><span class="i bad">12</span><div><b>卡片高度被固定撑大</b>：实测「111」这种 3 字内容卡片高 205px、「999」高 170px —— 桌面端每张卡有大量留白。收紧内边距与行距，同屏能多看到 2 张。</div></div>
+    <div class="mk"><span class="i good">13</span><div><b>可以让图片与文字并排</b>（进阶）：桌面端带图帖可改左右两栏（文字左、图右 200px），把 680px 用起来。但这需要改 <code>PostCard</code> 模板结构，建议单独评估。</div></div>
+    <div class="mk"><span class="i good">14</span><div><b>保留</b>：相对时间、圈子名胶囊、末端浏览量 —— 上一轮刚做的都对，不动。</div></div>
+    <div class="mk"><span class="i good">15</span><div><b>保留</b>：顶栏图标口径已统一为 1.9 描边（实测 <code>strokeWidth=1.9</code>），不动。</div></div>
+  </div>
+</div>
+
+</body>
+</html>

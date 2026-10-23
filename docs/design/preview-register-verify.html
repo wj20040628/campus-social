@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 注册与认证流程重设计</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 100px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);line-height:1.6;-webkit-font-smoothing:antialiased}
+.hd{max-width:1360px;margin:0 auto 30px}
+.hd h1{font-size:27px;margin:0 0 10px}
+.hd p{margin:0 0 7px;color:#6b6156;font-size:14px}
+.hd p b{color:#2e261d}
+
+.sec{max-width:1360px;margin:0 auto 52px}
+.sec>h2{font-size:16.5px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.sec>h2 .n{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--ys-fg);color:#fff;font-size:12px;flex:none}
+.sec>.sub{margin:0 0 20px 34px;font-size:13px;color:#7a6f63}
+.sec>.sub b{color:#3a3128}
+
+.pair{display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:9px}
+.ptag{font-size:11.5px;font-weight:650;letter-spacing:.05em}
+.ptag--old{color:#a8785f}
+.ptag--new{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 9px #1c1917,0 0 0 11px #3a3531,0 24px 46px rgba(28,25,23,.28);display:flex;flex-direction:column;position:relative}
+.scr{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tb{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:10px;padding:0 16px}
+.tb__t{flex:1;margin:0;font-size:16.5px;font-weight:600}
+.tb__x{font-size:13px;color:var(--ys-accent)}
+.body{flex:1;overflow:hidden;padding:18px 18px 0}
+
+/* 表单 */
+.f{margin-bottom:15px}
+.f__l{display:block;font-size:12.5px;font-weight:600;color:var(--ys-fg-2);margin-bottom:5px}
+.f__l .req{color:var(--ys-danger);margin-left:2px}
+.f__l .opt{color:var(--ys-meta);font-weight:400;margin-left:4px}
+.f__i{width:100%;height:44px;border:1px solid var(--ys-border-control);border-radius:9px;padding:0 12px;
+  font-size:14px;font-family:var(--font);color:var(--ys-fg);background:var(--ys-surface);display:flex;align-items:center}
+.f__i--ph{color:#a49a8c}
+.f__row{display:flex;gap:8px}
+.f__row .f__i{flex:1}
+.f__get{flex:none;width:96px;height:44px;border:1px solid var(--ys-accent);border-radius:9px;background:var(--ys-accent-soft);
+  color:var(--ys-accent);font-size:13px;font-weight:600;font-family:var(--font);display:grid;place-items:center}
+.f__hint{font-size:11px;color:var(--ys-meta);margin:4px 0 0}
+
+.f__divider{display:flex;align-items:center;gap:10px;margin:20px 0 16px;color:var(--ys-meta);font-size:11.5px}
+.f__divider::before,.f__divider::after{content:'';flex:1;height:1px;background:var(--ys-border)}
+
+.btn{width:100%;height:46px;border:0;border-radius:10px;background:var(--ys-accent);color:#fff;
+  font-size:15px;font-weight:600;font-family:var(--font);display:grid;place-items:center}
+.btn--ghost{background:transparent;border:1px solid var(--ys-border-control);color:var(--ys-fg-2);font-weight:500}
+
+/* 全局提示条 */
+.notice{display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--ys-warning-soft);
+  border-bottom:1px solid #f0dcbe;font-size:12px;color:#7c5210;flex:none}
+.notice__b{flex:1;min-width:0}
+.notice__go{flex:none;min-height:30px;padding:0 11px;border:1px solid var(--ys-warning);border-radius:15px;
+  background:transparent;color:var(--ys-warning);font-size:11.5px;font-weight:600;font-family:var(--font)}
+
+/* 引导步骤 */
+.steps{display:flex;align-items:center;gap:6px;margin-bottom:20px}
+.steps__i{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ys-muted)}
+.steps__d{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:700;
+  background:var(--ys-surface-2);color:var(--ys-muted)}
+.steps__d--on{background:var(--ys-accent);color:#fff}
+.steps__d--done{background:var(--ys-success-soft);color:var(--ys-success)}
+.steps__ln{width:14px;height:1px;background:var(--ys-border)}
+.steps__t--on{color:var(--ys-accent);font-weight:600}
+
+/* 认证成功卡 */
+.okcard{text-align:center;padding:30px 0 0}
+.okcard__ic{width:56px;height:56px;border-radius:50%;background:var(--ys-success-soft);display:grid;place-items:center;margin:0 auto 14px}
+.okcard__t{margin:0 0 8px;font-size:18px;font-weight:650}
+.okcard__d{margin:0 0 20px;font-size:13px;color:var(--ys-muted);line-height:1.65}
+
+/* 对比表 */
+table{width:100%;border-collapse:collapse;background:var(--ys-surface);border-radius:12px;overflow:hidden;font-size:12.5px}
+th{padding:9px 12px;background:var(--ys-surface-2);text-align:left;font-weight:650;font-size:12px}
+td{padding:9px 12px;border-top:1px solid var(--ys-border-soft);vertical-align:top;line-height:1.6}
+code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11.5px}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10.5px;font-weight:650}
+.tag--must{background:var(--ys-danger-soft);color:var(--ys-danger)}
+.tag--opt{background:var(--ys-surface-2);color:var(--ys-meta)}
+.tag--new{background:var(--ys-accent-soft);color:var(--ys-accent)}
+
+.note{background:var(--ys-warning-soft);border-left:3px solid var(--ys-warning);border-radius:0 8px 8px 0;padding:11px 15px;margin:13px 0;font-size:12.5px;color:#544a3f}
+.note b{color:var(--ys-warning)}
+.note--info{background:var(--ys-accent-soft);border-left-color:var(--ys-accent)}
+.note--info b{color:var(--ys-accent)}
+.note--ok{background:var(--ys-success-soft);border-left-color:var(--ys-success)}
+.note--ok b{color:var(--ys-success)}
+
+/* 状态机图 */
+.machine{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:12px;padding:20px;margin:14px 0}
+.node{padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:600;text-align:center;line-height:1.45}
+.node small{display:block;font-weight:400;font-size:10.5px;opacity:.8;margin-top:2px}
+.node--none{background:var(--ys-surface-2);color:var(--ys-fg-2)}
+.node--ok{background:var(--ys-success-soft);color:var(--ys-success)}
+.node--pend{background:var(--ys-warning-soft);color:var(--ys-warning)}
+.arrow{font-size:11px;color:var(--ys-meta);text-align:center;line-height:1.4}
+.arrow b{display:block;font-size:14px;color:var(--ys-accent)}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>注册与校内认证 · 重设计方案</h1>
+  <p>你选定：<b>邮箱或学号都能登录</b> · <b>邮箱必填、学号可选</b> · <b>认证复用 /onboarding</b></p>
+  <p>核心目标：让未认证状态真正存在，而不是像现在这样被「注册即认证」架空。</p>
+</div>
+
+<!-- ===== 1. 问题诊断 ===== -->
+<div class="sec">
+  <h2><span class="n">1</span>先看清现状：认证状态机为什么失效</h2>
+  <p class="sub">现在的链路是 <b>学号必填 → 六层校验 → 直接 verify_status=1</b>，未认证只是纸面上的状态。</p>
+
+  <div class="machine">
+    <div class="node node--none">提交注册<small>学号必填</small></div>
+    <div class="arrow"><b>→</b>六层校验</div>
+    <div class="node node--ok">verify_status=1<small>立即认证</small></div>
+    <div class="arrow"><b>→</b></div>
+    <div class="node node--none" style="opacity:.35;text-decoration:line-through">verify_status=0<small>永不出现</small></div>
+  </div>
+
+  <table>
+    <tr><th style="width:22%">现状</th><th>后果</th></tr>
+    <tr><td><code>studentNo</code> 在 DTO 里是 <code>@NotBlank</code></td><td>学号成了必填项，不填根本注册不了 —— 想先进来看看的人被挡在门外</td></tr>
+    <tr><td>注册成功即 <code>verify_status=1</code></td><td>AC-11 规定「未认证不能搭话」，但**所有用户出生即已认证**，这条限制永远不触发</td></tr>
+    <tr><td><code>username</code> 列存的是学号</td><td>学号是敏感信息（SPEC AC-12 要求对外不显示），却成了登录名；且填错就永久改不了</td></tr>
+    <tr><td>邮箱是选填，且不发码不验所有权</td><td>填 <code>abc@qq.com</code> 也能过。邮箱没法作为可靠主键，找回密码也无从谈起</td></tr>
+  </table>
+
+  <div class="note">
+    <b>所以「学号核验要不要删」这个问题的答案是：核验本身有用（防伪造学号），但它的触发时机错了。</b>
+    六层校验应该保留，只是从「注册时强制」改成「认证时触发」。
+  </div>
+</div>
+
+<!-- ===== 2. 新流程 ===== -->
+<div class="sec">
+  <h2><span class="n">2</span>新流程：注册轻、认证后置</h2>
+  <p class="sub">注册只需要证明「你会用这个平台」，认证才需要证明「你是本校学生」。</p>
+
+  <div class="machine">
+    <div class="node node--none">① 注册<small>邮箱+验证码<br>昵称+密码</small></div>
+    <div class="arrow"><b>→</b>可跳过学号</div>
+    <div class="node node--none">② 未认证<small>可浏览 · 可发帖<br>不能搭话</small></div>
+    <div class="arrow"><b>→</b>点提示条</div>
+    <div class="node node--pend">③ 填归属+学号<small>六层校验</small></div>
+    <div class="arrow"><b>→</b>通过</div>
+    <div class="node node--ok">④ 已认证<small>全功能</small></div>
+  </div>
+
+  <div class="note note--info">
+    <b>注册时也可以一步到位。</b>如果用户在注册页就填了学号 + 学院/年级/专业，六层校验通过后直接是 ④ 已认证，
+    跳过 ②③。这条快速路径要保留 —— 愿意一次填完的人不该被强制多走两步。
+  </div>
+</div>
+
+<!-- ===== 3. 注册页 ===== -->
+<div class="sec">
+  <h2><span class="n">3</span>注册页：邮箱必填 + 学号可选</h2>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--old">现在（学号必填，一屏塞满）</div>
+      <div class="phone"><div class="scr">
+        <div class="tb"><h1 class="tb__t">注册</h1></div>
+        <div class="body">
+          <div class="f"><span class="f__l">学号<span class="req">*</span></span><div class="f__i">13~14 位学号</div></div>
+          <div class="f"><span class="f__l">昵称<span class="req">*</span></span><div class="f__i">展示在站内的名字</div></div>
+          <div class="f"><span class="f__l">密码<span class="req">*</span></span><div class="f__i">6~64 位</div></div>
+          <div class="f"><span class="f__l">邮箱（选填）</span><div class="f__i f__i--ph">用于找回密码，绑定后更安全</div></div>
+          <div class="f"><span class="f__l">学校归属</span>
+            <div class="f__i f__i--ph">学院</div>
+            <div style="height:6px"></div>
+            <div class="f__i f__i--ph">年级</div>
+            <div style="height:6px"></div>
+            <div class="f__i f__i--ph">专业</div>
+          </div>
+          <button class="btn">注册</button>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--new">改后（主表单 4 项，学号可选）</div>
+      <div class="phone"><div class="scr">
+        <div class="tb"><h1 class="tb__t">注册</h1></div>
+        <div class="body">
+          <div class="f">
+            <span class="f__l">邮箱<span class="req">*</span></span>
+            <div class="f__i f__i--ph">用来登录和找回密码</div>
+            <p class="f__hint">注册后邮箱和学号都能登录</p>
+          </div>
+          <div class="f">
+            <span class="f__l">验证码<span class="req">*</span></span>
+            <div class="f__row">
+              <div class="f__i f__i--ph">6 位数字</div>
+              <button class="f__get">获取验证码</button>
+            </div>
+          </div>
+          <div class="f">
+            <span class="f__l">昵称<span class="req">*</span></span>
+            <div class="f__i f__i--ph">展示在站内的名字</div>
+          </div>
+          <div class="f">
+            <span class="f__l">密码<span class="req">*</span></span>
+            <div class="f__i f__i--ph">6~64 位</div>
+          </div>
+
+          <div class="f__divider">以下可跳过，之后也能认证</div>
+
+          <div class="f">
+            <span class="f__l">学号<span class="opt">选填</span></span>
+            <div class="f__i f__i--ph">填了就能立即认证</div>
+          </div>
+          <div class="f">
+            <span class="f__l">学校归属<span class="opt">填学号后才显示</span></span>
+            <div class="f__i f__i--ph">学院</div>
+            <div style="height:6px"></div>
+            <div class="f__i f__i--ph">本专科（本科 / 专科）</div>
+            <div style="height:6px"></div>
+            <div class="f__i f__i--ph">专业</div>
+            <div style="height:6px"></div>
+            <div class="f__i f__i--ph">年级</div>
+          </div>
+
+          <button class="btn">注册</button>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <table style="margin-top:16px">
+    <tr><th style="width:16%">字段</th><th style="width:14%">必填</th><th>说明</th></tr>
+    <tr><td>邮箱</td><td><span class="tag tag--must">必填</span></td><td>作为登录主键之一，<b>必须验证所有权</b>（发 6 位码）。存库前统一转小写，全局唯一</td></tr>
+    <tr><td>昵称</td><td><span class="tag tag--must">必填</span></td><td>站内展示名，可后改。不做主键（会重复、会变）</td></tr>
+    <tr><td>密码</td><td><span class="tag tag--must">必填</span></td><td>6~64 位，BCrypt 存储</td></tr>
+    <tr><td>学号</td><td><span class="tag tag--opt">选填</span></td><td>填了就走快速路径（六层校验）；不填则注册为未认证</td></tr>
+    <tr><td colspan="3" style="background:var(--ys-surface-2);font-weight:650;font-size:12px">学校归属 —— 四个字段，<b>学校恒为本校不用选</b>，其余四项都必填</td></tr>
+    <tr><td>学院</td><td><span class="tag tag--must">必填</span></td><td>取自 <code>GET /dict/depts</code>，存 <code>user.dept_id</code></td></tr>
+    <tr><td><b>本专科</b></td><td><span class="tag tag--must">必填</span></td><td><b>只用于筛选专业下拉</b>（本科=1 / 专科=2），<b>不存 user 表</b> —— 专业 id 本身已隐含层次。<br>六层校验的第 4 层要用它比对学号的层次标记（本科 05/5、专科 06/6）</td></tr>
+    <tr><td>专业</td><td><span class="tag tag--must">必填</span></td><td>按「学院 + 本专科」两级过滤后的下拉，存 <code>user.major_id</code></td></tr>
+    <tr><td>年级</td><td><span class="tag tag--must">必填</span></td><td>取自 <code>GET /dict/grades</code>，存 <code>user.grade_id</code></td></tr>
+  </table>
+
+  <div class="note note--info">
+    <b>本专科为什么必须保留。</b>它不是一个可有可无的展示字段 ——
+    专业下拉必须靠它过滤（同一个学院下，本科和专科的专业完全不同），
+    而六层校验第 4 层「层次匹配」也要拿它和学号里的层次标记比对。
+    去掉它，专业下拉会混进不该出现的方向，六层校验直接失效。
+  </div>
+
+  <div class="note">
+    <b>为什么学号不该当登录名。</b>学号是 13-14 位数字，用户记不住、填错改不了，
+    而且 SPEC AC-12 明确要求「对外展示任何认证用户，必须只显示昵称 + 头像，不得显示学号」——
+    我们却把它当成了账号。改成邮箱后，学号只存在于 <code>user.student_no</code> 一列，不再对外暴露。
+  </div>
+</div>
+
+<!-- ===== 4. 未认证体验 ===== -->
+<div class="sec">
+  <h2><span class="n">4</span>未认证时：能看能发帖，不能搭话</h2>
+  <p class="sub">提示条常驻在顶栏下方，不遮挡内容；点「去认证」进引导流程。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">首页（未认证）</div>
+      <div class="phone"><div class="scr">
+        <div class="tb"><h1 class="tb__t">友声</h1><span style="font-size:19px">＋</span><span style="font-size:19px">☰</span></div>
+        <div class="notice">
+          <span style="font-size:15px">🛡</span>
+          <span class="notice__b">完成校内认证后才能发私信、加圈子</span>
+          <button class="notice__go">去认证</button>
+        </div>
+        <div class="body">
+          <div style="display:flex;gap:18px;font-size:14px;font-weight:600;border-bottom:1px solid var(--ys-border);padding-bottom:10px;margin-bottom:14px">
+            <span style="color:var(--ys-accent);border-bottom:2px solid var(--ys-accent);padding-bottom:9px">关注</span>
+            <span style="color:var(--ys-muted)">全部</span>
+          </div>
+          <div style="background:var(--ys-surface);border-radius:12px;padding:14px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+              <div style="width:34px;height:34px;border-radius:50%;background:#D8E8E0"></div>
+              <div><div style="font-size:13.5px;font-weight:600">WJ</div><div style="font-size:11px;color:var(--ys-meta)">12 小时前</div></div>
+            </div>
+            <p style="margin:0;font-size:14px">222</p>
+            <div style="display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid var(--ys-border-soft);font-size:12px;color:var(--ys-muted)">
+              <span>♡ 0</span><span>☆ 0</span><span>💬 0</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:300px">
+      <div class="ptag ptag--new">能做什么 / 不能做什么</div>
+      <table>
+        <tr><th style="width:34%">动作</th><th style="width:16%">未认证</th><th>说明</th></tr>
+        <tr><td>浏览 feed / 圈子 / 集市 / 公告</td><td style="color:var(--ys-success);font-weight:650">✅ 可以</td><td>全部只读内容对已登录用户开放</td></tr>
+        <tr><td>发帖</td><td style="color:var(--ys-success);font-weight:650">✅ 可以</td><td>SPEC AC-11 注记：发帖只要求登录，不在拦截范围</td></tr>
+        <tr><td>评论 / 收藏 / 点赞</td><td style="color:var(--ys-success);font-weight:650">✅ 可以</td><td>同上，属轻量互动</td></tr>
+        <tr><td>看公告</td><td style="color:var(--ys-success);font-weight:650">✅ 可以</td><td>全校通知，只读无骚扰风险</td></tr>
+        <tr><td><b>发私信（搭话）</b></td><td style="color:var(--ys-danger);font-weight:650">❌ 不可</td><td>SPEC AC-11 明令（防校外骚扰）</td></tr>
+        <tr><td><b>创建圈子</b></td><td style="color:var(--ys-danger);font-weight:650">❌ 不可</td><td>你的要求 · 现无任何校验，需新增</td></tr>
+        <tr><td><b>加入圈子</b></td><td style="color:var(--ys-danger);font-weight:650">❌ 不可</td><td>你的要求 · 现无任何校验，需新增</td></tr>
+        <tr><td><b>集市发布活动</b></td><td style="color:var(--ys-danger);font-weight:650">❌ 不可</td><td>你的要求 · 现无任何校验，需新增</td></tr>
+        <tr><td>发公告</td><td style="color:var(--ys-danger);font-weight:650">❌ 不可</td><td>管理员功能，已有拦截</td></tr>
+      </table>
+
+      <div class="note note--ok">
+        <b>四条限制已确定：</b>发私信 · 创建圈子 · 加入圈子 · 集市发布。
+        前一条 <code>ChatGuardServiceImpl</code> 已有业务层校验，后三条目前<b>完全没有</b>
+        （<code>CircleController</code> 和 <code>MktActivityController</code> 一个 <code>@RequireVerified</code> 都没挂），需要新建。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 5. 引导流程 ===== -->
+<div class="sec">
+  <h2><span class="n">5</span>认证流程：复用 /onboarding，加一步认证</h2>
+  <p class="sub">现有引导已有「学校归属」这一步，把学号接在其后即可，不新增页面。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">第 1 步：学校归属（现有）</div>
+      <div class="phone"><div class="scr">
+        <div class="tb"><h1 class="tb__t">完善资料</h1><span class="tb__x">跳过</span></div>
+        <div class="body">
+          <div class="steps">
+            <div class="steps__i"><span class="steps__d steps__d--on">1</span><span class="steps__t--on">学校</span></div>
+            <span class="steps__ln"></span>
+            <div class="steps__i"><span class="steps__d">2</span>学号</div>
+            <span class="steps__ln"></span>
+            <div class="steps__i"><span class="steps__d">3</span>兴趣</div>
+          </div>
+          <div class="f"><span class="f__l">学院<span class="req">*</span></span><div class="f__i">人工智能学院</div></div>
+          <div class="f"><span class="f__l">本专科<span class="req">*</span></span><div class="f__i">本科</div></div>
+          <div class="f"><span class="f__l">专业<span class="req">*</span></span><div class="f__i">人工智能技术应用</div></div>
+          <div class="f"><span class="f__l">年级<span class="req">*</span></span><div class="f__i">2023级</div></div>
+          <button class="btn">下一步</button>
+          <p style="text-align:center;font-size:11.5px;color:var(--ys-meta);margin:10px 0 0">本专科决定专业下拉的内容，四项选完才能填学号</p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--new">第 2 步：学号认证（新增）</div>
+      <div class="phone"><div class="scr">
+        <div class="tb"><h1 class="tb__t">完善资料</h1><span class="tb__x">稍后再说</span></div>
+        <div class="body">
+          <div class="steps">
+            <div class="steps__i"><span class="steps__d steps__d--done">✓</span>学校</div>
+            <span class="steps__ln"></span>
+            <div class="steps__i"><span class="steps__d steps__d--on">2</span><span class="steps__t--on">学号</span></div>
+            <span class="steps__ln"></span>
+            <div class="steps__i"><span class="steps__d">3</span>兴趣</div>
+          </div>
+          <div class="f">
+            <span class="f__l">学号<span class="req">*</span></span>
+            <div class="f__i">23080901060536</div>
+            <p class="f__hint">13~14 位，会与上面的学院/年级/专业比对</p>
+          </div>
+          <div class="f">
+            <span class="f__l">姓名后 1-2 位<span class="opt">选填</span></span>
+            <div class="f__i f__i--ph">如「明」，便于管理员复核</div>
+          </div>
+          <button class="btn">提交认证</button>
+          <p style="text-align:center;font-size:11.5px;color:var(--ys-muted);margin:12px 0 0;line-height:1.6">
+            提交后立即校验：学号与所选专业、年级、层次是否自洽<br>
+            <span style="color:var(--ys-meta)">不通过会告诉你哪一项不对</span>
+          </p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--new">第 3 步：认证成功</div>
+      <div class="phone"><div class="scr">
+        <div class="tb"><h1 class="tb__t">完善资料</h1></div>
+        <div class="body">
+          <div class="steps">
+            <div class="steps__i"><span class="steps__d steps__d--done">✓</span>学校</div>
+            <span class="steps__ln"></span>
+            <div class="steps__i"><span class="steps__d steps__d--done">✓</span>学号</div>
+            <span class="steps__ln"></span>
+            <div class="steps__i"><span class="steps__d steps__d--on">3</span><span class="steps__t--on">兴趣</span></div>
+          </div>
+          <div class="okcard">
+            <div class="okcard__ic"><span style="font-size:26px">✓</span></div>
+            <h3 class="okcard__t">已认证</h3>
+            <p class="okcard__d">你的主页会显示「已认证」徽章<br>发私信、加圈子的权限已开启</p>
+          </div>
+          <div class="f" style="margin-top:6px">
+            <span class="f__l">最后一步：选几个兴趣</span>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:4px">
+              <span style="padding:5px 12px;border-radius:14px;background:var(--ys-accent-soft);color:var(--ys-accent);font-size:12px">王者荣耀</span>
+              <span style="padding:5px 12px;border-radius:14px;background:var(--ys-accent-soft);color:var(--ys-accent);font-size:12px">英雄联盟</span>
+              <span style="padding:5px 12px;border-radius:14px;background:var(--ys-surface-2);color:var(--ys-muted);font-size:12px">考研</span>
+            </div>
+          </div>
+          <button class="btn">完成</button>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="note note--info">
+    <b>为什么复用 /onboarding 而不是新开 /verify 页。</b>
+    引导流程已经有「学校归属」这一步，而六层校验正好需要它；
+    把学号接在后面，比另建一个页面再让用户重选一次归属要顺。
+    另外它天然支持「跳过后再回来补」——<code>onboarding_step</code> 已经记录进度。
+  </div>
+</div>
+
+<!-- ===== 6. 登录 ===== -->
+<div class="sec">
+  <h2><span class="n">6</span>登录：邮箱或学号都能用</h2>
+
+  <table>
+    <tr><th style="width:20%">输入</th><th style="width:22%">匹配列</th><th>说明</th></tr>
+    <tr><td>邮箱 <code>wj@qq.com</code></td><td><code>user.email</code></td><td>新用户主路径。存库前统一小写</td></tr>
+    <tr><td>学号 <code>23080901060536</code></td><td><code>user.student_no</code></td><td>已认证用户可用。老账号 <code>username</code> 里也是学号，一并匹配</td></tr>
+    <tr><td>历史账号（邮箱或手机号）</td><td><code>user.username</code></td><td>老数据兼容：<code>username</code> 仍可能存旧格式，一并 OR 上</td></tr>
+  </table>
+
+  <div class="note">
+    <b>防账号枚举。</b>现在登录失败统一回 <code>WRONG_PASSWORD</code>，这个口径要保持 ——
+    不能出现「该邮箱不存在」这类提示，否则就被拿来批量探测哪些邮箱注册过。
+  </div>
+</div>
+
+<!-- ===== 7. 落地清单 ===== -->
+<div class="sec">
+  <h2><span class="n">7</span>落地清单</h2>
+
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:26%">改动</th><th style="width:10%">层</th><th>说明</th></tr>
+    <tr><td>1</td><td><code>RegisterDTO</code>：studentNo 改选填、email 改必填</td><td>后端</td><td>加 <code>@NotBlank</code> 到 email；studentNo 去掉 <code>@NotBlank</code>，只留 Pattern</td></tr>
+    <tr><td>2</td><td>注册流程加邮箱验证码校验</td><td>后端</td><td>复用 <code>VerifyCodeService.verify(email, code, "register")</code></td></tr>
+    <tr><td>3</td><td><code>username</code> 对新用户存邮箱</td><td>后端</td><td>老账号不动；<code>student_no</code> 单独一列存学号</td></tr>
+    <tr><td>4</td><td>注册逻辑：学号为空则不认证</td><td>后端</td><td>已有这段判断，去掉「学号非空才走」的隐含必填，改为显式分支</td></tr>
+    <tr><td>5</td><td>登录支持邮箱 / 学号 / 旧 username</td><td>后端</td><td>已是 OR 匹配，补 <code>student_no</code> 一列</td></tr>
+    <tr><td>6</td><td>注册页改版</td><td>前端</td><td>邮箱+验证码提到最前；学号区加「可跳过，之后也能认证」分隔</td></tr>
+    <tr><td>7</td><td>未认证全局提示条</td><td>前端</td><td>MainLayout 里加，<code>verify_status != 1</code> 时显示</td></tr>
+    <tr><td>8</td><td><code>/onboarding</code> 加学号步骤</td><td>前后端</td><td>归属之后、兴趣之前；复用 <code>submitStudentNo</code></td></tr>
+    <tr><td>9</td><td><code>CircleController</code> 创建/加入圈子挂 <code>@RequireVerified</code></td><td>后端</td><td>现<b>一处都没有</b>。<code>createCircle</code>(L43) 与 <code>join</code>(L65) 各挂一个</td></tr>
+    <tr><td>10</td><td><code>MktActivityController</code> 发布活动挂 <code>@RequireVerified</code></td><td>后端</td><td>现无校验。<code>create</code>(L33) 挂一个；编辑/暂停等属主操作不挂</td></tr>
+    <tr><td>11</td><td>搭话校验改走注解</td><td>后端</td><td><code>ChatGuardServiceImpl:74</code> 的手工校验保留（它还兼管黑名单/额度），另在发送端点挂注解统一口径</td></tr>
+    <tr><td>12</td><td>前端：未认证时四处入口置灰/提示</td><td>前端</td><td>创建圈子、加入圈子、集市发布、发私信 —— 别让用户点了才报错，事先给「去认证」出口</td></tr>
+    <tr><td>13</td><td>更新 openapi 契约</td><td>文档</td><td>RegisterDTO 字段必填性变更、新增 verify 端点、四端点标注 403</td></tr>
+  </table>
+
+  <div class="note note--ok">
+    <b>六层校验完全不动。</b><code>CampusVerifyServiceImpl.validateStudentNoAgainstProfile</code>
+    和 <code>StudentNoParser</code> 一行都不用改 —— 它们本来就是「拿学号比对归属」，只是触发时机从注册挪到认证。
+  </div>
+</div>
+
+<!-- ===== 8. 待确认 ===== -->
+<div class="sec">
+  <h2><span class="n">8</span>已确定 / 仍需确认</h2>
+
+  <div class="note note--ok">
+    <b>已按你的意见确定：</b>
+    ① 邮箱或学号都能登录　② 邮箱必填、学号可选　③ 认证复用 <code>/onboarding</code>
+    ④ 未认证限制四条：<b>发私信 · 创建圈子 · 加入圈子 · 集市发布</b>
+    ⑤ 学校归属含<b>本专科</b>（用于筛选专业 + 六层校验第 4 层）
+  </div>
+
+  <table style="margin-top:14px">
+    <tr><th style="width:30%">仍需你拍板</th><th style="width:30%">我的建议</th><th>理由</th></tr>
+    <tr>
+      <td><b>老账号 <code>username</code> 要不要迁移成邮箱？</b></td>
+      <td>建议<b>不迁移</b>，只做兼容读取</td>
+      <td>迁移有风险且收益低（你库里只有 2 个账号）。老 <code>username</code> 保留，登录时一并 OR 上</td>
+    </tr>
+    <tr>
+      <td><b>未认证用户能否看公告？</b></td>
+      <td>建议<b>能看</b></td>
+      <td>公告是全校通知，只读内容不构成骚扰风险；限制只针对「主动触达他人」和「发布」类动作</td>
+    </tr>
+    <tr>
+      <td><b>未认证用户能否评论？</b></td>
+      <td>建议<b>能评论</b></td>
+      <td>评论是对已有内容的响应，不是主动触达。若你希望更严，也可以一并限制</td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

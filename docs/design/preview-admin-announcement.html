@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 公告管理 + 新建公告 精修设计稿</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px; --ys-r-full:9999px;
+  --ys-sh1:0 1px 2px rgba(36,28,21,.06);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 90px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);-webkit-font-smoothing:antialiased}
+
+.hd{max-width:1400px;margin:0 auto 36px}
+.hd h1{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:14px;line-height:1.75}
+.hd p b{color:#3a3128}
+
+.row{max-width:1400px;margin:0 auto 66px}
+.row > h2{font-size:15px;font-weight:650;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.row > h2 .num{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:12px}
+.row > .note{margin:0 0 18px 32px;font-size:13px;color:#7a6f63;line-height:1.7}
+.row > .note b{color:#3a3128}
+
+.pair{display:flex;gap:52px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:10px}
+.pane__tag{font-size:11.5px;font-weight:650;letter-spacing:.06em}
+.pane__tag--before{color:#a8785f}
+.pane__tag--after{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;position:relative;background:var(--ys-bg);
+  box-shadow:0 0 0 9px #1c1917,0 0 0 11px #3a3531,0 24px 46px rgba(28,25,23,.28);display:flex;flex-direction:column}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.scr{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.desk{width:1180px;height:740px;border-radius:12px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 1px #cbbfa8,0 20px 46px rgba(60,45,28,.2);display:flex;flex-direction:column}
+.desk__bar{flex:none;height:32px;background:#e6dccb;display:flex;align-items:center;gap:7px;padding:0 13px;border-bottom:1px solid #d8ccb7}
+.desk__dot{width:10px;height:10px;border-radius:50%}
+.desk__url{flex:1;height:19px;border-radius:5px;background:#f3ece0;margin-left:9px;display:flex;align-items:center;padding:0 10px;font-size:10.5px;color:#8a7d6b;font-family:ui-monospace,monospace}
+.desk__body{flex:1;display:flex;overflow:hidden;position:relative}
+
+/* 侧栏 */
+.side{width:190px;flex:none;background:var(--ys-surface);border-right:1px solid var(--ys-border);display:flex;flex-direction:column;overflow:hidden}
+.side__b{padding:16px 18px 12px;font-size:16.5px;font-weight:600}
+.side__g{padding:9px 18px 4px;font-size:10.5px;font-weight:650;letter-spacing:.07em;color:#a4967f}
+.side__i{display:flex;align-items:center;gap:9px;height:35px;margin:1px 7px;padding:0 11px;border-radius:8px;font-size:13px;color:var(--ys-fg-2)}
+.side__i svg{width:17px;height:17px;flex:none;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side__i.on{background:var(--ys-accent-soft);color:var(--ys-accent);font-weight:600}
+.side__i.dim{color:var(--ys-muted)}
+
+/* 顶栏 */
+.tb{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);
+  display:flex;align-items:center;gap:10px;padding:0 16px}
+.tb__bk{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg)}
+.tb__bk svg{width:19px;height:19px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tb__t{flex:1;margin:0;font-size:16.5px;font-weight:600}
+.tb__stat{font-size:12.5px;color:var(--ys-muted)}
+.tb__ic{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg-2)}
+.tb__ic svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* 内容 */
+.body{flex:1;overflow:hidden;padding:14px 16px 0}
+.wrap{width:100%;max-width:640px;margin:0 auto}
+
+/* 状态筛选 */
+.chips{display:flex;gap:7px;padding-bottom:12px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:36px;padding:0 15px;border-radius:var(--ys-r-full);border:1px solid var(--ys-border);
+  background:var(--ys-surface);color:var(--ys-fg-2);font-size:13px;font-family:var(--font);white-space:nowrap}
+.chip.on{background:var(--ys-accent);border-color:var(--ys-accent);color:#fff;font-weight:600}
+/* AFTER:加计数徽章 */
+.chip__n{margin-left:5px;font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+
+/* 管理条目 */
+.list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 14px}
+.ih{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.b{font-size:11px;line-height:1.5;padding:2px 8px;border-radius:5px;font-weight:500}
+.b--live{background:var(--ys-success-soft);color:var(--ys-success)}
+.b--draft{background:var(--ys-surface-2);color:var(--ys-fg-2)}
+.b--off{background:var(--ys-surface-2);color:var(--ys-meta)}
+.b--cat{background:var(--ys-surface-2);color:var(--ys-fg-2)}
+.b--top{background:var(--ys-accent-soft);color:var(--ys-accent);display:inline-flex;align-items:center;gap:3px}
+.b--top svg{width:11px;height:11px;stroke:currentColor;stroke-width:2;fill:none}
+.ititle{margin:0;font-size:14.5px;line-height:1.5;font-weight:600;color:var(--ys-fg)}
+/* AFTER:元信息加阅读率进度 */
+.imeta{margin:6px 0 0;font-size:11.5px;color:var(--ys-meta);display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.imeta .sep{color:var(--ys-border-control)}
+.rate{margin-top:7px;display:flex;align-items:center;gap:7px}
+.rate__bar{flex:1;height:4px;border-radius:2px;background:var(--ys-surface-2);overflow:hidden}
+.rate__fill{height:100%;border-radius:2px;background:var(--ys-accent)}
+.rate__txt{flex:none;font-size:11px;color:var(--ys-muted);font-variant-numeric:tabular-nums}
+/* 操作行 */
+.ops{display:flex;gap:0;margin-top:9px;padding-top:8px;border-top:1px solid var(--ys-border-soft);flex-wrap:wrap}
+.op{min-height:38px;padding:0 11px;border:0;background:none;font-family:var(--font);font-size:12.5px;
+  color:var(--ys-fg-2);white-space:nowrap}
+.op--accent{color:var(--ys-accent);font-weight:600}
+.op--hint{min-height:38px;display:inline-flex;align-items:center;padding:0 11px;font-size:11.5px;color:var(--ys-meta)}
+.op--danger{color:var(--ys-danger)}
+
+.end{text-align:center;padding:16px;font-size:12.5px;color:var(--ys-meta)}
+
+/* 新建按钮 */
+.newbtn{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 15px;border:0;border-radius:var(--ys-r-full);
+  background:var(--ys-accent);color:#fff;font-size:13px;font-weight:600;font-family:var(--font);margin-bottom:12px}
+.newbtn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round}
+
+/* TabBar */
+.tb2{flex:none;height:56px;display:flex;background:var(--ys-surface);border-top:1px solid var(--ys-border)}
+.tbi{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ys-muted)}
+.tbi.on{color:var(--ys-accent)}
+.tbi svg{width:21px;height:21px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tbi span{font-size:11px}
+
+/* ============ 新建公告页 ============ */
+.edbar{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:8px;padding:0 12px}
+.edbar__b{min-width:56px;min-height:40px;border:0;background:none;color:var(--ys-muted);font-size:14px;font-family:var(--font);border-radius:9999px}
+.edbar__b--on{color:var(--ys-accent);font-weight:600}
+.edbar__t{flex:1;margin:0;text-align:center;font-size:17px;font-weight:600}
+
+.edform{flex:1;overflow-y:auto;background:var(--ys-bg);padding:14px 16px 0;scrollbar-width:none}
+.edform::-webkit-scrollbar{width:0}
+.edwrap{max-width:640px;margin:0 auto}
+
+/* AFTER：每组独立成卡，替代现在「一整片白底 + 分隔线」 */
+.fcard{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:14px 14px 12px;margin-bottom:12px}
+.fcard--row{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.flabel{display:block;font-size:12.5px;font-weight:600;color:var(--ys-fg-2);margin-bottom:7px;letter-spacing:.01em}
+.fhint{font-size:12px;color:var(--ys-meta);margin:6px 0 0;line-height:1.5}
+
+.tin{display:flex;align-items:center;height:44px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);padding:0 13px}
+.tin input{flex:1;border:0;outline:0;background:none;font-size:15px;font-family:var(--font);color:var(--ys-fg);min-width:0}
+.tin input::placeholder{color:var(--ys-meta)}
+.tin__n{flex:none;font-size:11.5px;color:var(--ys-meta);font-variant-numeric:tabular-nums}
+
+/* AFTER：分类 chip 换成网格，不再用 fieldset（那个默认灰框就是 bug） */
+.cgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cchip{min-height:44px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);
+  color:var(--ys-fg-2);font-size:13.5px;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:5px}
+.cchip.on{background:var(--ys-accent);border-color:var(--ys-accent);color:#fff;font-weight:600}
+.cchip svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none}
+
+.ta{width:100%;min-height:200px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);
+  padding:12px 13px;font-size:15px;line-height:1.7;font-family:var(--font);color:var(--ys-meta);resize:vertical}
+
+.switch{flex:none;width:46px;height:26px;border-radius:13px;background:var(--ys-surface-2);border:1px solid var(--ys-border);position:relative}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:var(--ys-sh1)}
+.switch.on{background:var(--ys-accent);border-color:var(--ys-accent)}
+.switch.on::after{left:22px}
+
+.edfoot{flex:none;background:var(--ys-surface);border-top:1px solid var(--ys-border);padding:9px 16px 11px}
+.edfoot__r{display:flex;gap:10px;max-width:640px;margin:0 auto}
+.edbtn{flex:1;min-height:44px;border-radius:var(--ys-r-full);border:1px solid var(--ys-border-control);background:var(--ys-surface);
+  color:var(--ys-fg-2);font-size:15px;font-weight:500;font-family:var(--font)}
+.edbtn--on{border-color:var(--ys-accent);background:var(--ys-accent);color:#fff;font-weight:600}
+
+/* 桌面端 */
+.dmain{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.dtop{flex:none;height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:12px;padding:0 22px}
+.dtop__t{font-size:15.5px;font-weight:600}
+.dtop__r{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* 标注 */
+.marks{max-width:1400px;margin:16px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px}
+.mk{display:flex;gap:9px;font-size:12.5px;line-height:1.65;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;font-size:10.5px;font-weight:700;background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.bad{background:#f3dcd7;color:#a8392b}
+.mk .i.good{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+.mk code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>友声 · 公告管理 + 新建公告 精修设计稿</h1>
+  <p>左：当前真实截图。右：同尺寸精修。配色沿用现有暖米 token。</p>
+  <p><b>实测 3 个 bug：①新建页「分类」外面那个灰框是 <code>&lt;fieldset&gt;</code> 的浏览器默认边框，CSS 从没重置过 ②桌面端新建页表单横贯 1243px、管理页列表横贯 1180px，都没有限宽 ③管理页一屏 12 条 × 4 个操作按钮 = 48 个可点文字，没有任何视觉分组</b></p>
+</div>
+
+<!-- ========== 1. 新建公告 ========== -->
+<div class="row">
+  <h2><span class="num">1</span>新建公告 · 手机端</h2>
+  <p class="note">核心问题：<b>分类区那个灰框</b>、<b>字段之间靠分隔线勉强分区</b>、<b>置顶开关孤立在右</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="phone"><img src="../../.design-shots/adm-new-m390.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="phone"><div class="scr">
+        <div class="edbar">
+          <button class="edbar__b">取消</button>
+          <h1 class="edbar__t">新建公告</h1>
+          <button class="edbar__b edbar__b--on">发布</button>
+        </div>
+
+        <div class="edform"><div class="edwrap">
+          <div class="fcard">
+            <label class="flabel">标题</label>
+            <div class="tin">
+              <input placeholder="一句话说清这条公告要通知什么" readonly>
+              <span class="tin__n">0 / 64</span>
+            </div>
+          </div>
+
+          <!-- AFTER：分类用 3×2 网格，去掉 fieldset 灰框 -->
+          <div class="fcard">
+            <span class="flabel">分类</span>
+            <div class="cgrid">
+              <button class="cchip">教务</button>
+              <button class="cchip">后勤</button>
+              <button class="cchip">活动</button>
+              <button class="cchip">社团</button>
+              <button class="cchip">紧急</button>
+              <button class="cchip on">其他</button>
+            </div>
+          </div>
+
+          <div class="fcard">
+            <label class="flabel">正文</label>
+            <div class="ta">把要紧的时间、地点、怎么报名写在前面</div>
+          </div>
+
+          <div class="fcard fcard--row">
+            <div>
+              <span class="flabel" style="margin-bottom:2px">置顶这条公告</span>
+              <p class="fhint">置顶最多同时 3 条，超过时先取消一条</p>
+            </div>
+            <div class="switch"></div>
+          </div>
+        </div></div>
+
+        <div class="edfoot">
+          <div class="edfoot__r">
+            <button class="edbtn">存草稿</button>
+            <button class="edbtn edbtn--on">发布</button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">1</span><div><b>分类区的灰色边框是 bug</b>：DOM 是 <code>&lt;fieldset class="ed__sec"&gt;</code>，而 CSS 的 <code>.ed__sec</code> 只设了 <code>padding</code> 和 <code>border-bottom</code>，<b>从没写过 <code>border: 0</code></b>。浏览器给 fieldset 的 UA 默认边框（1px 沟槽）就直接露出来了 —— 那个在整片暖白底上突然出现一圈灰框，和全站风格完全不搭。修法：<code>border: 0; padding: 0; margin: 0</code>，或干脆不用 fieldset（下面改成网格）。</div></div>
+    <div class="mk"><span class="i bad">2</span><div><b>字段靠分隔线勉强分区</b>：现在是一整片白底 + 4 条细线，四组字段视觉上完全同级。改成每组一张独立卡，组与组之间用 12px 间隙分开 —— 这也是全站其它表单页（发帖页）已经用的语言。</div></div>
+    <div class="mk"><span class="i bad">3</span><div><b>分类 chip 在手机上折行成 5+1</b>：390px 下「其他」被挤到第二行，单独一个孤零零挂着。改 3×2 网格，两行整齐 6 个。</div></div>
+    <div class="mk"><span class="i good">4</span><div><b>保留</b>：顶栏「取消 / 标题 / 发布」三段式、吸底「存草稿 / 发布」双按钮、<code>onBeforeRouteLeave</code> 拦截 + ActionSheet 二次确认 —— 这几处设计是对的（尤其那个 <code>disposed</code> 死循环修复的注释写得很清楚）。</div></div>
+  </div>
+</div>
+
+<!-- ========== 2. 公告管理（手机） ========== -->
+<div class="row">
+  <h2><span class="num">2</span>公告管理 · 手机端</h2>
+  <p class="note">核心问题：<b>每条 4 个文字按钮 48 个可点目标</b>、<b>「已读 3 / 已发 0」看不出阅读率</b>、<b>状态筛选没有计数</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="phone"><img src="../../.design-shots/adm-man-m390.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">公告管理</h1>
+          <button class="tb__ic"><svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg></button>
+        </div>
+
+        <div class="body">
+          <button class="newbtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新建公告</button>
+
+          <div class="chips">
+            <button class="chip on">全部<span class="chip__n">5</span></button>
+            <button class="chip">已发布<span class="chip__n">1</span></button>
+            <button class="chip">草稿<span class="chip__n">2</span></button>
+            <button class="chip">已下架<span class="chip__n">2</span></button>
+          </div>
+
+          <div class="list">
+            <div class="card">
+              <div class="ih">
+                <span class="b b--live">已发布</span>
+                <span class="b b--cat">社团</span>
+              </div>
+              <p class="ititle">22222</p>
+              <p class="imeta">
+                <span>10 月 12 日</span><span class="sep">·</span>
+                <span>阅读 3 次</span>
+              </p>
+              <!-- AFTER：阅读率进度条，「已读 3 / 已发 0」这种数字对不上，改成率 -->
+              <div class="rate">
+                <span class="rate__bar"><span class="rate__fill" style="width:2%"></span></span>
+                <span class="rate__txt">3 / 120 已读</span>
+              </div>
+              <div class="ops">
+                <button class="op">置顶</button>
+                <button class="op">下架</button>
+                <button class="op">编辑</button>
+                <button class="op op--accent">谁还没看</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="ih">
+                <span class="b b--draft">草稿</span>
+                <span class="b b--cat">教务</span>
+                <span class="b b--top"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1.2 7 3.2 3.4H7l3.2-3.4z"/></svg>置顶</span>
+              </div>
+              <p class="ititle">111</p>
+              <p class="imeta"><span>未发布</span></p>
+              <div class="ops">
+                <button class="op">取消置顶</button>
+                <button class="op op--accent">上架发布</button>
+                <button class="op">编辑</button>
+                <button class="op op--danger">删除</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="end">共 5 条 · 已全部加载</div>
+        </div>
+
+        <div class="tb2">
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg><span>首页</span></div>
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg><span>圈子</span></div>
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>集市</span></div>
+          <div class="tbi"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg><span>消息</span></div>
+          <div class="tbi on"><svg viewBox="0 0 24 24"><path d="M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0"/><path d="M4 20a8 8 0 0 1 16 0"/></svg><span>我的</span></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">5</span><div><b>「已读 3 / 已发 0」这个数字对不上</b>：管理员看到的应该是<b>阅读率</b>（3 / 全校 120 人 = 2.5%），而「已发」恒为 0（后端 <code>sendCount</code> 一直没填充）。现在这行字既不能回答「多少人看了」，还让人以为发送失败了。</div></div>
+    <div class="mk"><span class="i bad">6</span><div><b>状态筛选没有计数</b>：「已发布 / 草稿 / 已下架」四个 chip 看不出各有几条。管理员最想知道的正是「还有几条草稿没发、几条下架了待处理」。加上计数，筛选条本身就成了概况。</div></div>
+    <div class="mk"><span class="i bad">7</span><div><b>48 个可点文字没有分组</b>：实测 12 条公告 × 4 个操作 = 48 个可点目标，全是没有边框的裸文字，间距 16px。误触风险高（尤其「下架」这类破坏动作紧挨着「编辑」）。改成有分隔线的操作行 + 破坏动作标红。</div></div>
+    <div class="mk"><span class="i good">8</span><div><b>保留</b>：「置顶 / 取消置顶」用文字而非图标（注释里写清了理由：同一位置要表达正反两个动作，图标做不到）—— 这个判断对，只调整排版不改语义。</div></div>
+  </div>
+</div>
+
+<!-- ========== 3. 桌面端 ========== -->
+<div class="row">
+  <h2><span class="num">3</span>桌面端 · 两个页面都没限宽</h2>
+  <p class="note">实测：新建页表单 <b>1243px</b>、管理页列表 <b>1180px</b>，都横贯整个内容区。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在（新建页）</div>
+      <div class="desk" style="width:900px;height:520px">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/admin/announcement/edit</span>
+        </div>
+        <div class="desk__body"><img src="../../.design-shots/adm-new-d1512.png" style="width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="desk">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/admin/announcement</span>
+        </div>
+        <div class="desk__body">
+          <div class="side">
+            <div class="side__b">友声</div>
+            <div class="side__g">浏览</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>首页</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg>圈子</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>集市</div>
+            <div class="side__g">我的</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>消息</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>通知</div>
+            <div class="side__i dim"><svg viewBox="0 0 24 24"><path d="M4 9.6h2.4L11 6v12l-4.6-3.6H4a1.1 1.1 0 0 1-1.1-1.1v-2.6A1.1 1.1 0 0 1 4 9.6Z"/></svg>公告</div>
+            <div class="side__g">管理</div>
+            <div class="side__i on"><svg viewBox="0 0 24 24"><path d="M4 9.6h2.4L11 6v12l-4.6-3.6H4a1.1 1.1 0 0 1-1.1-1.1v-2.6A1.1 1.1 0 0 1 4 9.6Z"/><path d="M14.4 9.2a4 4 0 0 1 0 5.6"/></svg>公告管理</div>
+            <div class="side__i dim"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1.2 7 3.2 3.4H7l3.2-3.4z"/></svg>学号核验</div>
+            <div class="side__i dim"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>内容审核</div>
+          </div>
+
+          <div class="dmain">
+            <div class="dtop">
+              <span class="dtop__t">公告管理</span>
+              <span style="font-size:12.5px;color:var(--ys-muted)">共 5 条 · 1 条待处理</span>
+              <div class="dtop__r">
+                <button style="height:32px;padding:0 14px;border:0;border-radius:9999px;background:var(--ys-accent);color:#fff;font-size:12.5px;font-weight:600;font-family:var(--font)">+ 新建公告</button>
+              </div>
+            </div>
+
+            <!-- AFTER：桌面端限宽 760px 居中 -->
+            <div style="flex:1;overflow:hidden;display:flex;justify-content:center;padding:16px 24px 0">
+              <div style="width:760px;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+                <div class="chips">
+                  <button class="chip on">全部<span class="chip__n">5</span></button>
+                  <button class="chip">已发布<span class="chip__n">1</span></button>
+                  <button class="chip">草稿<span class="chip__n">2</span></button>
+                  <button class="chip">已下架<span class="chip__n">2</span></button>
+                </div>
+                <div class="list">
+                  <div class="card" style="padding:14px 16px">
+                    <div class="ih">
+                      <span class="b b--live">已发布</span>
+                      <span class="b b--cat">社团</span>
+                      <span style="margin-left:auto;font-size:11.5px;color:var(--ys-meta);font-variant-numeric:tabular-nums">10 月 12 日</span>
+                    </div>
+                    <div style="display:flex;align-items:flex-start;gap:16px">
+                      <div style="flex:1;min-width:0">
+                        <p class="ititle" style="font-size:15px">22222</p>
+                        <div class="rate" style="max-width:280px">
+                          <span class="rate__bar"><span class="rate__fill" style="width:2%"></span></span>
+                          <span class="rate__txt">3 / 120 已读</span>
+                        </div>
+                      </div>
+                      <div class="ops" style="margin:0;padding:0;border:0;flex:none">
+                        <button class="op">置顶</button>
+                        <button class="op">下架</button>
+                        <button class="op">编辑</button>
+                        <button class="op op--accent">谁还没看</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card" style="padding:14px 16px">
+                    <div class="ih">
+                      <span class="b b--draft">草稿</span>
+                      <span class="b b--cat">教务</span>
+                      <span class="b b--top"><svg viewBox="0 0 24 24"><path d="M9 3h6l-1.2 7 3.2 3.4H7l3.2-3.4z"/></svg>置顶</span>
+                      <span style="margin-left:auto;font-size:11.5px;color:var(--ys-meta)">未发布</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:16px">
+                      <p class="ititle" style="flex:1;font-size:15px">111</p>
+                      <div class="ops" style="margin:0;padding:0;border:0;flex:none">
+                        <button class="op">取消置顶</button>
+                        <button class="op op--accent">上架发布</button>
+                        <button class="op">编辑</button>
+                        <button class="op op--danger">删除</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="end">共 5 条 · 已全部加载</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">9</span><div><b>桌面端两个页面都没限宽</b>：新建页表单 <code>w=1243</code>、管理页列表 <code>w=1180</code>，横贯整屏。公告正文只有一行字，输入框却拉 1200px 宽 —— 一行能写 80 个字，远超阅读舒适区。限宽到 640（表单）/ 760（列表）后居中。</div></div>
+    <div class="mk"><span class="i bad">10</span><div><b>桌面端操作按钮仍堆成一行</b>：手机上 4 个按钮横排是合理的（够宽），但桌面端每条公告一行只有一个短标题 + 4 个按钮，右侧空掉一大片。改成「标题在左、操作在右」的两栏行，同时把按钮收进右侧。</div></div>
+    <div class="mk"><span class="i good">11</span><div><b>保留</b>：状态筛选 chip 横滑、条目卡片间距、徽章三色体系（已发布绿 / 草稿灰 / 已下架更灰）—— 这三处的语义分级是对的。</div></div>
+    <div class="mk"><span class="i good">12</span><div><b>建议补</b>：管理页顶栏加「1 条待处理」——草稿和下架都需要管理员动作，现在要自己数 chip 才知道有没有待办。</div></div>
+  </div>
+</div>
+
+</body>
+</html>

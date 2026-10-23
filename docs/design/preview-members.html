@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 圈子成员 / 活动参与者</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:38px 30px 90px;background:#f0e9df;font-family:var(--font);color:var(--ys-fg);line-height:1.6;-webkit-font-smoothing:antialiased}
+.hd{max-width:1400px;margin:0 auto 28px}
+.hd h1{font-size:26px;margin:0 0 10px}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:13.5px}
+.hd p b{color:#2e261d}
+.sec{max-width:1400px;margin:0 auto 46px}
+.sec>h2{font-size:16px;margin:0 0 5px;display:flex;align-items:center;gap:9px}
+.sec>h2 .n{display:grid;place-items:center;width:23px;height:23px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:11.5px;flex:none}
+.sec>.sub{margin:0 0 16px 32px;font-size:12.5px;color:#7a6f63}
+.sec>.sub b{color:#3a3128}
+.pair{display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:8px}
+.ptag{font-size:11.5px;font-weight:650;letter-spacing:.05em}
+.ptag--old{color:#a8785f}
+.ptag--new{color:var(--ys-accent)}
+
+.phone{width:390px;min-height:700px;border-radius:32px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 8px #1c1917,0 0 0 10px #3a3531,0 20px 40px rgba(28,25,23,.24)}
+.phone img{width:100%;display:block}
+.tb{height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:10px;padding:0 14px}
+.tb__t{flex:1;margin:0;font-size:16px;font-weight:600}
+
+/* 成员列表 */
+.mlist{background:var(--ys-surface);padding:0 0 8px}
+.mrow{display:flex;align-items:center;gap:11px;padding:11px 16px;border-bottom:1px solid var(--ys-border-soft)}
+.mrow:last-child{border-bottom:0}
+.mrow__av{width:40px;height:40px;border-radius:50%;background:var(--ys-surface-2);display:grid;place-items:center;
+  font-size:14px;font-weight:600;color:var(--ys-fg-2);flex:none}
+.mrow__b{flex:1;min-width:0}
+.mrow__n{font-size:14px;font-weight:600}
+.mrow__d{font-size:11.5px;color:var(--ys-meta);margin-top:1px}
+.mrow__role{flex:none;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:9px}
+.role--owner{background:var(--ys-accent-2-soft);color:var(--ys-accent-2)}
+.role--admin{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.role--member{background:var(--ys-surface-2);color:var(--ys-meta)}
+
+/* 分组标题 */
+.gtitle{display:flex;align-items:center;gap:7px;padding:12px 16px 6px;font-size:12px;font-weight:650;color:var(--ys-fg-2)}
+.gtitle__n{font-size:11px;color:var(--ys-meta);font-weight:400}
+
+/* 移除/管理员操作 */
+.mrow__op{flex:none;font-size:11.5px;color:var(--ys-meta);padding:4px 8px;border-radius:6px;background:none;border:0;cursor:pointer}
+.mrow__op:hover{color:var(--ys-danger);background:var(--ys-danger-soft)}
+
+/* 活动参与者 */
+.signed{background:var(--ys-surface);border-radius:12px;padding:14px 16px;margin:12px 16px 0}
+.signed__h{display:flex;align-items:center;gap:7px;margin-bottom:10px}
+.signed__t{font-size:13.5px;font-weight:650}
+.signed__n{font-size:11.5px;color:var(--ys-meta)}
+.signed__list{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px 5px 5px;border-radius:20px;background:var(--ys-surface-2)}
+.chip__av{width:24px;height:24px;border-radius:50%;background:#D8E8E0;display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.chip__n{font-size:12.5px;font-weight:500}
+.chip--more{background:transparent;border:1px dashed var(--ys-border-control);color:var(--ys-muted);padding:5px 12px}
+
+/* 报名按钮区 */
+.signbox{margin:12px 16px 0;background:var(--ys-surface);border-radius:12px;padding:14px}
+.signbox__row{display:flex;align-items:center;gap:10px}
+.signbox__info{flex:1;min-width:0;font-size:12.5px;color:var(--ys-muted)}
+.signbox__btn{flex:none;min-height:40px;padding:0 22px;border:1px solid var(--ys-accent);border-radius:20px;
+  background:var(--ys-accent);color:#fff;font-size:13.5px;font-weight:650;font-family:var(--font)}
+.signbox__btn--ghost{background:var(--ys-surface);color:var(--ys-accent)}
+
+/* 进度条 */
+.bar{height:5px;border-radius:3px;background:var(--ys-surface-2);overflow:hidden;margin-top:9px}
+.bar__fill{height:100%;background:var(--ys-accent);border-radius:3px}
+
+table{width:100%;border-collapse:collapse;background:var(--ys-surface);border-radius:11px;overflow:hidden;font-size:12.5px}
+th{padding:8px 11px;background:var(--ys-surface-2);text-align:left;font-weight:650;font-size:11.5px}
+td{padding:8px 11px;border-top:1px solid var(--ys-border-soft);vertical-align:top;line-height:1.55}
+code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11px}
+.note{background:var(--ys-accent-soft);border-left:3px solid var(--ys-accent);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0;font-size:12.5px;color:#544a3f}
+.note b{color:var(--ys-accent)}
+.note--warn{background:var(--ys-warning-soft);border-left-color:var(--ys-warning)}
+.note--warn b{color:var(--ys-warning)}
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 24px;margin:14px auto 0;max-width:1400px}
+.mk{display:flex;gap:8px;font-size:12.5px;line-height:1.6;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:17px;height:17px;border-radius:4px;font-size:10px;font-weight:700;
+  background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.b{background:#f3dcd7;color:#a8392b}
+.mk .i.g{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>圈子成员 · 活动参与者</h1>
+  <p>你说的两点：<b>①看得到有哪些成员</b>　<b>②活动不只是报名，要看得到谁参加</b></p>
+</div>
+
+<!-- ===== 1. 现状 ===== -->
+<div class="sec">
+  <h2><span class="n">1</span>现状：数据都在，只是没露出来</h2>
+
+  <div class="notes" style="margin-top:0">
+    <div class="mk"><span class="i b">1</span><div><b>成员列表只有圈主/管理能看</b>：它在 <code>CircleManagePanel</code> 里，而那个面板 <code>v-if="canManage"</code>。普通成员与访客在圈子里只看到一个「2 成员」的数字，不知道是谁。</div></div>
+    <div class="mk"><span class="i b">2</span><div><b>活动只显示人数，不显示人</b>：<code>ActivityVO</code> 有 <code>currentCount</code>（已报 3 人），但没有任何接口返回报名者。报了名之后你不知道还有谁去、也没法联系。</div></div>
+    <div class="mk"><span class="i g">3</span><div><b>好消息：数据都齐</b>。<code>circle_member</code> 表有 user_id + role；<code>activity_signup</code> 表有 activity_id + user_id。</div></div>
+    <div class="mk"><span class="i g">4</span><div><b>也不用新建表</b>。只需要两个新的只读接口 + 前端两个展示块。</div></div>
+  </div>
+</div>
+
+<!-- ===== 2. 圈子成员 ===== -->
+<div class="sec">
+  <h2><span class="n">2</span>圈子成员：所有人可见的成员页</h2>
+  <p class="sub">从圈子头的「N 成员」点进去，或在右栏点「查看全部」。<b>按角色分组</b>，圈主在最上。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">成员列表（所有人可见）</div>
+      <div class="phone">
+        <div class="tb"><span>‹</span><h1 class="tb__t">篮球社 · 成员</h1></div>
+        <div class="mlist">
+          <div class="gtitle">圈主 <span class="gtitle__n">1 人</span></div>
+          <div class="mrow">
+            <div class="mrow__av" style="background:#D8E8E0">3</div>
+            <div class="mrow__b"><div class="mrow__n">3420232712</div><div class="mrow__d">2023 级 · 人工智能学院</div></div>
+            <span class="mrow__role role--owner">圈主</span>
+          </div>
+
+          <div class="gtitle">管理员 <span class="gtitle__n">1 人</span></div>
+          <div class="mrow">
+            <div class="mrow__av" style="background:#EFE0C8">W</div>
+            <div class="mrow__b"><div class="mrow__n">WJ</div><div class="mrow__d">2023 级 · 人工智能学院</div></div>
+            <span class="mrow__role role--admin">管理</span>
+          </div>
+
+          <div class="gtitle">成员 <span class="gtitle__n">3 人</span></div>
+          <div class="mrow">
+            <div class="mrow__av">篮</div>
+            <div class="mrow__b"><div class="mrow__n">篮球爱好者</div><div class="mrow__d">2024 级 · 智能制造与电气工程学院</div></div>
+            <button class="mrow__op">私信</button>
+          </div>
+          <div class="mrow">
+            <div class="mrow__av">小</div>
+            <div class="mrow__b"><div class="mrow__n">小明</div><div class="mrow__d">2023 级 · 数字经济与智慧管理学院</div></div>
+            <button class="mrow__op">私信</button>
+          </div>
+          <div class="mrow">
+            <div class="mrow__av">阿</div>
+            <div class="mrow__b"><div class="mrow__n">阿伟</div><div class="mrow__d">2024 级 · 艺术与设计学院</div></div>
+            <button class="mrow__op">私信</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:320px">
+      <div class="ptag ptag--new">改动点</div>
+      <table>
+        <tr><th style="width:26%">项</th><th>说明</th></tr>
+        <tr><td>可见范围</td><td><b>所有人</b>（含非成员）。成员构成是圈子的公开信息 —— 想加入的人当然想知道里面都有谁。</td></tr>
+        <tr><td>分组</td><td>圈主 / 管理员 / 成员 三段，圈主在最上。角色的价值在于「出问题找谁」，所以顺序不能乱。</td></tr>
+        <tr><td>每行信息</td><td>头像 + 昵称 + 年级·学院 + 角色标签。<b>不显示学号</b>（SPEC AC-12）。</td></tr>
+        <tr><td>入口</td><td>圈子头的「N 成员」变成可点；桌面右栏加「查看全部成员」。</td></tr>
+        <tr><td>成员操作</td><td>普通成员那几行右侧是「私信」。圈主/管理看到的还是原来那套（封禁/任命/移出），复用现有面板的按钮，不重做。</td></tr>
+      </table>
+
+      <div class="note">
+        <b>为什么不用弹窗。</b>成员多的时候（几十人）弹窗里滚动很难受，
+        而且「看成员」是一个可能反复回来看的页面（找人、看谁在）。
+        独立页可以返回、可以分享、可以被浏览器记住位置。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 3. 活动参与者 ===== -->
+<div class="sec">
+  <h2><span class="n">3</span>活动：从「只能报名」到「报名 + 看得到谁去」</h2>
+  <p class="sub">现有 <code>currentCount</code> 只给一个数字。补上参与者名单，并加一个名额进度条。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--old">现在（只有数字）</div>
+      <div class="phone" style="min-height:auto">
+        <div class="tb"><span>‹</span><h1 class="tb__t">活动详情</h1></div>
+        <div style="padding:14px 16px">
+          <div style="background:var(--ys-surface);border-radius:12px;padding:14px">
+            <p style="margin:0 0 8px;font-size:16px;font-weight:650">周末篮球局</p>
+            <p style="margin:0 0 12px;font-size:12.5px;color:var(--ys-muted)">10月26日 15:00 · 体育馆</p>
+            <p style="margin:0;font-size:12.5px;color:var(--ys-muted)">已报名 3 / 10 人</p>
+            <button class="signbox__btn" style="width:100%;margin-top:12px">立即报名</button>
+          </div>
+          <p style="font-size:11.5px;color:#7a6f63;margin:12px 0 0;text-align:center">← 报了名也不知道还有谁去</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--new">改后（进度 + 参与者）</div>
+      <div class="phone">
+        <div class="tb"><span>‹</span><h1 class="tb__t">活动详情</h1></div>
+        <div style="padding:14px 16px 0">
+          <div style="background:var(--ys-surface);border-radius:12px;padding:14px">
+            <p style="margin:0 0 8px;font-size:16px;font-weight:650">周末篮球局</p>
+            <p style="margin:0 0 10px;font-size:12.5px;color:var(--ys-muted)">10月26日 15:00 · 体育馆</p>
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span style="font-size:13px;font-weight:650;color:var(--ys-accent)">3</span>
+              <span style="font-size:12px;color:var(--ys-muted)">/ 10 人已报名</span>
+              <span style="margin-left:auto;font-size:11.5px;color:var(--ys-warning);font-weight:600">还剩 7 个名额</span>
+            </div>
+            <div class="bar"><div class="bar__fill" style="width:30%"></div></div>
+          </div>
+        </div>
+
+        <div class="signed">
+          <div class="signed__h">
+            <span class="signed__t">参加的人</span>
+            <span class="signed__n">3 人</span>
+          </div>
+          <div class="signed__list">
+            <span class="chip"><span class="chip__av">3</span><span class="chip__n">3420232712</span></span>
+            <span class="chip"><span class="chip__av">W</span><span class="chip__n">WJ</span></span>
+            <span class="chip"><span class="chip__av">篮</span><span class="chip__n">篮球爱好者</span></span>
+          </div>
+        </div>
+
+        <div class="signbox">
+          <div class="signbox__row">
+            <span class="signbox__info">报名后你的名字会出现在上面</span>
+            <button class="signbox__btn">立即报名</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="mk"><span class="i g">1</span><div><b>进度条 + 剩余名额</b>：<code>currentCount / capacity</code> 后端已有。一个数字和一条进度条的信息量差很多 —— 后者让人一眼判断「还来不来得及」。</div></div>
+    <div class="mk"><span class="i g">2</span><div><b>参与者用 chip 而不是列表</b>：多数活动只有 3~10 人，chip 更紧凑；超过 12 人时折叠成「+N」，点开看完整名单。</div></div>
+    <div class="mk"><span class="i g">3</span><div><b>已报名的人高亮自己</b>：自己那颗 chip 用主色描边，一眼找到「我在不在里面」。</div></div>
+    <div class="mk"><span class="i g">4</span><div><b>报名前后按钮区分</b>：未报名 → 「立即报名」实底；已报名 → 「取消报名」描边，且上方那句提示换成「你已报名」。</div></div>
+  </div>
+</div>
+
+<!-- ===== 4. 隐私取舍 ===== -->
+<div class="sec">
+  <h2><span class="n">4</span>必须说清的隐私取舍</h2>
+
+  <table>
+    <tr><th style="width:26%">数据</th><th style="width:20%">给谁看</th><th>理由</th></tr>
+    <tr><td>圈子成员：昵称 + 年级/学院 + 角色</td><td><b>所有人</b></td><td>圈子是公开组织，「里面有哪些人」是加入决策的一部分。不含学号、不含联系方式。</td></tr>
+    <tr><td>活动参与者：昵称 + 头像</td><td><b>所有人</b></td><td>线下见面的活动，知道同去的是谁直接关系安全。只给昵称与头像，同样不含学号。</td></tr>
+    <tr><td>被封禁的成员</td><td>不进公开列表</td><td>封禁是管理措施，不该把人挂在公开成员页上示众。圈主/管理在管理面板里仍能看到。</td></tr>
+    <tr><td>「私信」按钮</td><td>仅已认证用户</td><td>复用现有 <code>@RequireVerified</code>：未认证用户点击时给「去认证」提示，不是静默失败。</td></tr>
+  </table>
+
+  <div class="note note--warn">
+    <b>一个需要你确认的点：</b>活动参与者要不要对<b>非成员</b>也可见？
+    我建议<b>可见</b>（同圈成员和访客都能看到），理由是「知道谁去」直接影响来不来。
+    但如果你希望只有报了名的人才能看到名单，那需要在后端加一层判断 —— 告诉我，我改。
+  </div>
+</div>
+
+<!-- ===== 5. 落地清单 ===== -->
+<div class="sec">
+  <h2><span class="n">5</span>落地清单</h2>
+
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:30%">改动</th><th style="width:10%">层</th><th>说明</th></tr>
+    <tr><td>1</td><td>新增 <code>GET /circle/{id}/members</code></td><td>后端</td><td>返回成员列表（昵称/头像/年级/学院/角色），按角色排序；排除已封禁与已退出</td></tr>
+    <tr><td>2</td><td>新增 <code>GET /activity/{id}/signups</code></td><td>后端</td><td>返回报名者（昵称/头像），带 <code>isMe</code> 标记</td></tr>
+    <tr><td>3</td><td>新增 <code>CircleMembers.vue</code> 页</td><td>前端</td><td>按圈主/管理/成员分组；圈主/管理那几行复用现有处置按钮</td></tr>
+    <tr><td>4</td><td>圈子头的「N 成员」变可点</td><td>前端</td><td>跳到成员页；桌面右栏加「查看全部」</td></tr>
+    <tr><td>5</td><td>活动详情加参与者 chips + 进度条</td><td>前端</td><td>超过 12 人折叠「+N」</td></tr>
+    <tr><td>6</td><td>报名按钮加已报名态</td><td>前端</td><td>实底「立即报名」↔ 描边「取消报名」+ 「你已报名」提示</td></tr>
+    <tr><td>7</td><td>更新 openapi 契约</td><td>文档</td><td>两个新端点</td></tr>
+  </table>
+
+  <div class="note">
+    <b>不新建表、不改现有写入逻辑。</b>两个接口都是只读查询，
+    <code>circle_member</code> 与 <code>activity_signup</code> 表已存在且有数据。
+  </div>
+</div>
+
+</body>
+</html>

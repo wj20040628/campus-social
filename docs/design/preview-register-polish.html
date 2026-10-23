@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 注册页美化方案</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:38px 30px 90px;background:#f0e9df;font-family:var(--font);color:var(--ys-fg);line-height:1.6;-webkit-font-smoothing:antialiased}
+
+.hd{max-width:1400px;margin:0 auto 30px}
+.hd h1{font-size:26px;margin:0 0 10px}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:13.5px}
+.hd p b{color:#2e261d}
+
+.sec{max-width:1400px;margin:0 auto 50px}
+.sec>h2{font-size:16px;margin:0 0 5px;display:flex;align-items:center;gap:9px}
+.sec>h2 .n{display:grid;place-items:center;width:23px;height:23px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:11.5px;flex:none}
+.sec>.sub{margin:0 0 18px 32px;font-size:12.5px;color:#7a6f63}
+.sec>.sub b{color:#3a3128}
+
+.pair{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:8px}
+.ptag{font-size:11.5px;font-weight:650;letter-spacing:.05em}
+.ptag--old{color:#a8785f}
+.ptag--new{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:34px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 8px #1c1917,0 0 0 10px #3a3531,0 22px 42px rgba(28,25,23,.26);display:flex;flex-direction:column;position:relative}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.scr{flex:1;overflow:hidden;padding:0 16px 0;display:flex;flex-direction:column}
+
+/* ---------- 方案 A：精致版 ---------- */
+/* 品牌区：加了一枚圆形印鉴 */
+.brandA{display:flex;flex-direction:column;align-items:center;gap:9px;padding:22px 0 18px}
+.seal{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(145deg,#0e7490,#0b5f75);box-shadow:0 3px 10px rgba(14,116,144,.32)}
+.seal span{font-size:19px;font-weight:700;color:#fff;letter-spacing:-.02em}
+.brandA__name{margin:0;font-size:25px;font-weight:650;letter-spacing:-.02em}
+.brandA__slogan{margin:0;font-size:12.5px;color:var(--ys-muted);letter-spacing:.03em}
+
+.formA{display:flex;flex-direction:column;gap:14px}
+.fA{display:flex;flex-direction:column;gap:5px}
+.fA__l{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--ys-fg-2)}
+.fA__l .dot{width:5px;height:5px;border-radius:50%;background:var(--ys-accent-2);flex:none}
+.fA__l .opt{font-weight:400;color:var(--ys-meta);font-size:11.5px}
+.inA{height:46px;border:1px solid var(--ys-border);border-radius:10px;background:var(--ys-surface);
+  padding:0 13px;display:flex;align-items:center;font-size:15px;color:#a49a8c;
+  transition:border-color .15s, box-shadow .15s}
+.inA--focus{border-color:var(--ys-accent);box-shadow:0 0 0 3px rgba(14,116,144,.13);color:var(--ys-fg)}
+.hintA{margin:0;font-size:11px;color:var(--ys-meta)}
+.rowA{display:flex;gap:8px}
+.rowA .inA{flex:1}
+.getA{flex:none;width:106px;height:46px;border:1px solid var(--ys-accent);border-radius:10px;
+  background:var(--ys-accent-soft);color:var(--ys-accent);font-size:13px;font-weight:600;font-family:var(--font);
+  display:grid;place-items:center}
+
+/* 分隔：更精致的小标签 */
+.sepA{display:flex;align-items:center;gap:10px;margin:6px 0 2px}
+.sepA::before,.sepA::after{content:'';flex:1;height:1px;background:var(--ys-border-soft)}
+.sepA__t{flex:none;font-size:10.5px;color:var(--ys-meta);padding:3px 9px;border-radius:20px;
+  background:var(--ys-surface-2);letter-spacing:.02em}
+
+.agreeA{display:flex;align-items:flex-start;gap:8px;margin:4px 0 2px;font-size:12px;color:var(--ys-fg-2)}
+.cbxA{flex:none;width:17px;height:17px;margin-top:2px;border:1.5px solid var(--ys-border-control);border-radius:4px;background:var(--ys-surface)}
+.cbxA--on{background:var(--ys-accent);border-color:var(--ys-accent);position:relative}
+.cbxA--on::after{content:'';position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(42deg)}
+.lnkA{color:var(--ys-accent);text-decoration:none;border-bottom:1px solid rgba(14,116,144,.32)}
+
+.btnA{width:100%;height:48px;border:0;border-radius:26px;background:var(--ys-accent);color:#fff;
+  font-size:15.5px;font-weight:650;font-family:var(--font);display:grid;place-items:center;
+  box-shadow:0 3px 12px rgba(14,116,144,.24)}
+.btnA--off{background:#cfe3e9;color:#fff;box-shadow:none}
+
+.footA{margin-top:16px;text-align:center;font-size:12.5px;color:var(--ys-muted)}
+.footA a{color:var(--ys-accent);text-decoration:none;font-weight:600}
+
+/* 卡片版 */
+.cardA{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:16px;padding:14px 14px 16px;margin-bottom:12px}
+.cardA__h{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:12.5px;font-weight:650;color:var(--ys-fg-2)}
+.cardA__sq{width:6px;height:6px;border-radius:2px;background:var(--ys-accent)}
+.cardA__tag{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--ys-surface-2);color:var(--ys-meta);font-weight:500}
+
+/* ---------- 方案 B：分组卡片 ---------- */
+.brandB{display:flex;align-items:center;gap:11px;padding:20px 2px 16px}
+.brandB__seal{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(145deg,#0e7490,#0b5f75);flex:none;box-shadow:0 3px 9px rgba(14,116,144,.3)}
+.brandB__seal span{font-size:18px;font-weight:700;color:#fff}
+.brandB__t{margin:0;font-size:20px;font-weight:650;line-height:1.25}
+.brandB__s{margin:1px 0 0;font-size:11.5px;color:var(--ys-muted)}
+
+.tabsB{display:flex;background:var(--ys-surface-2);border-radius:10px;padding:3px;margin-bottom:14px}
+.tabsB__i{flex:1;text-align:center;padding:7px 0;font-size:12.5px;font-weight:600;color:var(--ys-muted);border-radius:8px}
+.tabsB__i--on{background:var(--ys-surface);color:var(--ys-fg);box-shadow:0 1px 3px rgba(36,28,21,.08)}
+
+/* ---------- 标注 ---------- */
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 24px;margin:14px auto 0;max-width:1400px}
+.mk{display:flex;gap:8px;font-size:12.5px;line-height:1.6;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:17px;height:17px;border-radius:4px;font-size:10px;font-weight:700;
+  background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.g{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk .i.b{background:#f3dcd7;color:#a8392b}
+.mk b{font-weight:650;color:#2e261d}
+
+table{width:100%;border-collapse:collapse;background:var(--ys-surface);border-radius:11px;overflow:hidden;font-size:12.5px}
+th{padding:8px 11px;background:var(--ys-surface-2);text-align:left;font-weight:650;font-size:11.5px}
+td{padding:8px 11px;border-top:1px solid var(--ys-border-soft);vertical-align:top;line-height:1.55}
+code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11px}
+
+.note{background:var(--ys-accent-soft);border-left:3px solid var(--ys-accent);border-radius:0 8px 8px 0;
+  padding:10px 14px;margin:12px 0;font-size:12.5px;color:#544a3f}
+.note b{color:var(--ys-accent)}
+.note--warn{background:var(--ys-warning-soft);border-left-color:var(--ys-warning)}
+.note--warn b{color:var(--ys-warning)}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>注册页 · 美化方案</h1>
+  <p>先说个重要发现：<b>注册页此前看起来「没设计过」，是因为漏了一行 @import。</b></p>
+  <p>登录页的 <code>Login.css</code> 第 6 行有 <code>@import './Auth.css'</code>，注册页没有 —— 于是 <code>.auth-page</code> / <code>.auth-card</code> / 品牌区 / 表单控件样式全部失效，页面渲染成一串贴着屏幕边缘的裸控件。这一行我已经补上，下面是补齐之后的效果，以及在此基础上的两个美化方向。</p>
+</div>
+
+<!-- ===== 1. 修复前后 ===== -->
+<div class="sec">
+  <h2><span class="n">1</span>先看修复 @import 的效果</h2>
+  <p class="sub">左边是补 <code>@import</code> 之前，右边是之后。这一步不是美化，是<b>把已有的设计找回来</b>。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--old">修复前（样式全丢）</div>
+      <div class="phone"><img src="../../.design-shots/reg-new.png" alt="修复前"></div>
+    </div>
+    <div class="pane">
+      <div class="ptag ptag--new">修复后（Auth.css 生效）</div>
+      <div class="phone"><img src="../../.design-shots/reg-before-m.png" alt="修复后"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 2. 现状问题 ===== -->
+<div class="sec">
+  <h2><span class="n">2</span>修复之后仍然不够精致的四处</h2>
+
+  <div class="notes" style="margin-top:0">
+    <div class="mk"><span class="i b">1</span><div><b>必填星号是浏览器默认样式的裸 <code>*</code></b>，颜色还是正文色（<code>rgb(74,64,51)</code>），既不是红也不够显眼 —— 看起来像标签的一部分而不是必填标记。</div></div>
+    <div class="mk"><span class="i b">2</span><div><b>品牌区只有两行居中的文字</b>（「友声」+「嘤其鸣矣」），没有任何视觉锚点。整页第一眼落不到任何东西上。</div></div>
+    <div class="mk"><span class="i b">3</span><div><b>表单是一路的平铺</b>：5 个字段等距排下去，中间那条「以下可跳过」的细分隔几乎看不见 —— 用户分不清哪些必填、哪些可跳。</div></div>
+    <div class="mk"><span class="i b">4</span><div><b>按钮禁用态是淡青</b>（<code>rgb(135,186,200)</code>），像一块半透明的色块浮在米底上，不像「还没准备好」的按钮。</div></div>
+  </div>
+</div>
+
+<!-- ===== 3. 方案 A ===== -->
+<div class="sec">
+  <h2><span class="n">3</span>方案 A · 精致克制（推荐）</h2>
+  <p class="sub">保留单卡片结构，只打磨细节：<b>印鉴徽标</b>、<b>必填圆点</b>、<b>分段标签</b>、<b>实底按钮</b>。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">方案 A（手机）</div>
+      <div class="phone"><div class="scr">
+        <!-- 品牌区：印鉴 -->
+        <div class="brandA">
+          <div class="seal"><span>友</span></div>
+          <h1 class="brandA__name">友声</h1>
+          <p class="brandA__slogan">嘤其鸣矣，求其友声</p>
+        </div>
+
+        <div class="formA">
+          <div class="fA">
+            <span class="fA__l"><i class="dot"></i>邮箱</span>
+            <div class="inA inA--focus">wj@example.com</div>
+            <p class="hintA">邮箱和学号都能登录，也能用来找回密码</p>
+          </div>
+
+          <div class="fA">
+            <span class="fA__l"><i class="dot"></i>验证码</span>
+            <div class="rowA">
+              <div class="inA">6 位数字</div>
+              <button class="getA">获取验证码</button>
+            </div>
+          </div>
+
+          <div class="fA">
+            <span class="fA__l"><i class="dot"></i>昵称</span>
+            <div class="inA">展示在站内的名字</div>
+          </div>
+
+          <div class="fA">
+            <span class="fA__l"><i class="dot"></i>密码</span>
+            <div class="inA">6~64 位</div>
+          </div>
+
+          <div class="sepA"><span class="sepA__t">以下可跳过 · 之后也能认证</span></div>
+
+          <div class="fA">
+            <span class="fA__l"><i class="dot" style="background:var(--ys-border-control)"></i>学号 <span class="opt">选填</span></span>
+            <div class="inA">13~14 位学号</div>
+            <p class="hintA">填了可立即认证，跳过也不影响发动态</p>
+          </div>
+
+          <div class="agreeA">
+            <span class="cbxA"></span>
+            <span>我已阅读并同意 <a href="#" class="lnkA">《用户协议》</a> 和 <a href="#" class="lnkA">《隐私政策》</a></span>
+          </div>
+
+          <button class="btnA btnA--off">注册并登录</button>
+          <p class="footA">已有账号？<a href="#">去登录</a></p>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:320px">
+      <div class="ptag ptag--new">四处细节</div>
+      <table>
+        <tr><th style="width:24%">元素</th><th style="width:32%">改前</th><th>改后</th></tr>
+        <tr><td>品牌区</td><td>两行居中文字</td><td>加一枚 <b>46px 圆角印鉴</b>（「友」字 + 青色渐变），给整页一个视觉落点</td></tr>
+        <tr><td>必填标记</td><td>裸 <code>*</code>，正文色</td><td><b>5px 圆点</b>，暖橙 <code>--ys-accent-2</code>；选填项用灰点，一列下来必填/选填一眼可辨</td></tr>
+        <tr><td>跳过分隔</td><td>细线 + 裸文字</td><td><b>胶囊标签</b>「以下可跳过 · 之后也能认证」，用浅米底把它做成一个可识别的区块边界</td></tr>
+        <tr><td>主按钮</td><td>禁用态淡青 <code>#87bac8</code></td><td>禁用态用 <b>#cfe3e9</b>（更淡、更干净）；可用态加 <b>柔和投影</b>，让它有按下感</td></tr>
+      </table>
+
+      <div class="note">
+        <b>为什么用「印鉴」而不是普通 logo。</b>
+        产品名「友声」出自《诗经》「嘤其鸣矣，求其友声」，本身就是文人气的调子。
+        一枚印章形状的青色徽标比抽象的圆点更贴这个气质，也比画一个图标更省事 ——
+        里面就一个「友」字，用系统字体渲染，不需要任何图片资源。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 4. 方案 B ===== -->
+<div class="sec">
+  <h2><span class="n">4</span>方案 B · 分组卡片</h2>
+  <p class="sub">把表单拆成两张卡：<b>账号</b>（必填）与<b>校内身份</b>（选填），让「可跳过」这件事在结构上就成立，而不是靠一条分隔线解释。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">方案 B（手机）</div>
+      <div class="phone"><div class="scr" style="padding-top:0">
+        <div class="brandB">
+          <div class="brandB__seal"><span>友</span></div>
+          <div>
+            <h1 class="brandB__t">友声</h1>
+            <p class="brandB__s">嘤其鸣矣，求其友声</p>
+          </div>
+        </div>
+
+        <div class="cardA">
+          <p class="cardA__h"><i class="cardA__sq"></i>账号</p>
+          <div class="formA" style="gap:11px">
+            <div class="fA">
+              <span class="fA__l"><i class="dot"></i>邮箱</span>
+              <div class="inA inA--focus">wj@example.com</div>
+            </div>
+            <div class="fA">
+              <span class="fA__l"><i class="dot"></i>验证码</span>
+              <div class="rowA">
+                <div class="inA">6 位数字</div>
+                <button class="getA" style="height:46px">获取验证码</button>
+              </div>
+            </div>
+            <div class="fA">
+              <span class="fA__l"><i class="dot"></i>昵称</span>
+              <div class="inA">展示在站内的名字</div>
+            </div>
+            <div class="fA">
+              <span class="fA__l"><i class="dot"></i>密码</span>
+              <div class="inA">6~64 位</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cardA">
+          <p class="cardA__h">
+            <i class="cardA__sq" style="background:var(--ys-border-control)"></i>校内身份
+            <span class="cardA__tag">可选</span>
+          </p>
+          <div class="fA" style="gap:5px">
+            <span class="fA__l"><i class="dot" style="background:var(--ys-border-control)"></i>学号</span>
+            <div class="inA">13~14 位学号</div>
+            <p class="hintA">认证后才能发私信、建圈子、加入圈子、发布集市活动</p>
+          </div>
+        </div>
+
+        <div class="agreeA">
+          <span class="cbxA"></span>
+          <span>我已阅读并同意 <a href="#" class="lnkA">《用户协议》</a> 和 <a href="#" class="lnkA">《隐私政策》</a></span>
+        </div>
+        <button class="btnA btnA--off" style="margin-top:6px">注册并登录</button>
+        <p class="footA" style="margin-top:12px">已有账号？<a href="#">去登录</a></p>
+      </div></div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:320px">
+      <div class="ptag ptag--new">两方案的区别</div>
+      <table>
+        <tr><th style="width:20%"></th><th style="width:40%">A · 精致克制</th><th>B · 分组卡片</th></tr>
+        <tr><td>结构</td><td>一条表单流到底</td><td>两张卡：账号 / 校内身份</td></tr>
+        <tr><td>「可跳过」怎么表达</td><td><b>一条胶囊标签</b>划边界</td><td><b>第二张卡自带「可选」角标</b></td></tr>
+        <tr><td>视觉密度</td><td>轻，留白多，像 iOS 设置页</td><td>更结构化，像一张表单卡</td></tr>
+        <tr><td>首屏能否放下</td><td>更紧凑（分隔条比卡片省 ~40px）</td><td>卡片内边距让页面更长，需滚动</td></tr>
+        <tr><td>改动量</td><td><b>只改 CSS + 微调模板</b></td><td>模板要重新分组，改动更大</td></tr>
+      </table>
+
+      <div class="note note--warn">
+        <b>我推荐 A。</b>理由有三：
+        ① 注册页的首要目标是<b>让人赶紧填完</b>，卡片分组会额外增加视觉重量与页面长度；
+        ② B 的「两张卡」在 390px 下每张都要内边距 + 边框，5 个字段会被推出一屏，反而更累；
+        ③ A 只改样式，不动表单结构，回归风险最低 —— 而这块刚改过必填规则，不适合再动骨架。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 5. 落地清单 ===== -->
+<div class="sec">
+  <h2><span class="n">5</span>方案 A 落地清单</h2>
+
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:30%">改动</th><th style="width:12%">文件</th><th>说明</th></tr>
+    <tr><td>1</td><td>补 <code>@import './Auth.css'</code></td><td>Register.css</td><td><b>已完成</b>。这一行让 .auth-page / .auth-card / 品牌 / 控件样式全部回来了</td></tr>
+    <tr><td>2</td><td>品牌区加印鉴徽标</td><td>Register.vue</td><td>一个 46px 圆形 div + 「友」字，不需要图片资源</td></tr>
+    <tr><td>3</td><td>必填标记从 <code>*</code> 改圆点</td><td>Auth.css</td><td>覆盖 <code>.el-form-item__label</code> 的 <code>::before</code>；选填项用灰点</td></tr>
+    <tr><td>4</td><td>分隔线改胶囊标签</td><td>Register.css</td><td>现有 <code>.optional-sep</code> 上加浅米底 + 圆角</td></tr>
+    <tr><td>5</td><td>按钮禁用态与投影</td><td>Auth.css</td><td>禁用 <code>#cfe3e9</code>；可用态加 <code>0 3px 12px rgba(14,116,144,.24)</code></td></tr>
+    <tr><td>6</td><td>输入框聚焦更柔和</td><td>Auth.css</td><td>描边 + <code>0 0 0 3px</code> 主色光晕，替代现在的 inset 边框</td></tr>
+    <tr><td>7</td><td>协议勾选改自绘方块</td><td>Register.vue</td><td>与 MktRiskNotice 同一套（真实 input 铺满整行，方块自绘）</td></tr>
+  </table>
+
+  <div class="note">
+    <b>登录页会跟着变好。</b>方案 A 里第 2~6 项都改在 <code>Auth.css</code>（登录与注册共用），
+    所以登录页会自动获得同样的必填圆点、按钮投影、输入框聚焦态 —— 两页视觉一致，<b>不需要改两遍</b>。
+  </div>
+</div>
+
+</body>
+</html>

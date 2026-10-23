@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 公告详情页精修设计稿</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --ys-r-lg:8px; --ys-r-xl:12px; --ys-r-2xl:18px; --ys-r-full:9999px;
+  --ys-sh1:0 1px 2px rgba(36,28,21,.06);
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:40px 32px 90px;background:#f2ece3;font-family:var(--font);color:var(--ys-fg);-webkit-font-smoothing:antialiased}
+
+.hd{max-width:1400px;margin:0 auto 36px}
+.hd h1{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:14px;line-height:1.75}
+.hd p b{color:#3a3128}
+
+.row{max-width:1400px;margin:0 auto 66px}
+.row > h2{font-size:15px;font-weight:650;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.row > h2 .num{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:12px}
+.row > .note{margin:0 0 18px 32px;font-size:13px;color:#7a6f63;line-height:1.7}
+.row > .note b{color:#3a3128}
+
+.pair{display:flex;gap:52px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:10px}
+.pane__tag{font-size:11.5px;font-weight:650;letter-spacing:.06em}
+.pane__tag--before{color:#a8785f}
+.pane__tag--after{color:var(--ys-accent)}
+
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;position:relative;background:var(--ys-bg);
+  box-shadow:0 0 0 9px #1c1917,0 0 0 11px #3a3531,0 24px 46px rgba(28,25,23,.28);display:flex;flex-direction:column}
+.phone img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.scr{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.desk{width:1180px;height:740px;border-radius:12px;overflow:hidden;background:var(--ys-bg);
+  box-shadow:0 0 0 1px #cbbfa8,0 20px 46px rgba(60,45,28,.2);display:flex;flex-direction:column}
+.desk__bar{flex:none;height:32px;background:#e6dccb;display:flex;align-items:center;gap:7px;padding:0 13px;border-bottom:1px solid #d8ccb7}
+.desk__dot{width:10px;height:10px;border-radius:50%}
+.desk__url{flex:1;height:19px;border-radius:5px;background:#f3ece0;margin-left:9px;display:flex;align-items:center;padding:0 10px;font-size:10.5px;color:#8a7d6b;font-family:ui-monospace,monospace}
+.desk__body{flex:1;display:flex;overflow:hidden;position:relative}
+
+/* 顶栏 */
+.tb{flex:none;height:56px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);
+  display:flex;align-items:center;gap:10px;padding:0 16px}
+.tb__bk{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg)}
+.tb__bk svg{width:19px;height:19px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tb__t{flex:1;margin:0;font-size:16.5px;font-weight:600}
+.tb__ic{width:40px;height:40px;display:grid;place-items:center;border:0;background:none;color:var(--ys-fg-2)}
+.tb__ic svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* 内容 */
+.body{flex:1;overflow:hidden;padding:16px 16px 0}
+.wrap{width:100%;max-width:640px;margin:0 auto}
+
+/* 头部 */
+.head__chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:11px}
+/* AFTER:徽章从「学校通知」改成显示发布方；下方法名行去重 */
+.org{font-size:11px;padding:2px 8px;border-radius:5px;background:#241C15;color:#fff;font-weight:500}
+.cat{font-size:11px;padding:2px 8px;border-radius:5px;background:var(--ys-surface-2);color:var(--ys-fg-2)}
+.top{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:5px;background:var(--ys-accent-soft);color:var(--ys-accent);font-weight:600}
+
+.title{margin:0 0 9px;font-size:21px;line-height:1.4;letter-spacing:-.005em;font-weight:600;color:var(--ys-fg)}
+.meta{margin:0 0 7px;font-size:12px;color:var(--ys-meta);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.meta .sep{color:var(--ys-border-control)}
+/* AFTER:主体加极浅底卡，与正文区分层级 */
+.sign{margin:0;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ys-fg-2)}
+.sign__ava{width:20px;height:20px;border-radius:50%;background:#EFE0C8;display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--ys-fg);flex:none}
+.sign__v{color:var(--ys-accent);display:inline-flex;align-items:center}
+.sign__v svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+.hr{height:1px;background:var(--ys-border-soft);margin:13px 0 14px}
+
+/* 正文 */
+.content{padding:16px 0 0;font-size:15px;line-height:1.85;color:var(--ys-fg);white-space:pre-wrap;overflow-wrap:anywhere;min-height:0}
+/* AFTER:正文限宽 + 行长舒适；现在是 640 满宽（中文约 42 字/行） */
+.content p{margin:0 0 14px}
+.content p:last-child{margin-bottom:0}
+
+/* AFTER:补一个「发布方信息」块 —— 现在只有一个昵称，用户不知道这人是谁 */
+.signbox{display:flex;align-items:center;gap:10px;margin-top:22px;padding:13px 14px;
+  background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl)}
+.signbox__ava{width:38px;height:38px;border-radius:50%;background:#D8E8E0;display:grid;place-items:center;
+  font-size:14px;font-weight:600;color:var(--ys-fg);flex:none}
+.signbox__main{flex:1;min-width:0}
+.signbox__n{font-size:13.5px;font-weight:600;color:var(--ys-fg);display:flex;align-items:center;gap:5px}
+.signbox__d{font-size:11.5px;color:var(--ys-muted);margin-top:2px}
+
+/* AFTER:相关公告 —— 现在看完一条就没有任何去向 */
+.rel{margin-top:22px}
+.rel__h{font-size:12.5px;font-weight:650;color:var(--ys-fg-2);margin:0 0 9px;display:flex;align-items:center;gap:6px}
+.rel__h .sq{width:7px;height:7px;border-radius:2px;background:var(--ys-accent)}
+.relrow{display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--ys-surface);
+  border:1px solid var(--ys-border);border-radius:var(--ys-r-lg);margin-bottom:7px}
+.relrow__t{flex:1;min-width:0;font-size:13px;color:var(--ys-fg-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.relrow__d{flex:none;font-size:11px;color:var(--ys-meta)}
+
+/* 吸底栏 */
+.ab{flex:none;background:var(--ys-surface);border-top:1px solid var(--ys-border);
+  padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ab__s{font-size:13px;color:var(--ys-muted)}
+.ab__b{min-height:44px;min-width:124px;padding:0 22px;border:1px solid var(--ys-accent);border-radius:var(--ys-r-full);
+  background:var(--ys-accent);color:#fff;font-size:14px;font-weight:600;font-family:var(--font)}
+
+/* TabBar */
+.tb2{flex:none;height:56px;display:flex;background:var(--ys-surface);border-top:1px solid var(--ys-border)}
+.tbi{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ys-muted)}
+.tbi.on{color:var(--ys-accent)}
+.tbi svg{width:21px;height:21px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tbi span{font-size:11px}
+
+/* 桌面 */
+.side{width:200px;flex:none;background:var(--ys-surface);border-right:1px solid var(--ys-border);display:flex;flex-direction:column}
+.side__b{padding:17px 20px 13px;font-size:17px;font-weight:600}
+.side__g{padding:10px 20px 5px;font-size:10.5px;font-weight:650;letter-spacing:.07em;color:#a4967f}
+.side__i{display:flex;align-items:center;gap:10px;height:37px;margin:1px 8px;padding:0 12px;border-radius:8px;font-size:13.5px;color:var(--ys-fg-2)}
+.side__i svg{width:18px;height:18px;flex:none;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.side__i.on{background:var(--ys-accent-soft);color:var(--ys-accent);font-weight:600}
+.side__i.dim{color:var(--ys-muted)}
+
+.dmain{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.dtop{flex:none;height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:12px;padding:0 22px}
+.dtop__t{font-size:15.5px;font-weight:600}
+.dtop__r{margin-left:auto;display:flex;align-items:center;gap:8px}
+.dtop__pub{height:32px;padding:0 14px;border:0;border-radius:var(--ys-r-full);background:var(--ys-accent);color:#fff;font-size:12.5px;font-weight:600;font-family:var(--font)}
+
+.dcontent{flex:1;display:flex;gap:26px;padding:18px 24px 0;justify-content:center;overflow:hidden}
+.dcol{width:640px;flex:none;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.daside{width:268px;flex:none;display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:var(--ys-r-xl);padding:13px 15px;box-shadow:var(--ys-sh1)}
+.panel h3{margin:0 0 9px;font-size:12.5px;font-weight:650;display:flex;align-items:center;gap:6px}
+.panel h3 .sq{width:7px;height:7px;border-radius:2px;background:var(--ys-accent)}
+.prow{display:flex;align-items:baseline;justify-content:space-between;padding:6px 0;font-size:12.5px;color:var(--ys-muted)}
+.prow+.prow{border-top:1px solid var(--ys-border-soft)}
+.prow b{color:var(--ys-fg);font-weight:650}
+.ptip{font-size:12px;line-height:1.7;color:var(--ys-muted);margin:0}
+.ptip b{color:var(--ys-fg-2)}
+
+/* 标注 */
+.marks{max-width:1400px;margin:16px auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px}
+.mk{display:flex;gap:9px;font-size:12.5px;line-height:1.65;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;font-size:10.5px;font-weight:700;background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.bad{background:#f3dcd7;color:#a8392b}
+.mk .i.good{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+.mk code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>友声 · 公告详情页精修设计稿</h1>
+  <p>左：当前真实截图。右：同尺寸精修。配色沿用现有暖米 token。</p>
+  <p><b>实测 4 个 bug：①「学校通知」在一屏里出现两次 ②桌面端吸底栏宽 1243px，比正文列 640px 宽出 603px ③时间仍是机器格式 ④桌面端右侧 325px + 顶栏左侧全空</b></p>
+</div>
+
+<!-- ========== 1. 手机端 ========== -->
+<div class="row">
+  <h2><span class="num">1</span>手机端 · 390×844</h2>
+  <p class="note">核心问题：<b>「学校通知」重复出现</b>、<b>正文后 470px 全空</b>、<b>看完没有去向</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="phone"><img src="../../.design-shots/annd-mobile-390.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="phone"><div class="scr">
+        <div class="tb">
+          <button class="tb__bk"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg></button>
+          <h1 class="tb__t">公告详情</h1>
+          <button class="tb__ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="tb__ic"><svg viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></svg></button>
+        </div>
+
+        <div class="body"><div class="wrap">
+          <div class="head__chips">
+            <!-- AFTER:徽章显示真实发布方，不再是「学校通知」这个兜底词 -->
+            <span class="org">教务处</span>
+            <span class="cat">社团</span>
+          </div>
+
+          <h2 class="title">22222</h2>
+
+          <p class="meta">
+            <span>10 月 12 日</span>
+            <span class="sep">·</span>
+            <span>阅读 3 次</span>
+            <span class="sep">·</span>
+            <span>已认证</span>
+          </p>
+
+          <div class="hr"></div>
+
+          <div class="content">
+            <p>22222222222222222222222222222222</p>
+          </div>
+
+          <!-- AFTER:发布方信息块 —— 现在只有一个裸昵称，用户不知道这人是谁 -->
+          <div class="signbox">
+            <div class="signbox__ava">教</div>
+            <div class="signbox__main">
+              <div class="signbox__n">
+                教务处
+                <span class="sign__v"><svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg></span>
+              </div>
+              <div class="signbox__d">本校官方发布 · 校园公告</div>
+            </div>
+          </div>
+
+          <!-- AFTER:相关公告 —— 现在看完一条，页面上没有任何「下一条」的去向 -->
+          <div class="rel">
+            <p class="rel__h"><span class="sq"></span>相关公告</p>
+            <div class="relrow"><span class="relrow__t">期末考试安排与考场调整说明</span><span class="relrow__d">10 月 8 日</span></div>
+            <div class="relrow"><span class="relrow__t">2026 秋季选课结果公布</span><span class="relrow__d">10 月 5 日</span></div>
+          </div>
+        </div></div>
+
+        <div class="ab">
+          <span class="ab__s">已读 · 10-12 15:38</span>
+          <button class="ab__b">我知道了</button>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">1</span><div><b>「学校通知」一屏出现两次（真 bug）</b>：徽章 <code>.org</code> 和署名 <code>.head__sign</code> 都渲染同一个兜底串。后端 <code>publisher.nickname</code> 与 <code>schoolName</code> 都是 null，于是两处各自 fallback 到「学校通知」——用户连着看到两遍同一句话。修法：徽章只在有真实来源时显示，否则整块不渲染；署名行与徽章合并成一处。</div></div>
+    <div class="mk"><span class="i bad">2</span><div><b>正文后 470px 全空</b>：实测正文底边 284px、吸底栏顶边 755px，中间 471px 纯空。因为公告只有一行字。这不是布局错，但页面显得像没加载完。补「发布方信息 + 相关公告」把空间用起来，also 给用户下一步。</div></div>
+    <div class="mk"><span class="i bad">3</span><div><b>看完没有去向</b>：底部只有「我知道了」= <code>router.back()</code>。用户看完一条公告，页面上没有任何「下一条 / 相关公告」的入口，只能返回列表再找。</div></div>
+    <div class="mk"><span class="i good">4</span><div><b>相对时间</b>：<code>2026-10-12 15:38</code> 是 <code>slice(0,16)</code> 截的机器串，与首页/列表页已统一的相对时间不一致。</div></div>
+  </div>
+</div>
+
+<!-- ========== 2. 桌面端 ========== -->
+<div class="row">
+  <h2><span class="num">2</span>桌面端 · 1440×900</h2>
+  <p class="note">核心问题：<b>吸底栏比正文宽 603px</b>、<b>顶栏左侧全空</b>、<b>右侧 325px 空白</b>。</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="pane__tag pane__tag--before">现在</div>
+      <div class="desk" style="width:900px;height:520px">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/announcement/21</span>
+        </div>
+        <div class="desk__body"><img src="../../.design-shots/annd-desk-1512.png" style="width:100%;height:100%;object-fit:cover;object-position:top left"></div>
+      </div>
+      <div class="marks" style="grid-template-columns:1fr;margin-top:6px">
+        <div class="mk"><span class="i bad">5</span><div><b>吸底栏横跨整屏（真 bug）</b>：实测正文列 <code>x=547 w=640</code>（547~1187），吸底栏 <code>x=245 w=1243</code>（245~1488）。吸底栏比正文宽 <b>603px</b>，左右各多出约 300px，而它里面只有一行小字和一个按钮，视觉上像一条横贯屏幕的空白带。</div></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane__tag pane__tag--after">精修后</div>
+      <div class="desk">
+        <div class="desk__bar">
+          <span class="desk__dot" style="background:#e8837a"></span><span class="desk__dot" style="background:#e8c47a"></span><span class="desk__dot" style="background:#9ecb8a"></span>
+          <span class="desk__url">localhost:5173/announcement/21</span>
+        </div>
+        <div class="desk__body">
+          <div class="side">
+            <div class="side__b">友声</div>
+            <div class="side__g">浏览</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>首页</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M7 10h6"/></svg>圈子</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1.2 12H7.2z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>集市</div>
+            <div class="side__g">我的</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M20 14.5a2.5 2.5 0 0 1-2.5 2.5H8l-4 3.5V6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5z"/></svg>消息</div>
+            <div class="side__i"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>通知</div>
+            <div class="side__i on"><svg viewBox="0 0 24 24"><path d="M4 9.6h2.4L11 6v12l-4.6-3.6H4a1.1 1.1 0 0 1-1.1-1.1v-2.6A1.1 1.1 0 0 1 4 9.6Z"/><path d="M14.4 9.2a4 4 0 0 1 0 5.6"/></svg>公告</div>
+            <div class="side__g">管理</div>
+            <div class="side__i dim"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>管理后台</div>
+          </div>
+
+          <div class="dmain">
+            <div class="dtop">
+              <span class="dtop__t">公告详情</span>
+              <div class="dtop__r">
+                <button class="dtop__pub">+ 发动态</button>
+              </div>
+            </div>
+
+            <div class="dcontent">
+              <div class="dcol">
+                <div class="head__chips">
+                  <span class="org">教务处</span>
+                  <span class="cat">社团</span>
+                </div>
+                <h2 class="title">22222</h2>
+                <p class="meta">
+                  <span>10 月 12 日</span><span class="sep">·</span>
+                  <span>阅读 3 次</span><span class="sep">·</span>
+                  <span>已认证</span>
+                </p>
+                <div class="hr"></div>
+                <div class="content"><p>22222222222222222222222222222222</p></div>
+
+                <div class="signbox">
+                  <div class="signbox__ava">教</div>
+                  <div class="signbox__main">
+                    <div class="signbox__n">教务处 <span class="sign__v"><svg viewBox="0 0 24 24"><path d="m20 6-11 11-5-5"/></svg></span></div>
+                    <div class="signbox__d">本校官方发布 · 校园公告</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- AFTER:桌面右栏。现在右侧 325px 全空 -->
+              <div class="daside">
+                <div class="panel">
+                  <h3><span class="sq"></span>这条公告</h3>
+                  <div class="prow"><span>发布</span><b>10 月 12 日</b></div>
+                  <div class="prow"><span>阅读</span><b>3 次</b></div>
+                  <div class="prow"><span>状态</span><b>已读</b></div>
+                  <div class="prow"><span>是否置顶</span><b>否</b></div>
+                </div>
+                <div class="panel">
+                  <h3><span class="sq"></span>相关公告</h3>
+                  <div class="prow"><span>期末考试安排</span><b>10-08</b></div>
+                  <div class="prow"><span>秋季选课结果</span><b>10-05</b></div>
+                  <div class="prow"><span>校园网维护通知</span><b>09-28</b></div>
+                </div>
+                <div class="panel">
+                  <h3><span class="sq"></span>提示</h3>
+                  <p class="ptip"><b>公告一经发布不可编辑</b>，如需更正由发布方撤回后重发。<br>对内容有疑问请走<b>意见反馈</b>。</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- AFTER:吸底栏收进正文列宽度，不再横贯整屏 -->
+            <div class="ab" style="max-width:640px;margin:0 auto;width:100%;border-radius:12px 12px 0 0;border:1px solid var(--ys-border);border-bottom:0">
+              <span class="ab__s">已读 · 10-12 15:38</span>
+              <button class="ab__b">我知道了</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marks">
+    <div class="mk"><span class="i bad">6</span><div><b>顶栏左侧只有一个「公告详情」</b>，右侧只有搜索/头像，中间 900px 空。补统计或面包屑（「公告 › 详情」）。</div></div>
+    <div class="mk"><span class="i bad">7</span><div><b>右侧 325px 空白</b>：正文列 640px 固定，1512 窗口下右边空掉。补右栏（这条公告的属性 / 相关公告 / 提示），全部由已有数据算出。</div></div>
+    <div class="mk"><span class="i good">8</span><div><b>保留</b>：正文 <code>white-space:pre-wrap</code> 保留教务处通知的分行排版 —— 这是对的，不动。</div></div>
+    <div class="mk"><span class="i good">9</span><div><b>保留</b>：「无条件调 markRead，幂等交给后端」这个决策是对的（注释里写清了为什么不能加 <code>if (!isRead)</code>），不动。</div></div>
+  </div>
+</div>
+
+<!-- ========== 3. 排版细节 ========== -->
+<div class="row">
+  <h2><span class="num">3</span>排版 · 层级与行长</h2>
+  <p class="note">现在是「一堆同级文字从上往下排」，缺视觉锚点。</p>
+  <div class="marks" style="margin-top:0">
+    <div class="mk"><span class="i bad">10</span><div><b>标题 20px 但正文 16px，差 4px 不够</b>：公告是「标题定主题、正文看细节」，标题该到 21px，正文降到 15px/1.85（长文阅读更舒服）。</div></div>
+    <div class="mk"><span class="i bad">11</span><div><b>徽章 / 标题 / 时间 / 署名 四行挤在 13px 间距里</b>：挤成一坨，没有分组。改成「标签行 → 标题 → 元信息 → 分隔线 → 正文」，用一条细线把「头部元信息」与「正文」切开。</div></div>
+    <div class="mk"><span class="i good">12</span><div><b>正文行宽</b>：640px 下中文约 42 字/行，略超 30-38 的易读区间。桌面端正文收到 600px（或补左右 padding）会更舒服。</div></div>
+    <div class="mk"><span class="i good">13</span><div><b>保留</b>：紧急公告红色标签、置顶图钉、已认证盾牌 —— 三种标记的语义区分是对的，只调整位置让它们不挤在一起。</div></div>
+  </div>
+</div>
+
+</body>
+</html>

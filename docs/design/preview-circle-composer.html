@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>友声 · 圈子发帖入口重设计</title>
+<style>
+:root{
+  --ys-bg:#FBF3E9; --ys-surface:#fff; --ys-surface-2:#F4E9D8;
+  --ys-fg:#241C15; --ys-fg-2:#4A4033; --ys-muted:#75695A; --ys-meta:#6E6353;
+  --ys-border:#EADFC9; --ys-border-soft:#F3EAD9; --ys-border-control:#8C7F6E;
+  --ys-accent:#0e7490; --ys-accent-soft:#e2f0f4; --ys-accent-on:#fff;
+  --ys-accent-2:#b44a12; --ys-accent-2-soft:#fbede4;
+  --ys-danger:#c32b20; --ys-danger-soft:#fae9e7;
+  --ys-success:#157347; --ys-success-soft:#e5f2ea;
+  --ys-warning:#a85b08; --ys-warning-soft:#fdf3e7;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:38px 30px 90px;background:#f0e9df;font-family:var(--font);color:var(--ys-fg);line-height:1.6;-webkit-font-smoothing:antialiased}
+.hd{max-width:1400px;margin:0 auto 28px}
+.hd h1{font-size:26px;margin:0 0 10px}
+.hd p{margin:0 0 6px;color:#6b6156;font-size:13.5px}
+.hd p b{color:#2e261d}
+.sec{max-width:1400px;margin:0 auto 46px}
+.sec>h2{font-size:16px;margin:0 0 5px;display:flex;align-items:center;gap:9px}
+.sec>h2 .n{display:grid;place-items:center;width:23px;height:23px;border-radius:6px;background:var(--ys-fg);color:#fff;font-size:11.5px;flex:none}
+.sec>.sub{margin:0 0 16px 32px;font-size:12.5px;color:#7a6f63}
+.sec>.sub b{color:#3a3128}
+.pair{display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap}
+.pane{display:flex;flex-direction:column;gap:8px}
+.ptag{font-size:11.5px;font-weight:650;letter-spacing:.05em}
+.ptag--old{color:#a8785f}
+.ptag--new{color:var(--ys-accent)}
+
+.phone{width:390px;min-height:760px;border-radius:32px;overflow:hidden;background:var(--ys-bg);position:relative;
+  box-shadow:0 0 0 8px #1c1917,0 0 0 10px #3a3531,0 20px 40px rgba(28,25,23,.24)}
+.phone img{width:100%;display:block}
+.tb{height:52px;background:var(--ys-surface);border-bottom:1px solid var(--ys-border);display:flex;align-items:center;gap:10px;padding:0 14px}
+.tb__t{flex:1;margin:0;font-size:16px;font-weight:600}
+
+.cdh{background:var(--ys-surface);padding:14px 16px 0}
+.cdh__row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.cdh__name{margin:0;font-size:20px;font-weight:650;line-height:1.3}
+.cdh__meta{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ys-muted);margin-bottom:12px}
+.cdh__ava{width:26px;height:26px;border-radius:50%;background:var(--ys-surface-2);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ys-fg-2);flex:none}
+.cdh__manage{flex:none;min-height:32px;padding:0 12px;border:1px solid var(--ys-border);border-radius:16px;
+  background:var(--ys-surface);color:var(--ys-fg-2);font-size:12px;font-weight:600;font-family:var(--font)}
+.tabs{display:flex;background:var(--ys-surface);border-bottom:1px solid var(--ys-border)}
+.tabs__i{flex:1;text-align:center;padding:11px 0;font-size:14px;font-weight:600;color:var(--ys-muted);position:relative}
+.tabs__i--on{color:var(--ys-accent)}
+.tabs__i--on::after{content:'';position:absolute;bottom:0;left:22%;right:22%;height:2px;background:var(--ys-accent);border-radius:2px}
+
+/* 新：触发条 */
+.trigger{display:flex;align-items:center;gap:10px;margin:12px 16px;padding:11px 14px;
+  background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:24px;
+  font-size:13.5px;color:var(--ys-muted);cursor:pointer}
+.trigger__ic{width:26px;height:26px;border-radius:50%;background:var(--ys-accent-soft);color:var(--ys-accent);
+  display:grid;place-items:center;font-size:14px;flex:none}
+.trigger__t{flex:1;min-width:0}
+
+/* 帖子流 */
+.plist{padding:0 16px 14px;display:flex;flex-direction:column;gap:11px}
+.pitem{background:var(--ys-surface);border:1px solid var(--ys-border);border-radius:12px;padding:13px}
+.pitem__h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pitem__a{width:30px;height:30px;border-radius:50%;background:#D8E8E0;display:grid;place-items:center;font-size:12px;font-weight:600;flex:none}
+.pitem__n{font-size:13px;font-weight:600}
+.pitem__d{font-size:11px;color:var(--ys-meta)}
+.pitem__t{margin:0;font-size:14px;line-height:1.6}
+.pitem__f{display:flex;gap:16px;margin-top:10px;padding-top:9px;border-top:1px solid var(--ys-border-soft);
+  font-size:11.5px;color:var(--ys-muted)}
+
+/* 空态（无发布框时可以直接顶上来） */
+.empty{text-align:center;padding:34px 16px 30px}
+.empty__ic{width:44px;height:44px;border-radius:50%;background:var(--ys-surface-2);display:grid;place-items:center;margin:0 auto 11px;font-size:19px;color:var(--ys-muted)}
+.empty__t{margin:0 0 5px;font-size:15.5px;font-weight:600}
+.empty__d{margin:0 0 16px;font-size:12.5px;color:var(--ys-muted)}
+.empty__b{min-height:40px;padding:0 22px;border:1px solid var(--ys-accent);border-radius:20px;
+  background:var(--ys-accent);color:#fff;font-size:13.5px;font-weight:600;font-family:var(--font)}
+
+/* 抽屉 */
+.mask{position:absolute;inset:0;background:rgba(36,28,21,.42);display:flex;align-items:flex-end}
+.sheet{width:100%;background:var(--ys-surface);border-radius:18px 18px 0 0;padding:14px 16px 20px}
+.sheet__h{display:flex;align-items:center;margin-bottom:10px}
+.sheet__t{font-size:14.5px;font-weight:650}
+.sheet__x{margin-left:auto;width:30px;height:30px;border:0;background:none;color:var(--ys-muted);font-size:16px}
+.sheet__ta{width:100%;min-height:110px;border:1px solid var(--ys-border);border-radius:10px;padding:10px 12px;
+  font-size:15px;line-height:1.6;color:#a49a8c;font-family:var(--font)}
+.sheet__ops{display:flex;align-items:center;gap:8px;margin-top:10px}
+.sheet__op{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ys-fg-2);
+  padding:6px 10px;border:1px solid var(--ys-border);border-radius:16px}
+.sheet__count{margin-left:auto;font-size:11px;color:var(--ys-meta)}
+.sheet__send{width:100%;height:44px;margin-top:12px;border:0;border-radius:22px;
+  background:var(--ys-accent);color:#fff;font-size:14.5px;font-weight:650;font-family:var(--font)}
+
+/* 桌面弹窗 */
+.modal{position:absolute;inset:0;background:rgba(36,28,21,.42);display:grid;place-items:center;padding:20px}
+.dialog{width:100%;max-width:480px;background:var(--ys-surface);border-radius:14px;padding:18px}
+.dialog__h{display:flex;align-items:center;margin-bottom:12px}
+.dialog__t{font-size:15px;font-weight:650}
+
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 24px;margin:14px auto 0;max-width:1400px}
+.mk{display:flex;gap:8px;font-size:12.5px;line-height:1.6;color:#544a3f}
+.mk .i{flex:none;display:grid;place-items:center;width:17px;height:17px;border-radius:4px;font-size:10px;font-weight:700;
+  background:#efe6d8;color:#8a6d4f;margin-top:1px}
+.mk .i.b{background:#f3dcd7;color:#a8392b}
+.mk .i.g{background:var(--ys-accent-soft);color:var(--ys-accent)}
+.mk b{font-weight:650;color:#2e261d}
+
+table{width:100%;border-collapse:collapse;background:var(--ys-surface);border-radius:11px;overflow:hidden;font-size:12.5px}
+th{padding:8px 11px;background:var(--ys-surface-2);text-align:left;font-weight:650;font-size:11.5px}
+td{padding:8px 11px;border-top:1px solid var(--ys-border-soft);vertical-align:top;line-height:1.55}
+code{background:#e9e0d2;padding:1px 4px;border-radius:3px;font-size:11px}
+.note{background:var(--ys-accent-soft);border-left:3px solid var(--ys-accent);border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0;font-size:12.5px;color:#544a3f}
+.note b{color:var(--ys-accent)}
+.note--warn{background:var(--ys-warning-soft);border-left-color:var(--ys-warning)}
+.note--warn b{color:var(--ys-warning)}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <h1>圈子发帖入口 · 从常驻框改成按钮触发</h1>
+  <p>你的判断对：那个常驻框占了整页最贵的位置（帖子列表上方），而它 99% 的时间是空的。</p>
+  <p>改成 <b>「写点什么」按钮 → 底部抽屉（手机）/ 弹窗（桌面）</b>，帖子列表直接顶到 Tab 下面。</p>
+</div>
+
+<!-- ===== 1. 为什么要改 ===== -->
+<div class="sec">
+  <h2><span class="n">1</span>常驻发帖框的四个代价</h2>
+
+  <div class="notes" style="margin-top:0">
+    <div class="mk"><span class="i b">1</span><div><b>抢占首屏最贵的位置</b>：它在 Tab 正下方、帖子列表上方，是视线第一落点。这个位置该给内容，不该给一个空输入框。</div></div>
+    <div class="mk"><span class="i b">2</span><div><b>框比帖子还显眼</b>：发帖框有边框 + 内边距 + 上传按钮 + 字数 + 提示，视觉重量明显大于一条帖子卡片。于是「能不能发」压过了「别人说了什么」。</div></div>
+    <div class="mk"><span class="i b">3</span><div><b>空态被迫往下挤</b>：框占掉 260px，空态只剩一半空间，于是它被压缩、又被撑大，两种都不好看。</div></div>
+    <div class="mk"><span class="i b">4</span><div><b>每个访客都看到「发表框」</b>：但发帖是低频动作。看的人远多于写的人，却让所有人先看到一张表单。</div></div>
+  </div>
+</div>
+
+<!-- ===== 2. 前后对照 ===== -->
+<div class="sec">
+  <h2><span class="n">2</span>手机端前后对照</h2>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--old">现在（框占据首屏）</div>
+      <div class="phone"><img src="../../.design-shots/cdp-1.png" alt="现在"></div>
+    </div>
+
+    <div class="pane">
+      <div class="ptag ptag--new">改后（触发条 + 帖子流）</div>
+      <div class="phone">
+        <div class="tb"><span>‹</span><h1 class="tb__t">圈子详情</h1><span>＋</span><span>☰</span></div>
+        <div class="cdh">
+          <div class="cdh__row"><h2 class="cdh__name">444</h2><button class="cdh__manage">⚙ 管理</button></div>
+          <div class="cdh__meta"><span class="cdh__ava">3</span>3420232712 · 1 成员</div>
+        </div>
+        <div class="tabs"><div class="tabs__i tabs__i--on">帖子</div><div class="tabs__i">活动</div></div>
+
+        <!-- 触发条 -->
+        <div class="trigger">
+          <span class="trigger__ic">✎</span>
+          <span class="trigger__t">在「444」分享点什么…</span>
+        </div>
+
+        <!-- 帖子流直接在这里 -->
+        <div class="plist">
+          <div class="pitem">
+            <div class="pitem__h">
+              <span class="pitem__a">3</span>
+              <div><div class="pitem__n">3420232712</div><div class="pitem__d">2 小时前</div></div>
+            </div>
+            <p class="pitem__t">今天图书馆人好多，占座要趁早</p>
+            <div class="pitem__f"><span>♡ 3</span><span>☆ 0</span><span>💬 2</span></div>
+          </div>
+          <div class="pitem">
+            <div class="pitem__h">
+              <span class="pitem__a" style="background:#EFE0C8">W</span>
+              <div><div class="pitem__n">WJ</div><div class="pitem__d">昨天</div></div>
+            </div>
+            <p class="pitem__t">有人一起组队吗</p>
+            <div class="pitem__f"><span>♡ 1</span><span>☆ 0</span><span>💬 0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="mk"><span class="i g">1</span><div><b>Tab 下面直接就是内容</b>：触发条本身很轻（一行 44px），它不抢视线，但随时可点。</div></div>
+    <div class="mk"><span class="i g">2</span><div><b>帖子卡片成为视觉主体</b>：第一眼落在「别人说了什么」，而不是「你可以写什么」。</div></div>
+  </div>
+</div>
+
+<!-- ===== 3. 触发后的形态 ===== -->
+<div class="sec">
+  <h2><span class="n">3</span>点击后：手机底部抽屉 / 桌面居中弹窗</h2>
+  <p class="sub">沿用项目里已有的两种浮层语言 —— 手机用 <code>ActionSheet</code> 式的底部抽屉，桌面用居中弹窗。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">手机 · 底部抽屉</div>
+      <div class="phone">
+        <div class="tb"><span>‹</span><h1 class="tb__t">圈子详情</h1><span>＋</span><span>☰</span></div>
+        <div class="cdh">
+          <div class="cdh__row"><h2 class="cdh__name">444</h2><button class="cdh__manage">⚙ 管理</button></div>
+          <div class="cdh__meta"><span class="cdh__ava">3</span>3420232712 · 1 成员</div>
+        </div>
+        <div class="tabs"><div class="tabs__i tabs__i--on">帖子</div><div class="tabs__i">活动</div></div>
+        <div class="trigger" style="opacity:.5"><span class="trigger__ic">✎</span><span class="trigger__t">在「444」分享点什么…</span></div>
+
+        <div class="mask">
+          <div class="sheet">
+            <div class="sheet__h">
+              <span class="sheet__t">在「444」发帖</span>
+              <button class="sheet__x">✕</button>
+            </div>
+            <div class="sheet__ta">分享点什么…</div>
+            <div class="sheet__ops">
+              <span class="sheet__op">🖼 图片或视频</span>
+              <span class="sheet__count">0 / 5000</span>
+            </div>
+            <button class="sheet__send">发布到圈子</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:320px">
+      <div class="ptag ptag--new">桌面 · 居中弹窗</div>
+      <div style="width:100%;max-width:520px;background:var(--ys-surface);border-radius:14px;padding:18px;
+        box-shadow:0 10px 30px rgba(36,28,21,.16);margin-top:6px">
+        <div class="dialog__h">
+          <span class="dialog__t">在「444」发帖</span>
+          <button class="sheet__x" style="margin-left:auto">✕</button>
+        </div>
+        <div class="sheet__ta" style="min-height:130px">分享点什么…</div>
+        <div class="sheet__ops">
+          <span class="sheet__op">🖼 图片或视频</span>
+          <span class="sheet__count">0 / 5000</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+          <button style="min-height:38px;padding:0 18px;border:1px solid var(--ys-border-control);border-radius:19px;
+            background:var(--ys-surface);color:var(--ys-fg-2);font-size:13px;font-family:var(--font)">取消</button>
+          <button style="min-height:38px;padding:0 22px;border:0;border-radius:19px;
+            background:var(--ys-accent);color:#fff;font-size:13px;font-weight:650;font-family:var(--font)">发布</button>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top:16px">
+        <b>为什么桌面不用抽屉。</b>桌面视口高，抽屉从底部升起会离视线焦点很远（用户眼睛在中间）。
+        居中小弹窗把它放在同一处，鼠标不用长距离移动。
+        项目里 <code>MktRiskNotice</code> 已经是自绘居中弹窗的先例。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 4. 空态 ===== -->
+<div class="sec">
+  <h2><span class="n">4</span>没有发布框之后，空态终于能舒展</h2>
+  <p class="sub">去掉常驻框后空出来的 260px，空态可以直接顶到 Tab 下方，不必再被压缩。</p>
+
+  <div class="pair">
+    <div class="pane">
+      <div class="ptag ptag--new">空圈子（无帖子）</div>
+      <div class="phone">
+        <div class="tb"><span>‹</span><h1 class="tb__t">圈子详情</h1><span>＋</span><span>☰</span></div>
+        <div class="cdh">
+          <div class="cdh__row"><h2 class="cdh__name">444</h2><button class="cdh__manage">⚙ 管理</button></div>
+          <div class="cdh__meta"><span class="cdh__ava">3</span>3420232712 · 1 成员</div>
+        </div>
+        <div class="tabs"><div class="tabs__i tabs__i--on">帖子</div><div class="tabs__i">活动</div></div>
+
+        <div class="empty">
+          <div class="empty__ic">💬</div>
+          <p class="empty__t">还没有人发过帖子</p>
+          <p class="empty__d">你可以是这个圈子的第一个</p>
+          <button class="empty__b">写第一条</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" style="flex:1;min-width:320px">
+      <div class="ptag ptag--new">两种入口的关系</div>
+      <table>
+        <tr><th style="width:28%">场景</th><th style="width:32%">显示什么</th><th>点击后</th></tr>
+        <tr><td>有帖子</td><td>顶部一行触发条</td><td>打开抽屉 / 弹窗</td></tr>
+        <tr><td>没有帖子</td><td><b>空态 + 「写第一条」</b>，不显示触发条</td><td>打开同一个抽屉</td></tr>
+      </table>
+
+      <div class="note note--warn" style="margin-top:14px">
+        <b>空态时不再重复放触发条。</b>空态里已经有一个「写第一条」按钮，
+        上面再加一条「写点什么」就是同一个动作出现两次 —— 这正是现在「发第一条」与输入框重复的老问题。
+        <b>两者只留其一</b>：有内容时用触发条，没内容时用空态按钮。
+      </div>
+
+      <div class="note">
+        <b>「写第一条」按钮保留是有规范的。</b>AC-19 要求空态必须有「一句人话 + 一个可点行动按钮」。
+        去掉常驻框不等于去掉空态按钮 —— 它现在是空态里唯一的发帖入口，反而更重要了。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 5. 落地清单 ===== -->
+<div class="sec">
+  <h2><span class="n">5</span>落地清单</h2>
+
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:34%">改动</th><th style="width:16%">文件</th><th>说明</th></tr>
+    <tr><td>1</td><td>CircleDetail 里把 <code>&lt;CircleComposer&gt;</code> 从常驻改为条件渲染</td><td>CircleDetail.vue</td><td>只在「有帖子」时显示触发条；无帖子时走空态按钮</td></tr>
+    <tr><td>2</td><td>新增触发条（一行，44px）</td><td>CircleDetail.vue + .css</td><td>「✎ 在「圈子名」分享点什么…」，整条可点</td></tr>
+    <tr><td>3</td><td>Composer 改为浮层形态</td><td>CircleComposer.vue</td><td>用 <code>el-drawer</code>（手机 <code>direction="btt"</code>）/ 桌面自绘居中弹窗</td></tr>
+    <tr><td>4</td><td>抽屉打开时自动聚焦 textarea</td><td>CircleComposer.vue</td><td>复用现有 <code>focus()</code>，注意等动画结束再聚焦（iOS 键盘会把内容顶飞）</td></tr>
+    <tr><td>5</td><td>空态高度与文案调整</td><td>CircleDetail.css</td><td>去掉常驻框后空间足够，空态可以正常 34px 内边距</td></tr>
+    <tr><td>6</td><td>关闭抽屉时不清草稿</td><td>CircleComposer.vue</td><td>与集市留言抽屉同一口径：误触关闭不该丢内容</td></tr>
+    <tr><td>7</td><td>发布成功后关闭抽屉</td><td>CircleDetail.vue</td><td>现在 publish 后内容清空，抽屉需一起关</td></tr>
+  </table>
+
+  <div class="note">
+    <b>后端零改动。</b>只是把发帖框从「常驻」搬到「按需打开」，
+    提交、上传、校验逻辑全部复用现有的 <code>CircleComposer</code>。
+  </div>
+
+  <div class="note note--warn">
+    <b>一个要注意的点：</b>桌面端现在由 <code>CircleDetail.vue.md</code> 约束宽度 640。
+    改成弹窗后，触发条仍在 640 列内；弹窗本身 480px 居中，不改变主列宽度 ——
+    这对已有的桌面双栏（如果要做）也不冲突。
+  </div>
+</div>
+
+</body>
+</html>
