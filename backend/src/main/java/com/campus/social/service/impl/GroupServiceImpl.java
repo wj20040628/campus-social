@@ -6,6 +6,7 @@ import com.campus.social.config.CampusProperties;
 import com.campus.social.entity.*;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.*;
+import com.campus.social.service.ChatConvPrefService;
 import com.campus.social.service.GroupService;
 import com.campus.social.service.UploadService;
 import com.campus.social.vo.GroupMemberInfoVO;
@@ -21,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +47,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupMemberMapper groupMemberMapper;
     private final GroupMessageMapper groupMessageMapper;
     private final GroupReadMapper groupReadMapper;
+    private final ChatConvPrefService convPrefService;
     private final UserMapper userMapper;
     private final WsPushService wsPush;
     private final WsAfterCommit wsAfterCommit;
@@ -126,17 +130,22 @@ public class GroupServiceImpl implements GroupService {
                         .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
 
         long ownerId = g.getOwnerId();
-        // 批量回填每个成员的 muted(避免 N+1):user_id -> muted(0/1)
-        Map<Long, Integer> mutedByUser = groupMemberMapper.memberMutedRows(groupId).stream()
+        // 一次查出全群状态行:批量回填 muted 与 create_time(避免 N+1)
+        List<GroupMember> stateRows = groupMemberMapper.memberStateRows(groupId);
+        Map<Long, Integer> mutedByUser = stateRows.stream()
                 .collect(Collectors.toMap(GroupMember::getUserId,
                         m -> m.getMuted() == null ? 0 : m.getMuted(), (a, b) -> a));
+        Map<Long, String> joinDateByUser = stateRows.stream()
+                .collect(Collectors.toMap(GroupMember::getUserId,
+                        m -> joinDate(m.getCreateTime()), (a, b) -> a));
         List<GroupMemberInfoVO.MemberItem> items = new java.util.ArrayList<>();
         // 群主置顶:先放群主(若还在成员里),再按 user_id 顺序放其余
-        items.add(memberItem(ownerId, byId, ownerId, me, 0)); // 群主恒可发言,muted=0
+        items.add(memberItem(ownerId, byId, ownerId, me, 0,
+                joinDateByUser.get(ownerId))); // 群主恒可发言,muted=0
         for (Long uid : userIds) {
             if (uid.equals(ownerId)) continue;
             items.add(memberItem(uid, byId, ownerId, me,
-                    mutedByUser.getOrDefault(uid, 0)));
+                    mutedByUser.getOrDefault(uid, 0), joinDateByUser.get(uid)));
         }
 
         return GroupMemberInfoVO.builder()
@@ -150,14 +159,21 @@ public class GroupServiceImpl implements GroupService {
     }
 
     /** 单个成员项:User 不存在(极端并发删号)则跳过由调用方兜底,这里只取已有 */
-    private GroupMemberInfoVO.MemberItem memberItem(long userId, Map<Long, User> byId, long ownerId, long me, int muted) {
+    private GroupMemberInfoVO.MemberItem memberItem(long userId, Map<Long, User> byId, long ownerId,
+                                                    long me, int muted, String joinDate) {
         boolean isOwner = userId == ownerId;
         return GroupMemberInfoVO.MemberItem.builder()
                 .user(UserVoAssembler.of(byId.get(userId)))
                 .isOwner(isOwner)
                 .isSelf(userId == me)
                 .muted(muted == 1)
+                .joinDate(joinDate)
                 .build();
+    }
+
+    /** create_time -> yyyy-MM-dd;null(历史行没填)返回 null,前端那头就不显示日期 */
+    private static String joinDate(LocalDateTime t) {
+        return t == null ? null : t.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
     }
 
     @Override
@@ -363,14 +379,20 @@ public class GroupServiceImpl implements GroupService {
         if (groupIds.isEmpty()) {
             return CursorPage.empty();
         }
+        java.util.Map<Long, com.campus.social.entity.ChatConvPref> prefs =
+                convPrefService.loadByKind(me, com.campus.social.entity.ChatConvPref.KIND_GROUP);
+        // 过滤 + 置顶排序都在切页之前(同 ChatServiceImpl.conversations 的理由)
         List<Group> rows = groupMapper.selectBatchIds(groupIds).stream()
                 .filter(g -> g.getStatus() != null && g.getStatus() == 1)
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId())) // 群 id 倒序≈最近创建在前
+                .filter(g -> visibleUnderPref(g, prefs.get(g.getId())))
+                .sorted(java.util.Comparator
+                        .comparingInt((Group g) -> pinnedOf(prefs.get(g.getId())) ? 0 : 1)
+                        .thenComparing((a, b) -> Long.compare(b.getId(), a.getId()))) // 群 id 倒序≈最近创建在前
                 .toList();
         boolean hasMore = rows.size() > size;
         List<Group> page = rows.subList(0, Math.min(size, rows.size()));
 
-        List<GroupVO> vos = page.stream().map(g -> toGroupVo(g, me)).toList();
+        List<GroupVO> vos = page.stream().map(g -> toGroupVo(g, me, prefs.get(g.getId()))).toList();
         Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
         return new CursorPage<>(vos, nextCursor, hasMore);
     }
@@ -428,7 +450,9 @@ public class GroupServiceImpl implements GroupService {
                 .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
         Map<Long, String> nick = new java.util.HashMap<>();
         for (User u : byId.values()) {
-            nick.put(u.getId(), u.getNickname() != null ? u.getNickname() : u.getUsername());
+            // 昵称缺失时回退 username 必须脱敏(审查 P1-22:username=学号,原样返回即泄露)
+                    nick.put(u.getId(), u.getNickname() != null ? u.getNickname()
+                            : com.campus.social.assembler.UserVoAssembler.maskUsername(u.getUsername()));
         }
         return nick;
     }
@@ -530,7 +554,21 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
-    private GroupVO toGroupVo(Group g, long me) {
+    /** 群是否该出现在我的列表里：删除水位之后有新消息就自动回来 */
+    private boolean visibleUnderPref(Group g, com.campus.social.entity.ChatConvPref pref) {
+        if (pref == null || pref.getHidden() == null || pref.getHidden() == 0) {
+            return true;
+        }
+        long last = g.getLastMsgId() == null ? 0L : g.getLastMsgId();
+        long upto = pref.getHiddenUpto() == null ? 0L : pref.getHiddenUpto();
+        return last > upto;
+    }
+
+    private boolean pinnedOf(com.campus.social.entity.ChatConvPref pref) {
+        return pref != null && pref.getPinned() != null && pref.getPinned() == 1;
+    }
+
+    private GroupVO toGroupVo(Group g, long me, com.campus.social.entity.ChatConvPref pref) {
         // 我侧未读 = 我读到的水位之后、非我发的消息数
         long water = groupReadMapper.lastRead(g.getId(), me);
         int unread = groupMessageMapper.unreadCountAfter(g.getId(), me, water);
@@ -560,6 +598,8 @@ public class GroupServiceImpl implements GroupService {
                 .lastMsgId(g.getLastMsgId())
                 .lastPreview(preview)
                 .lastMsgTime(g.getUpdateTime())
+                .pinned(pinnedOf(pref))
+                .muted(pref != null && pref.getMuted() != null && pref.getMuted() == 1)
                 .build();
     }
 

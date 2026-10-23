@@ -120,7 +120,9 @@ public class AuditServiceImpl implements AuditService {
         List<AuditLogVO> vos = page.stream().map(l -> {
             User op = l.getUserId() != null ? byId.get(l.getUserId()) : null;
             String name = l.getUserId() == null ? "系统"
-                    : (op != null ? (op.getNickname() != null ? op.getNickname() : op.getUsername()) : "已删除用户");
+                    : (op != null ? (op.getNickname() != null ? op.getNickname()
+                    : com.campus.social.assembler.UserVoAssembler.maskUsername(op.getUsername()))
+                    : "已删除用户");
             String avatar = (op != null) ? op.getAvatarUrl() : null;
             return AuditLogVO.builder()
                     .id(l.getId())
