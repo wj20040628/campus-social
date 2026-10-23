@@ -58,11 +58,15 @@ public class CampusProperties {
      * 学号「自动通过」开关:格式校验 + 院系交叉校验都通过时直接置已认证,
      * 不进人工队列。
      *
-     * <p>默认开:让合规的真实用户秒过,不为极少数编造学号的人让所有人排队。
-     * 关掉即退回「全部人工核验」。自动通过的每条都落 audit_log(动作
-     * verify_auto_approve),管理员可事后抽查并驳回,控制权不丢。
+     * <p><b>默认关(2026-10-23 改,审查 P0-11)</b>:交叉校验的比对基准
+     * deptId 由用户自己在 saveSchoolProfile 填写,专业编码又可从公开端点
+     * /dict/majors/all 拿到 —— 攻击者自选院系后按规则拼学号即可自证通过,
+     * 认证体系可被绕穿(认证徽章、陌生人搭话、发布公告权限全部连带失守)。
+     * 默认人工;确信场景下用 app.campus.auto-approve-student-no=true 显式打开,
+     * 且叠加不可自证的独立证据(外部学籍表/教务接口/校园邮箱域内验证)之前,
+     * 不建议再默认开。自动通过的每条仍落 audit_log 供事后抽查。
      */
-    private boolean autoApproveStudentNo = true;
+    private boolean autoApproveStudentNo = false;
 
     public String getSchoolName() {
         return schoolName;
