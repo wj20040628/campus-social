@@ -39,5 +39,11 @@ public class GroupMemberInfoVO {
         /** 该成员是否被群主禁言(前端在名单里显"已禁言"标;群主恒 false) */
         @JsonProperty("muted")
         private boolean muted;
+        /**
+         * 入群日期(yyyy-MM-dd,来自 group_member.create_time)。
+         * 用 String 而不是 LocalDateTime:前端只需要「2026-10-03 入群」这一种写法,
+         * 传 datetime 会让每个调用方各自格式化一次,而时区/空格 T 的处理必然各写各的。
+         */
+        private String joinDate;
     }
 }

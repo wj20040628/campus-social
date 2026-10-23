@@ -25,4 +25,10 @@ public class GroupVO {
     private Long lastMsgId;
     private String lastPreview;
     private LocalDateTime lastMsgTime;
+
+    /** 我把它置顶了 */
+    private boolean pinned;
+
+    /** 我把它设成免打扰了 */
+    private boolean muted;
 }

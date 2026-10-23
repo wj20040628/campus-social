@@ -54,7 +54,11 @@ public interface GroupMemberMapper extends BaseMapper<GroupMember> {
     @Select("SELECT muted FROM group_member WHERE group_id = #{groupId} AND user_id = #{userId} AND is_deleted = 0")
     Integer mutedOf(@Param("groupId") Long groupId, @Param("userId") Long userId);
 
-    /** 某群每个成员的 muted 映射(群信息头名单回填用,避免 N+1)。返回行含 user_id + muted */
-    @Select("SELECT user_id, muted FROM group_member WHERE group_id = #{groupId} AND is_deleted = 0")
-    List<GroupMember> memberMutedRows(@Param("groupId") Long groupId);
+    /**
+     * 某群每个成员的状态行(群信息头名单回填用,避免 N+1)。
+     * 含 user_id + muted + create_time —— 2026-10-21 起名单副行要显示「入群时间」,
+     * 顺手一起查出来,不再为它单开一条 SQL(同表同 where,多一列零成本)。
+     */
+    @Select("SELECT user_id, muted, create_time FROM group_member WHERE group_id = #{groupId} AND is_deleted = 0")
+    List<GroupMember> memberStateRows(@Param("groupId") Long groupId);
 }

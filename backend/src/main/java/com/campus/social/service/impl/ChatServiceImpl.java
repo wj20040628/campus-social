@@ -3,6 +3,7 @@ package com.campus.social.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.CursorPage;
 
+import com.campus.social.entity.ChatConvPref;
 import com.campus.social.entity.ChatConversation;
 import com.campus.social.entity.ChatMessage;
 import com.campus.social.entity.User;
@@ -10,6 +11,7 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ChatConversationMapper;
 import com.campus.social.mapper.ChatMessageMapper;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.ChatConvPrefService;
 import com.campus.social.service.ChatGuardService;
 import com.campus.social.service.ChatService;
 import com.campus.social.vo.ChatMessageVO;
@@ -40,17 +42,57 @@ public class ChatServiceImpl implements ChatService {
     private final WsPushService wsPush;
     private final WsAfterCommit wsAfterCommit;
     private final ChatGuardService chatGuardService;
-    private final PostNotifySupport postNotifySupport;
+    /*
+     * 2026-10-21：postNotifySupport 已移除。
+     * 它是为「私信发通知」注入的，而私信通知已按用户要求去掉。
+     * 留着会是一个永远不用的依赖，也让人误以为私信还会进通知。
+     */
+    private final ChatConvPrefService convPrefService;
 
     @Override
     public CursorPage<ConversationVO> conversations(long me, Long lastId, int size) {
         // 全量拉,内存分页(校园场景会话数小;后续量大可换游标)
-        List<ChatConversation> rows = convMapper.selectByUser(me);
+        java.util.Map<Long, ChatConvPref> prefs = convPrefService.loadByKind(me, ChatConvPref.KIND_DM);
+        /*
+         * 顺序不能反:必须「先按偏好过滤 + 置顶排序,再切页」。
+         * 若先 limit(size) 再过滤,用户删掉几条后一页 30 条实际只返回 27 条,
+         * 表现为「列表莫名其妙短了一截」。
+         */
+        List<ChatConversation> rows = convMapper.selectByUser(me).stream()
+                .filter(c -> visibleUnderPref(c, prefs.get(peerIdOf(c, me))))
+                .sorted(java.util.Comparator.comparingInt(
+                        c -> pinnedOf(prefs.get(peerIdOf(c, me))) ? 0 : 1)) // 稳定排序:置顶组内仍是时间倒序
+                .toList();
         boolean hasMore = rows.size() > size;
         List<ChatConversation> page = rows.stream().limit(size).toList();
-        List<ConversationVO> vos = page.stream().map(c -> toConvVo(c, me)).toList();
+        List<ConversationVO> vos = page.stream()
+                .map(c -> toConvVo(c, me, prefs.get(peerIdOf(c, me))))
+                .toList();
         Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
         return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    /** 对方 id(用于查偏好) */
+    private long peerIdOf(ChatConversation c, long me) {
+        return c.getMemberA() != null && c.getMemberA() == me ? c.getMemberB() : c.getMemberA();
+    }
+
+    private boolean pinnedOf(ChatConvPref pref) {
+        return pref != null && pref.getPinned() != null && pref.getPinned() == 1;
+    }
+
+    /**
+     * 是否该出现在列表里。
+     * 删掉的会话不是永久消失:hidden_upto 记的是删除那一刻的最后消息 id,
+     * 之后来了新消息(lastMsgId 变大)就重新可见 —— 见 migration_k1 的注释。
+     */
+    private boolean visibleUnderPref(ChatConversation c, ChatConvPref pref) {
+        if (pref == null || pref.getHidden() == null || pref.getHidden() == 0) {
+            return true;
+        }
+        long last = c.getLastMsgId() == null ? 0L : c.getLastMsgId();
+        long upto = pref.getHiddenUpto() == null ? 0L : pref.getHiddenUpto();
+        return last > upto;
     }
 
     @Override
@@ -136,22 +178,30 @@ public class ChatServiceImpl implements ChatService {
         long finalMsgId = m.getId();
         long finalConvId = convId;
 
-        // 私信通知去重:仅当接收方该会话「原本未读为 0」(这条消息开启新一轮未读)才发,
-        // 避免连续消息每条都刷一条通知造成轰炸。放在 touch 之前读增量前的值。
+        /*
+         * 2026-10-21：私信不再产生「通知」。
+         *
+         * 改版前这里会 pushNotify(toUserId, 4, ...)（type=4 文案是「给你发了私信」），
+         * 于是一条私信同时落两个未读：聊天未读 + 通知未读。
+         * 用户的要求是「私信就不用通知了吧」—— 私信本身已有会话未读与红点，
+         * 再进通知列表是重复打扰，还会把通知红点撑起来（而用户根本没在等通知）。
+         *
+         * 只去掉通知这一路，其余保持：
+         *   会话未读 +1（下面那段）—— 「消息」里的未读圆点照常
+         *   WS 实时推送 —— 在线用户仍即时收到
+         * 离线用户下次打开「消息」照样看到未读，能力没有损失。
+         *
+         * 注意 NotifyServiceImpl 里 type=4 的文案分支**保留**：
+         * 历史数据（已经产生的私信通知）仍需正常渲染，删掉会让旧通知显示成未知类型。
+         */
         ChatConversation conv = convMapper.selectById(finalConvId);
-        int recvUnreadBefore = (a == me)
-                ? (conv.getUnreadB() == null ? 0 : conv.getUnreadB())
-                : (conv.getUnreadA() == null ? 0 : conv.getUnreadA());
-        if (recvUnreadBefore == 0) {
-            postNotifySupport.pushNotify(toUserId, 4, finalConvId, me, null);
-        }
+        boolean recvIsA = conv != null && conv.getMemberA() != null && conv.getMemberA() == toUserId;
 
         // 接收方未读 +1:未读记在"没读的那个人(接收方)"头上,不是发送方
-        // me 是发送方:若 me==a,则接收方 toUserId==b → 加 unread_b;反之加 unread_a
-        if (a == me) {
-            convMapper.touchUnreadB(convId, 1, finalMsgId);
-        } else {
+        if (recvIsA) {
             convMapper.touchUnreadA(convId, 1, finalMsgId);
+        } else {
+            convMapper.touchUnreadB(convId, 1, finalMsgId);
         }
 
 // WS 推给接收方(延迟到事务提交后,防回滚幽灵消息)
@@ -198,9 +248,10 @@ public class ChatServiceImpl implements ChatService {
         if (convId == null) {
             return;
         }
-        long a = Math.min(me, peerId);
-        // 清"我"这侧的未读:me 是 a → 清 unread_a;me 是 b → 清 unread_b
-        if (a == me) {
+        // 清"我"这侧的未读:按行里实际的成员顺序判断,不假设 member_a==min
+        ChatConversation conv = convMapper.selectById(convId);
+        boolean meIsA = conv != null && conv.getMemberA() != null && conv.getMemberA() == me;
+        if (meIsA) {
             convMapper.clearUnreadA(convId);
         } else {
             convMapper.clearUnreadB(convId);
@@ -217,17 +268,39 @@ public class ChatServiceImpl implements ChatService {
 
     // ---------------------------------------------------------------- 私有
 
+    /*
+     * 2026-10-21：nz(Integer) 已删除。
+     * 它只为「读取接收方原未读数、判断要不要发私信通知」而存在，
+     * 那段逻辑随私信通知一起移除，此方法已无调用者。
+     */
+
+    /**
+     * 找两人之间的会话 id。
+     *
+     * **必须双向查。** 实体注释写着「归一: member_a < member_b」,本类所有写入
+     * 也都走 Math.min/max 归一化了 —— 但库里确实存在 member_a > member_b 的反序行
+     * (2026-10-20 本地库实测:(2,1) 和 (1,2) 两条会话同属一对用户)。
+     * 只按归一化顺序查会漏掉反序那条,于是走到下面的 upsert 又建一条新的,
+     * 用户看到的就是「同一个人有两个会话,消息还分在两处」。
+     *
+     * 反过来,双向查之后即便再冒出反序行也不会再分裂;真要合并历史消息
+     * 还是得靠数据修复(涉及消息搬迁,不能在查询里做)。
+     */
     private Long findConvId(long me, long peerId) {
         long a = Math.min(me, peerId);
         long b = Math.max(me, peerId);
-        LambdaQueryWrapper<ChatConversation> qw = new LambdaQueryWrapper<ChatConversation>()
-                .eq(ChatConversation::getMemberA, a)
-                .eq(ChatConversation::getMemberB, b);
+        LambdaQueryWrapper<ChatConversation> qw = new LambdaQueryWrapper<>();
+        qw.and(w -> w
+                .nested(x -> x.eq(ChatConversation::getMemberA, a).eq(ChatConversation::getMemberB, b))
+                .or()
+                .nested(x -> x.eq(ChatConversation::getMemberA, b).eq(ChatConversation::getMemberB, a)));
+        // 万一还有一对重复,固定取最早那条,保证每次算出来的 id 一致
+        qw.orderByAsc(ChatConversation::getId);
         List<ChatConversation> list = convMapper.selectList(qw);
         return list.isEmpty() ? null : list.get(0).getId();
     }
 
-    private ConversationVO toConvVo(ChatConversation c, long me) {
+    private ConversationVO toConvVo(ChatConversation c, long me, ChatConvPref pref) {
         long peerId = c.getMemberA().equals(me) ? c.getMemberB() : c.getMemberA();
         UserVO pvo = UserVoAssembler.of(userMapper.selectById(peerId));
 
@@ -261,6 +334,8 @@ public class ChatServiceImpl implements ChatService {
                 .lastMsgId(c.getLastMsgId())
                 .lastMsgTime(c.getUpdateTime())
                 .pendingReply(pending)
+                .pinned(pinnedOf(pref))
+                .muted(pref != null && pref.getMuted() != null && pref.getMuted() == 1)
                 .build();
     }
 

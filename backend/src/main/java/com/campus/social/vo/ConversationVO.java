@@ -26,4 +26,10 @@ public class ConversationVO {
      * 供 MainLayout 统计 TabBar「消息」角标用,纯计算不落库。
      */
     private boolean pendingReply;
+
+    /** 我把它置顶了(每人独立,存在 chat_conv_pref) */
+    private boolean pinned;
+
+    /** 我把它设成免打扰了(不推通知;未读照常累计,只是不打扰) */
+    private boolean muted;
 }
