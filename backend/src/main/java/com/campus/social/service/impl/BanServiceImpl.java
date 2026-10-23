@@ -57,6 +57,7 @@ public class BanServiceImpl implements BanService {
             // score 残留导致 job 把它错误地恢复成正常。
             redis.opsForZSet().remove(KEY_EXPIRING, String.valueOf(userId));
             userMapper.updateAccountStatus(userId, STATUS_FROZEN);
+            evictStatusCache(userId);
             log.info("user permanently banned: user={}", userId);
             return null;
         }
@@ -65,6 +66,7 @@ public class BanServiceImpl implements BanService {
         // 整个 ZSET 的 TTL 按最长计划给，保证不会在计划到期前 key 就消失。
         redis.expire(KEY_EXPIRING, Duration.ofDays(maxPlanDays));
         userMapper.updateAccountStatus(userId, STATUS_FROZEN);
+        evictStatusCache(userId);
         LocalDateTime until = LocalDateTime.ofInstant(Instant.ofEpochMilli(untilMs), ZONE);
         log.info("user banned until {}: user={}, days={}", until, userId, banDays);
         return until;
@@ -74,6 +76,7 @@ public class BanServiceImpl implements BanService {
     public void unban(long userId) {
         redis.opsForZSet().remove(KEY_EXPIRING, String.valueOf(userId));
         userMapper.updateAccountStatus(userId, STATUS_NORMAL);
+        evictStatusCache(userId);
         // 审计:解封(到期自动 / 管理员手动),操作者记为系统
         auditService.recordSystem("account_unban", "user", userId, "封禁到期自动解封/管理员解封");
         log.info("user unbanned by admin: user={}", userId);
@@ -106,5 +109,20 @@ public class BanServiceImpl implements BanService {
     @Override
     public void clearPlan(String userId) {
         redis.opsForZSet().remove(KEY_EXPIRING, userId);
+    }
+
+    /**
+     * 失效账号状态缓存(2026-10-23 加,配合 AuthInterceptor 的封禁横切)。
+     *
+     * <p>AuthInterceptor 把 user.status 缓存在 {@code user:status:{id}}(TTL 60s),
+     * 封禁/解封必须主动删掉,否则最长 1 分钟后才生效。
+     * 键名与 AuthInterceptor.STATUS_KEY_PREFIX 必须一致。
+     */
+    private void evictStatusCache(long userId) {
+        try {
+            redis.delete("user:status:" + userId);
+        } catch (Exception e) {
+            log.warn("evict status cache fail: user={}, err={}", userId, e.getMessage());
+        }
     }
 }

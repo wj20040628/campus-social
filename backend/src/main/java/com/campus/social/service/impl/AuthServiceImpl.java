@@ -124,40 +124,66 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenPairVO register(RegisterDTO dto) {
-        // 账号体系重构 2026-10-17:学号为主账号,注册不再发/校验验证码。
-        // 安全凭证邮箱选填,注册时不校验所有权(避免引入验证码链路),有值才写库。
-
-        // 学号(主账号)已存在?username 与 student_no 两列都可能持有学号,都查。
-        User existing = userMapper.selectByStudentNo(dto.getStudentNo());
-        if (existing != null) {
-            throw new BusinessException(USERNAME_EXISTS, "该学号已注册");
-        }
-        // 安全凭证邮箱已存在?(有值时 UNIQUE,防两账号绑同一邮箱)
+        /*
+         * 2026-10-21 重构：注册轻、认证后置。
+         *
+         * 【改了什么】
+         * 1) 邮箱从「选填安全凭证」升级为「必填主键」—— 且必须验证码验证所有权。
+         * 2) 学号从「必填」降为「选填」—— 填了立即认证，不填则注册为未认证。
+         * 3) username 列对新用户存邮箱（老账号不动，登录时 OR 兼容）。
+         *
+         * 【为什么这么改】改版前学号是 @NotBlank，想先进来看看的人被挡在门外；
+         * 而注册直接置 verify_status=1，导致「未认证」状态在现实中不存在，
+         * AC-11「未认证不能搭话」永远不触发。现在未认证是真能出现的状态。
+         */
         String email = dto.getEmail() == null ? null : dto.getEmail().trim().toLowerCase();
-        if (email != null && !email.isEmpty()) {
-            User byEmail = userMapper.selectByEmail(email);
-            if (byEmail != null) {
-                throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱已被其他账号绑定");
+        if (email == null || email.isEmpty()) {
+            throw new BusinessException(UNPROCESSABLE, "请填写邮箱");
+        }
+        // 邮箱必须通过验证码验证所有权：它是登录主键，不能是随手填的字符串。
+        // type="register" 与 sendCode 的默认值一致（见 sendCode 里 type == null ? "register"）。
+        verifyCodeService.verify(email, dto.getEmailCode(), "register");
+
+        // 邮箱已存在？（UNIQUE，防两账号绑同一邮箱）
+        User byEmail = userMapper.selectByEmail(email);
+        if (byEmail != null) {
+            throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱已注册");
+        }
+
+        // 学号选填：填了才查重、才认证
+        String studentNo = dto.getStudentNo() == null ? "" : dto.getStudentNo().trim();
+        boolean withStudentNo = !studentNo.isEmpty();
+        if (withStudentNo) {
+            User existing = userMapper.selectByStudentNo(studentNo);
+            if (existing != null) {
+                throw new BusinessException(USERNAME_EXISTS, "该学号已注册");
             }
         }
 
         User user = new User();
-        // 主账号:username 内部统一存学号(与 student_no 同值)
-        user.setUsername(dto.getStudentNo());
+        /*
+         * 主账号：新用户 username 存邮箱。
+         * 为什么不存学号：学号 13~14 位数字用户记不住、填错改不了，
+         * 且 SPEC AC-12 要求对外不得显示学号 —— 它不该同时充当登录名。
+         * 学号此后只写 student_no 一列，仅用于认证比对与登录的别名匹配。
+         */
+        user.setUsername(email);
         user.setPasswordHash(JwtUtil.hashPassword(dto.getPassword()));
         user.setNickname(dto.getNickname());
-        user.setStudentNo(dto.getStudentNo());
-        user.setEmail(email);   // 选填,无值则 NULL(UNIQUE 对 NULL 放行)
+        user.setEmail(email);
+        user.setStudentNo(withStudentNo ? studentNo : null);
         user.setStatus(0); // 正常
         userMapper.insert(user);
 
-        // 注册即认证:带了合法学号 + 学校归属,则一次性存归属并跑六层校验。
-        // 六层不过 / 学号被占用 → 抛异常,整体事务回滚,用户不落库(干净失败,
-        // 不会留下「学号与归属不符」的脏数据)。学号为空则只注册、不认证、不存归属。
-        if (dto.getStudentNo() != null && !dto.getStudentNo().isBlank()) {
+        /*
+         * 注册即认证（快速路径）：填了学号就一次性存归属并跑六层校验。
+         * 六层不过 / 学号被占用 → 抛异常，整体事务回滚，用户不落库（干净失败）。
+         * 学号为空则只注册、不认证、不存归属 —— verify_status 保持默认 0（未认证）。
+         */
+        if (withStudentNo) {
             if (dto.getDeptId() == null || dto.getGradeId() == null || dto.getMajorId() == null) {
                 throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE,
-                        "请完善学校归属（学院 / 年级 / 专业）后再提交学号");
+                        "请完善学校归属（学院 / 本专科 / 专业 / 年级）后再提交学号");
             }
             SchoolProfileDTO profileDto = new SchoolProfileDTO();
             // schoolId 不传时由 saveSchoolProfile 兜底成本校;MVP 单校恒为 1
@@ -168,7 +194,7 @@ public class AuthServiceImpl implements AuthService {
             campusVerifyService.saveSchoolProfile(user.getId(), profileDto);
 
             StudentNoVerifyDTO verifyDto = new StudentNoVerifyDTO();
-            verifyDto.setStudentNo(dto.getStudentNo());
+            verifyDto.setStudentNo(studentNo);
             // 注册流程没有「姓名后 1-2 位」字段,传空串;管理员比对以学号 + 归属为主
             verifyDto.setNameTail("");
             campusVerifyService.submitStudentNo(user.getId(), verifyDto);
@@ -176,47 +202,66 @@ public class AuthServiceImpl implements AuthService {
 
         // 审计:注册
         auditService.record(user.getId(), "register", "user", user.getId(),
-                "username=" + dto.getStudentNo(), null);
+                "email=" + email + (withStudentNo ? ", studentNo=" + studentNo : ", 未认证"), null);
 
-        log.info("register: uid={}, studentNo={}", user.getId(), dto.getStudentNo());
+        log.info("register: uid={}, email={}, studentNo={}, verified={}",
+                user.getId(), UserVoAssembler.maskUsername(email),
+                withStudentNo ? UserVoAssembler.maskUsername(studentNo) : "-", withStudentNo);
         // 注册默认不勾记住我(记住我是密码登录的优化项)
         return issueTokens(user, false);
     }
 
     @Override
     public TokenPairVO login(LoginDTO dto) {
-        // 账号体系重构 2026-10-17:登录标识走 username(学号)OR email 双匹配。
-        // 旧账号 username 仍是旧主标识(邮箱/手机),新账号 username=学号,
-        // 已绑定邮箱的用户也能用邮箱登录。统一用 WRONG_PASSWORD,防账号枚举。
+        /*
+         * 登录标识三路 OR 匹配（2026-10-21 扩展为三列）：
+         *   1) user.username  —— 老账号的旧主标识（邮箱/手机），新账号存邮箱
+         *   2) user.email     —— 新用户主路径
+         *   3) user.student_no —— 已认证用户可用学号登录
+         *
+         * 为什么加第三列：重构后 username 存邮箱，若不查 student_no，
+         * 习惯用学号登录的老用户会发现「学号登不进去了」——
+         * 他们并没有记错，是我们把入口换了。
+         *
+         * 归一化注意：学号是纯数字，toLowerCase 对它无害；
+         * 邮箱必须转小写才能与库里存的小写值匹配（注册时已统一转小写）。
+         *
+         * 统一回 WRONG_PASSWORD，不区分「账号不存在」与「密码错误」—— 防账号枚举。
+         */
         String id = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase();
         User user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
                         .eq(User::getUsername, id)
                         .or()
-                        .eq(User::getEmail, id));
+                        .eq(User::getEmail, id)
+                        .or()
+                        .eq(User::getStudentNo, id)
+                        // 逻辑删除的行不该能登录：MyBatis-Plus 的逻辑删除只对 selectById 生效，
+                        // 手写 Wrapper 需要显式排除，否则注销账号仍可登入
+                        .eq(User::getIsDeleted, 0));
         if (user == null) {
             // 审计:登录失败(账号不存在,记为系统操作)
-            auditService.record(0L, "login_fail", null, null, "username=" + id + ", 账号不存在", null);
+            auditService.record(0L, "login_fail", null, null, "identifier=" + id + ", 账号不存在", null);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 冻结/注销账号拒登录
         if (user.getStatus() == 1) {
-            auditService.record(user.getId(), "login_fail", null, null, "username=" + id + ", 账号已冻结", null);
+            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已冻结", null);
             throw new BusinessException(USER_FROZEN);
         }
         if (user.getStatus() == 2) {
-            auditService.record(user.getId(), "login_fail", null, null, "username=" + id + ", 账号已注销", null);
+            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已注销", null);
             throw new BusinessException(USER_CANCELLED);
         }
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
-            auditService.record(user.getId(), "login_fail", null, null, "username=" + id + ", 密码错误", null);
+            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 密码错误", null);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 记住我:勾选 → refresh 7d,不勾 → 3d(见 refreshTtl)
         boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
         // 审计:登录
         auditService.record(user.getId(), "login", "user", user.getId(),
-                "username=" + user.getUsername(), null);
+                "identifier=" + id, null);
         return issueTokens(user, remember);
     }
 
@@ -239,7 +284,7 @@ public class AuthServiceImpl implements AuthService {
         if (user.getStatus() == 2) {
             throw new BusinessException(USER_CANCELLED);
         }
-        log.info("loginByCode: email={}", dto.getEmail());
+        log.info("loginByCode: email={}", UserVoAssembler.maskUsername(dto.getEmail()));
         // 邮箱验证码登录属「免密码」,不勾记住我(默认 3d)
         return issueTokens(user, false);
     }
@@ -287,9 +332,15 @@ public class AuthServiceImpl implements AuthService {
             redis.delete(REFRESH_KEY + userId);
             throw new BusinessException(REFRESH_TOKEN_INVALID, "用户不存在");
         }
+        // 冻结(1)与注销(2)都必须拒绝(2026-10-23 修,审查 P1-3):
+        // 原先只判 status==1,注销账号仍能一直 refresh 续命 —— login 拦了,refresh 没拦。
         if (user.getStatus() == 1) {
             redis.delete(REFRESH_KEY + userId);
             throw new BusinessException(USER_FROZEN);
+        }
+        if (user.getStatus() == 2) {
+            redis.delete(REFRESH_KEY + userId);
+            throw new BusinessException(USER_CANCELLED);
         }
         String newAccess = JwtUtil.issueAccess(userId, user.getUsername());
         long accessExpireAt = System.currentTimeMillis() / 1000 + ACCESS_TTL_SECONDS;
@@ -312,26 +363,64 @@ public class AuthServiceImpl implements AuthService {
     // 安全凭证邮箱:找回密码 / 绑定(账号体系重构 2026-10-17)
 
     /**
-     * 找回密码(第一步):提交学号,向该账号绑定的安全凭证邮箱发重置验证码。
+     * 找回密码（第一步）：提交邮箱或学号，向该账号绑定的安全凭证邮箱发重置验证码。
      *
-     * <p><b>枚举防护</b>:学号不存在时静默返回成功,不泄露「该学号是否已注册」;
-     * 账号存在但未绑邮箱才明确回 {@code EMAIL_NOT_BOUND}(用户输的是自己的学号,
-     * 提示去绑定是合理 UX,不算泄露)。邮箱验证码走 {@code reset} 用途分桶。
+     * <p><b>2026-10-21 支持邮箱</b>：注册流程已改为邮箱必填、学号选填，
+     * 若这里仍只认学号，<b>注册时跳过学号的用户永远找不回密码</b> ——
+     * 他连一个可以填进去的值都没有。同时也不再要求记得住 13~14 位学号。
+     *
+     * <p><b>枚举防护</b>：账号不存在时静默返回成功，不泄露「该账号是否已注册」；
+     * 账号存在但未绑邮箱才明确回 {@code EMAIL_NOT_BOUND}。邮箱验证码走 {@code reset} 用途分桶。
+     *
+     * <p><b>未绑邮箱只可能是历史账号</b>：新注册流程里邮箱是必填项、
+     * 且要通过 6 位验证码验证所有权，所以不存在「注册了但没邮箱」的新账号。
+     * 这个分支实际只服务于账号体系重构（2026-10-17 之前）留下的老数据。
      */
     @Override
     public void forgotPassword(ForgotPasswordDTO dto) {
-        User user = userMapper.selectByStudentNo(dto.getStudentNo().trim());
+        User user = findByAccount(dto.getAccount());
         if (user == null) {
-            // 不泄露账号是否存在,静默成功(防学号枚举)
+            // 不泄露账号是否存在,静默成功(防枚举)
             return;
         }
         if (user.getEmail() == null || user.getEmail().isEmpty()) {
-            throw new BusinessException(EMAIL_NOT_BOUND, "该学号尚未绑定邮箱,无法使用邮箱验证码找回密码");
+            /*
+             * 文案不再说「请先去绑定邮箱」—— 那需要先登录，
+             * 而用户此刻正在找回密码页、恰恰是登不进去的状态，指了条走不通的路。
+             * 这类账号只能由管理员协助处理。
+             */
+            throw new BusinessException(EMAIL_NOT_BOUND,
+                    "该账号是早期注册的，尚未绑定邮箱，暂时无法自助找回密码，请联系管理员协助处理");
         }
         // 向绑定的安全凭证邮箱发重置验证码(type=reset)
         verifyCodeService.send(user.getEmail(), "reset");
         auditService.record(user.getId(), "forgot_password", "user", user.getId(), "申请找回密码", null);
-        log.info("forgotPassword: uid={}, email={}", user.getId(), user.getEmail());
+        log.info("forgotPassword: uid={}, email={}", user.getId(), UserVoAssembler.maskUsername(user.getEmail()));
+    }
+
+    /**
+     * 按「邮箱或学号」定位账号（找回密码专用）。
+     *
+     * <p>判据是<b>含不含 @</b>而不是先试邮箱再试学号：
+     * 学号是纯数字（正则 {@code ^\d{13,14}$}），邮箱必然含 @，两者不可能混淆，
+     * 用 @ 一次分流即可，不必查两次库。
+     *
+     * <p>用 {@code selectByEmail} / {@code selectByStudentNo} 这两个既有方法，
+     * 而不是新写一条把两列 OR 起来的 SQL —— 它们各自带了 {@code is_deleted = 0}
+     * 条件，复用它就不会漏掉「注销账号还能找回密码」这种口子。
+     */
+    private User findByAccount(String account) {
+        if (account == null) {
+            return null;
+        }
+        String id = account.trim();
+        if (id.isEmpty()) {
+            return null;
+        }
+        if (id.contains("@")) {
+            return userMapper.selectByEmail(id.toLowerCase());
+        }
+        return userMapper.selectByStudentNo(id);
     }
 
     /**
@@ -342,10 +431,23 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     public void resetPassword(ResetPasswordDTO dto) {
-        User user = userMapper.selectByStudentNo(dto.getStudentNo().trim());
+        User user = findByAccount(dto.getAccount());
+        /*
+         * 【2026-10-21 修：不再用 EMAIL_NOT_BOUND 区分「账号不存在」】
+         *
+         * 原来的写法是「user == null 或 未绑邮箱 → 回 1060 EMAIL_NOT_BOUND」，
+         * 注释说这是「不泄露账号状态」，实际恰恰泄露了：
+         * 攻击者拿一个邮箱试一次，回 1060 就说明**这个邮箱没注册过**
+         * （或该账号没绑邮箱），回 1020 才说明存在 —— 一个可枚举的信号。
+         *
+         * 现在统一回 CODE_INVALID：账号不存在与验证码不对对用户是同一件事
+         * ——「你手上这个码用不了」。这也符合用户视角：他确实无法重置。
+         *
+         * 为什么不像 forgotPassword 那样静默成功：这一步用户已经填了新密码，
+         * 静默成功会让他以为改好了、接着去登录却登不进 —— 比明确报错更糟。
+         */
         if (user == null || user.getEmail() == null || user.getEmail().isEmpty()) {
-            // 账号不存在 / 未绑邮箱:统一回 EMAIL_NOT_BOUND,不泄露账号状态
-            throw new BusinessException(EMAIL_NOT_BOUND, "该学号尚未绑定邮箱,无法找回");
+            throw new BusinessException(CODE_INVALID, "验证码错误或已过期");
         }
         // 校验重置验证码(邮箱 + reset 桶,一次性消费)
         verifyCodeService.verify(user.getEmail(), dto.getCode(), "reset");
@@ -362,8 +464,12 @@ public class AuthServiceImpl implements AuthService {
      *
      * <p>原密码不对回 400(不区分「账号不存在」,因为这里是登录态,userId 一定有效)。
      * 新密码与原密码相同也拒绝——改密动作没有发生,却会让用户误以为旧密码已失效。
-     * 改密后不删 refresh:这是本人在登录态下主动操作,当前设备保持登录才符合预期;
-     * 找回密码(reset)才需要全量吊销,因为那是「可能被他人拿到邮箱」的场景。
+     *
+     * <p>改密后<b>吊销全部 refresh token</b>(2026-10-23 改,审查 P1-26)。
+     * 旧实现刻意不删,理由是「本人登录态下主动操作,当前设备保持登录」;但用户改密码的
+     * 典型动机是「怀疑账号被盗」——此时攻击者手里的 refresh 仍能续命 3~7 天,改密码
+     * 等于没做。安全语义优先:统一吊销,当前设备重新登录即可(access token 15 分钟内
+     * 仍有效,不会立刻被踢出正在写的页面)。
      */
     @Override
     @Transactional
@@ -380,8 +486,10 @@ public class AuthServiceImpl implements AuthService {
         }
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
-        auditService.record(userId, "change_password", "user", userId, "修改密码", null);
-        log.info("changePassword: uid={}", userId);
+        // 改密即吊销全部 refresh(审查 P1-26):攻击者持有的旧 refresh 立即失效
+        redis.delete(REFRESH_KEY + userId);
+        auditService.record(userId, "change_password", "user", userId, "修改密码(已吊销全部 refresh token)", null);
+        log.info("changePassword: uid={}, refresh revoked", userId);
     }
 
     /**
@@ -409,7 +517,7 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(email);
         userMapper.updateById(user);
         auditService.record(userId, "bind_email", "user", userId, "绑定邮箱=" + email, null);
-        log.info("bindEmail: uid={}, email={}", userId, email);
+        log.info("bindEmail: uid={}, email={}", userId, UserVoAssembler.maskUsername(email));
         return toVo(user);
     }
 

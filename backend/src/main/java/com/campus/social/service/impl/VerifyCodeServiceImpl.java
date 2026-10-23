@@ -144,13 +144,37 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
             norm = norm.toLowerCase();
         }
         String codeKey = "code:" + type + ":" + norm;
-        // 原子取出并删除:同一 code 并发多次 verify 只有一次能拿到非空值,杜绝同码双用
-        String expected = redisLua.getAndDelete(codeKey);
+        /*
+         * 先比对、命中才删(2026-10-23 改,审查 P1-25):
+         * 旧写法是"原子取出并删除"——错一次就销毁真码。攻击者循环
+         * POST /auth/login-code {email: victim, code: "000000"} 即可持续毁掉
+         * 受害者的真码,叠加 60s 发码限频,受害者邮箱登录/改密长期不可用。
+         *
+         * 新顺序:GET(不删) → 比对 → 一致才 DEL(原子读删,防同码双用)。
+         * 不一致时只累计失败次数,超过 5 次才 DEL 真码(防暴力枚举 6 位码)。
+         * 失败计数 key 与真码同 TTL,自然过期。
+         */
+        String expected = redis.opsForValue().get(codeKey);
         if (expected == null || expected.isEmpty()) {
             throw new BusinessException(CODE_INVALID, "验证码已失效,请重新获取");
         }
         if (!expected.equals(code)) {
+            String failKey = "code:fail:" + type + ":" + norm;
+            Long fails = redis.opsForValue().increment(failKey);
+            if (fails != null && fails == 1L) {
+                // 首次失败时给计数键一个与真码同量级的过期时间,避免永久占位
+                redis.expire(failKey, CODE_TTL);
+            }
+            if (fails != null && fails >= 5) {
+                // 连续 5 次错 → 作废本次码,逼用户重新获取(此时真正的码已被锁死)
+                redis.delete(codeKey);
+                redis.delete(failKey);
+                throw new BusinessException(CODE_INVALID, "错误次数过多,请重新获取验证码");
+            }
             throw new BusinessException(CODE_INVALID, "验证码错误");
         }
+        // 命中:原子读删,杜绝同一码并发双用
+        redisLua.getAndDelete(codeKey);
+        redis.delete("code:fail:" + type + ":" + norm);
     }
 }
