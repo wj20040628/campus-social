@@ -75,7 +75,12 @@ class CircleAdminServiceTest {
         }
 
         // 建圈:creator 为圈主
-        long c = createCircleByUser(creator, "圈测试" + creator + System.nanoTime());
+        // 圈名正则限 3-7 字符且必须含汉字(CircleServiceImpl#validateName)。
+        // 旧写法 "圈测试"+uid+nanoTime 约 29 字符,必撞 CIRCLE_NAME_INVALID —— 18/18 全错的根因。
+        // 现写法:「测」+ 6 位 nanotime 尾数 = 7 字符,含汉字、在长度内、跨运行唯一
+        // (uk_name 不含 is_deleted,用固定数字会与上次运行残留的圈撞唯一键)。
+        String circleName = "测" + String.format("%06d", System.nanoTime() % 1_000_000);
+        long c = createCircleByUser(creator, circleName);
         circleId = c;
 
         // admin / member / outsider 加入,分别置 role
@@ -205,14 +210,41 @@ class CircleAdminServiceTest {
 
     @Test
     void movePost_toOtherCircle_setsTargetCircleId() {
-        long otherCircle = createCircleByUser(admin, "目标圈" + System.nanoTime());
+        // 目标圈名同样受 3-7 字符 + 含汉字约束
+        long otherCircle = createCircleByUser(admin, "标" + String.format("%06d", System.nanoTime() % 1_000_000));
         joinAsClean(otherCircle, creator, 3);
         try {
-            service.movePost(postA, otherCircle, creator);
+            /*
+             * 2026-10-23 语义变更(审查 P0-3):移入目标圈需要**目标圈管理权**,
+             * 只校验源圈等于「A 圈主可把帖子塞进 B 圈」。
+             * 这里由 admin 操作:他是新圈圈主(目标圈权限 ✓),也是主圈圈管理(源圈权限 ✓)。
+             */
+            service.movePost(postA, otherCircle, admin);
             Post p = reloadPost(postA);
             assertEquals(otherCircle, p.getCircleId(), "移到目标圈");
         } finally {
             // 清理目标圈
+            memberMapper.hardDelete(otherCircle, creator, 0);
+            memberMapper.hardDelete(otherCircle, admin, 0);
+            circleMapper.deleteById(otherCircle);
+        }
+    }
+
+    @Test
+    void movePost_toOtherCircleWithoutTargetAdmin_rejected() {
+        /*
+         * 负向用例(审查 P0-3 的核心):creator 只是源圈圈主,
+         * 对 admin 的圈没有任何权限 —— 不能把帖子塞进去。
+         * 修复前这条会成功(只校验源圈),等于任意圈主污染别人的圈。
+         */
+        long otherCircle = createCircleByUser(admin, "标" + String.format("%06d", System.nanoTime() % 1_000_000));
+        joinAsClean(otherCircle, creator, 3); // creator 在该圈只是普通成员
+        try {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> service.movePost(postA, otherCircle, creator));
+            assertEquals(ResultCode.NOT_CIRCLE_OWNER.getCode(), ex.getCode(),
+                    "非目标圈管理不能把帖子移入他人圈子");
+        } finally {
             memberMapper.hardDelete(otherCircle, creator, 0);
             circleMapper.deleteById(otherCircle);
         }
@@ -334,7 +366,9 @@ class CircleAdminServiceTest {
     void createCircle_hitsReservedName_rejected() {
         // 预留名
         ReservedCircleName rn = new ReservedCircleName();
-        rn.setName("官方预留圈" + System.nanoTime());
+        // 预留名必须也能通过建圈的长度正则(3-7 字符 + 含汉字),否则建圈先撞 1056 长度错误,
+// 根本走不到「撞预留名」那段 —— 这正是该用例原先红的原因。
+        rn.setName("预留" + String.format("%04d", System.nanoTime() % 10_000));
         rn.setNote("test");
         reservedMapper.insert(rn);
         reservedCleanup.add(rn.getId());
