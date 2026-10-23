@@ -1,0 +1,124 @@
+/* 群成员名单(2026-10-21 随重写从 .vue 的 <style scoped> 抽出,与 GroupMenu 一致) */
+
+.gms {
+  /* ActionSheet 的 body 自身没有内边距:名单要自己给左右 16px,
+     否则头像会贴着面板边缘 */
+  padding: 0 var(--ys-space-4) var(--ys-space-4);
+}
+
+/*
+ * 邀请成员:虚线框。
+ * box-sizing 必须写 —— 项目没有全局 border-box 重置,
+ * width:100% + 1px 边框 + 左右 margin 会横向溢出 2px。
+ */
+.gms__invite {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ys-space-1);
+  width: 100%;
+  min-height: 40px;
+  margin: var(--ys-space-3) 0 var(--ys-space-1);
+  padding: 0 var(--ys-space-3);
+  border: 1px dashed var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: transparent;
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.gms__invite:hover {
+  background: var(--ys-accent-soft);
+}
+
+.gms__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* 行:9px 上下 + 40px 头像 ≈ 58px,比原来的 56px 略高,换来两行文字的呼吸 */
+.gms__row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  /* 发丝线用 inset shadow 而不是 border:border 参与盒模型,会让每行高度相差 1px */
+  box-shadow: inset 0 -1px 0 var(--ys-border-soft);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+/* 自己那一行不可点:去掉 pointer 与 hover,免得像能点 */
+.gms__row.is-self {
+  cursor: default;
+}
+
+.gms__row:not(.is-self):hover {
+  background: var(--ys-surface-2);
+}
+
+.gms__list .gms__row:last-child {
+  box-shadow: none;
+}
+
+.gms__i {
+  flex: 1;
+  min-width: 0;
+}
+
+.gms__n {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.gms__nick {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gms__tag {
+  flex: none;
+  font-size: 10px;
+  line-height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.gms__tag--owner {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+.gms__tag--muted {
+  background: var(--ys-danger-soft);
+  color: var(--ys-accent-2);
+}
+
+.gms__sub {
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/* 「我」:纯文字,不做成标签 —— 标签留给角色与状态,自己是谁不需要标签 */
+.gms__me {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+.gms__go {
+  flex: none;
+  color: var(--ys-muted);
+}

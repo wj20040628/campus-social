@@ -1,81 +1,72 @@
 /*
   ChatBubble.vue 的样式,随组件从 ChatThread.css 搬迁(原 219-408 行)。
-  选择器与规则原样搬迁,未改一个值。
+  2026-10-20 群聊改版:删掉「撤回气泡」「气泡内时间/已读」两套规则 ——
+  撤回改由 ChatThread 渲染成居中系统行,时间上移到组头。
 */
 
-/* 气泡样式随组件从 ChatThread.css 搬迁(原 219-408 行),未改一个值 */
+/* 组内相邻气泡只留 3px,视觉上是一「串」;组间距由 ChatThread 的 .grp 负责 */
 .brow {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  /* 同理:撑满 stack,气泡的 max-width:72% 才有正确的参照宽度 */
+  width: 100%;
+  max-width: 100%;
+}
+
+.brow + .brow {
+  margin-top: 3px;
 }
 
 .brow--me {
   align-items: flex-end;
 }
 
-.brow__sender {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-  margin-bottom: 2px;
-}
-
 .bbubble {
   position: relative;
   max-width: 72%;
   padding: var(--ys-space-2) var(--ys-space-3);
-  border-radius: var(--ys-radius-xl);
-  /* 靠近对方一侧收成小圆角,做「尾巴感」 */
-  border-top-left-radius: var(--ys-radius-sm);
   background: var(--ys-surface);
   border: 1px solid var(--ys-border);
   color: var(--ys-fg);
-  /* 长按热区 = 气泡本身,最小高 44px */
+  /* 长按热区 = 气泡本身,最小高 44px。
+     box-sizing 必须写:项目没有全局 border-box 重置,不写的话 44px 落在内容盒上,
+     单行气泡实高 = 44 + 上下 padding 16 + 边框 2 = 62px —— 一个「6」字也是
+     62px 高的大方块。--ys-touch-min 的语义就是元素整体高度。 */
+  box-sizing: border-box;
   min-height: var(--ys-touch-min);
+  border-radius: var(--ys-radius-xl);
 }
 
-/* 桌面右键入口:气泡 @contextmenu → MessageContextMenu(复制/引用/撤回),
-   仅 hover:hover 设备;移动端长按 → ChatMsgSheet(撤回/引用)。 */
+/*
+ * 圆角按「在组里的位置」决定:
+ *  - 首条:尾侧上角收成 6px(指向发送者)
+ *  - 末条:尾侧下角收成 6px
+ *  - 中间几条:四个角都放宽,连成一串
+ * 对方气泡的尾在左侧,自己的尾在右侧。
+ */
+.brow--first .bbubble {
+  border-top-left-radius: var(--ys-radius-sm);
+}
+
+.brow--last .bbubble {
+  border-bottom-left-radius: var(--ys-radius-sm);
+}
 
 .brow--me .bbubble {
   background: var(--ys-accent);
   border-color: var(--ys-accent);
   color: var(--ys-accent-on);
   border-top-left-radius: var(--ys-radius-xl);
+  border-bottom-left-radius: var(--ys-radius-xl);
+}
+
+.brow--me.brow--first .bbubble {
   border-top-right-radius: var(--ys-radius-sm);
 }
 
-.bbubble--recalled {
-  background: var(--ys-surface-2);
-  border-color: var(--ys-border-soft);
-  color: var(--ys-meta);
-  /* 撤回气泡内容居中 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-}
-
-/*
-  撤回气泡:无论左(对方)右(自己)统一「中性底 + 可读文字」。
-  必须压过 .brow--me .bbubble(0,2,0) 的强调色 —— 否则自己撤回的消息会「青底 + 灰字」,
-  在深色 teal 上几乎看不见(Bug2)。两条选择器都是 (0,2,0),靠写在后面取胜。
-*/
-.brow .bbubble--recalled,
-.brow--me .bbubble--recalled {
-  background: var(--ys-surface-2);
-  border-color: var(--ys-border-soft);
-  color: var(--ys-meta);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-}
-
-/* 撤回文字本身也用更深的辅助色,确保青底/中性底上都看得清 */
-.brow .bbubble--recalled .bbubble__recalled,
-.brow--me .bbubble--recalled .bbubble__recalled {
-  color: var(--ys-meta);
+.brow--me.brow--last .bbubble {
+  border-bottom-right-radius: var(--ys-radius-sm);
 }
 
 .bbubble--failed {
@@ -84,15 +75,14 @@
   color: var(--ys-fg);
 }
 
+.brow--me .bbubble--failed {
+  background: var(--ys-danger-soft);
+  color: var(--ys-fg);
+}
+
 .bbubble--long .bbubble__text,
 .bbubble--long {
   max-width: 82%;
-}
-
-.bbubble__recalled {
-  margin: 0;
-  font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
 }
 
 .bbubble__text {
@@ -148,6 +138,7 @@
   text-overflow: ellipsis;
 }
 
+/* 只剩失败态:未发出 + 重试。无「未读/已读」—— 那是组尾的事 */
 .bbubble__foot {
   display: flex;
   align-items: center;
@@ -156,26 +147,9 @@
   margin-top: var(--ys-space-1);
 }
 
-.bbubble__time {
-  font-size: var(--ys-text-xs);
-  /* 气泡底色不同,时间用半透明的白/黑;用 opacity 而非硬编码色 */
-  opacity: 0.7;
-}
-
 .bbubble__state {
   font-size: var(--ys-text-xs);
-  opacity: 0.85;
-}
-
-/* 已读:语义色,不再用硬编码 #b3f0c8(原 Chat.vue:1027) */
-.bbubble__state.is-read {
-  color: var(--ys-success);
-  opacity: 1;
-  font-weight: var(--ys-weight-medium);
-}
-
-.brow:not(.brow--me) .bbubble__state.is-read {
-  color: var(--ys-success);
+  color: var(--ys-danger);
 }
 
 .bbubble__retry {

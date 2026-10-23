@@ -15,11 +15,23 @@
       <el-icon :size="18"><Paperclip /></el-icon>
       引用回复
     </button>
+    <!--
+      举报（2026-10-21 新增）。
+      【为什么现在才加】后端早就支持 targetType=4（软删隐藏），
+      但这个菜单此前只有「撤回/引用」—— 撤回只能对自己的消息用，
+      于是别人发来的骚扰私信**没有任何举报路径**，只能拉黑整个用户。
+      私信骚扰是举报功能最该覆盖的场景，这次补上。
+      只对对方发的、未撤回的消息显示（canReport 由父组件判定，口径同 canQuote）。
+    -->
+    <button v-if="canReport" type="button" class="sheet__act sheet__act--danger" @click="pick('report')">
+      <el-icon :size="18"><Warning /></el-icon>
+      举报这条消息
+    </button>
   </ActionSheet>
 </template>
 
 <script setup>
-import { RefreshLeft, Paperclip } from '@element-plus/icons-vue'
+import { RefreshLeft, Paperclip, Warning } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 
 defineProps({
@@ -31,9 +43,11 @@ defineProps({
   canRecall: { type: Boolean, default: false },
   /** 能否引用:对方发的、未撤回的消息才可引用 */
   canQuote: { type: Boolean, default: false },
+  /** 能否举报:口径同 canQuote —— 只能举报对方发来的消息 */
+  canReport: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:modelValue', 'recall', 'quote'])
+const emit = defineEmits(['update:modelValue', 'recall', 'quote', 'report'])
 
 /** 动作一律先关层再上报:父组件不必在每个 handler 里重复写关闭 */
 function pick(kind) {

@@ -1,0 +1,167 @@
+/*
+  GroupMenu.vue 的样式(2026-10-20 由 GroupHead.css 改造,2026-10-21 重排)。
+  原「群信息头」的 .gh__* 全部作废:群名/人数已并入顶栏,公告条独立成
+  GroupAnnounce.vue。转让列表搬到 GroupTransferDialog.css。
+*/
+
+.gm {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.gm__btn {
+  width: var(--ys-touch-min);
+  height: var(--ys-touch-min);
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ys-radius-lg);
+  background: transparent;
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+
+.gm__btn:hover {
+  background: var(--ys-surface-2);
+}
+
+/*
+ * 点空白处关闭用一层透明遮罩,而不是给 document 挂监听:
+ * 遮罩天然只在菜单开着时存在,不用管「谁先注册、谁后清理」。
+ * z-index 比菜单低 1,盖住消息区和输入区,顺手挡住误触。
+ */
+.gm__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--ys-z-sticky) - 1);
+  background: transparent;
+}
+
+/* 整体:两到三张卡竖排,卡与卡之间 8px —— 分组本身就是危险操作的减速带 */
+.gm__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--ys-z-sticky);
+  width: 268px;
+  max-width: calc(100vw - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+}
+
+.gm__grp {
+  display: flex;
+  flex-direction: column;
+  padding: var(--ys-space-1) 0;
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  box-shadow: var(--ys-shadow-3);
+}
+
+/*
+ * 行高 48 而不是原来的 68:改版前六项平铺、菜单总高 456px,
+ * 占掉 390x844 屏幕的一半;现在五+一行、总高约 300px。
+ */
+.gm__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--ys-space-3);
+  border: none;
+  background: transparent;
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.gm__row:hover {
+  background: var(--ys-surface-2);
+}
+
+/* 行间发丝线:用 inset 阴影不用 border —— border 会让行高在有无分隔线时不一致 */
+.gm__row + .gm__row {
+  box-shadow: inset 0 1px 0 var(--ys-border-soft);
+}
+
+/* 标签占满可用宽度,把「当前值」挤到右侧 */
+.gm__label {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 当前值:次要信息,不抢标签的注意力;长群名截断 */
+.gm__v {
+  flex: none;
+  max-width: 108px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gm__go {
+  flex: none;
+  color: var(--ys-meta);
+}
+
+.gm__row--danger {
+  color: var(--ys-danger);
+}
+
+/* 开关:40x24,滑块 20px。用按钮而不是 checkbox,方便键盘/读屏 */
+.gm__row--tg {
+  cursor: default;
+}
+
+.gm__row--tg:hover {
+  background: transparent;
+}
+
+.gm__tg {
+  flex: none;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-border);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.gm__tg i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  box-shadow: 0 1px 2px rgba(36, 28, 21, 0.2);
+  transition: left var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.gm__tg.is-on {
+  background: var(--ys-accent);
+}
+
+.gm__tg.is-on i {
+  left: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gm__tg,
+  .gm__tg i {
+    transition: none;
+  }
+}

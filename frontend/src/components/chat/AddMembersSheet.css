@@ -15,6 +15,48 @@
   color: var(--ys-muted);
 }
 
+/* 空状态:图标 + 结论 + 解释 + 一个出口(2026-10-21 G21) */
+.am__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 8px 0;
+  color: var(--ys-muted);
+}
+
+.am__empty-t {
+  margin: var(--ys-space-3) 0 0;
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.am__empty-p {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-relaxed);
+  color: var(--ys-muted);
+  text-align: center;
+}
+
+.am__empty-btn {
+  margin-top: var(--ys-space-4);
+  min-height: 38px;
+  padding: 0 var(--ys-space-5);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: transparent;
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.am__empty-btn:hover {
+  background: var(--ys-surface-2);
+}
+
 .am__members {
   list-style: none;
   margin: 0;

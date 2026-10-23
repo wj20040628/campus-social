@@ -1,0 +1,63 @@
+/* 转让群主的成员选择列表。选中态用主色描边 + 主色底,和对勾一起表达"已选" */
+
+.gtd__p {
+  margin: 0 0 var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  line-height: 1.65;
+  color: var(--ys-fg-2);
+}
+
+.gtd__empty {
+  margin: var(--ys-space-3) 0 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.gtd__list {
+  list-style: none;
+  margin: var(--ys-space-2) 0 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.gtd__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-height: var(--ys-touch-min);
+  padding: var(--ys-space-1) var(--ys-space-2);
+  /* 默认透明边框:选中时换成主色,避免行高跳动 */
+  border: 1px solid transparent;
+  border-radius: var(--ys-radius-lg);
+  cursor: pointer;
+}
+
+.gtd__row:hover {
+  background: var(--ys-surface-2);
+}
+
+.gtd__row.is-picked {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+}
+
+.gtd__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 对勾占位恒在,避免选中时文字被推挤 */
+.gtd__ck {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  color: var(--ys-accent);
+}

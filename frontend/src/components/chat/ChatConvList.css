@@ -1,7 +1,22 @@
 /* ChatConvList.vue 的样式,抽离到外部文件以控制单文件行数。 */
+
 .cl {
   background: var(--ys-surface);
 }
+
+/*
+ * 这一条是 2026-10-20 的关键修复，别删：
+ * 之前只有折叠面板里的 `.grp__body ul` 做了重置，私信/群组两个 ul 完全没覆盖，
+ * 于是浏览器默认的 padding-inline-start:40px、margin-block:1em、list-style:disc
+ * 全部生效 —— 行被右推 40px、行首多个假「未读圆点」、标题与首行之间多 14px 缝。
+ */
+.cl ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------------- 破冰额度条 ---------------- */
 
 .quota {
   display: flex;
@@ -26,8 +41,7 @@
 }
 
 .quota__why {
-  /* min-width 不是多余的:375px 实测这个按钮 40x44,高度够但宽度差 4px。
-     两个汉字在 xs 字号下宽度只有 40,AC-15 要的是 44x44 的正方形热区。 */
+  /* 两个汉字在 xs 字号下只有 40 宽，AC-15 要求 44x44 热区 */
   min-width: var(--ys-touch-min);
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-2);
@@ -40,126 +54,359 @@
   cursor: pointer;
 }
 
+/* ---------------- 列表顶部搜索 ---------------- */
+
+.cl__search {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  height: 36px;
+  margin: var(--ys-space-2) var(--ys-space-3) var(--ys-space-1);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: 9px;
+  background: var(--ys-surface);
+  color: var(--ys-muted);
+}
+
+.cl__search-ic {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.cl__search-inp {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ys-fg);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+}
+
+.cl__search-inp::placeholder {
+  color: var(--ys-muted);
+}
+
+/* type=search 在 WebKit 自带一个叉，和自定义清空按钮重复 */
+.cl__search-inp::-webkit-search-cancel-button {
+  display: none;
+}
+
+.cl__search-clear {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  color: var(--ys-muted);
+  font-size: var(--ys-text-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 桌面列表自己是滚动容器，搜索留在顶部更顺手；手机上滚动的是页面，sticky 会顶到顶栏下 */
+@media (min-width: 1024px) {
+  .cl__search {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-top: 0;
+    border-width: 0 0 1px;
+    border-radius: 0;
+  }
+}
+
+/* ---------------- 分组 ---------------- */
+
 .grp + .grp {
   margin-top: var(--ys-space-2);
 }
 
+/*
+ * 分组标题：28px 轻标题。
+ * 改版前是 56px + 整条 --ys-surface-2 满铺，两段米色块相邻时像「两行被选中」，
+ * 第一眼落在标题上而不是会话上。标题只是路标，不该比内容重。
+ */
 .grp__head {
   display: flex;
   align-items: center;
   gap: var(--ys-space-2);
+  height: 28px;
   margin: 0;
-  padding: var(--ys-space-2) var(--ys-space-4);
-  min-height: 40px;
-  background: var(--ys-surface-2);
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg-2);
+  padding: 0 var(--ys-space-4);
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: var(--ys-weight-semibold);
+  letter-spacing: 0.07em;
+  color: var(--ys-muted);
 }
 
+/* 陌生人分组是可点的标题，热区要够 44 */
 .grp__head--btn {
   width: 100%;
-  min-height: 48px;
+  height: 44px;
   border: none;
   font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
   text-align: left;
   cursor: pointer;
 }
 
 .grp__name {
-  flex: 1;
+  flex: none;
 }
 
 .grp__count {
-  font-size: var(--ys-text-xs);
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface-2);
+  font-size: 10.5px;
+  font-weight: var(--ys-weight-regular);
+  letter-spacing: 0;
   color: var(--ys-meta);
+  line-height: 1.5;
 }
 
-/* 新建群聊入口:紧跟在「群组 N」后面,始终可点(空群时也显示) */
+.grp__spacer {
+  flex: 1;
+}
+
+/*
+ * 新建群聊入口。
+ *
+ * 【2026-10-21 修触控热区】原来按钮本身就是 26×26 —— 图标 15px 加上内边距，
+ * 视觉上是对的，但**可点区域只有 26×26**，远低于 44×44 的最小触控尺寸（AC-15）。
+ * 手指落点稍偏就会点空，表现为「点了没反应」。
+ *
+ * 现在改成「外框 44×44 透明 + 内层 26×26 可见」：
+ * 用 ::before 撑开一个不可见的正方形把热区补到 44，
+ * 视觉上仍是一个紧凑的小按钮，与右侧「群组」标题行的高度也更协调。
+ */
 .grp__add {
+  position: relative;
   flex: none;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  margin-left: var(--ys-space-1);
+  padding: 0;
+  border: none;
+  border-radius: var(--ys-radius-lg);
+  background: transparent;
+  color: var(--ys-muted);
+  cursor: pointer;
+  transition: background var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+/*
+ * 可见的底块：只有 26×26，hover / 按下时才显底色。
+ * 这样按钮的可点区域是 44，但看上去仍是那一小格 ——
+ * 直接把 44×44 都染上底色会让它显得比标题还重。
+ */
+.grp__add::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 7px;
+  background: transparent;
+  transition: background var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.grp__add svg {
+  position: relative;
+  width: 15px;
+  height: 15px;
+}
+
+.grp__add:hover::before {
+  background: var(--ys-accent-soft);
+}
+
+.grp__add:hover {
+  color: var(--ys-accent);
+}
+
+.grp__empty {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4) var(--ys-space-3);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* ---------------- 会话行 ---------------- */
+
+.crow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  height: 60px;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: background var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.crow:focus-visible {
+  outline: 2px solid var(--ys-accent);
+  outline-offset: -2px;
+}
+
+/* 置顶：底色比卡片深一档，看得出现在被钉住了，但不抢视觉 */
+.crow.is-pinned {
+  background: var(--ys-bg);
+}
+
+.crow.is-active {
+  background: var(--ys-accent-soft);
+}
+
+/* 选中左侧竖条：上下各缩 14px */
+.crow.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ys-accent);
+}
+
+@media (hover: hover) {
+  .crow:hover {
+    background: var(--ys-surface-2);
+  }
+
+  .crow.is-active:hover {
+    background: var(--ys-accent-soft);
+  }
+}
+
+/*
+ * 会话头像（可点，进对方主页）。
+ *
+ * 【2026-10-21 从 40 改成 44】40×40 差 4px 不到 AC-15 的 44×44 最小热区。
+ * 它是列表里唯一一个「点错就进了别人主页」的入口，误触代价比一般按钮高。
+ */
+.crow__av {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
   border: none;
   border-radius: var(--ys-radius-full);
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-  font-size: var(--ys-text-lg);
-  line-height: 1;
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
   font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
 }
 
-.grp__add:active {
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
+/* 群头像圆角 12px：和私信圆形区分得开，又不像 8px 那样生硬 */
+.crow__av--sq {
+  border-radius: 12px;
+  cursor: inherit;
 }
 
-/* 空群引导:没有群时给一句提示,而不是留一段空白 */
-.grp__empty {
-  margin: 0;
-  padding: var(--ys-space-3) var(--ys-space-4);
-  font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
+.crow__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-/* 群搜索框:只出现在群组分组里,纯本地过滤。触控高度不小于 36px */
-.grp__search {
-  display: block;
-  width: calc(100% - var(--ys-space-4) * 2);
-  margin: 0 var(--ys-space-4) var(--ys-space-2);
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-3);
-  border: 1px solid var(--ys-border-soft);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface-2);
+.crow__name {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
   color: var(--ys-fg);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
-}
-.grp__search::placeholder {
-  color: var(--ys-muted);
-}
-.grp__search:focus {
-  outline: none;
-  border-color: var(--ys-accent);
-  box-shadow: 0 0 0 2px var(--ys-accent-soft);
-}
-
-.grp__caret {
-  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.grp__caret.is-open {
-  transform: rotate(180deg);
-}
-
-/* 展开/收起:只动 max-height */
-.grp__body {
-  max-height: 0;
+  line-height: 20px;
+  white-space: nowrap;
   overflow: hidden;
-  transition: max-height var(--ys-motion-fast) var(--ys-ease-out);
+  text-overflow: ellipsis;
 }
 
-.grp__body.is-open {
-  max-height: 520px;
+.crow__pre {
+  font-size: 12.5px;
+  color: var(--ys-muted);
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.grp__body ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* 有未读：昵称加粗一档、预览提一档色，不用红字也看得出「这条没看」 */
+.crow__name.is-unread {
+  font-weight: var(--ys-weight-semibold);
 }
+
+.crow__pre.is-unread {
+  color: var(--ys-fg-2);
+}
+
+/* 右侧列：时间在上、徽章/免打扰在下，只占 40 宽，剩余宽度全给昵称 */
+.crow__side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 40px;
+}
+
+.crow__time {
+  font-family: var(--ys-font-body);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ys-meta);
+  white-space: nowrap;
+}
+
+.crow__time.is-unread {
+  color: var(--ys-accent-2);
+  font-weight: var(--ys-weight-medium);
+}
+
+.crow__badge {
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent-2);
+  color: var(--ys-accent-on);
+  font-size: 10.5px;
+  font-weight: var(--ys-weight-semibold);
+  line-height: 1;
+}
+
+.crow__mute {
+  width: 13px;
+  height: 13px;
+  color: var(--ys-meta);
+}
+
+/* ---------------- 陌生人折叠 ---------------- */
 
 .srow {
   display: flex;
   align-items: center;
   gap: var(--ys-space-3);
-  min-height: 72px;
+  min-height: 64px;
   padding: 0 var(--ys-space-4);
 }
 
@@ -186,8 +433,7 @@
   gap: 2px;
 }
 
-.srow__name,
-.crow__name {
+.srow__name {
   font-size: var(--ys-text-base);
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg);
@@ -196,8 +442,7 @@
   text-overflow: ellipsis;
 }
 
-.srow__preview,
-.crow__preview {
+.srow__preview {
   font-size: var(--ys-text-sm);
   color: var(--ys-muted);
   white-space: nowrap;
@@ -220,115 +465,37 @@
 
 .grp__ignore-all {
   width: 100%;
-  color: var(--ys-muted);
 }
 
-.crow + .crow {
-  border-top: 1px solid var(--ys-border-soft);
+.grp__caret {
+  transition: transform var(--ys-motion-fast) var(--ys-ease-out);
 }
 
-.crow.is-active {
-  background: var(--ys-accent-soft);
+.grp__caret.is-open {
+  transform: rotate(180deg);
 }
 
-.crow__btn {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  width: 100%;
-  min-height: 72px;
-  padding: 0 var(--ys-space-4);
-  border: none;
-  background: transparent;
-  font-family: var(--ys-font-body);
-  text-align: left;
-  cursor: pointer;
-}
-
-.crow__avatar {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface-2);
-  color: var(--ys-fg-2);
-  font-size: var(--ys-text-md);
-}
-
-.crow__avatar--square {
-  border-radius: var(--ys-radius-lg);
-}
-
-.crow__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.crow__time {
-  flex: none;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-}
-
-/*
-  对方头像/名字可点跳主页:内嵌按钮。
-  父 .crow__btn 是整行 open 会话;这两个内嵌按钮 @click.stop 截断,
-  避免点名字/头像时误开会话。命中热区交给父按钮,自身仅做视觉提示。
-*/
-.crow__avatar--link {
-  all: unset;
-  box-sizing: border-box;
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: var(--ys-touch-min);
-  height: var(--ys-touch-min);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface-2);
-  color: var(--ys-fg-2);
-  font-size: var(--ys-text-md);
-  cursor: pointer;
-}
-
-.crow__avatar--link:hover {
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-}
-
-.crow__name--link {
-  all: unset;
-  box-sizing: border-box;
-  display: block;
-  cursor: pointer;
-  width: 100%;
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg);
-  white-space: nowrap;
+/* 展开/收起：只动 max-height，不叠高度跳变与图标旋转 */
+.grp__body {
+  max-height: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  /* 内嵌在 .crow__info(flex column)里,作为独立一行占满宽 */
+  transition: max-height var(--ys-motion-fast) var(--ys-ease-out);
 }
 
-.crow__name--link:hover {
-  color: var(--ys-accent);
-  text-decoration: underline;
+.grp__body.is-open {
+  max-height: 520px;
 }
 
-.crow__name--link:focus-visible {
-  outline: 2px solid var(--ys-accent);
-  outline-offset: 2px;
-  border-radius: var(--ys-radius-sm);
-}
+/* ---------------- 手机 ---------------- */
 
-.crow__avatar--link:focus-visible {
-  outline: 2px solid var(--ys-accent);
-  outline-offset: 2px;
+@media (max-width: 1023px) {
+  /* 行高 64：触控目标更大，一屏仍能放 8 行 */
+  .crow {
+    height: 64px;
+  }
+
+  .cl__search {
+    height: 38px;
+    margin: var(--ys-space-2) var(--ys-space-4) var(--ys-space-1);
+  }
 }

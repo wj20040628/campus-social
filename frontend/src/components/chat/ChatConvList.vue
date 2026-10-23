@@ -1,14 +1,8 @@
 <template>
   <div class="cl">
     <!--
-      破冰额度条(Chat.vue.md §1.1 行 2)。
-      quota 为 null 时**整条不渲染** —— 拉取失败时给「今天还能打招呼 4 次」
-      是撒谎,用户按 4 行事结果第 5 次被拒,会认定是 bug。
-    -->
-    <!--
-      方案 A:平时完全不显示,只剩 ≤2 次时才出现黄色提示条(见 Chat.vue.md §1.1)。
-      这样平时列表干净,快用完时给预期,不至于发到一半突然被拒以为坏了。
-      quota 为 null(拉取失败)时整条不渲染——撒谎说"还能 4 次"比不显示更糟。
+      破冰额度条(方案 A:平时不显示,只剩 ≤2 次才出现)。
+      quota 为 null(拉取失败)时整条不渲染 —— 撒谎说「还能 4 次」比不显示更糟。
     -->
     <div v-if="quota !== null && quota <= 2" class="quota">
       <span class="quota__text">
@@ -35,10 +29,26 @@
 
     <template v-else>
       <!--
-        陌生人消息折叠分组。**默认收起**。
-        v-if 而不是 v-show:整组为空时整个分组头也不该出现 ——
-        「陌生人消息 0」是个没有信息量的标题。
+        搜索:一份管私信和群聊(原先是塞在群组分组里、只搜群名)。
+        放在列表顶部而不是顶栏:搜索的对象就在下面这个列表里,
+        手不用先去顶栏再回来。
       -->
+      <div class="cl__search">
+        <svg class="cl__search-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" />
+          <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <input
+          v-model="kw"
+          type="search"
+          class="cl__search-inp"
+          placeholder="搜索私信、群聊"
+          aria-label="搜索私信和群聊"
+        />
+        <button v-if="kw" type="button" class="cl__search-clear" aria-label="清空搜索" @click="kw = ''">×</button>
+      </div>
+
+      <!-- 陌生人消息:默认收起,整组为空时连标题都不出现 -->
       <section v-if="strangerList.length" class="grp">
         <button
           type="button"
@@ -46,19 +56,14 @@
           :aria-expanded="strangerOpen"
           @click="strangerOpen = !strangerOpen"
         >
-          <el-icon :size="20"><ChatDotRound /></el-icon>
+          <el-icon :size="18"><ChatDotRound /></el-icon>
           <span class="grp__name">陌生人消息</span>
           <span class="grp__count ys-num">{{ strangerList.length }}</span>
-          <el-icon :size="20" class="grp__caret" :class="{ 'is-open': strangerOpen }">
+          <el-icon :size="18" class="grp__caret" :class="{ 'is-open': strangerOpen }">
             <CaretBottom />
           </el-icon>
         </button>
 
-        <!--
-          展开动画动 max-height 而不是同时旋转图标:
-          图标旋转 + 高度跳变同时出现会让分组「抖一下」(§4 明确禁止)。
-          这里只动 max-height,图标旋转放在同一 transition 里但幅度小。
-        -->
         <div class="grp__body" :class="{ 'is-open': strangerOpen }">
           <ul>
             <li v-for="s in strangerList" :key="s.id" class="srow">
@@ -87,91 +92,131 @@
       <section class="grp">
         <h2 class="grp__head">
           <span class="grp__name">私信</span>
-          <span class="grp__count ys-num">{{ convs.length }}</span>
+          <span class="grp__count ys-num">{{ filteredConvs.length }}</span>
         </h2>
         <ul>
-          <li
-            v-for="c in convs"
-            :key="c.convId"
-            class="crow"
-            :class="{ 'is-active': activeId === c.convId }"
-          >
-            <button type="button" class="crow__btn" @click="$emit('open', c)">
-              <button
-                type="button"
-                class="crow__avatar crow__avatar--link"
-                :aria-label="`查看 ${peerName(c)} 的主页`"
-                @click.stop="$emit('peer', c.peer?.id)"
+          <li v-for="c in filteredConvs" :key="'dm-' + c.convId">
+            <ChatRowSwipe
+              :open="openKey === 'dm-' + c.convId"
+              :pinned="!!c.pinned"
+              :muted="!!c.muted"
+              @update:open="(v) => setOpen('dm-' + c.convId, v)"
+              @action="(a) => onAction(c, 'dm', a)"
+            >
+              <div
+                class="crow"
+                :class="{ 'is-active': activeKind === 'dm' && activeId === c.convId, 'is-pinned': !!c.pinned }"
+                role="button"
+                tabindex="0"
+                :aria-label="`打开与 ${peerName(c)} 的会话`"
+                @click="$emit('open', c)"
+                @keydown.enter.prevent="$emit('open', c)"
+                @keydown.space.prevent="$emit('open', c)"
+                @contextmenu="onRowContext($event, c, 'dm')"
               >
-                {{ c.peer?.nickname?.slice(0, 1) || '?' }}
-                <UnreadDot v-if="c.unread" :count="c.unread" noun="条未读" />
-              </button>
-              <span class="crow__info">
                 <button
                   type="button"
-                  class="crow__name crow__name--link"
+                  class="crow__av"
+                  tabindex="-1"
                   :aria-label="`查看 ${peerName(c)} 的主页`"
                   @click.stop="$emit('peer', c.peer?.id)"
-                >
-                  {{ peerName(c) }}
-                </button>
-                <span class="crow__preview">{{ c.lastPreview || '还没有消息' }}</span>
-              </span>
-              <span class="crow__time ys-num">{{ c.timeText }}</span>
-            </button>
+                >{{ c.peer?.nickname?.slice(0, 1) || '?' }}</button>
+                <span class="crow__info">
+                  <span class="crow__name" :class="{ 'is-unread': c.unread > 0 }">{{ peerName(c) }}</span>
+                  <span class="crow__pre" :class="{ 'is-unread': c.unread > 0 }">
+                    {{ c.lastPreview || '还没有消息' }}
+                  </span>
+                </span>
+                <span class="crow__side">
+                  <span class="crow__time" :class="{ 'is-unread': c.unread > 0 }">{{ c.timeText }}</span>
+                  <span v-if="c.unread > 0" class="crow__badge ys-num">{{ c.unread > 99 ? '99+' : c.unread }}</span>
+                  <svg v-else-if="c.muted" class="crow__mute" viewBox="0 0 24 24" fill="none" aria-label="已免打扰">
+                    <path d="M18 16H6l1.6-2.2V10a4.4 4.4 0 0 1 8.8 0v3.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                    <path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
+                </span>
+              </div>
+            </ChatRowSwipe>
           </li>
         </ul>
+        <p v-if="!filteredConvs.length && kw" class="grp__empty">没有匹配的私信</p>
       </section>
 
       <!--
-        群组分组:头像改方形(--ys-radius-lg),与私信的圆形区分。
-        **整段始终渲染** —— 新建群聊入口要靠它触达;空群时不放空列表,
-        只显示标题 + 「＋」按钮 + 一句引导,否则没人告诉用户「群从哪来」。
+        群组分组:始终渲染 —— 建群入口要靠它触达。
+        空群时只放标题 + 「＋」+ 一句引导,否则没人告诉用户「群从哪来」。
       -->
       <section class="grp">
         <h2 class="grp__head">
           <span class="grp__name">群组</span>
-          <span class="grp__count ys-num">{{ groups.length }}</span>
+          <span class="grp__count ys-num">{{ filteredGroups.length }}</span>
+          <span class="grp__spacer"></span>
           <button
             type="button"
             class="grp__add"
             aria-label="新建群聊"
             @click="$emit('create-group')"
-          >＋</button>
-        </h2>
-        <!-- 群搜索:纯本地过滤我加入的群名,不发网络请求 -->
-        <input
-          v-if="groups.length"
-          v-model="groupKw"
-          type="search"
-          class="grp__search"
-          placeholder="搜索群聊"
-          aria-label="搜索群聊"
-        />
-        <ul v-if="filteredGroups.length">
-          <li
-            v-for="g in filteredGroups"
-            :key="g.id"
-            class="crow"
-            :class="{ 'is-active': activeKind === 'group' && activeId === g.id }"
           >
-            <button type="button" class="crow__btn" @click="$emit('open-group', g)">
-              <span class="crow__avatar crow__avatar--square">
-                {{ g.name?.slice(0, 1) || '群' }}
-                <UnreadDot v-if="g.myUnread" :count="g.myUnread" noun="条未读" />
-              </span>
-              <span class="crow__info">
-                <span class="crow__name">{{ g.name }}</span>
-                <span class="crow__preview">{{ g.lastPreview || '还没有消息' }}</span>
-              </span>
-              <span class="crow__time ys-num">{{ g.timeText }}</span>
-            </button>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
+        </h2>
+        <ul v-if="filteredGroups.length">
+          <li v-for="g in filteredGroups" :key="'grp-' + g.id">
+            <ChatRowSwipe
+              :open="openKey === 'grp-' + g.id"
+              :pinned="!!g.pinned"
+              :muted="!!g.muted"
+              @update:open="(v) => setOpen('grp-' + g.id, v)"
+              @action="(a) => onAction(g, 'group', a)"
+            >
+              <div
+                class="crow"
+                :class="{ 'is-active': activeKind === 'group' && activeId === g.id, 'is-pinned': !!g.pinned }"
+                role="button"
+                tabindex="0"
+                :aria-label="`打开群 ${g.name || '群聊'}`"
+                @click="$emit('open-group', g)"
+                @keydown.enter.prevent="$emit('open-group', g)"
+                @keydown.space.prevent="$emit('open-group', g)"
+                @contextmenu="onRowContext($event, g, 'group')"
+              >
+                <span class="crow__av crow__av--sq">{{ g.name?.slice(0, 1) || '群' }}</span>
+                <span class="crow__info">
+                  <span class="crow__name" :class="{ 'is-unread': g.myUnread > 0 }">{{ g.name }}</span>
+                  <span class="crow__pre" :class="{ 'is-unread': g.myUnread > 0 }">
+                    {{ g.lastPreview || '还没有消息' }}
+                  </span>
+                </span>
+                <span class="crow__side">
+                  <span class="crow__time" :class="{ 'is-unread': g.myUnread > 0 }">{{ g.timeText }}</span>
+                  <span v-if="g.myUnread > 0" class="crow__badge ys-num">{{ g.myUnread > 99 ? '99+' : g.myUnread }}</span>
+                  <svg v-else-if="g.muted" class="crow__mute" viewBox="0 0 24 24" fill="none" aria-label="已免打扰">
+                    <path d="M18 16H6l1.6-2.2V10a4.4 4.4 0 0 1 8.8 0v3.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                    <path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
+                </span>
+              </div>
+            </ChatRowSwipe>
           </li>
         </ul>
-        <p v-else-if="groups.length" class="grp__empty">没有叫「{{ groupKw }}」的群</p>
-        <p v-else class="grp__empty">还没有群，点右上角＋建一个</p>
+        <p v-else class="grp__empty">
+          {{ groups.length && kw ? `没有叫「${kw}」的群` : '还没有群，点右上角＋建一个' }}
+        </p>
       </section>
     </template>
+
+    <!-- 桌面端右键菜单(仅 hover 设备会打开,见 onRowContext) -->
+    <ChatRowMenu
+      v-model="menuOpen"
+      :pos="menuPos"
+      :pinned="!!menuRow?.pinned"
+      :muted="!!menuRow?.muted"
+      @mute="runMenu('mute')"
+      @pin="runMenu('pin')"
+      @delete="runMenu('delete')"
+    />
   </div>
 </template>
 
@@ -179,15 +224,24 @@
 /**
  * 会话列表(Chat.vue.md §1.1)
  *
- * 「我关注的」区块在**移动端已删除**(§1.1):375px 下要嵌两层折叠,
- * 认知负荷超过 4 项上限。找人改走 /search。
- * 桌面端(≥1024px)侧栏有空间,由 Chat.vue 在双栏分支里另行渲染。
+ * ## 2026-10-20 改版三件事
+ * 1) 原生 ul 样式泄漏:此前只重置了 `.grp__body ul`,私信/群组两个分组的 ul
+ *    仍带 `padding-inline-start:40px` + `list-style:disc` + `margin-block:1em`。
+ *    后果:每行右推 40px(左 40 右 16 不对称)、行首多一个被误认成「未读红点」的
+ *    li 圆点、分组标题与首行之间多出 14px 缝。修在 CSS 的 `.cl ul`。
+ * 2) 分组标题从 56px 满铺底色收成 28px 轻标题 —— 它的权重本该低于会话内容。
+ * 3) 手机端每行可左滑,露出 免打扰/置顶/删除(见 ChatRowSwipe.vue);
+ *    桌面端右键同一行也出这三个动作(见 ChatRowMenu.vue)。
+ *
+ * 「我关注的」区块在移动端已删除(§1.1):375px 下两层折叠超过认知负荷上限,找人走 /search。
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ElMessage } from '@/utils/feedback'
 import { ChatDotRound, CaretBottom } from '@element-plus/icons-vue'
-import UnreadDot from '@/components/mobile/UnreadDot.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
+import ChatRowSwipe from './ChatRowSwipe.vue'
+import ChatRowMenu from './ChatRowMenu.vue'
 
 const props = defineProps({
   convs: { type: Array, default: () => [] },
@@ -199,16 +253,69 @@ const props = defineProps({
   activeKind: { type: String, default: 'dm' },
 })
 
-defineEmits(['open', 'open-group', 'peer', 'browse', 'ignore-stranger', 'ignore-all-stranger', 'create-group'])
+const emit = defineEmits([
+  'open', 'open-group', 'peer', 'browse',
+  'ignore-stranger', 'ignore-all-stranger', 'create-group',
+  'pin', 'mute', 'delete',
+])
 
 const strangerOpen = ref(false)
-const groupKw = ref('')
+const kw = ref('')
+/** 当前展开左滑操作的行 key;同一时刻只允许一行展开 */
+const openKey = ref(null)
 
-/** 群搜索:本地过滤我加入的群名(大小写不敏感) */
+/* ---------------- 桌面右键菜单 ---------------- */
+const menuOpen = ref(false)
+const menuPos = ref({ x: 0, y: 0 })
+const menuRow = ref(null)
+const menuKind = ref('dm')
+
+/**
+ * 右键只在真有鼠标悬停能力的设备上接管。
+ * 触屏长按也会派发 contextmenu,那一路应该留给浏览器默认行为
+ * (我们自己的长按菜单在气泡上,不在会话行上)。
+ */
+const isHoverDevice = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia &&
+  window.matchMedia('(hover:hover)').matches
+
+function onRowContext(e, row, kind) {
+  if (!isHoverDevice()) return
+  e.preventDefault()
+  // 右键时先把左滑收起来:两套入口同屏会让人搞不清当前是哪一行被选中
+  openKey.value = null
+  menuRow.value = row
+  menuKind.value = kind
+  menuPos.value = { x: e.clientX, y: e.clientY }
+  menuOpen.value = true
+}
+
+function runMenu(action) {
+  const row = menuRow.value
+  if (row) onAction(row, menuKind.value, action)
+}
+
+/** 点菜单外的任何地方都关;判断用 closest('.rowmenu'),否则菜单项自己的点击会被吞掉 */
+function onDocPointerDown(e) {
+  if (!menuOpen.value) return
+  if (e.target?.closest?.('.rowmenu')) return
+  menuOpen.value = false
+}
+function onDocKey(e) {
+  if (e.key === 'Escape') menuOpen.value = false
+}
+
+const hit = (s) => (s || '').toLowerCase().includes(kw.value.trim().toLowerCase())
+
+const filteredConvs = computed(() => {
+  if (!kw.value.trim()) return props.convs
+  return props.convs.filter((c) => hit(peerName(c)))
+})
+
 const filteredGroups = computed(() => {
-  const kw = groupKw.value.trim().toLowerCase()
-  if (!kw) return props.groups
-  return props.groups.filter((g) => (g.name || '').toLowerCase().includes(kw))
+  if (!kw.value.trim()) return props.groups
+  return props.groups.filter((g) => hit(g.name))
 })
 
 const allEmpty = computed(
@@ -219,13 +326,45 @@ const allEmpty = computed(
     props.strangerList.length === 0,
 )
 
-/**
- * 昵称降级链:昵称 -> 用户名 -> 「同学」。
- * 直接用 nickname 会让部分条目渲染成空白 —— 那正是「看起来像坏了」的形态。
- */
+/** 昵称降级链:昵称 -> 用户名 -> 「同学」。直接渲染 nickname 会出现空白条目 */
 function peerName(c) {
   return c.peer?.nickname || c.peer?.username || '同学'
 }
+
+function setOpen(key, v) {
+  openKey.value = v ? key : openKey.value === key ? null : openKey.value
+}
+
+/**
+ * 左滑 / 右键动作。置顶/免打扰是开关(再点一次取消),交给父级乐观更新;
+ * 删除要说清它是「从我的列表拿掉」—— 对方再发消息会自己回来,
+ * 不提一句用户会以为聊天记录被删没了。
+ */
+function onAction(row, kind, action) {
+  openKey.value = null
+  if (action === 'pin') emit('pin', row, kind, !row.pinned)
+  else if (action === 'mute') emit('mute', row, kind, !row.muted)
+  else if (action === 'delete') {
+    emit('delete', row, kind)
+    ElMessage.success('已从列表删除，对方再发消息会重新出现')
+  }
+}
+
+/** 一滚动就收起操作 —— 手指在滚、行还半开着很别扭;右键菜单同理 */
+const closeOnScroll = () => {
+  if (openKey.value) openKey.value = null
+  if (menuOpen.value) menuOpen.value = false
+}
+onMounted(() => {
+  window.addEventListener('scroll', closeOnScroll, { passive: true, capture: true })
+  document.addEventListener('pointerdown', onDocPointerDown, true)
+  document.addEventListener('keydown', onDocKey)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', closeOnScroll, true)
+  document.removeEventListener('pointerdown', onDocPointerDown, true)
+  document.removeEventListener('keydown', onDocKey)
+})
 </script>
 
 <style scoped src="./ChatConvList.css"></style>

@@ -7,29 +7,32 @@
     <!-- 行 0 + 行 2:自绘顶栏与来源上下文条(2026-10-15 拆去 ChatThreadHeader.vue) -->
     <ChatThreadHeader
       :peer-name="peerName"
+      :subtitle="groupSub"
       :source-title="sourceTitle"
       @close-source="$emit('close-source')"
-    />
+    >
+      <template v-if="kind === 'group' && groupInfo" #actions>
+        <GroupMenu
+          :group="groupInfo"
+          :info="groupInfo"
+          :on-add="onAdd"
+          :on-kick="onKick"
+          :on-leave-group="onLeaveGroup"
+          :on-transfer="onTransfer"
+          :on-rename="onRename"
+          :on-mute-member="onMuteMember"
+          :on-mute-all="onMuteAll"
+          @open-announce="announceOpen = true"
+        />
+      </template>
+    </ChatThreadHeader>
 
-    <!--
-      ② 群信息头(仅群聊)。**桌面 + 手机都常显**:群头固定在消息区上方,
-      不随滚动收起/隐藏。早前的「下滑收起 / 上滑拉回」已移除 —— 用户反馈
-      手机端收起后群头找不回来,桌面端也要求常显,统一为恒显。
-    -->
-    <div v-if="kind === 'group' && groupInfo" class="gh-wrap">
-      <GroupHead
-        :group="groupInfo"
-        :info="groupInfo"
-        :on-add="onAdd"
-        :on-kick="onKick"
-        :on-leave-group="onLeaveGroup"
-        :on-transfer="onTransfer"
-        :on-rename="onRename"
-        :on-set-announcement="onSetAnnouncement"
-        :on-mute-member="onMuteMember"
-        :on-mute-all="onMuteAll"
-      />
-    </div>
+    <!-- 群公告:压成单行,点开看全文;群主可在对话框里改 -->
+    <GroupAnnounce
+      v-if="kind === 'group' && groupInfo?.announcement"
+      :announcement="groupInfo.announcement"
+      @open="announceOpen = true"
+    />
 
     <!-- 权限提示(AC-04/05/06)。三种各有具体文案,不弹 toast -->
     <p v-if="blockReason" class="block" :class="`block--${blockTone}`">{{ blockReason }}</p>
@@ -52,17 +55,34 @@
       </p>
 
       <!-- 气泡渲染在 ChatBubble.vue(展开全文与长按计时器都是它自己的状态) -->
-      <ul v-else class="bubbles">
-        <ChatBubble
-          v-for="m in messages"
-          :key="m.id"
-          :msg="m"
-          :show-sender="showSender(m)"
-          @long-press="onLongPress"
-          @context-menu="onContextMenu"
-          @retry="$emit('retry-send', $event)"
-        />
-      </ul>
+      <div v-else class="bubbles">
+        <template v-for="b in blocks" :key="b.key">
+          <p v-if="b.t === 'day'" class="tl__day">{{ b.text }}</p>
+          <p v-else-if="b.t === 'sys'" class="tl__sys">{{ b.text }}</p>
+          <div v-else class="blk" :class="b.fromMe ? 'blk--me' : 'blk--other'">
+            <div class="blk__head">
+              <template v-if="!b.fromMe && b.name">
+                <span class="blk__av" aria-hidden="true">{{ b.initial }}</span>
+                <span class="blk__name">{{ b.name }}</span>
+              </template>
+              <span class="blk__time">{{ b.time }}</span>
+            </div>
+            <div class="blk__stack" :class="{ 'blk__stack--in': !b.fromMe && b.name }">
+              <ChatBubble
+                v-for="(m, i) in b.msgs"
+                :key="m.id"
+                :msg="m"
+                :first="i === 0"
+                :last="i === b.msgs.length - 1"
+                @long-press="onLongPress"
+                @context-menu="onContextMenu"
+                @retry="$emit('retry-send', $event)"
+              />
+            </div>
+            <p v-if="b.read" class="blk__read">已读</p>
+          </div>
+        </template>
+      </div>
     </div>
 
     <!-- 行 4:引用条 -->
@@ -102,14 +122,28 @@
       </button>
     </div>
 
+    <!--
+      群公告对话框:两个入口共用 —— 顶部那条单行条、以及 ⋯ 菜单里的「群公告」行。
+      对话框只能有一个,否则两处会各自维护「查看 ↔ 编辑」状态并逐渐漂移。
+    -->
+    <GroupAnnounceDialog
+      v-if="kind === 'group'"
+      v-model="announceOpen"
+      :announcement="groupInfo?.announcement || ''"
+      :is-owner="isGroupOwner"
+      :on-set-announcement="onSetAnnouncement"
+    />
+
     <!-- 长按气泡后的操作表(2026-10-15 拆去 ChatMsgSheet.vue) -->
     <ChatMsgSheet
       v-model="sheetOpen"
       :title="sheetTitle"
       :can-recall="sheetCanRecall"
       :can-quote="sheetCanQuote"
+      :can-report="sheetCanReport"
       @recall="emit('recall', sheetTarget)"
       @quote="emit('quote', sheetTarget)"
+      @report="openReport(sheetTarget)"
     />
 
     <!-- 桌面端右键菜单(teleport 到 body,仅 hover:hover 设备挂载) -->
@@ -119,36 +153,41 @@
       :can-recall="ctxTarget ? canRecall(ctxTarget) : false"
       :can-copy="!!ctxTarget?.content"
       :can-quote="ctxTarget ? !ctxTarget.recalled && !ctxTarget.failed : false"
+      :can-report="!!ctxTarget && !ctxTarget.fromMe && !ctxTarget.recalled"
       @copy="onCtxCopy"
-      @quote="onCtxQuote"
-      @recall="onCtxRecall"
+      @quote="ctx.quote"
+      @recall="ctx.recall"
+      @report="openReport(ctxTarget)"
     />
+
+    <!-- 举报消息：targetType=4，处置时后端软删该条（详见 ChatMsgReport.vue） -->
+    <ChatMsgReport v-model="reportOpen" :message-id="reportTargetId" />
   </div>
 </template>
 
 <script setup>
 /**
- * 消息窗(Chat.vue.md §1.2)
+ * 消息窗(Chat.vue.md §1.2)。
  *
- * ## 长按而不是常驻按钮
- *
- * 原实现给我方气泡右侧常驻一个撤回字符、给对方气泡常驻一个附件字符
- * (且都是字符图标,命中 P0)。375px 下两个 44px 热区会把气泡正文宽度压到
- * 200px 以下。现在改成**长按气泡**弹 ActionSheet(§1.3)。
- *
- * ## 长按阈值
- *
- * 500ms:短于此会和点击/滚动冲突,长于此用户会以为没响应。
- * 用 pointerdown/pointerup 而不是 touchstart —— 前者在桌面也能触发,
- * 开发时不用为了测长按切到手机。
+ * 操作入口是**长按气泡**弹 ActionSheet(§1.3)，不是常驻按钮 ——
+ * 原实现给我方气泡挂撤回、给对方挂附件，两个 44px 热区会把正文宽度压到 200px 以下。
+ * 长按阈值 500ms：短于此与点击/滚动冲突，长于此用户以为没响应。
+ * 用 pointerdown/pointerup 而非 touchstart，桌面也能触发，开发时不必切手机。
  */
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Promotion, Close } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
-import GroupHead from './GroupHead.vue'
+import { useIsMobile } from '@/composables/useBreakpoint'
+import { useMessageBlocks } from '@/composables/useMessageBlocks'
+import { useMessageContextMenu } from '@/composables/useMessageContextMenu'
+import { useMsgReport } from '@/composables/useMsgReport'
+import GroupMenu from './GroupMenu.vue'
+import GroupAnnounce from './GroupAnnounce.vue'
+import GroupAnnounceDialog from './GroupAnnounceDialog.vue'
 import ChatThreadHeader from './ChatThreadHeader.vue'
 import ChatBubble from './ChatBubble.vue'
 import ChatMsgSheet from './ChatMsgSheet.vue'
+import ChatMsgReport from './ChatMsgReport.vue'
 import MessageContextMenu from './MessageContextMenu.vue'
 
 const props = defineProps({
@@ -192,13 +231,10 @@ const emit = defineEmits([
 
 const listEl = ref(null)
 const sheetOpen = ref(false)
+/** 群公告对话框:顶部公告条与 ⋯ 菜单里的「群公告」都打开这一个 */
+const announceOpen = ref(false)
 /** 长按操作表当前针对的那条消息 */
 const sheetTarget = ref(null)
-
-/** 桌面右键菜单:开合 + 位置 + 目标 */
-const ctxOpen = ref(false)
-const ctxTarget = ref(null)
-const ctxPos = ref({ x: 0, y: 0 })
 
 const skelWidths = ['40%', '60%', '52%', '44%', '58%']
 
@@ -211,13 +247,39 @@ const draft = computed({
 const blockReason = computed(() => props.block?.text || '')
 const blockTone = computed(() => props.block?.tone || 'danger')
 
-/** 输入框占位符:群聊时带群名(回应「发消息栏不知道在哪个群」),单聊保持通用 */
+const isMobile = useIsMobile()
+
+/** 顶栏次要信息:群聊显示人数;单聊留空(标题本身就是人名) */
+const groupSub = computed(() => {
+  const n = props.groupInfo?.memberCount ?? props.groupInfo?.members?.length ?? 0
+  return n ? `${n} 人` : ''
+})
+
+/** 公告对话框里的「编辑」只对群主出现 —— 判定与 GroupMenu 保持一致 */
+const isGroupOwner = computed(
+  () => !!props.groupInfo?.members?.find((m) => m.isSelf)?.isOwner,
+)
+
+/**
+ * 输入框占位符。
+ * - 桌面:群聊带群名(回应「发消息栏不知道在哪个群」),单聊给快捷键提示
+ * - 手机:没有 Shift 键,「按 Enter 发送,Shift+Enter 换行」在触屏上根本执行不了,
+ *   还会被输入框截成半句(实测 320px 下只显示到「Shift+Enter 」)。
+ *   手机上只留「发给谁 / 在哪说」,一句话说完。
+ */
 const inputPlaceholder = computed(() => {
-  if (props.kind === 'group' && props.groupInfo?.name) {
-    return `在「${props.groupInfo.name}」按 Enter 发送`
+  if (isMobile.value) {
+    return '发消息'
   }
+  if (props.kind === 'group') return '按 Enter 发送'
   return '按 Enter 发送,Shift+Enter 换行'
 })
+
+
+/* ---------------- 消息分组(2026-10-20 群聊改版) ---------------- */
+
+/** 分组规则见 composables/useMessageBlocks.js —— 只做渲染折叠,不碰数据 */
+const blocks = useMessageBlocks(props)
 
 const sheetTitle = computed(() =>
   props.kind === 'group' ? '这条群消息' : `发给 ${props.peerName || 'TA'} 的消息`,
@@ -233,10 +295,9 @@ const sheetCanQuote = computed(
   () => !!sheetTarget.value && !sheetTarget.value.fromMe && !sheetTarget.value.recalled,
 )
 
-/** 是否显示发送者昵称(群聊 + 非本人 + 未撤回)。判定留在本层:它取决于会话类型 */
-function showSender(m) {
-  return props.kind === 'group' && !m.fromMe && !m.recalled
-}
+/* 举报消息：判定口径与 sheetCanQuote 一致（对方发的 + 未撤回），逻辑在 useMsgReport */
+const { reportOpen, reportTargetId, canReportOf, openReport } = useMsgReport()
+const sheetCanReport = computed(() => canReportOf(sheetTarget.value))
 
 function send() {
   if (!draft.value.trim()) return
@@ -300,46 +361,20 @@ function onLongPress(m) {
 /* ---------------- 桌面右键菜单(2026-10-15 新增) ---------------- */
 
 /**
- * 右键开菜单:同时关掉长按表(两者互斥,避免同屏出现两个浮层),
- * 再在文档捕获阶段挂 close 监听(捕获,这样菜单 item 上 click.stop 也不会
- * 误触发关闭)。
+ * 开合 / 位置 / 外部点击收起都在 composable 里;
+ * 开菜单时顺手关掉长按表 —— 两者互斥,同屏不能出现两个浮层。
  */
-function onContextMenu({ msg, x, y }) {
-  sheetOpen.value = false
-  ctxTarget.value = msg
-  ctxPos.value = { x, y }
-  ctxOpen.value = true
-  document.addEventListener('click', closeCtxOnOutside, true)
-  document.addEventListener('contextmenu', closeCtxOnOutside, true)
-  document.addEventListener('scroll', closeCtxOnOutside, true)
-  window.addEventListener('keydown', onEsc, true)
-}
-
-function closeCtxOnOutside(e) {
-  // 点菜单本体:close 是 stop 过的,但外层捕获 listener 仍会收到,
-  // 所以先排除菜单内部,再关。document click 在捕获阶段,
-  // 菜单内 click 冒泡到 document 会冒到,这里排除。
-  const menu = document.querySelector('.ctx')
-  if (menu && e.target && menu.contains(e.target)) return
-  ctxOpen.value = false
-  cleanupCtxListeners()
-}
-
-function onEsc(e) {
-  if (e.key === 'Escape') {
-    ctxOpen.value = false
-    cleanupCtxListeners()
-  }
-}
-
-function cleanupCtxListeners() {
-  document.removeEventListener('click', closeCtxOnOutside, true)
-  document.removeEventListener('contextmenu', closeCtxOnOutside, true)
-  document.removeEventListener('scroll', closeCtxOnOutside, true)
-  window.removeEventListener('keydown', onEsc, true)
-}
-
-onBeforeUnmount(cleanupCtxListeners)
+const ctx = useMessageContextMenu({
+  onOpen: () => {
+    sheetOpen.value = false
+  },
+  onQuote: (m) => emit('quote', m),
+  onRecall: (m) => emit('recall', m),
+})
+const ctxOpen = ctx.open
+const ctxTarget = ctx.target
+const ctxPos = ctx.pos
+const onContextMenu = ctx.show
 
 /** 复制:项目已有 clipboard util(见 PostSheets.vue),非安全上下文走 fallback */
 async function onCtxCopy() {
@@ -351,20 +386,6 @@ async function onCtxCopy() {
   } catch {
     ElMessage.warning('这个浏览器不让复制,长按消息试试')
   }
-}
-
-function onCtxQuote() {
-  const m = ctxTarget.value
-  if (!m) return
-  ctxOpen.value = false
-  emit('quote', m)
-}
-
-function onCtxRecall() {
-  const m = ctxTarget.value
-  if (!m) return
-  ctxOpen.value = false
-  emit('recall', m)
 }
 
 /*

@@ -18,6 +18,25 @@
   background: var(--ys-bg);
 }
 
+/*
+ * `.th` 和父组件加的 `.chat__thread` 落在**同一个元素**上,而
+ * `.chat__thread { flex: 1 }` 会把 flex-basis 设成 0 —— 主尺寸交给 flex 分配,
+ * 上面那条 height:100dvh 就被顶掉了。手机上外层 .layout/.shell/.col/.content
+ * 全是 flex:1 且没有确定高度,于是 .th 被消息内容撑到实际高度(实测 48 条消息
+ * → 3735px),消息列表不再内部滚动,输入框掉到文档最底部:发消息要先滚过整段
+ * 聊天记录。
+ *
+ * 用 `.chat__thread.th`(0,2,0)提高特异性钉住高度,列表才会在内部滚动、输入框贴底。
+ * 只作用于手机断点:桌面外层有 24px 上内边距,.th 再用 100dvh 会顶出屏幕,
+ * 桌面原本靠 flex 分配高度是对的,不动。
+ */
+@media (max-width: 1023px) {
+  .chat__thread.th {
+    flex: none;
+    height: 100dvh;
+  }
+}
+
 /* 引用条右侧取消按钮(原与来源条的 .src__close 共用一条规则,拆开后各留一份) */
 .reply__cancel {
   flex: none;
@@ -47,22 +66,6 @@
 .block--warning {
   background: var(--ys-warning-soft);
   color: var(--ys-warning);
-}
-
-/*
- * ② 群信息头(桌面 + 手机都常显)。
- * 早前的「下滑收起 / 上滑拉回」用 transform:translateY(-120px) 平移收起,
- * 但 **常驻的 transform(即使 translateY(0))会创建层叠上下文**,把
- * GroupHead 里 absolute 定位的群管理菜单(.gh__menu)困在 .gh-wrap 内部,
- * 消息列表(.th__list)与输入区(.input,z-index:1100)在其外层 →
- * 菜单弹出后被消息盖住。改为常显后不再需要 transform,
- * 去掉它,.gh__menu 恢复正常层叠、能盖住消息列表。
- * (成员名单仍走 ActionSheet,position:fixed + z-index:1220,不受影响。)
- */
-.gh-wrap {
-  flex: none;
-  position: relative;
-  z-index: var(--ys-z-sticky);
 }
 
 .th__list {
@@ -132,13 +135,117 @@
   align-self: flex-end;
 }
 
+/* ============ 消息区:日期 / 系统行 / 分组(2026-10-20) ============ */
 .bubbles {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--ys-space-3);
+  /* 间距交给 .blk / .tl__* 各自控制,这里不再统一 gap:
+     组内 3px、组间 16px(space-4)、日期前后各自留白,统一 gap 会把它们拉平 */
+  gap: 0;
+}
+
+/* 日期分隔:居中小字,前面留白多于后面,读起来像「新的一段开始」 */
+.tl__day {
+  align-self: center;
+  margin: var(--ys-space-2) 0 var(--ys-space-3);
+  font-size: 11px;
+  color: var(--ys-meta);
+}
+
+/* 撤回等系统事件:居中、无气泡、无左右归属 */
+.tl__sys {
+  align-self: center;
+  margin: 0 0 var(--ys-space-3);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  text-align: center;
+}
+
+.blk {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+  margin-bottom: var(--ys-space-4);
+}
+
+.blk--me {
+  align-items: flex-end;
+}
+
+.blk:last-child {
+  margin-bottom: 0;
+}
+
+.blk__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.blk--me .blk__head {
+  justify-content: flex-end;
+}
+
+/* 头像与昵称只出现在「群聊里的别人」的组头 */
+.blk__av {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-xs);
+}
+
+.blk__name {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blk__time {
+  font-size: 11px;
+  color: var(--ys-meta);
+}
+
+.blk__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  /* 必须是 100% 而不是依靠 flex 拉伸:父级 .blk--me 是 align-items:flex-end,
+     子项会 shrink-wrap 成内容宽度 —— 实测塌到 58px,气泡里的 max-width:72%
+     就按 58px 算,一句 11 个字被折成两行、一个「6」只剩 36px 宽。
+     box-sizing 是这个项目唯一需要显式写的:全局没有 border-box 重置,
+     不写的话 --in 的 padding-left 会顶出去。 */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.blk--me .blk__stack {
+  align-items: flex-end;
+}
+
+/* 有头像时气泡整体右让 32px(头像 26 + 间距 6),与头像右缘对齐 */
+.blk__stack--in {
+  padding-left: 32px;
+}
+
+/* 已读回执:整组只出一条,且只在真有人读过时渲染 */
+.blk__read {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ys-muted);
 }
 
 .reply {
@@ -191,6 +298,16 @@
 .input__box {
   flex: 1;
   min-width: 0;
+}
+
+/*
+ * el-textarea 默认 resize:vertical,会在右下角画一个斜纹拖拽手柄。
+ * 本项目已经用 autosize(minRows 1 / maxRows 4)自动撑高,手柄纯属噪点,
+ * 触屏上还容易被误拖出一块空白。 :deep 是必须的 —— textarea 是 ep 内部节点,
+ * 拿不到 scoped 的 data-v 属性。
+ */
+.input__box :deep(.el-textarea__inner) {
+  resize: none;
 }
 
 .input--disabled {

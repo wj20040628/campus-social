@@ -6,7 +6,7 @@
   -->
   <ActionSheet :model-value="modelValue" title="新建群聊" @update:model-value="$emit('update:modelValue', $event)">
     <div class="cg">
-      <label class="cg__label" for="cg-name">群名称（选填）</label>
+      <label class="cg__label" for="cg-name">群名称</label>
       <el-input
         id="cg-name"
         v-model="name"

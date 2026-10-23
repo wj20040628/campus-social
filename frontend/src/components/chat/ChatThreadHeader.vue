@@ -1,8 +1,9 @@
 <template>
   <!--
     会话顶栏 + 来源上下文条(2026-10-15 从 ChatThread.vue 拆出)。
-    拆出的理由:ChatThread.vue 超 300 行门禁;且这两条都固定在消息窗最上方,
-    只做「显示 + 导航」,完全不参与消息状态 —— 是最好拆的一块。
+    2026-10-20:群聊把「群名 · 人数」并进这一行,右侧操作换成 ⋯ 菜单(#actions 插槽);
+    单聊保持原来的搜索/通知两个按钮。改版前群名在顶栏和群信息头各出现一次,
+    下面那行还挂着三个圆钮,垂直方向白吃掉 110px。
   -->
   <div class="th__bar" role="banner">
     <button
@@ -13,24 +14,30 @@
     >
       <el-icon :size="22"><Back /></el-icon>
     </button>
-    <div class="th__bar-title" :title="peerName">{{ peerName || '会话' }}</div>
+    <div class="th__bar-mid">
+      <span class="th__bar-title" :title="peerName">{{ peerName || '会话' }}</span>
+      <span v-if="subtitle" class="th__bar-sub">{{ subtitle }}</span>
+    </div>
     <div class="th__bar-actions">
-      <button
-        type="button"
-        class="th__bar-act"
-        aria-label="找人"
-        @click="router.push('/search')"
-      >
-        <el-icon :size="20"><Search /></el-icon>
-      </button>
-      <button
-        type="button"
-        class="th__bar-act"
-        aria-label="通知"
-        @click="router.push('/notify')"
-      >
-        <el-icon :size="20"><Bell /></el-icon>
-      </button>
+      <!-- 群聊塞 ⋯ 菜单进来;不传插槽时退回单聊的搜索/通知 -->
+      <slot name="actions">
+        <button
+          type="button"
+          class="th__bar-act"
+          aria-label="找人"
+          @click="router.push('/search')"
+        >
+          <el-icon :size="20"><Search /></el-icon>
+        </button>
+        <button
+          type="button"
+          class="th__bar-act"
+          aria-label="通知"
+          @click="router.push('/notify')"
+        >
+          <el-icon :size="20"><Bell /></el-icon>
+        </button>
+      </slot>
     </div>
   </div>
 
@@ -50,6 +57,8 @@ import { Top, Close, Back, Search, Bell } from '@element-plus/icons-vue'
 
 defineProps({
   peerName: { type: String, default: '' },
+  /** 标题右侧的次要信息,群聊传「12 人」,单聊留空 */
+  subtitle: { type: String, default: '' },
   sourceTitle: { type: String, default: '' },
 })
 
@@ -86,9 +95,16 @@ function goBack() {
   background: transparent;
   color: var(--ys-fg-2);
   cursor: pointer;
+  flex: none;
+}
+.th__bar-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 .th__bar-title {
-  flex: 1;
   min-width: 0;
   font-size: var(--ys-text-lg);
   font-weight: var(--ys-weight-semibold);
@@ -96,6 +112,11 @@ function goBack() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.th__bar-sub {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
 }
 .th__bar-actions {
   display: flex;
@@ -139,8 +160,6 @@ function goBack() {
   text-overflow: ellipsis;
 }
 
-/* 与 .reply__cancel 原是同一条共享规则(尺寸/手感一致);拆开后各留一份,
-   避免为了共用而把两个组件再绑回一个文件 */
 .src__close {
   flex: none;
   width: var(--ys-touch-min);

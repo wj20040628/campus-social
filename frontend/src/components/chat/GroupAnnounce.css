@@ -1,0 +1,32 @@
+/* 公告单行条。32px 高,和顶栏 57px 拉开距离:它比消息轻,比分隔线重 */
+.ga {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: var(--ys-space-2) var(--ys-space-3) 0;
+  padding: 0 var(--ys-space-2) 0 var(--ys-space-3);
+  height: 32px;
+  border: none;
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ga__ic,
+.ga__go {
+  flex: none;
+}
+
+.ga__t {
+  flex: 1;
+  min-width: 0;
+  color: var(--ys-fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

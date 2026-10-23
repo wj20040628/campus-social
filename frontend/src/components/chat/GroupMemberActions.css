@@ -1,0 +1,74 @@
+/* 单个成员操作表(2026-10-21) */
+
+.gma {
+  padding: 0 var(--ys-space-4) var(--ys-space-3);
+}
+
+/* 表头:46px 头像 + 两行,上下留白比列表行大一点,读起来像"这一段在说谁" */
+.gma__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-3) 0 var(--ys-space-4);
+}
+
+.gma__hi {
+  min-width: 0;
+}
+
+.gma__hn {
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gma__hs {
+  margin-top: 2px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/*
+ * 整行是一个选择,不是按钮 —— 所以去掉边框与底色。
+ * 框会让人读成「按钮」并想立刻点;而这里每一行是并列的选项。
+ */
+.gma__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 var(--ys-border-soft);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-fg);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.gma__item:last-of-type {
+  box-shadow: none;
+}
+
+.gma__item svg {
+  flex: none;
+  color: var(--ys-fg-2);
+}
+
+.gma__item:hover {
+  background: var(--ys-surface-2);
+}
+
+/* 危险项:图标 + 红字,不用红框(红框等于喊「快点我」) */
+.gma__item--d,
+.gma__item--d svg {
+  color: var(--ys-accent-2);
+}

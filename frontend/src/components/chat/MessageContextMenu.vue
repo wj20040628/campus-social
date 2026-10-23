@@ -42,6 +42,21 @@
         <el-icon :size="16"><RefreshLeft /></el-icon>
         撤回
       </button>
+      <!--
+        举报（2026-10-21 新增）。
+        后端 targetType=4 早就支持（软删隐藏），但菜单此前只有复制/引用/撤回 —
+        撤回只管自己的消息，别人发来的骚扰私信无处举报。
+      -->
+      <button
+        v-if="canReport"
+        type="button"
+        role="menuitem"
+        class="ctx__item ctx__item--danger"
+        @click="pick('report')"
+      >
+        <el-icon :size="16"><Warning /></el-icon>
+        举报这条消息
+      </button>
     </div>
   </Teleport>
 </template>
@@ -61,7 +76,7 @@
  *   滚动、右键别的消息)里把 modelValue 置 false。
  */
 import { computed } from 'vue'
-import { CopyDocument, Paperclip, RefreshLeft } from '@element-plus/icons-vue'
+import { CopyDocument, Paperclip, RefreshLeft, Warning } from '@element-plus/icons-vue'
 
 const props = defineProps({
   /** 开合(v-model) */
@@ -75,6 +90,12 @@ const props = defineProps({
   canCopy: { type: Boolean, default: true },
   /** 能否引用:撤回/失败态的消息不能引用 */
   canQuote: { type: Boolean, default: true },
+  /*
+   * 能否举报（2026-10-21 新增）。
+   * 只对对方发来的、未撤回的消息为真 —— 判定口径与 canQuote 一致，
+   * 由父组件算好传下来，本菜单不碰业务规则。
+   */
+  canReport: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -82,6 +103,7 @@ const emit = defineEmits([
   'copy',
   'quote',
   'recall',
+  'report',
 ])
 
 /**

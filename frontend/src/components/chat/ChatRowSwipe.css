@@ -1,0 +1,80 @@
+/* ChatRowSwipe.vue 的样式,抽离到外部文件以控制单文件行数。 */
+
+.swipe {
+  position: relative;
+  /* 三个按钮露出来时不能溢出到相邻行 */
+  overflow: hidden;
+  background: var(--ys-surface-2);
+}
+
+/*
+ * 按钮层在行下面，行向左移把它露出来（左滑）。
+ * 用绝对定位而不是 flex 顺序摆放：flex 会参与布局，行移动时会把按钮挤走。
+ */
+.swipe__acts {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  align-items: stretch;
+}
+
+.swipe__act {
+  /* 与 ChatRowSwipe.vue 的 MAX/3 对应：3 × 72 = 216 */
+  width: 72px;
+  border: none;
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  line-height: 1.25;
+  padding: 0 var(--ys-space-1);
+  cursor: pointer;
+  /* 未打开时 aria-hidden + tabindex=-1 已挡住键盘，这里只管观感 */
+  transition: background var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+/*
+ * 三个按钮之间用发丝线分界，而不是各染一个底色。
+ * 初版给「置顶」上了 accent-soft（浅青），截图里三个色块并排像调色板，
+ * 反而看不出哪个是危险动作。统一中性底 + 只有「删除」红，
+ * 视觉上就只剩一档强调，和会话行本身的安静程度一致。
+ */
+.swipe__act + .swipe__act {
+  box-shadow: inset 1px 0 0 var(--ys-border-soft);
+}
+
+.swipe__act:active {
+  background: var(--ys-border);
+}
+
+/* 「置顶」不再染色，只在按下时给一点 accent 反馈 */
+.swipe__act--pin:active {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+.swipe__act--danger {
+  background: var(--ys-danger);
+  color: var(--ys-accent-on);
+}
+
+.swipe__act--danger:active {
+  background: var(--ys-danger);
+  filter: brightness(0.92);
+}
+
+/*
+ * 行本体。touch-action: pan-y 让浏览器只保留纵向滚动，
+ * 横向手势交给我们 —— 少了这条，右滑会被判成页面横向滚动而中途取消。
+ */
+.swipe__body {
+  position: relative;
+  background: var(--ys-surface);
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.swipe.is-open .swipe__body {
+  /* 按钮在右侧，竖线要落在行的右缘 */
+  box-shadow: 1px 0 0 var(--ys-border-soft);
+}
