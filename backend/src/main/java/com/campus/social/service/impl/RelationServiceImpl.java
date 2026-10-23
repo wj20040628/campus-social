@@ -82,18 +82,7 @@ public class RelationServiceImpl implements RelationService {
     }
 
     // ---------------------------------------------------------------- 好友
-
-    @Override
-    @Transactional
-    public void addFriend(long me, long toUserId) {
-        if (me == toUserId) {
-            throw new BusinessException(CHAT_SELF.getCode(), "不能加自己为好友");
-        }
-        // 双向各存一行
-        insertFriend(me, toUserId);
-        insertFriend(toUserId, me);
-        userMapper.adjustFollowerCount(me, 0); // 计数不变(好友不增加 follower_count)
-    }
+    // addFriend 已于 2026-10-23 移除(审查 P0-4):单方面双向插行绕过陌生人搭话护栏,前端零调用。
 
     @Override
     @Transactional
@@ -221,15 +210,7 @@ public class RelationServiceImpl implements RelationService {
         relationMapper.insert(rel);
     }
 
-    private void insertFriend(long from, long to) {
-        if (relationExists(from, to, TYPE_FRIEND))
-            return;
-        Relation rel = new Relation();
-        rel.setFromUserId(from);
-        rel.setToUserId(to);
-        rel.setType(TYPE_FRIEND);
-        relationMapper.insert(rel);
-    }
+    // insertFriend 已随 addFriend 一并移除(2026-10-23,审查 P0-4)
 
     private boolean relationExists(long from, long to, int type) {
         LambdaQueryWrapper<Relation> qw = new LambdaQueryWrapper<Relation>()

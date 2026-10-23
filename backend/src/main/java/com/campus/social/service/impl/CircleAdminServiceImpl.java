@@ -63,6 +63,8 @@ public class CircleAdminServiceImpl implements CircleAdminService {
     private final ReservedCircleNameMapper reservedNameMapper;
     private final RoleService roleService;
     private final AuditService auditService;
+    /** 首页首屏缓存:下架/解散/恢复都会改变首页内容,必须失效 */
+    private final FeedPageCacheService feedCache;
 
     // ============================================================ 鉴权 helper
 
@@ -159,9 +161,12 @@ public class CircleAdminServiceImpl implements CircleAdminService {
     @Transactional
     public void untopPost(long postId, long me) {
         Post p = requirePost(postId);
-        if (p.getCircleId() != null) {
-            requireCircleAdmin(p.getCircleId(), me);
+        // 广场帖(circleId=null)不在任何圈子的管辖内:取消置顶是圈子管理动作,
+        // 无圈可鉴权即一律 403 —— 任何登录用户不能对广场帖执行吧主级操作(2026-10-23 修,审查 P0-2)。
+        if (p.getCircleId() == null) {
+            throw new BusinessException(NOT_CIRCLE_OWNER, "广场帖子不支持圈子置顶操作");
         }
+        requireCircleAdmin(p.getCircleId(), me);
         postMapper.setIsTop(postId, 0);
         auditService.record(me, "circle_untop_post", "post", postId, "取消置顶", null);
         log.info("circle untop post: post={} admin={}", postId, me);
@@ -171,11 +176,15 @@ public class CircleAdminServiceImpl implements CircleAdminService {
     @Transactional
     public void takedownPost(long postId, long me) {
         Post p = requirePost(postId);
-        if (p.getCircleId() != null) {
-            requireCircleAdmin(p.getCircleId(), me);
+        // 同 untopPost:广场帖无圈可鉴权,之前 if!=null 才鉴权等于对广场帖完全放行 —— 越权(审查 P0-2)。
+        if (p.getCircleId() == null) {
+            throw new BusinessException(NOT_CIRCLE_OWNER, "广场帖子不在任何圈子,无法执行下架");
         }
+        requireCircleAdmin(p.getCircleId(), me);
         // 下架=软(status=2,作者可自查),不物理删
         postMapper.takedown(postId);
+        // 首页缓存失效:下架的内容不该继续出现在任何人的首页上
+        feedCache.invalidate();
         auditService.record(me, "circle_takedown_post", "post", postId, "圈管理下架", null);
         log.info("circle takedown post: post={} circle={} admin={}", postId, p.getCircleId(), me);
     }
@@ -184,9 +193,18 @@ public class CircleAdminServiceImpl implements CircleAdminService {
     @Transactional
     public void movePost(long postId, Long toCircleId, long me) {
         Post p = requirePost(postId);
-        requireCircleAdmin(p.getCircleId() == null ? circleOfPostFallback(p) : p.getCircleId(), me);
-        // 目标圈存在性校验(toCircleId 非 null 时须为正常圈)
+        /*
+         * 鉴权规则(2026-10-23 修,审查 P0-3):
+         * - 源是圈内帖 → 需源圈管理权(把帖子移走是处置源圈内容)
+         * - 源是广场帖 → 允许移入圈子(广场无圈可管,这是把内容归拢进圈的合法运营动作),
+         *   但要求操作者对目标圈有管理权 —— 之前 fallback 恒抛 403,广场帖永远无法合法移入。
+         * - 目标圈(移入/换圈) → 一律需目标圈管理权:之前只查存在性,A 圈主可把帖子塞进 B 圈污染内容流。
+         */
+        if (p.getCircleId() != null) {
+            requireCircleAdmin(p.getCircleId(), me);
+        }
         if (toCircleId != null && !toCircleId.equals(p.getCircleId())) {
+            requireCircleAdmin(toCircleId, me);
             Circle target = circleMapper.selectById(toCircleId);
             if (target == null || target.getStatus() == 1) {
                 throw new BusinessException(NOT_FOUND, "目标圈子不存在或已封禁");
@@ -197,11 +215,6 @@ public class CircleAdminServiceImpl implements CircleAdminService {
                 "从 " + p.getCircleId() + " 移到 " + toCircleId, null);
         log.info("circle move post: post={} from={} to={} admin={}",
                 postId, p.getCircleId(), toCircleId, me);
-    }
-
-    /** 帖子已被移出所有圈(circle_id=NULL)时,吧主权限无从谈起——回 403。 */
-    private long circleOfPostFallback(Post p) {
-        throw new BusinessException(NOT_CIRCLE_OWNER, "该帖子已不在任何圈子,无法操作");
     }
 
     // ============================================================ 成员处置
@@ -301,6 +314,13 @@ public class CircleAdminServiceImpl implements CircleAdminService {
                     .banStatus(banNow)
                     .banUntil(banNow == 1 ? m.getBanUntil() : null)
                     .joinTime(m.getCreateTime())
+                    /*
+                     * 年级/学院（2026-10-21）：成员页要显示「2023 级 · 人工智能学院」。
+                     * user 表里这两个是字典化之前就有的名称字符串，直接取用。
+                     * 老用户可能为 null（字典化前没填），前端会跳过这一段而不是显示「null」。
+                     */
+                    .grade(u != null ? u.getGrade() : null)
+                    .dept(u != null ? u.getDept() : null)
                     .build();
         }).toList();
     }
@@ -383,6 +403,8 @@ public class CircleAdminServiceImpl implements CircleAdminService {
         // 2) 级联软删圈内帖子:status=2(已删),从广场 Feed/话题/热门一并隐藏,
         //    残留帖不再露出。帖子数据保留(未物理删),管理员可审计。
         postMapper.invalidateCirclePosts(circleId);
+        // 首页缓存失效:整个圈的帖子刚被批量下架,首页缓存里可能全是它们
+        feedCache.invalidate();
         auditService.record(operatorId, "circle_disband", "circle", circleId, "解散圈子", null);
         log.info("circle disbanded by owner: circle={} operator={}", circleId, operatorId);
     }
@@ -402,6 +424,8 @@ public class CircleAdminServiceImpl implements CircleAdminService {
         circleMapper.setStatus(circleId, 0);
         // 2) 圈内帖子 status 2→1(对称 invalidateCirclePosts 的级联)
         postMapper.restoreCirclePosts(circleId);
+        // 首页缓存失效:恢复后圈内帖子应立刻可见,而不是等 60 秒自然过期
+        feedCache.invalidate();
         auditService.record(adminId, "circle_restore", "circle", circleId, "恢复圈子", null);
         log.info("circle restored by admin: circle={} admin={}", circleId, adminId);
     }

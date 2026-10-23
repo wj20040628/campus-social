@@ -15,9 +15,10 @@ public interface RelationService {
 
     void unfollow(long me, long toUserId);
 
-    /** 加好友:双向两行(type=2) */
-    void addFriend(long me, long toUserId);
-
+    /**
+     * 加好友已于 2026-10-23 移除(审查 P0-4):单方面成立可绕过陌生人搭话护栏,且前端零调用。
+     * 好友关系如需恢复,必须做成申请-同意两阶段。
+     */
     void removeFriend(long me, long toUserId);
 
     void blacklist(long me, long toUserId);

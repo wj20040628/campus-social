@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.CursorPage;
+import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.RelationService;
@@ -40,7 +41,7 @@ public class RelationController {
                                                 HttpServletRequest req) {
         // 他人主页查指定用户的"他关注的":用 uid(而非登录人 me)。
         // 校验 uid 存在,不存在则回 404(避免拿任意 uid 当查询条件)。
-        return Result.ok(relationService.following(uid, lastId, size));
+        return Result.ok(relationService.following(uid, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/followers")
@@ -49,22 +50,18 @@ public class RelationController {
                                                 @RequestParam(value = "size", defaultValue = "20") int size,
                                                 HttpServletRequest req) {
         // 他人主页查指定用户的"他的粉丝":用 uid(而非登录人 me)
-        return Result.ok(relationService.followers(uid, lastId, size));
+        return Result.ok(relationService.followers(uid, lastId, PageSize.clamp(size)));
     }
 
-    @PostMapping("/friend")
-    public Result<Void> friend(@RequestParam("uid") long uid, HttpServletRequest req) {
-        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        relationService.addFriend(me, uid);
-        return Result.ok();
-    }
-
-    @DeleteMapping("/friend")
-    public Result<Void> unfriend(@RequestParam("uid") long uid, HttpServletRequest req) {
-        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        relationService.removeFriend(me, uid);
-        return Result.ok();
-    }
+    /*
+     * POST /relation/friend 与 DELETE /relation/friend 已于 2026-10-23 移除(审查 P0-4):
+     * addFriend 单方面双向插行,无对方确认、无黑名单校验 —— 任何用户可把陌生人
+     * 变成"好友",从而绕过 ChatGuard 的陌生人搭话护栏(每日 5 新对象配额、
+     * strangerMsgEnabled 开关全部失效)。前端从未调用过这两个端点(grep 零命中,
+     * api/relation.js 无此函数),属纯死代码,直接删除。
+     * 存量 relation(type=2) 数据不清理:status() 读它、聊天护栏豁免逻辑沿用,
+     * 只是再也无法单方面新增。
+     */
 
     @PostMapping("/blacklist")
     public Result<Void> blacklist(@RequestParam("uid") long uid, HttpServletRequest req) {
@@ -90,7 +87,7 @@ public class RelationController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(relationService.blacklistList(me, lastId, size));
+        return Result.ok(relationService.blacklistList(me, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/status")
