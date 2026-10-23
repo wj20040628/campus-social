@@ -60,8 +60,7 @@
           <button type="button" class="p-blocked__undo" @click="unblock">解除拉黑</button>
         </p>
 
-        <!-- 认证状态提示条(仅本人主页)。组件内部自行判断要不要渲染 -->
-        <VerifyNotice v-if="isMe" />
+        <!-- 2026-10-21：VerifyNotice 已上移到 MainLayout（全站可见），此处不再渲染 -->
 
         <!--
           四项统计:动态 / 获赞 / 粉丝 / 关注。
@@ -182,7 +181,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChatLineSquare, WarningFilled, Star } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
-import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import ProfileHead from '@/components/profile/ProfileHead.vue'
 import ProfileCover from '@/components/profile/ProfileCover.vue'

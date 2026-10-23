@@ -1,0 +1,66 @@
+/*
+  CircleMembers.vue 的样式（2026-10-21）。
+
+  【结构决定的排版】
+  每组的 DOM 是：section.cm-group > p.cm-group__h + 若干 .cmrow
+  卡片的底色如果放在 .cm-group 上，组标题就会被包进卡里 ——
+  实测截图里「圈主 1 人」直接压在卡片圆角上，看起来像卡片标题而不是分组标签。
+
+  所以：.cm-group 只负责分组间距，卡片底色放在「标题之外的那个容器」上。
+  这里用 .cm-group__h 的兄弟选择器把白底+圆角套给所有 .cmrow 的父级不可行
+  （.cmrow 是 section 的直接子元素，没有中间容器），
+  于是改为：标题单独占一行、且不参与卡片背景 —— 用负 margin 把标题拉出卡片视觉范围
+  会在有边框时露馅，最终选最稳的做法：标题在卡内，但给它足够的内边距与底色一致的空隙。
+*/
+
+.cm-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-4);
+  padding: var(--ys-space-3) var(--ys-space-4) var(--ys-space-6);
+  max-width: var(--ys-content-col);
+  margin: 0 auto;
+}
+
+.cm-group {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
+}
+
+/*
+ * 组标题：它是卡片里的第一行。
+ *
+ * 上内边距 12px + 下内边距 4px，与下面的成员行之间靠 .cmrow 自己的 padding 撑开。
+ * 原来只写了 margin-bottom、没有上内边距 —— 标题紧贴卡片上缘，
+ * 视觉上像「压在边框上的标签」。
+ */
+.cm-group__h {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: var(--ys-space-3) var(--ys-space-4) var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg-2);
+  background: var(--ys-surface-2);
+}
+
+/* 人数用弱一档的灰：它是补充信息，不该和分组名同权重 */
+.cm-group__n {
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-regular);
+  color: var(--ys-meta);
+}
+
+/*
+ * 桌面端：内容列 640 已经够放，但要与全站其它页的居中口径一致。
+ * 放宽到 720 是因为成员行里「昵称 + 年级学院 + 标签」比帖子卡片更需要横向空间。
+ */
+@media (min-width: 1024px) {
+  .cm-page {
+    max-width: 720px;
+  }
+}

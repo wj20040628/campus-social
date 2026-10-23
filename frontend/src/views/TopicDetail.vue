@@ -49,7 +49,13 @@ let observer = null
 function normalize(list) {
   return (list || []).map((p) => ({
     ...p,
-    createTime: dayjs(p.createTime).format('MM-DD HH:mm'),
+    /**
+     * 保留原始 ISO 时间，不要在这里格式化成 'MM-DD HH:mm'（2026-10-21 修）。
+     * 格式化属于展示层：PostCard 内部用 relTime() 显示相对时间，
+     * 数据层先把值压成字符串会让 relTime 拿到无法解析的文本而失效，
+     * 列表就退回显示 "09-15 11:35" 这种机器格式。
+     */
+    createTime: p.createTime,
     media: p.media || null,
   }))
 }

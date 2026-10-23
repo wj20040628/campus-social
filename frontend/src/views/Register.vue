@@ -2,12 +2,18 @@
   <div class="auth-page">
     <div class="auth-card">
       <!--
-        品牌区。移动端在卡外(纯底色),桌面端由 .auth-card 提供卡片容器。
-        渐变背景已删(AI模板味 + 硬编码色 + 移动端合成层开销,见 Login.vue.md §1.2)。
+        品牌区（2026-10-21 改版 B）。
+        从「两行居中文字」改成「印鉴 + 左对齐文字」：
+        产品名出自《诗经》「嘤其鸣矣，求其友声」，方形印章比抽象圆点更贴这个气质。
+        印鉴里就一个「友」字，用系统字体渲染 —— 不需要任何图片资源。
+        用字而不是图标：字体缺失时最多变丑，图标缺失会变成一个空框。
       -->
       <div class="auth-brand">
-        <p class="auth-brand__name">友声</p>
-        <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+        <div class="auth-brand__seal" aria-hidden="true">友</div>
+        <div class="auth-brand__txt">
+          <p class="auth-brand__name">友声</p>
+          <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+        </div>
       </div>
 
       <el-form
@@ -17,36 +23,47 @@
         label-position="top"
         @submit.prevent="onSubmit"
       >
-        <el-form-item label="学号" prop="studentNo">
-          <el-input
-            v-model="form.studentNo"
-            placeholder="13~14 位学号"
-            maxlength="32"
-            autocomplete="username"
-            :aria-describedby="fieldErrors.studentNo ? 'studentno-err' : undefined"
-          />
+        <!-- ================= 卡片一：账号（全部必填） ================= -->
+        <div class="reg-card">
           <!--
-            设计 §3 错误:学号已被注册。
-            除了文案还要给一个「去登录」的**内联**出口 ——
-            发现学号已注册时,最优出路是去登录而不是重新注册,
-            让用户在两页之间自己找是设计想避免的。
+            邮箱（2026-10-21 改为必填 + 验证码验证所有权）。
+            它是登录主键之一 —— 学号 13~14 位记不住、填错改不了，
+            且 SPEC AC-12 要求对外不得显示学号，不该同时充当登录名。
           -->
-          <p v-if="fieldErrors.studentNo" id="studentno-err" class="field-error" role="alert">
-            {{ fieldErrors.studentNo }}
-            <router-link v-if="usernameTaken" to="/login/form" class="field-error__link">
-              去登录
-            </router-link>
-            <!-- 申诉出口（2026-10-19）：被自己的规则挡在外面时用户没有出路 -->
-            <button
-              v-if="appealOpen"
-              type="button"
-              class="field-error__link field-error__link--btn"
-              @click="appealRef?.open()"
-            >我确实是本校学生，提交申诉</button>
+          <el-form-item label="邮箱" prop="email">
+            <el-input
+              v-model="form.email"
+              placeholder="用来登录和找回密码"
+              autocomplete="email"
+            />
+            <p class="field-hint">邮箱和学号都能登录，也能用来找回密码</p>
+            <p v-if="fieldErrors.email" class="field-error" role="alert">
+              {{ fieldErrors.email }}
+            </p>
+          </el-form-item>
+
+        <el-form-item label="验证码" prop="emailCode">
+          <div class="code-row">
+            <el-input
+              v-model="form.emailCode"
+              placeholder="6 位数字"
+              inputmode="numeric"
+              maxlength="6"
+              autocomplete="one-time-code"
+            />
+            <el-button
+              class="code-row__btn"
+              :disabled="codeCountdown > 0 || !emailLooksOk || sendingCode"
+              :loading="sendingCode"
+              @click="sendCode"
+            >
+              {{ codeCountdown > 0 ? `${codeCountdown}s` : '获取验证码' }}
+            </el-button>
+          </div>
+          <p v-if="fieldErrors.emailCode" class="field-error" role="alert">
+            {{ fieldErrors.emailCode }}
           </p>
         </el-form-item>
-
-        <StudentNoAppealDialog ref="appealRef" :preset-student-no="form.studentNo" />
 
         <el-form-item label="昵称" prop="nickname">
           <el-input v-model="form.nickname" placeholder="展示在站内的名字" maxlength="32" />
@@ -67,24 +84,64 @@
           </p>
         </el-form-item>
 
-        <el-form-item label="邮箱（选填）" prop="email">
-          <el-input
-            v-model="form.email"
-            placeholder="用于找回密码,绑定后更安全"
-            autocomplete="email"
-          />
-          <p v-if="fieldErrors.email" class="field-error" role="alert">
-            {{ fieldErrors.email }}
-          </p>
-        </el-form-item>
+        </div><!-- /.reg-card 账号 -->
 
-        <!--
-          学校归属:与引导第 1 步共用 SchoolFields。
-          只在用户填了 13/14 位学号时才出现(注册即认证);留空则只注册不认证。
+        <!-- ================= 卡片二：校内身份（可跳过） =================
+          把「可跳过」做成结构本身：这张卡带着「可选」角标，
+          用户不需要读一条分隔线才明白下面这部分可以不填。
+          代价是页面长一点 —— 换来的是判断成本从「读文案」降到「看角标」。
         -->
-        <el-form-item v-if="showSchoolFields" label="学校归属" :error="identityError">
-          <SchoolFields v-model="identity" />
-        </el-form-item>
+        <div class="reg-card">
+          <p class="reg-card__h">
+            <i class="reg-card__sq reg-card__sq--muted" />校内身份
+            <span class="reg-card__tag">可选</span>
+          </p>
+
+          <!--
+            学号（2026-10-21 改为选填）。
+            填了走六层校验、立即认证；不填则注册为未认证，
+            之后在引导页补（未认证时不能发私信/建圈子/加圈子/发集市）。
+          -->
+          <el-form-item label="学号" prop="studentNo">
+            <el-input
+              v-model="form.studentNo"
+             
+              maxlength="32"
+              autocomplete="username"
+              :aria-describedby="fieldErrors.studentNo ? 'studentno-err' : undefined"
+            />
+            <p class="field-hint">认证后才能发私信、建圈子、加入圈子、发布集市活动</p>
+            <!--
+              设计 §3 错误:学号已被注册。
+              除了文案还要给一个「去登录」的**内联**出口 ——
+              发现学号已注册时,最优出路是去登录而不是重新注册,
+              让用户在两页之间自己找是设计想避免的。
+            -->
+            <p v-if="fieldErrors.studentNo" id="studentno-err" class="field-error" role="alert">
+              {{ fieldErrors.studentNo }}
+              <router-link v-if="usernameTaken" to="/login/form" class="field-error__link">
+                去登录
+              </router-link>
+              <!-- 申诉出口（2026-10-19）：被自己的规则挡在外面时用户没有出路 -->
+              <button
+                v-if="appealOpen"
+                type="button"
+                class="field-error__link field-error__link--btn"
+                @click="appealRef?.open()"
+              >我确实是本校学生，提交申诉</button>
+            </p>
+          </el-form-item>
+
+          <StudentNoAppealDialog ref="appealRef" :preset-student-no="form.studentNo" />
+
+          <!--
+            学校归属:与引导第 1 步共用 SchoolFields。
+            只在用户填了 13/14 位学号时才出现(注册即认证);留空则只注册不认证。
+          -->
+          <el-form-item v-if="showSchoolFields" label="学校归属" :error="identityError">
+            <SchoolFields v-model="identity" />
+          </el-form-item>
+        </div><!-- /.reg-card 校内身份 -->
 
         <!-- 同意协议勾选框（2026-10-20）：未勾选时按钮置灰 + onSubmit 兜底拦截；协议名可点打开弹窗 -->
         <el-form-item>
@@ -137,11 +194,12 @@
  * 学院 / 年级是字典下拉而非自由文本:自由文本会让「计算机学院」与「计科」
  * 算两个院系,同院系推荐(AC-14)漏人。
  */
-import { reactive, ref, computed, watch } from 'vue'
+import { reactive, ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useUserStore } from '@/stores/user'
 import { IDENTITY_MODEL } from '@/constants/schoolDict'
+import { sendCode as sendVerifyCode } from '@/api/auth'
 import { useRegisterSubmit } from '@/composables/useRegisterSubmit'
 import SchoolFields from '@/components/common/SchoolFields.vue'
 import PasswordInput from '@/components/auth/PasswordInput.vue'
@@ -161,7 +219,7 @@ const userStore = useUserStore()
 
 const formRef = ref()
 const form = reactive({
-  studentNo: '', nickname: '', password: '', email: '',
+  email: '', emailCode: '', nickname: '', password: '', studentNo: '',
 })
 
 /** 学校归属。与引导第 1 步同一个模型,{ schoolId, deptId, gradeId } */
@@ -203,21 +261,45 @@ watch(
   },
 )
 
+/**
+ * 校验规则（2026-10-21 调整）。
+ *
+ * 学号从必填改为选填 —— 只在填了内容时才校验格式；
+ * 邮箱从选填改为必填并加验证码；验证码固定 6 位数字。
+ *
+ * 归属与学号的交叉比对一律交后端 1058 判定，本地不拦：
+ * 本地硬拦会逐条泄露学号编码规则（与后端 2026-10-19 安全修正矛盾），
+ * 而且本地一拦提交就发不出、申诉出口也出不来。
+ */
 const rules = {
-  studentNo: [
-    { required: true, message: '请输入学号', trigger: 'blur' },
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
     {
       validator: (r, v, cb) => {
         const s = (v || '').trim()
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) cb()
+        else cb(new Error('邮箱格式不正确'))
+      },
+      trigger: 'blur',
+    },
+  ],
+  emailCode: [
+    { required: true, message: '请输入邮箱验证码', trigger: 'blur' },
+    {
+      validator: (r, v, cb) => (/^\d{6}$/.test((v || '').trim()) ? cb() : cb(new Error('验证码为 6 位数字'))),
+      trigger: 'blur',
+    },
+  ],
+  studentNo: [
+    {
+      // 选填：空值合法，不触发下面的格式校验
+      validator: (r, v, cb) => {
+        const s = (v || '').trim()
+        if (!s) return cb()
         if (!/^\d+$/.test(s)) return cb(new Error('学号需为纯数字'))
-        // 非空时长度必须 13 或 14 位
         if (s.length !== 13 && s.length !== 14) return cb(new Error('学号格式不正确'))
-        // 末两位是班内序号,取值 00~69(镜像后端 CampusVerifyServiceImpl.MAX_CLASS_RANK=69)
-        const lastTwo = Number(s.slice(-2))
-        if (lastTwo > 69) return cb(new Error('学号格式不正确'))
-        // 学院/本专科/年级/专业与学号是否对得上,一律交后端 1058 判定,不在本地拦。
-        // 本地做归属交叉硬拦会逐条泄露学号编码规则(与后端 2026-10-19 安全修正矛盾),
-        // 而且本地一拦提交就发不出、申诉出口出不来。归属不符统一走后端的模糊文案 + 申诉按钮。
+        // 末两位是班内序号，取值 00~69（镜像后端 MAX_CLASS_RANK=69）
+        if (Number(s.slice(-2)) > 69) return cb(new Error('学号格式不正确'))
         cb()
       },
       trigger: 'blur',
@@ -231,19 +313,43 @@ const rules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 64, message: '密码要 6 位以上', trigger: 'blur' },
   ],
-  email: [
-    {
-      validator: (r, v, cb) => {
-        const s = (v || '').trim()
-        if (!s) return cb() // 选填,空不校验
-        // 与后端 RegisterDTO 的邮箱格式判据保持一致
-        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) cb()
-        else cb(new Error('邮箱格式不正确'))
-      },
-      trigger: 'blur',
-    },
-  ],
 }
+
+/* ---------------- 邮箱验证码（2026-10-21 新增） ---------------- */
+const sendingCode = ref(false)
+const codeCountdown = ref(0)
+let countdownTimer = null
+
+/** 邮箱格式看起来对，才允许点「获取验证码」—— 免得白发一次 */
+const emailLooksOk = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((form.email || '').trim()))
+
+async function sendCode() {
+  if (!emailLooksOk.value || codeCountdown.value > 0 || sendingCode.value) return
+  sendingCode.value = true
+  formError.value = ''
+  try {
+    /*
+     * sendCode(target, type) 是位置参数，不是对象。
+     * type 传 "register"：与后端 sendCode 的默认值、以及注册时的 verify 调用一致，
+     * 三处必须用同一个字符串，否则「发的码验不过」。
+     */
+    await sendVerifyCode(form.email.trim().toLowerCase(), 'register')
+    ElMessage.success('验证码已发到邮箱')
+    codeCountdown.value = 60
+    countdownTimer = setInterval(() => {
+      codeCountdown.value -= 1
+      if (codeCountdown.value <= 0) clearInterval(countdownTimer)
+    }, 1000)
+  } catch (e) {
+    formError.value = e?.message || '验证码没发出去，稍后再试'
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+onBeforeUnmount(() => {
+  if (countdownTimer) clearInterval(countdownTimer)
+})
 
 /**
  * 学校归属的错误提示。

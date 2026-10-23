@@ -13,24 +13,19 @@
         夹在 feed 中间会被用户的下滑手势立刻扫掉,而且它描述的是账号不是内容 ——
         与下面「关注/全部」这个内容维度不是一回事,不该被 Tab 框住。
       -->
-      <VerifyNotice />
+      <!--
+        2026-10-21：VerifyNotice 已上移到 MainLayout（全站可见），此处不再渲染。
+        原因：未认证会成为常见状态，而它限制的四个动作分散在圈子/集市/私信页，
+        只在首页提示的话，用户在这些页面被拒时根本没见过规则。
+      -->
 
       <!--
-        公告入口(仅移动端):手机端唯一能进 /announcement 的路径 —— 桌面侧栏
-        有「公告」项,但移动端侧栏 display:none,TabBar 五入口被 PRD 锁死不能加,
-        顶栏已砍到只剩铃铛。故在首页 feed 之上放一条可点横幅,点开进公告列表。
-        桌面端隐藏(侧栏已提供入口,避免重复)。
+        公告横幅已移除（2026-10-21，用户要求）。
+        原注释说它是「手机端唯一能进 /announcement 的路径」—— 那个判断是错的：
+        手机端顶栏有汉堡按钮，打开 AppDrawer 后「公告」就在导航里（见
+        AppDrawer.vue 的导航项 { label: '公告', path: '/announcement' }）。
+        所以删掉首页横幅不会让公告页失联，只是少一处重复入口。
       -->
-      <button
-        v-if="isMobile"
-        type="button"
-        class="home-ann"
-        @click="router.push('/announcement')"
-      >
-        <el-icon class="home-ann__icon" :size="18"><Promotion /></el-icon>
-        <span class="home-ann__text">公告 · 查看最新通知</span>
-        <el-icon class="home-ann__chev"><CaretRight /></el-icon>
-      </button>
 
       <!--
         ③ 首页「关注/全部 tab + 搜索/筛选条」包成粘性工具条 .feed-bar。
@@ -72,7 +67,7 @@
         </div>
       </div>
 
-      <div class="feed-list">
+      <div ref="listEl" class="feed-list">
         <!-- 首次加载骨架屏 -->
         <template v-if="loading && posts.length === 0">
           <el-card class="skeleton-card" v-for="i in 3" :key="'sk' + i">
@@ -80,20 +75,40 @@
           </el-card>
         </template>
         <template v-else>
+          <!-- data-pid 是裁剪时定位锚点用的(见 useHomeFeed.appendCapped),
+               不是样式钩子,别改成 class -->
           <PostCard
             v-for="p in posts"
             :key="p.id"
+            :data-pid="p.id"
             :post="p"
             @click="goDetail(p.id)"
           />
           <!--
-空态按 tab 分两种出口(AC-19):
-- 「关注」tab 空 → 去关注人(有 goFollow)
-- 「发现」tab 空 → 去发一条或逛圈子
-原 el-empty 只有描述没有出口,已替换。
--->
+            错误态（2026-10-21 加）：接口失败时优先于空态显示。
+            【为什么需要】原来 catch 里什么都不做，posts 为空且 loading=false，
+            于是落到下面的空态，显示「你关注的人还没发东西」——
+            把**网络故障**说成了**没人发内容**，用户会以为平台本来就没东西。
+            现在先判断 loadError，给「没加载出来 + 重试」，语义才对。
+          -->
           <StateBlock
-            v-if="!loading && posts.length === 0"
+            v-if="!loading && loadError && posts.length === 0"
+            variant="error"
+            title="动态没加载出来"
+            description="可能是网络断了，点一下重试"
+            action-label="重试"
+            :icon="WarningFilled"
+            @action="retryFeed()"
+          />
+
+          <!--
+            空态按 tab 分两种出口(AC-19):
+            - 「关注」tab 空 → 去关注人(有 goFollow)
+            - 「发现」tab 空 → 去发一条或逛圈子
+            原 el-empty 只有描述没有出口,已替换。
+          -->
+          <StateBlock
+            v-else-if="!loading && posts.length === 0"
             variant="empty"
             :title="tab === 'following' ? '你关注的人还没发东西' : '这里还很空'"
             :description="
@@ -124,26 +139,7 @@
       - 位置持久化 localStorage,freshHome=true 时(KeepAlive 回来)保留位置
       - 桌面端隐藏(顶栏已有「+」)
     -->
-    <button
-      v-if="isMobile"
-      ref="fabEl"
-      type="button"
-      class="home-fab"
-      :class="{ 'is-dragging': fab.dragging }"
-      :style="{ left: fab.x + 'px', bottom: fab.y + 'px' }"
-      :aria-label="'去发布'"
-      @touchstart="handlers.onTouchStart"
-      @touchmove="handlers.onTouchMove"
-      @touchend="handlers.onTouchEnd"
-      @click="handlers.onClick"
-      @pointerdown="handlers.onPointerDown"
-      @pointermove="handlers.onPointerMove"
-      @pointerup="handlers.onPointerUp"
-    >
-      <el-icon :size="24"><Plus /></el-icon>
-      <!-- 拖拽提示:按钮下方淡字,只在拖动中显示,避免误触 -->
-      <span v-if="fab.dragging" class="home-fab__hint">拖动</span>
-    </button>
+    
   </div>
 </template>
 
@@ -163,9 +159,8 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
-import VerifyNotice from '@/components/common/VerifyNotice.vue'
 import HomeAside from '@/components/HomeAside.vue'
-import { ChatLineSquare, Promotion, CaretRight, Plus } from '@element-plus/icons-vue'
+import { ChatLineSquare, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { useBreakpoint, BREAKPOINTS } from '@/composables/useBreakpoint'
 import { useHomeFeed } from '@/composables/useHomeFeed'
 import { useDraggableFab } from '@/composables/useDraggableFab'
@@ -181,8 +176,8 @@ const isMobile = computed(() => width.value < BREAKPOINTS.lg)
 const isWide = computed(() => width.value >= BREAKPOINTS.xl)
 
 const {
-  tab, posts, loading, hasMore, searchQ, sortMode, sentinelEl, feedBarHidden,
-  setSort, doSearch, goFollow,
+  tab, posts, loading, hasMore, loadError, searchQ, sortMode, sentinelEl, listEl, feedBarHidden,
+  setSort, doSearch, goFollow, retryFeed,
 } = useHomeFeed(isMobile)
 
 // 移动端浮动发帖按钮:可拖拽 + 边缘吸附 + 位置持久化(见 useDraggableFab)

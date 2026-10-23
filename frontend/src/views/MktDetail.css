@@ -12,48 +12,18 @@
   max-width: 640px;
   margin: 0 auto;
   padding: var(--ys-space-4);
+  /* flex 子项默认 min-width:auto，长串会顶破列宽 */
+  min-width: 0;
 }
 
-/* 块 1:自绘顶栏(返回 + 标题 + 举报) */
-.md__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ys-space-3);
-  min-height: var(--ys-topbar-h);
-  margin: 0 calc(var(--ys-gutter-phone) * -1) var(--ys-space-4);
-  padding: 0 var(--ys-gutter-phone);
-  border-bottom: 1px solid var(--ys-border);
-}
-
-.md__back,
-.md__report {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--ys-touch-min);
-  min-height: var(--ys-touch-min);
-  border: 0;
-  background: none;
-  color: var(--ys-fg-2);
-  cursor: pointer;
-}
-
-.md__report:hover { color: var(--ys-danger); }
-
-.md__title {
-  flex: 1;
-  margin: 0;
-  font-size: var(--ys-text-lg);
-  font-weight: var(--ys-weight-semibold);
-  text-align: center;
-  color: var(--ys-fg);
-}
+/* 2026-10-21：.md__bar / .md__back / .md__title 已删除 ——
+   全站顶栏已提供「活动详情」标题与返回箭头，自绘那层是重复的。
+   举报入口改为内容区里的文字按钮（见 .md__report-inline）。 */
 
 .md__state { margin: var(--ys-space-8) 0; }
 .md__loading { display: flex; flex-direction: column; gap: var(--ys-space-4); }
 
-/* 块 2:大标签栏 */
+/* 块 2:标签栏（分类 + 倒计时 + 举报） */
 .md__tags {
   display: flex;
   align-items: center;
@@ -62,126 +32,358 @@
 }
 
 .md__cat {
-  padding: 4px var(--ys-space-3);
-  border-radius: var(--ys-radius-full);
+  padding: 3px var(--ys-space-3);
+  border-radius: var(--ys-radius-sm);
   background: var(--ys-accent-2-soft);
   color: var(--ys-accent-2);
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/*
+ * 副标签（游戏名等，2026-10-21 加）。
+ *
+ * 改版前详情页只显示分类，subTag 完全没有出现 ——
+ * 用户反馈「点进去看不到王者荣耀那个标」。
+ * 灰字、比分类轻一档，与列表卡片的 .mktcard__sub 同一语言。
+ */
+.md__sub {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 8em;
 }
 
 .md__timer {
   margin-left: auto;
-  font-family: var(--ys-font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
   font-variant-numeric: tabular-nums;
   font-size: var(--ys-text-sm);
-  color: var(--ys-meta);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
 }
 
-.md__timer--warn { color: var(--ys-danger); font-weight: var(--ys-weight-medium); }
+.md__timer--warn { color: var(--ys-warning); font-weight: var(--ys-weight-semibold); }
 .md__timer--expired { color: var(--ys-danger); }
+
+/*
+ * 举报入口（2026-10-21 从顶栏挪到内容区）。
+ * 低频动作，用文字按钮：不发散视觉，又保留可达性。
+ */
+.md__report-inline {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  cursor: pointer;
+}
+
+.md__report-inline:hover { color: var(--ys-danger); }
 
 /* 块 3:大号标题(完整展示,不截断) */
 .md__h {
-  margin: var(--ys-space-4) 0 var(--ys-space-3);
-  font-size: var(--ys-text-2xl);
-  line-height: var(--ys-lh-2xl);
-  letter-spacing: var(--ys-ls-2xl);
+  margin: var(--ys-space-3) 0 var(--ys-space-2);
+  font-size: 22px;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
   font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* 块 4:完整详情正文 */
 .md__content {
-  font-size: var(--ys-text-base);
-  line-height: var(--ys-lh-base);
-  color: var(--ys-fg);
+  margin: 0 0 var(--ys-space-4);
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ys-fg-2);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-/* 块 5:信息小卡片一行 */
+/*
+ * 块 5:信息区（2026-10-21 从 2×2 网格卡片改成竖向列表）。
+ *
+ * 改版前：手机 2×2（实测占 156px）、桌面 1×4（每块 151px 宽），
+ * 每张卡里只有一个图标 + 两行字。四项内容本质是一组同质键值对，
+ * 用大卡承托过于隆重，还吃掉首屏一大块高度。
+ * 现在一张卡里 4 行，行间细线分隔 —— 更紧凑，扫读更快，两端同一结构。
+ */
 .md__info {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ys-space-3);
-  margin: var(--ys-space-5) 0;
+  margin: var(--ys-space-4) 0;
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  overflow: hidden;
 }
 
-.md__info-item {
+.md__info-row {
   display: flex;
   align-items: center;
-  gap: var(--ys-space-2);
-  padding: var(--ys-space-3);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface);
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  font-size: var(--ys-text-sm);
 }
 
-.md__info-item .el-icon { color: var(--ys-accent-2); }
-
-.md__info-txt {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.md__info-row + .md__info-row {
+  border-top: 1px solid var(--ys-border-soft);
 }
 
-.md__info-k { font-size: var(--ys-text-xs); color: var(--ys-meta); }
+.md__info-row .el-icon { color: var(--ys-accent-2); flex: none; }
+
+.md__info-k {
+  flex: none;
+  /* 固定键宽，让四个值左对齐成一列 */
+  width: 4.5em;
+  color: var(--ys-muted);
+}
 
 .md__info-v {
-  font-size: var(--ys-text-base);
+  flex: 1;
+  min-width: 0;
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-.md__info-v--warn { color: var(--ys-danger); }
+.md__info-v--warn { color: var(--ys-warning); }
 .md__info-v--expired { color: var(--ys-danger); }
 
 /* 免责声明(第 2 处:信息卡下方一行) */
-.md__disclaimer {
-  margin: 0 0 var(--ys-space-2);
-  padding: var(--ys-space-3) var(--ys-space-4);
-  border: 1px solid var(--ys-border-soft);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface-2);
-  color: var(--ys-muted);
-  font-size: var(--ys-text-xs);
-  line-height: var(--ys-lh-sm);
-}
+/*
+ * 免责声明样式已删除（2026-10-21）。
+ * 大段常驻文字已改成首次进入的弹窗（MktRiskNotice），
+ * 页面底部只留一行 11px 的「安全须知」兜底链接，见 .md__risk-foot。
+ */
 
-/* 块 7:发布者昵称(不展示联系方式) */
+/*
+ * 发布者块（2026-10-21 提到页面最前）。
+ *
+ * 改版前它在很后面、被 4 行免责隔着；现在放最上：
+ * 集市是「找一个人办事」的场景，「这人靠谱吗」是第二个要回答的问题。
+ * 因此去掉原来的 border-top（它不再需要与上方内容分隔），
+ * 只保留一条下边框把它与下面的活动信息分开。
+ */
 .md__publisher {
   display: flex;
   align-items: center;
   gap: var(--ys-space-3);
-  padding: var(--ys-space-3) 0;
+  padding: 0 0 var(--ys-space-3);
+  border-bottom: 1px solid var(--ys-border-soft);
+  margin-bottom: var(--ys-space-3);
+}
+
+/*
+ * 「主页 ›」入口：进对方主页看历史活动与认证，是判断可信度的依据。
+ *
+ * 【2026-10-21 补热区】37×28 太小。它是详情页里唯一能跳到发布者主页的路径，
+ * 而当用户想「看看这人靠不靠谱」时点不中，这个判断依据就形同不存在。
+ * 视觉尺寸不变，::after 外扩到 40 高。
+ */
+.md__pub-more {
+  position: relative;
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
+  text-decoration: none;
+  padding: 4px 2px;
+}
+
+.md__pub-more::after {
+  content: '';
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+}
+
+.md__pub-more:hover {
+  text-decoration: underline;
 }
 
 .md__pub-txt {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  min-width: 0;
 }
 
 .md__pub-name {
   margin: 0;
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
 }
 
 .md__pub-sub {
   margin: 0;
   font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/*
+ * 安全须知兜底（2026-10-21）。
+ *
+ * 免责全文已改成首次进入的弹窗，这里只留一行 11px 灰字：
+ * 既不再占主体空间，又不至于让页面完全没有任何安全提示。
+ * 「安全须知」是可点按钮，点了重新打开弹窗看全文。
+ */
+.md__risk-foot {
+  margin: var(--ys-space-4) 0 0;
+  padding-top: var(--ys-space-3);
+  border-top: 1px solid var(--ys-border-soft);
+  text-align: center;
+  font-size: 11px;
   color: var(--ys-meta);
 }
 
-@media (min-width: 1024px) {
-  .md__info {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+/*
+ * 页面底部那行「安全须知」链接。
+ *
+ * 【2026-10-21 补热区】原来 48×16 —— 一行 11px 带下划线的字，
+ * 可点高度只有字高。它是重新打开风险提示全文的唯一入口，
+ * 点不中就等于用户再也看不到那段说明。
+ *
+ * 视觉不变（它就是该轻），用 ::after 向上下外扩把热区撑到 36。
+ * 不做 44：它紧贴页面底部的分隔线，撑太高会盖住上面的留言区。
+ */
+.md__risk-link {
+  position: relative;
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  font-family: var(--ys-font-body);
+  font-size: 11px;
+  color: var(--ys-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.md__risk-link::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 36px;
+  transform: translateY(-50%);
+}
+
+/* ---------------------------------------------------------------- 桌面端 */
+/*
+ * 2026-10-21 加：桌面端双栏。
+ * 实测内容列只有 672px，1512 视口下右侧 268px 整片空白。
+ * 集市活动详情的内容不厚（正文常是一两行），所以补的是**信息**：
+ * 状态 / 同分类活动数 / 安全提示，全部由已有数据算出。
+ */
+/*
+ * 右栏基础态：移动端整体隐藏。
+ *
+ * 【顺序很关键】这条必须写在媒体查询**之前**。
+ * 同优先级下 CSS 后写者胜：基础态先声明 display:none，
+ * 媒体查询里再声明 display:flex —— 后者赢，桌面端才显示。
+ * 反过来（查询在前、none 在后）会让右栏在桌面端也永远不显示，
+ * 公告页和本页第一版都踩过这个坑。
+ */
+.md__aside { display: none; }
+
+@media (min-width: 1280px) {
+  .mdetail-inner {
+    max-width: 1000px;
+    display: flex;
+    gap: var(--ys-space-6);
+    align-items: flex-start;
+    padding: var(--ys-space-5) var(--ys-space-6);
+    box-sizing: border-box;
+  }
+
+  /* 主列固定 640，与全站内容列同口径 */
+  .md__main {
+    flex: none;
+    width: var(--ys-content-col);
+    min-width: 0;
+  }
+
+  /* 右栏显示：覆盖上面的 display:none（后写者胜） */
+  .md__aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ys-space-3);
+    flex: none;
+    width: 268px;
   }
 }
+
+.panel {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.panel__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+.panel__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  padding: 5px 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.panel__row + .panel__row { border-top: 1px solid var(--ys-border-soft); }
+
+.panel__row b {
+  flex: none;
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.75;
+  color: var(--ys-muted);
+}
+
+.panel__tip b {
+  color: var(--ys-fg-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* 状态色：投放中绿 / 满员蓝灰 / 过期红 */
+.panel__v--live { color: var(--ys-success) !important; }
+.panel__v--warn { color: var(--ys-warning) !important; }
+.panel__v--danger { color: var(--ys-danger) !important; }

@@ -6,6 +6,37 @@
   min-height: 100%;
 }
 
+/* ---------------------------------------------------------------- 双栏骨架 */
+/*
+ * 2026-10-21 加：桌面端主列 640px + 右栏 268px。
+ * 移动端单列，外观与改版前一致（外层不产生视觉）。
+ *
+ * 加右栏的原因：实测 1512 窗口下正文列固定 640px，
+ * 右侧 325px 整片空白（与公告列表页同一个问题）。
+ * 公告正文本身不该更宽（一行 30-38 字最易读），所以补的是**信息**而不是拉长正文。
+ */
+.ann-cols {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.ann-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 右栏基础态：移动端隐藏（桌面由媒体查询打开） */
+.ann-aside {
+  display: none;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  min-width: 0;
+}
+
 .wrap {
   flex: 1;
   /* 给吸底操作栏留出空间,防止最后一段被盖住 */
@@ -13,10 +44,17 @@
   max-width: var(--ys-content-col);
   margin: 0 auto;
   width: 100%;
+  /*
+   * min-width:0 必须写。它作为 flex 子项时默认 min-width:auto，
+   * 长 URL / 无空格长串会把正文列顶宽（公告列表页已踩过同一个坑）。
+   */
+  min-width: 0;
 }
 
+/* ---------------------------------------------------------------- 头部 */
 .head {
   padding: var(--ys-space-4);
+  /* 分隔线挪到头部末尾（下面 .head 的 border-bottom 保留） */
   border-bottom: 1px solid var(--ys-border-soft);
 }
 
@@ -28,17 +66,12 @@
   margin-bottom: var(--ys-space-3);
 }
 
-.org {
-  font-size: var(--ys-text-xs);
-  padding: 1px var(--ys-space-2);
-  border-radius: var(--ys-radius-sm);
-  background: var(--ys-official-badge-bg);
-  color: var(--ys-official-badge-text);
-}
+/* 2026-10-21：.org（发布方徽章）已移除 —— 公告不再显示发布方身份 */
 
 .cat,
 .urgent {
   font-size: var(--ys-text-xs);
+  line-height: 1.5;
   padding: 1px var(--ys-space-2);
   border-radius: var(--ys-radius-sm);
 }
@@ -51,21 +84,33 @@
 .urgent {
   background: var(--ys-danger-soft);
   color: var(--ys-danger);
+  font-weight: var(--ys-weight-semibold);
 }
 
+/* 置顶：与列表页的组头口径一致，用浅青底 + 主色，不用图钉裸图标 */
 .top {
   display: inline-flex;
   align-items: center;
   gap: var(--ys-space-1);
   font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
+  line-height: 1.5;
+  padding: 1px var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-semibold);
 }
 
 .head__title {
   margin: 0 0 var(--ys-space-3);
-  font-size: var(--ys-text-xl);
-  line-height: var(--ys-lh-xl);
-  letter-spacing: var(--ys-ls-xl);
+  /*
+   * 20 → 21px，正文 16 → 15px（2026-10-21）。
+   * 原来标题 20 / 正文 16 只差 4px，公告又是「标题定主题、正文看细节」的结构，
+   * 层级不够就变成一团同级文字。标题拉大 + 正文略降，差距变成 6px。
+   */
+  font-size: 21px;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
   font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
   /* 最多 3 行 */
@@ -75,47 +120,137 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .head__meta {
-  margin: 0 0 var(--ys-space-1);
+  margin: 0;
   font-size: var(--ys-text-xs);
   color: var(--ys-meta);
   display: flex;
-  gap: var(--ys-space-1);
-}
-
-.head__sign {
-  margin: 0;
-  display: flex;
   align-items: center;
   gap: var(--ys-space-1);
-  font-size: var(--ys-text-sm);
-  color: var(--ys-fg-2);
+  flex-wrap: wrap;
 }
 
-.head__verified {
-  color: var(--ys-accent);
+.head__sep {
+  color: var(--ys-border-control);
+  margin: 0 2px;
 }
 
-.head__verified-text {
-  font-size: var(--ys-text-xs);
-  color: var(--ys-accent);
-}
+/* 2026-10-21：.head__verified / .head__verified-text 已移除
+   —— 公告不再显示发布方的认证状态 */
 
+/* ---------------------------------------------------------------- 正文 */
 .body {
   padding: var(--ys-space-4);
-  font-size: var(--ys-text-md);
-  line-height: var(--ys-lh-md);
+  /*
+   * 16 → 15px / 行高 1.6 → 1.85（2026-10-21）。
+   * 公告正文是长文，1.6 的行高偏紧；15px + 1.85 在中文长段落里更耐读。
+   */
+  font-size: 15px;
+  line-height: 1.85;
   color: var(--ys-fg);
   /* 保留教务处通知的分行排版 */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: break-word;
+  /* flex 子项默认 min-width:auto，长串会顶破列宽 */
+  min-width: 0;
+}
+
+/*
+ * 2026-10-21：发布方卡（.orgbox 系列）已整块移除。
+ *
+ * 它原本用来填补「正文之后到吸底栏的 470px 空白」并说明「谁发的、是否可信」，
+ * 但信息来源是 publisher.schoolName —— 已认证发布人的公告会显示「黄河交通学院」。
+ * 本平台是毕业设计原型、与学校无隶属关系（legalDocs 有免责声明），
+ * 公告上挂具体校名等于替学校背书，所以连同后端字段一起移除。
+ * 空白改由下方的「相关公告」块承担。
+ */
+
+/* ---------------------------------------------------------------- 相关公告 */
+/*
+ * 2026-10-21 新增。改版前看完一条公告只剩「我知道了」= router.back()，
+ * 页面上没有任何「下一条」的去向，只能返回列表再翻。
+ */
+.rel {
+  margin: 0 var(--ys-space-4) var(--ys-space-4);
+}
+
+.rel__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg-2);
+}
+
+.rel__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+.relrow {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-3);
+  margin-bottom: var(--ys-space-2);
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  text-decoration: none;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.relrow:hover {
+  background: var(--ys-surface-2);
+}
+
+.relrow__t {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relrow__d {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+.rel__more {
+  display: inline-block;
+  padding: var(--ys-space-2) 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  text-decoration: none;
+}
+
+/*
+ * 吸底栏容器。
+ * 移动端：贴屏幕左右边（与内容列同 padding），承担背景 + 上边框 + sticky。
+ */
+.actionbar-wrap {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--ys-surface);
+  border-top: 1px solid var(--ys-border);
+  padding: 0;
 }
 
 .actionbar {
-  position: sticky;
-  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -123,8 +258,8 @@
   min-height: 56px;
   padding: var(--ys-space-2) var(--ys-space-4);
   padding-bottom: calc(var(--ys-space-2) + var(--ys-safe-bottom));
-  background: var(--ys-surface);
-  border-top: 1px solid var(--ys-border);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .actionbar__state {
@@ -134,15 +269,16 @@
 
 .actionbar__btn {
   min-height: var(--ys-touch-min);
-  min-width: 120px;
-  padding: 0 var(--ys-space-4);
+  min-width: 124px;
+  padding: 0 var(--ys-space-5);
   border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-lg);
+  /* 8px → 全圆角：与全站主按钮同一套语言 */
+  border-radius: var(--ys-radius-full);
   background: var(--ys-accent);
   color: var(--ys-accent-on);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
+  font-weight: var(--ys-weight-semibold);
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out),
     opacity var(--ys-motion-instant) var(--ys-ease-out);
@@ -154,4 +290,180 @@
 
 .actionbar__btn:active {
   opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------- 右栏面板 */
+.panel {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.panel__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+.panel__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  padding: 5px 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.panel__row + .panel__row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.panel__row b {
+  flex: none;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* 相关公告那一组是链接行：标题要能截断，日期不许挤 */
+.panel__row--link {
+  text-decoration: none;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.panel__row--link:hover {
+  color: var(--ys-accent);
+}
+
+.panel__t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ys-text-sm);
+}
+
+.panel__d {
+  font-size: var(--ys-text-xs) !important;
+  font-weight: var(--ys-weight-regular) !important;
+  color: var(--ys-meta) !important;
+}
+
+.panel__tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.75;
+  color: var(--ys-muted);
+}
+
+.panel__tip b {
+  color: var(--ys-fg-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* ---------------------------------------------------------------- 桌面端 */
+@media (min-width: 1280px) {
+  .ann-detail {
+    /* 与首页/列表页同款：吃满可用高度，两列各自滚动 */
+    height: calc(100dvh - 57px - 72px);
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+    /*
+     * 桌面端用同一套三行网格统一横向定位：
+     *   第 1 行 = 正文/右栏双列
+     *   第 2 行 = 吸底操作栏（跨两列，但内层与正文列同宽）
+     * 关键：三块的**列定义完全相同**（640px 268px，居中，gap 24），
+     * 所以正文列与吸底栏必然在同一 x 上对齐。
+     *
+     * 改版前一版是「ann-cols 居中 + actionbar 自己 max-width 640 margin:0」——
+     * 两套定位算法各算各的，实测正文 x=401 而吸底栏 x=391，偏左 10px。
+     */
+    display: grid;
+    grid-template-columns: var(--ys-content-col) 268px;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0 var(--ys-space-6);
+    justify-content: center;
+    align-content: stretch;
+    max-width: 1000px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 var(--ys-space-6) 0;
+  }
+
+  /*
+   * 正文列：占第 1 行第 1 列，自己滚。
+   *
+   * `.ann-cols` 用 display:contents 让 .ann-main / .ann-aside 上移一层，
+   * 直接成为 .ann-detail 的 grid item —— 这样正文列与吸底栏共用同一份
+   * 列定义，x 与宽度必然一致（前一版两套定位各算各的，偏左 10px）。
+   * **必须只写在桌面媒体查询里**：写在基础态会让移动端也丢掉 .ann-cols
+   * 的盒子，吸底栏因此缩进 16px（实测 x=32 w=326 vs 内容 x=16 w=358）。
+   */
+  .ann-cols {
+    display: contents;
+  }
+
+  .ann-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ys-border) transparent;
+    width: 100%;
+  }
+
+  .ann-aside {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    flex: none;
+    width: 100%;
+    min-height: 0;
+    align-self: start;
+  }
+
+  /* 正文列已有自己的滚动，wrap 不再需要给 TabBar 留空 */
+  .wrap {
+    padding-bottom: var(--ys-space-6);
+    max-width: none;
+  }
+
+  /*
+   * 吸底栏：占第 2 行**第 1 列**（与正文列同一列 → 同一 x，同一宽度）。
+   * 不跨到右栏：右栏是固定信息面板，不需要一条横贯它的操作带。
+   */
+  .actionbar-wrap {
+    grid-column: 1;
+    grid-row: 2;
+    position: static;
+    width: 100%;
+    padding: 0;
+    /* 与正文列同宽同起点，不需要额外 max-width */
+    max-width: none;
+  }
+
+  .actionbar {
+    max-width: none;
+    margin: 0;
+    width: 100%;
+    padding-bottom: var(--ys-space-2);
+  }
 }

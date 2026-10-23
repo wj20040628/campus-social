@@ -48,31 +48,40 @@
     <template v-else>
       <main class="pub__body">
         <!--
-          可见 label,不靠 placeholder 当 label(Publish.vue.md §5)。
-          16px 是 iOS Safari 不自动缩放的下限,14px 聚焦时页面会被放大且不缩回。
+          正文 + 字数做成一张纸卡（2026-10-21）。
+          移动端此前没有卡片，裸文本铺在暖米底上，整屏看不出「写到哪」；
+          字数器又飘在正文与话题之间。现在两端统一是一张纸。
         -->
-        <label class="pub__label" for="pub-content">正文</label>
-        <el-input
-          id="pub-content"
-          v-model="content"
-          type="textarea"
-          class="pub__editor"
-          placeholder="今天在校园里遇到什么了？"
-          maxlength="5000"
-          resize="none"
-        />
-
-        <MediaGrid :cells="cells" @remove="removeMedia" @retry="retryMedia" />
-
-        <!-- 行 6:字数条。紧贴正文区,放话题框后会被误读成话题的字数 -->
-        <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
-          {{ content.length }} / {{ MAX_LEN }}
-        </p>
+        <div class="pub__paper">
+          <!--
+            可见 label，不靠 placeholder 当 label(Publish.vue.md §5)。
+            16px 是 iOS Safari 不自动缩放的下限，14px 聚焦时页面会被放大且不缩回。
+          -->
+          <label class="pub__label" for="pub-content">正文</label>
+          <el-input
+            id="pub-content"
+            v-model="content"
+            type="textarea"
+            class="pub__editor"
+            placeholder="今天在校园里遇到什么了？"
+            maxlength="5000"
+            resize="none"
+          />
+          <!-- 行 6：字数条。紧跟正文，在纸卡内 -->
+          <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
+            {{ content.length }} / {{ MAX_LEN }}
+          </p>
+        </div>
         <p v-if="atLimit" class="pub__count-tip" role="status">
           到 {{ MAX_LEN }} 字了，删一点再发
         </p>
 
-        <label class="pub__label" for="pub-topic">话题</label>
+        <!-- 媒体预览：在纸卡外，与正文区同宽 -->
+        <MediaGrid :cells="cells" @remove="removeMedia" @retry="retryMedia" />
+
+        <div class="pub__label-group">
+          <label class="pub__label" for="pub-topic">话题</label>
+        </div>
         <el-input
           id="pub-topic"
           v-model="topicText"
@@ -85,6 +94,14 @@
           <!-- 超过 5 个只留前 5 个,多的用「+N」提示还有多少 -->
           <li v-if="topicOverflow > 0" class="pub__chips-more">+{{ topicOverflow }}</li>
         </ul>
+        <!--
+          超长话题提示：后端会静默丢弃 >15 字的话题，不提示的话
+          用户会「以为加上了、发出去却没有」，且查不到任何报错。
+        -->
+        <p v-if="tooLongTopics.length" class="pub__topic-tip" role="status">
+          {{ tooLongTopics.length }} 个话题超过 {{ TOPIC_NAME_MAX }} 字，已忽略：
+          <span class="pub__topic-tip-name">{{ tooLongTopics.join('、') }}</span>
+        </p>
       </main>
 
       <!-- 错误提示贴操作栏上方。**正文与图片全部保留**(Publish.vue.md §3) -->
@@ -92,9 +109,25 @@
 
       <!-- 行 7:吸底操作栏。键盘弹起时随 --kb-h 上移 -->
       <footer class="pub__foot">
-        <!-- 视频格式提示:只在视频入口开启时显示,与后端白名单/HEVC 拦截对齐 -->
+        <!--
+          视频格式提示（2026-10-21 从常驻整行改成按需展开，与圈子发帖一致）。
+          它原来是一整行 10.5px 灰字常驻在吸底栏里 —— 而吸底栏是屏幕上最显眼的位置，
+          却用它讲一个 99% 的用户不需要的规则（真要传视频的人才会遇到编码/体积限制）。
+          现在只留一个「? 视频格式说明」，点开才展开。
+        -->
         <p v-if="videoEnabled" class="pub__hint">
-          视频支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
+          <button
+            type="button"
+            class="pub__hint-btn"
+            :aria-expanded="showVideoHint"
+            @click="showVideoHint = !showVideoHint"
+          >
+            <span class="pub__hint-q">?</span>
+            视频格式说明
+          </button>
+          <span v-if="showVideoHint" class="pub__hint-text">
+            支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
+          </span>
         </p>
         <el-upload
           :show-file-list="false"
@@ -146,7 +179,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { createPost, updatePost, detail } from '@/api/feed'
 import { useUserStore } from '@/stores/user'
-import { useMediaUpload, parseTopics } from '@/composables/useMediaUpload'
+import { useMediaUpload, parseTopics, droppedTopics, TOPIC_NAME_MAX } from '@/composables/useMediaUpload'
 import { VIDEO_SUPPORTED_FORMATS, VIDEO_UNSUPPORTED_NOTE } from '@/utils/videoCodec'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { markFeedDirty } from '@/composables/useFeedRefresh'
@@ -182,6 +215,12 @@ const {
 /** 视频单条上限(MB),供提示文案用。响应式:探测回来后随后端配置更新 */
 const maxVideoMB = computed(() => Math.round(maxVideoBytes.value / 1024 / 1024))
 
+/**
+ * 视频格式说明是否展开（2026-10-21 改成按需展开）。
+ * 默认收起：这段限制只在真要传视频时才需要，常驻在吸底栏是噪音。
+ */
+const showVideoHint = ref(false)
+
 // 键盘弹起时把 --kb-h 写到 :root,吸底栏靠 translateY 让位(ChatThread 同方案)
 useKeyboardViewport()
 
@@ -208,6 +247,15 @@ const canPublish = computed(() => !!userStore.hasToken)
 const topicTags = computed(() => parseTopics(topicText.value))
 /* 「+N」与 chips 同一套规则(parseTopics 去重后数全量),不用原始分隔数 */
 const topicOverflow = computed(() => Math.max(0, parseTopics(topicText.value, Infinity).length - MAX_TOPIC_SHOWN))
+/**
+ * 因超长被丢弃的话题。
+ *
+ * 后端（PostTopicBinder）对 >15 字的话题是**静默丢弃**——不报错、不落库。
+ * 前端若也不提示，用户输了一个 20 字的话题会看到：chips 里没有它、
+ * 发出去之后也没有它，全程零反馈。这类「以为成功了的失败」最难自查，
+ * 所以在这里显式列出来告诉用户。
+ */
+const tooLongTopics = computed(() => droppedTopics(topicText.value))
 
 const nearLimit = computed(() => content.value.length > WARN_AT)
 const atLimit = computed(() => content.value.length >= MAX_LEN)

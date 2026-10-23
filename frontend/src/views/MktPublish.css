@@ -1,0 +1,303 @@
+/*
+  MktPublish.vue 的样式,2026-10-21 从 <style scoped> 外置。
+  外置原因:MktPublish.vue 超 400 行门禁,拆后回到约 263 行。
+  选择器与规则原样搬迁,未改一个值。
+*/
+
+.mpub {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶栏:自绘(ownTop),返回 + 标题。提交只走吸底那一个 */
+.mpub__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+  min-height: var(--ys-topbar-h);
+  padding: 0 var(--ys-gutter-phone);
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.mpub__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--ys-touch-min);
+  min-height: var(--ys-touch-min);
+  border: 0;
+  background: none;
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+
+.mpub__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+  text-align: center;
+  color: var(--ys-fg);
+}
+
+/*
+ * 顶栏右侧占位（2026-10-21）。
+ * 左边是 44px 的返回按钮，右侧原来是提交按钮 —— 两个等宽，标题才真正居中。
+ * 提交按钮去掉后若右侧什么都不放，标题会被 flex:1 拉成偏左。
+ */
+.mpub__bar-spacer {
+  flex: none;
+  width: var(--ys-touch-min);
+}
+
+.mpub__body {
+  flex: 1;
+  padding: var(--ys-space-4) var(--ys-gutter-phone);
+  min-width: 0;
+}
+
+/*
+ * 右栏基础态：移动端隐藏。
+ *
+ * 【顺序】这条必须写在下面的媒体查询**之前** —— 同优先级后写者胜。
+ * 媒体查询里的 display:flex 写在它后面才能覆盖掉这个 none。
+ * 公告页、集市详情页都踩过「顺序反了导致桌面端右栏不显示」这个坑。
+ */
+.mpub__aside {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .mpub__body {
+    padding: var(--ys-space-6) var(--ys-gutter-desktop);
+    max-width: 720px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* 桌面端双栏：表单 640 + 右栏 268 */
+  .mpub__body {
+    max-width: 1000px;
+    display: flex;
+    gap: var(--ys-space-6);
+    align-items: flex-start;
+    padding-top: var(--ys-space-5);
+  }
+
+  /* 表单列固定 640（与全站内容列同口径） */
+  .mpub__body > :deep(.mpf) {
+    flex: none;
+    width: var(--ys-content-col);
+    min-width: 0;
+  }
+
+  /* 右栏显示（覆盖上面的 display:none） */
+  .mpub__aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ys-space-3);
+    flex: none;
+    width: 268px;
+  }
+}
+
+/* ---------------------------------------------------------------- 右栏面板 */
+.panel {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.panel__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+.panel__tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.75;
+  color: var(--ys-muted);
+}
+
+.panel__tip b {
+  color: var(--ys-fg-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* 卡片预览：与广场 MktCard 的最小结构对齐，让用户看到真实形态 */
+.pvcard {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  padding: var(--ys-space-3);
+}
+
+.pvcard__cat {
+  display: inline-block;
+  font-size: var(--ys-text-xs);
+  line-height: 1.5;
+  padding: 1px var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-accent-2-soft);
+  color: var(--ys-accent-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+.pvcard__title {
+  margin: var(--ys-space-2) 0 var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow-wrap: anywhere;
+}
+
+.pvcard__cont {
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-xs);
+  line-height: 1.5;
+  color: var(--ys-muted);
+  overflow-wrap: anywhere;
+}
+
+.pvcard__meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/*
+ * 吸底提交栏。
+ *
+ * 【2026-10-21 改成真吸底】改版前是 static（跟随文档流），
+ * 页面一高于视口，按钮就被推到折叠线以下 —— 用户必须先滚动才能点到发布。
+ * 现在 position:sticky + bottom:0：无论页面多高，按钮永远贴在屏幕底部。
+ *
+ * 这也让「一屏放不下」不再是阻塞问题 —— 内容可以正常滚动，按钮恒定可见。
+ */
+.mpub__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  padding: var(--ys-space-3) var(--ys-gutter-phone) var(--ys-space-3);
+  /*
+   * 与页面同色的暖米底（不是白底）：白底会与 #FBF3E9 形成硬切边，
+   * 看起来像页面没铺满、底部露出一块白。
+   */
+  background: var(--ys-bg);
+  border-top: 0;
+}
+
+/*
+ * 上方渐隐遮罩：让滚动到吸底栏附近的内容自然淡出，而不是被一条线切断。
+ * 用伪元素而不是给容器加 mask —— mask 会连按钮一起淡掉。
+ */
+.mpub__foot::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -18px;
+  height: 18px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--ys-bg));
+}
+
+/*
+ * 吸底按钮容器（2026-10-21 加）。
+ *
+ * 改版前 .mpub__foot-btn 直接铺满 .mpub__foot，桌面端实测 **宽 1211px**，
+ * 而表单只有 720px —— 一根宽 1200 的主按钮横跨整个内容区。
+ * 现在包一层容器与表单同宽（640）并居中，按钮跟着收窄。
+ */
+.mpub__foot-row {
+  max-width: var(--ys-content-col);
+  margin: 0 auto;
+  width: 100%;
+  position: relative;
+  /* 让按钮压在渐隐层之上 */
+  z-index: 1;
+}
+
+/*
+ * 主提交按钮（2026-10-21 重做外观）。
+ *
+ * 【改前的三个问题】
+ *   1. 满宽 + border-radius:full —— 手机上是一整条横贯屏幕的胶囊，
+ *      左右贴边，看起来像系统弹窗的按钮，不像应用内的主操作。
+ *   2. 圆角 9999px 的胶囊 + 满宽，在 640px 宽的桌面列里变成一根长条，
+ *      弧度被拉得很扁，视觉上「软塌」。
+ *   3. 只有实底主色 + 白字，没有层次，按钮像一块色块。
+ *
+ * 【现在】
+ *   圆角改成 --ys-radius-xl（16px）：与全站卡片、输入框同一套圆角。
+ *   宽度不再 100%，而是 max-width 360px 居中 —— 手机上留出左右呼吸、
+ *     桌面端不至于拉成一根长条。
+ *   阴影调淡：吸底栏现在是暖米底（不再是白底），原来的 0.24 透明度
+ *     在米色上会显浑。降到 0.18 并缩短扩散，只做「浮起一点」的暗示。
+ */
+.mpub__foot-btn {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  min-height: 46px;
+  padding: 0 var(--ys-space-6);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-xl);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(14, 116, 144, 0.18);
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    box-shadow var(--ys-motion-fast) var(--ys-ease-out),
+    transform var(--ys-motion-instant) var(--ys-ease-out);
+}
+
+.mpub__foot-btn:hover {
+  background: var(--ys-accent-hover);
+  box-shadow: 0 3px 9px rgba(14, 116, 144, 0.24);
+}
+
+/* 按下时轻微下沉：主操作需要一点实体反馈 */
+.mpub__foot-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(14, 116, 144, 0.16);
+}
+
+.mpub__foot-btn:disabled {
+  border-color: var(--ys-border);
+  background: var(--ys-surface-2);
+  color: var(--ys-meta);
+  /* 禁用态去掉阴影，避免还显得「可按」 */
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}

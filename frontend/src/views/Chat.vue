@@ -30,6 +30,9 @@
       @peer="goPeer"
       @create-group="createGroupOpen = true"
       @browse="router.push('/circles')"
+      @pin="pinRow"
+      @mute="muteRow"
+      @delete="deleteRow"
     />
 
     <!-- ============ 会话窗:手机是独立路由页,桌面是右栏 ============ -->
@@ -96,7 +99,7 @@
  *
  * useBreakpoint.js 从 design-tokens.json import 断点值,不写死 1024。
  */
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, inject, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useIsMobile } from '@/composables/useBreakpoint'
@@ -127,6 +130,27 @@ const core = useChatCore({
 })
 
 /*
+ * 清零消息角标（2026-10-21）。
+ *
+ * 用户点进「消息」，角标就该消失 —— 他的原话是「点进去看了，
+ * 左边的数字提醒就多余了」。角标语义是「有你看不到的新东西」，
+ * 人已经在会话列表里，它对这个人已经没有信息价值。
+ * 未读消息在会话项上仍各有自己的圆点，信息不会丢。
+ *
+ * inject 可能拿不到（组件被单独挂载时），给空函数兜底。
+ */
+const clearChatBadge = inject('clearChatBadge', () => {})
+
+onMounted(() => {
+  /*
+   * 进页面立刻清零。
+   * 放在 onMounted 而不是 setup 顶层：setup 阶段布局可能还没挂载完，
+   * 此时 provide 值虽已注入，但语义上「已经进入页面」应以挂载为准。
+   */
+  clearChatBadge()
+})
+
+/*
  * 模板里的 ref 解包只在**顶层绑定**时生效;`core.xxx` 是对象属性,
  * Vue 不会解包。所以这里逐个解出顶层 const,模板直接用名字 ——
  * 写 `core.convs.value` 在模板里能跑但极易漏掉 .value(漏了就永远渲染空)。
@@ -139,6 +163,7 @@ const {
   openConv: coreOpenConv, openGroup: coreOpenGroup, doRecall,
   onAddMembers, onKick, onLeaveGroup, onTransfer, onRename, onSetAnnouncement,
   onMuteMember, onMuteAll, loadMutedMe,
+  pinRow, muteRow, deleteRow,
 } = core
 
 /* 输入 / 发送 / 重试:2026-10-15 拆去 composables/useChatComposer.js

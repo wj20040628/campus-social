@@ -14,8 +14,12 @@
         设计 §1.1 明确:再来一个标题是重复。
       -->
       <div class="auth-brand">
-        <p class="auth-brand__name">友声</p>
-        <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+        <!-- 印鉴：与注册页同一套（见 Auth.css 的 .auth-brand__seal） -->
+        <div class="auth-brand__seal" aria-hidden="true">友</div>
+        <div class="auth-brand__txt">
+          <p class="auth-brand__name">友声</p>
+          <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+        </div>
       </div>
 
       <!-- 自绘分段:el-tabs 的下划线与内边距是 EP 默认值,和设计 Token 对不上 -->
@@ -83,8 +87,12 @@
     <!-- 找回密码:独立态,整页替换登录卡片内容 -->
     <div v-else class="auth-card">
       <div class="auth-brand">
-        <p class="auth-brand__name">友声</p>
-        <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+        <!-- 印鉴：与注册页同一套（见 Auth.css 的 .auth-brand__seal） -->
+        <div class="auth-brand__seal" aria-hidden="true">友</div>
+        <div class="auth-brand__txt">
+          <p class="auth-brand__name">友声</p>
+          <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
+        </div>
       </div>
       <ForgotPasswordForm @done="onForgotDone" @back="mode = 'login'" />
     </div>

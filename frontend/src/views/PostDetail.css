@@ -59,7 +59,25 @@
 .ops {
   display: flex;
   align-items: center;
+  /*
+   * gap 4 → 8：四个胶囊之间需要一点呼吸感。4px 时它们几乎黏成一条，
+   * 而按钮本身是浅底描边，挨太近会看不清每个按钮的边界。
+   */
   gap: var(--ys-space-2);
+  /*
+   * nowrap 是**修竖排 bug**的关键（2026-10-21 真机实测）。
+   *
+   * 现象：375px 下四个按钮的中文被逐字压成竖排 ——「已/赞」「评/论」
+   * 「编/辑」「删/除」，每格变成两行两字。
+   * 成因：.ops 是 flex，但按钮没有 flex:none，于是按钮作为 flex 子项
+   * 允许被压缩（flex-shrink 默认 1），四个按钮总宽超出一行时，
+   * 浏览器把每个按钮的文字一起挤窄，中文没有空格可断，只能逐字折行。
+   * 加「已赞」两字后更严重，直接溢出容器。
+   *
+   * 修法三件套：父容器 nowrap（不许换行）+ 子项 flex:none（不许被压缩）
+   * + 子项 white-space:nowrap（文字不许折行）。少任何一条都还会竖排。
+   */
+  flex-wrap: nowrap;
   padding: var(--ys-space-4) var(--ys-gutter-phone);
 }
 
@@ -72,9 +90,27 @@
 .ops__btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--ys-space-1);
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-3);
+  /*
+   * flex:none + white-space:nowrap 是修竖排 bug 的一半（另一半在 .ops 的注释里）。
+   * flex:none = flex-grow:0 + flex-shrink:0 + flex-basis:auto，
+   * 让它按内容宽度占位、永不被压缩，中文才不会逐字折行。
+   *
+   * min-height 44 → 40：四个按钮（赞/评论/编辑/删除）在 375px 下
+   * 加起来已经接近满宽，44px 高在这个宽度下视觉偏「胖」，40 仍是
+   * 可点尺寸（Apple HIG 44 是推荐值，40 在同行密排场景可接受，
+   * 且横向 padding 保证了实际热区面积）。
+   */
+  flex: none;
+  white-space: nowrap;
+  min-height: 40px;
+  /*
+   * 横向 padding 13 → 9：四个按钮（赞 / 评论 / 编辑 / 删除）合计宽度
+   * 在 375px 下必须塞进一行。13px 时实测最后一颗「删除」被裁出屏幕，
+   * 9px 后刚好放下并留有余量。视觉上仍比纯图标按钮宽松。
+   */
+  padding: 0 9px;
   border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-full);
   background: var(--ys-surface-2);
@@ -86,6 +122,9 @@
     background-color var(--ys-motion-fast) var(--ys-ease-out),
     border-color var(--ys-motion-fast) var(--ys-ease-out),
     color var(--ys-motion-fast) var(--ys-ease-out);
+  /* 计数不跳动（赞数变化时按钮宽度不变，避免整排横移） */
+  font-variant-numeric: tabular-nums;
+  position: relative;
 }
 
 /* 计数是纯展示(评论数不可点),不能继承 button 的手型 */
@@ -114,16 +153,25 @@
 }
 
 .ops__count {
-  color: var(--ys-meta);
+  color: inherit; /* 跟着按钮状态走（激活态是 accent 色），不再锁死在 meta 灰 */
   font-variant-numeric: tabular-nums;
+  /* 至少留一个数字的宽度：「评论」按钮只有图标+数字时，
+     0 会紧贴图标显得像个方框；给个下限让图标与数字呼吸出来 */
+  min-width: 1ch;
 }
 
 /*
-  搭句话主按钮靠 margin-left:auto 顶到操作条最右。
-  用 auto 而不是给前两个按钮加 flex:1 —— 操作条里项目数量是变的
-  (本人时是编辑/删除,他人时是搭句话),写死占位会在某个分支里多出空隙。
-*/
-.ops > :last-child {
+ * 搭句话主按钮靠 margin-left:auto 顶到操作条最右。
+ *
+ * 2026-10-21 修正：原来写的是 `.ops > :last-child`，意思是「最后一个子项」
+ * 顶到最右。但那在**作者本人**视角下会命中「删除」按钮 ——
+ * 于是四个操作被拆成「赞/评论/编辑」+ 一大段空隙 +「删除」，
+ * 看起来像删除是从别的组里飘过来的。
+ *
+ * 现在只对搭话按钮生效（它自带 .greet 容器），
+ * 作者本人的四个按钮则紧挨着排成一组。
+ */
+.ops > .greet {
   margin-left: auto;
 }
 
@@ -174,4 +222,18 @@
   .detail__tail {
     transition: none;
   }
+}
+/*
+ * 帖子详情的操作按钮热区（2026-10-21）。
+ * 原来 40px 高（为了四个按钮在 375px 下能挤进一行），
+ * 视觉保持 40，::after 外扩补到 44。
+ */
+.ops__btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
 }

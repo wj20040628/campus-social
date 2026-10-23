@@ -67,6 +67,20 @@
   color: var(--ys-accent-on);
 }
 
+/*
+ * chip 内的计数（2026-10-21 加）。
+ *
+ * 用 opacity 弱化而不是换色：chip 激活时底色是主色、文字是白色，
+ * 换成固定色会与未激活态冲突。opacity 在两种状态下都成立。
+ * tabular-nums 让它不随数字变化而抖。
+ */
+.chip__n {
+  margin-left: 5px;
+  font-size: var(--ys-text-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
 .notice {
   margin: 0 var(--ys-space-4) var(--ys-space-2);
   font-size: var(--ys-text-sm);
@@ -106,5 +120,29 @@
 
   .aa__list > *:first-child {
     border-radius: var(--ys-radius-xl) var(--ys-radius-xl) 0 0;
+  }
+}
+
+/* ---------------------------------------------------------------- 桌面端 */
+/*
+ * 2026-10-21 加：桌面端限宽到 760。
+ *
+ * 实测改版前 .aa 是 max-width:1180（--ys-container-max），列表条目一行 1178px，
+ * 而每条公告的内容只是「几个徽章 + 一行标题 + 一行元信息 + 4 个按钮」——
+ * 右侧至少 600px 全是空白。而且操作按钮跟在标题下面，
+ * 造成「左边一个短标题、下面一排按钮、右边一大片空」的失衡。
+ *
+ * 限宽 760 后：标题与元信息在左，操作按钮靠右，一行读完，横向空间用起来了。
+ * 这也与公告详情页的 640 + 右栏 268 的口径接近，视觉上是同一个系统。
+ */
+@media (min-width: 1024px) {
+  .aa {
+    max-width: 760px;
+  }
+
+  /* 列表条目：内容左、操作右 */
+  .aa__list {
+    /* 让 AdminAnnItem 内部的两栏布局有参照 */
+    overflow: hidden;
   }
 }

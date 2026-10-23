@@ -56,35 +56,44 @@
         @pick-topic="goTopic"
       />
 
-      <!-- 行 6:操作条。点赞可切换(aria-pressed),作者本人见编辑/删除 -->
+      <!--
+        行 6：操作条。点赞可切换(aria-pressed)，作者本人见编辑/删除。
+
+        2026-10-21 收紧：375px 下四个按钮 + 图标 + 数字本来放不下，
+        原来「已赞」占两字宽，会把最右边的「删除」整颗挤出屏幕
+        （加了 nowrap 之后不再竖排，但溢出的部分直接被裁掉）。
+        现在：
+          - 点赞态不再写「已赞」两字，靠**实心图标 + 强调色**表达已赞，
+            数字保留（aria-label 仍然完整朗读「已赞」）
+          - 图标 20 → 15，与卡片底部互动行的图标口径一致
+          - 计数用 tabular-nums，变化时按钮宽度不抖
+      -->
       <div class="ops">
         <button
           type="button"
           class="ops__btn"
           :class="{ 'ops__btn--on': post.liked }"
           :aria-pressed="post.liked"
-          :aria-label="`点赞，${post.likeCount}`"
+          :aria-label="`${post.liked ? '取消点赞' : '点赞'}，${post.likeCount}`"
           @click="toggleLike"
         >
-          <el-icon :size="20"><StarFilled v-if="post.liked" /><Star v-else /></el-icon>
-          <span>{{ post.liked ? '已赞' : '赞' }}</span>
+          <el-icon :size="15"><StarFilled v-if="post.liked" /><Star v-else /></el-icon>
           <span class="ops__count">{{ cap(post.likeCount) }}</span>
         </button>
 
         <span class="ops__btn ops__btn--static">
-          <el-icon :size="20"><ChatLineSquare /></el-icon>
-          <span>评论</span>
+          <el-icon :size="15"><ChatLineSquare /></el-icon>
           <span class="ops__count">{{ cap(post.commentCount) }}</span>
         </span>
 
         <!-- 作者本人:编辑/删除。他人不渲染(不是置灰,是根本不出现) -->
         <template v-if="isAuthor">
           <button v-if="post.status === 1" type="button" class="ops__btn" @click="goEdit">
-            <el-icon :size="20"><EditPen /></el-icon>
+            <el-icon :size="15"><EditPen /></el-icon>
             <span>编辑</span>
           </button>
           <button type="button" class="ops__btn ops__btn--danger" @click="remove">
-            <el-icon :size="20"><Delete /></el-icon>
+            <el-icon :size="15"><Delete /></el-icon>
             <span>删除</span>
           </button>
         </template>

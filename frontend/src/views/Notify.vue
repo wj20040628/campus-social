@@ -44,7 +44,26 @@
             </div>
             <el-tag v-if="!n.isRead" type="danger" size="small" effect="dark" class="n-badge">新</el-tag>
           </div>
-          <StateBlock v-if="list.length === 0" variant="empty" title="没有新通知" description="有人点赞、评论或关注你时会出现在这儿" :icon="Bell" />
+          <!--
+            错误态（2026-10-21 加）：优先于空态。
+            接口失败时不能显示「没有新通知」—— 那是把网络故障说成没人通知你。
+          -->
+          <StateBlock
+            v-if="!loading && loadFailed && list.length === 0"
+            variant="error"
+            title="通知没加载出来"
+            description="可能是网络断了，点一下重试"
+            action-label="重试"
+            :icon="WarningFilled"
+            @action="retryLoad"
+          />
+          <StateBlock
+            v-else-if="list.length === 0"
+            variant="empty"
+            title="没有新通知"
+            description="有人点赞、评论或关注你时会出现在这儿"
+            :icon="Bell"
+          />
         </div>
         <div class="n-sentinel">
           <el-text v-if="loading" type="info">加载中…</el-text>
@@ -56,13 +75,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, inject, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import dayjs from 'dayjs'
 import { list as listApi, read as readApi, readAll as readAllApi } from '@/api/notify'
 import { getWsClient } from '@/utils/ws'
 import StateBlock from '@/components/common/StateBlock.vue'
-import { Bell, Service } from '@element-plus/icons-vue'
+import { Bell, Service, WarningFilled } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
@@ -72,17 +91,45 @@ const router = useRouter()
 const userStore = useUserStore()
 const ws = getWsClient()
 
+/*
+ * 清零外层角标（2026-10-21）。
+ * 角标状态在 MainLayout，这里标记已读后要同步清掉 ——
+ * 否则用户看完了通知，左边还挂着数字，得刷新整页才消失。
+ * inject 可能拿不到（比如组件被单独挂载/测试），所以给个空函数兜底。
+ */
+const clearNotifyBadge = inject('clearNotifyBadge', () => {})
+
 const list = ref([])
 const cursor = ref(null)
 const hasMore = ref(true)
 const loading = ref(false)
+/*
+ * 失败态（2026-10-21 加）。
+ * loadFailed —— 已放弃自动重试，模板据此渲染「没加载出来 + 重试」
+ * failStreak —— 连续失败次数；2 次就停，避免 observer 无限重试
+ */
+const loadFailed = ref(false)
+const failStreak = ref(0)
 let observer = null
 
 function fmt(t) {
   return t ? dayjs(t).format('MM-DD HH:mm') : ''
 }
 
+/**
+ * 拉一页通知。
+ *
+ * 【2026-10-21 补错误处理】改版前这个函数没有 catch：
+ *   - 失败时异常向上抛，hasMore 仍是 true
+ *   - finally 里 nextTick(setupObserver) 重建 observer → 哨兵可见 → 再调 load → 再失败
+ * 形成无限重试（同 useHomeFeed 的坑），且页面落在「没有新通知」空态，
+ * 把**网络故障**说成了**没人通知你**。
+ *
+ * 现在：记录 loadFailed，连续失败 2 次就停止自动加载，
+ * 由模板渲染「没加载出来 + 重试」。
+ */
 async function load() {
+  if (!hasMore.value || loading.value) return
   loading.value = true
   try {
     const data = await listApi(cursor.value, 20)
@@ -90,10 +137,28 @@ async function load() {
     list.value = cursor.value ? [...list.value, ...items] : items
     cursor.value = data.hasMore ? data.nextCursor : null
     hasMore.value = data.hasMore
+    loadFailed.value = false
+    failStreak.value = 0
+  } catch {
+    failStreak.value += 1
+    if (failStreak.value >= 2 || cursor.value == null) {
+      hasMore.value = false
+      loadFailed.value = true
+    }
   } finally {
     loading.value = false
     nextTick(setupObserver)
   }
+}
+
+/** 重试：重置游标与失败态，从头拉 */
+function retryLoad() {
+  list.value = []
+  cursor.value = null
+  hasMore.value = true
+  loadFailed.value = false
+  failStreak.value = 0
+  load()
 }
 
 function setupObserver() {
@@ -162,11 +227,14 @@ async function openAndRead(n) {
 // 单条标已读:重赋值整条对象保证响应式,避免「新」残留
 function markRead(id) {
   list.value = list.value.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+  // 同步清掉外层角标：用户正在这条通知里，数字没有意义了
+  if (list.value.every((n) => n.isRead)) clearNotifyBadge()
 }
 
 async function readAll() {
   await readAllApi()
   list.value = list.value.map((n) => ({ ...n, isRead: true }))
+  clearNotifyBadge()
   ElMessage.success('已全部标为已读')
 }
 
@@ -177,6 +245,13 @@ function onNotify(payload) {
 }
 
 onMounted(async () => {
+  /*
+   * 进页面立刻清角标（2026-10-21）。
+   * 用户的诉求：点进来看了，左边的数字就该消失 —— 不需要先逐条点一遍。
+   * 角标的语义是「有你看不到的新东西」，人已经在列表里了，它就没有意义。
+   * 具体的已读状态仍由下面的 load() 和用户点击正常推进，不影响数据。
+   */
+  clearNotifyBadge()
   ws.on('notify', onNotify)
   ws.connect('/ws/notify')
   await load()

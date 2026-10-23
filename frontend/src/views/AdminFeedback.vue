@@ -115,7 +115,20 @@
       <p v-if="pendingIsAppeal" class="af__hint">
         申诉人还没有账号，这段说明会通过邮件发到 TA 填写的联系邮箱。
       </p>
+      <!--
+        必填标记（2026-10-21 补）。
+        handleNote 是契约里的必填项，确认按钮在它为空时是 disabled 的 ——
+        但原来界面上没有任何地方说明这件事：管理员打开弹层看到一个灰按钮，
+        不知道该填什么才能点。实测「确认采纳」一直点不动就是这个原因。
+        现在用一句可见的「必填」把这层规则说出来。
+      -->
+      <label class="af__note-label" for="af-note">
+        处理说明
+        <span class="af__req">必填</span>
+        <span class="af__note-hint">{{ noteHintText }}</span>
+      </label>
       <el-input
+        id="af-note"
         v-model="handleNote"
         type="textarea"
         :rows="3"
@@ -232,6 +245,18 @@ const handlePlaceholder = computed(() => {
 const handleConfirmText = computed(() => {
   if (pendingIsAppeal.value) return handleAction.value === 'adopt' ? '确认通过' : '确认驳回'
   return handleAction.value === 'adopt' ? '确认采纳' : '确认忽略'
+})
+
+/**
+ * 必填标记右侧那句短说明（2026-10-21）。
+ *
+ * 为什么不用 placeholder 就够了：placeholder 在 textarea 里会被输入内容顶掉，
+ * 而且它是灰的、和正文混在一起，起不到「这是必填」的提示作用。
+ * 管理员需要**在动手前**就知道这段字必须写、以及写给谁看。
+ */
+const noteHintText = computed(() => {
+  if (pendingIsAppeal.value) return '这段会通过邮件发给申诉人'
+  return handleAction.value === 'adopt' ? '反馈者会看到这段说明' : '仅内部记录，反馈者看不到'
 })
 
 async function load(reset = false) {

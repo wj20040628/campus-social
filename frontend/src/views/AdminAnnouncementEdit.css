@@ -61,9 +61,28 @@
   background: var(--ys-surface);
 }
 
+/*
+ * 字段组。
+ *
+ * 【2026-10-21 修 bug】改版前「分类」那一组用的是 <fieldset class="ed__sec">，
+ * 而这段 CSS 只设了 padding 与 border-bottom，**从没写过 border: 0** ——
+ * 浏览器给 fieldset 的 UA 默认边框（1px 沟槽 inset）就直接露出来了。
+ * 表现为整片暖白底上突然一圈冷灰方框（截图里「分类」外面那个灰框），
+ * 桌面端更明显：它横贯 1200px。
+ *
+ * 修法两层：
+ *   1. 这里补 border/margin/min-width 重置，任何 fieldset 都不会再露边框
+ *   2. 模板里把分类的 fieldset 换成普通 div + 网格（见 .ed__cgrid）
+ */
 .ed__sec {
   padding: var(--ys-space-5) var(--ys-space-4);
   border-bottom: 1px solid var(--ys-border-soft);
+  /* fieldset 的三项重置：默认 border 会被 UA 样式表画成灰框 */
+  border: 0;
+  border-bottom: 1px solid var(--ys-border-soft);
+  margin: 0;
+  /* fieldset 默认 min-width:min-content，长内容会撑破容器 */
+  min-width: 0;
 }
 
 .ed__sec--row {
@@ -110,6 +129,18 @@
 .ed__chips {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--ys-space-2);
+}
+
+/*
+ * 分类网格（2026-10-21）。
+ * 3×2 而不是 flex-wrap：390px 下 6 个 chip 横排会折成「5 + 1」，
+ * 「其他」孤零零挂第二行。固定 3 列后两行整齐，桌面端也同样是 3 列
+ * （表单已限宽 640，3 列每列约 200px，够放两个字）。
+ */
+.ed__cgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--ys-space-2);
 }
 
@@ -209,4 +240,92 @@
 
 .asheet__act:hover {
   background: var(--ys-surface-2);
+}
+
+/* ---------------------------------------------------------------- 桌面端 */
+/*
+ * 2026-10-21 加：桌面端限宽。
+ *
+ * 实测改版前 .ed__form 是 x=245 w=1243 —— 输入框横贯 1243px，
+ * 一行能写 80 个字，远超 30-38 字的舒适区；而公告正文往往只有一两行，
+ * 一个这么宽的空输入框显得整页都是空的。
+ *
+ * 限宽 640（= --ys-content-col）：与前台公告详情、发帖页同一口径。
+ * 表单与吸底栏都居中，顶栏仍通铺（顶栏是导航，通铺是对的）。
+ */
+@media (min-width: 1024px) {
+  .ed__form {
+    /* 表单自己滚，滚动条在边缘会显得很脏，隐藏但保留能力 */
+    scrollbar-width: none;
+    /* 上下留白：内容不贴顶栏也不贴底栏 */
+    padding: var(--ys-space-4) 0;
+    box-sizing: border-box;
+  }
+  .ed__form::-webkit-scrollbar {
+    width: 0;
+  }
+
+  /*
+   * 关键：限宽必须加在 .ed__form 自身（而不是它的子项 .ed__sec）。
+   *
+   * 第一版我只有 .ed__sec { max-width:640 }，实测 .ed__form 仍是 w=1243 ——
+   * 因为 .ed__form 是 flex 容器的子项，宽度由 .ed 分配，
+   * 子项都 640 宽居中了，但表单容器本身仍占满，滚动区域与背景色跟着占满整屏。
+   * 现在直接限 .ed__form 并居中，内部所有组自然跟着收窄。
+   */
+  .ed__form {
+    width: 100%;
+    max-width: var(--ys-content-col);
+    margin: 0 auto;
+    /* 表单自己滚，滚动条在边缘会显得很脏，隐藏但保留能力 */
+    scrollbar-width: none;
+    /* 上下留白：内容不贴顶栏也不贴底栏 */
+    padding: var(--ys-space-4) 0;
+    box-sizing: border-box;
+  }
+  .ed__form::-webkit-scrollbar {
+    width: 0;
+  }
+
+  /*
+   * 每组字段：不再需要自己的 max-width（父级已限宽），
+   * 只保留组间的分隔线。
+   */
+  .ed__sec {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    width: auto;
+    box-sizing: border-box;
+    /* 桌面端每组之间的分隔线不需要通铺到屏幕两边 */
+    border-bottom: 0;
+    border-top: 1px solid var(--ys-border-soft);
+  }
+
+  /* 第一组不要顶部线（它紧贴顶栏下方） */
+  .ed__sec:first-child {
+    border-top: 0;
+  }
+
+  /*
+   * 吸底栏：内层按钮组已限宽 640，但外层 .ed__foot 的背景与上边框仍通铺 1243。
+   * 这里不再改宽度（吸底栏通铺是常规做法，与内容列不等宽也不会突兀），
+   * 只确保内层按钮组居中且不溢出。
+   */
+  .ed__foot {
+    box-sizing: border-box;
+  }
+
+  .ed__foot-row {
+    max-width: var(--ys-content-col);
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ed__err {
+    max-width: var(--ys-content-col);
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
 }

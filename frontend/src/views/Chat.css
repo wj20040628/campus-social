@@ -109,10 +109,23 @@
   }
 }
 
-/* 桌面:会话页(ownTop, 无全站顶栏, 内容区 100dvh)—— .chat 撑满, 顶栏由 .th 自绘 */
+/*
+ * 桌面:会话页(ownTop, 自绘顶栏)。.chat 不写死 100dvh,改为吃掉 content 剩余高。
+ *
+ * 这里踩过两层坑:
+ * ① `.content--immersive { padding:0 }` 在 MainLayout.css 里写于桌面断点**之前**,
+ *    两者特异性同为 (0,1,0),后写的 `.content { padding:24px … 48px }` 赢 →
+ *    桌面下 immersive 的上内边距又回到 24px,底部 48px 也回来了。
+ *    所以 .chat 从 top:24 起算,再取 height:100dvh 就必然把输入区顶出视口
+ *    (实测 thBottom/inpBottom = 825,innerHeight = 800)。
+ * ② 正确模型是让 .chat 当 flex 项吃满 content 的内容盒(100dvh - 24 - 48),
+ *    .th 再吃满 .chat —— 高度一路有确定值,输入区自然贴底。
+ * 不要改回 height:100dvh,除非同时把 immersive 的 padding 在桌面断点里显式归零。
+ */
 @media (min-width: 1024px) {
   .content--immersive .chat {
-    height: 100dvh;
+    flex: 1;
+    height: auto;
     min-height: 0;
   }
 }

@@ -55,12 +55,40 @@
   padding: var(--ys-space-4) 0;
 }
 
+/*
+ * 移动端也把「正文 + 字数」做成一张白纸卡（2026-10-21）。
+ *
+ * 改版前只有 ≥1024px 才有卡片（见文件末尾的 .pub__body 规则），移动端是
+ * 裸文本直接铺在暖米底上：整屏找不到「我在写到哪」，正文区没有边界，
+ * 字数器又飘在正文与话题之间，看起来像一个独立控件而不是正文的附注。
+ *
+ * 现在移动端与桌面端同一套「一张纸」的观感，只差尺寸。
+ * 桌面端那份规则仍然保留（它额外加了 margin-top 与更大的内边距）。
+ */
+.pub__paper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0 var(--ys-gutter-phone);
+  padding: var(--ys-space-3) var(--ys-space-4) var(--ys-space-2);
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-2xl);
+  box-shadow: var(--ys-shadow-1);
+}
+
+/* 标签在卡内，不再贴屏幕边 */
 .pub__label {
-  padding: 0 var(--ys-space-4);
+  padding: 0;
   font-size: var(--ys-text-sm);
   line-height: var(--ys-lh-sm);
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg-2);
+}
+
+.pub__label-group {
+  padding: 0 var(--ys-gutter-phone);
 }
 
 /*
@@ -84,10 +112,14 @@
    * 只给这一个元素加 border-box 而不是全局加:全局改动影响所有元素的
    * 盒模型计算,那属于设计决策(SPEC 该不该要求全局 border-box),
    * 不该由一个横向滚动的修复顺带决定。
+   *
+   * padding(2026-10-21):0 gutter-phone → 0。
+   * 外置了 .pub__paper 之后,左右留白由纸卡自己承担;这里再留 8px
+   * 会把文字从纸张边缘再往里推一层,正文与「正文」标签不对齐。
    */
   min-width: 0;
   box-sizing: border-box;
-  padding: 0 var(--ys-gutter-phone);
+  padding: 0;
 }
 
 .pub__editor :deep(.el-textarea__inner) {
@@ -133,9 +165,36 @@
   color: var(--ys-fg-2) !important;
 }
 
+/*
+ * 超长话题被忽略的提示。
+ *
+ * 用 warning 色而不是 danger：话题没加上不是错误操作，
+ * 正文与其他话题都正常，只是这条被跳过。
+ */
+.pub__topic-tip {
+  margin: 0;
+  padding: 0 var(--ys-gutter-phone);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-warning);
+}
+
+.pub__topic-tip-name {
+  /* 被忽略的名字可能很长，折行而不是横向撑破 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/*
+ * 字数条（2026-10-21）：收进正文纸卡内，紧跟正文。
+ *
+ * 改版前它 padding 0 16px、自成一行，飘在正文与话题框之间 ——
+ * 离正文很远，看起来像「话题」的附注。收进纸卡并右对齐后，
+ * 语义明确：这是「你现在写的这段字」的计数。
+ */
 .pub__count {
   margin: 0;
-  padding: 0 var(--ys-space-4);
+  padding: var(--ys-space-1) 0 0;
   font-size: var(--ys-text-xs);
   color: var(--ys-meta);
   text-align: right;
@@ -153,7 +212,7 @@
 
 .pub__count-tip {
   margin: 0;
-  padding: 0 var(--ys-space-4);
+  padding: 0;
   font-size: var(--ys-text-sm);
   color: var(--ys-danger);
   text-align: right;
@@ -193,16 +252,58 @@
 }
 
 /*
-  视频格式提示:占满整行(flex-wrap 让它单独一行),位于按钮上方。
-  配色用 --ys-meta(次要灰),不抢主操作;桌面端随 .pub__foot 限宽居中。
+  视频格式提示（2026-10-21 改成按需展开）。
+
+  【为什么不再占满整行】它原来是 flex:1 0 100% 常驻在吸底栏上方 ——
+  那是屏幕上最显眼的位置，却用一整行 10.5px 灰字讲一个 99% 用户不需要的规则。
+  现在只是一枚小按钮，与「添加图片」并列；展开后的说明才占整行。
+
+  order:-1 保留：展开时它仍排在按钮上方，不会把操作按钮挤下去。
 */
 .pub__hint {
-  flex: 1 0 100%;
+  flex: 0 0 auto;
   order: -1;
-  margin: 0 0 var(--ys-space-1);
+  margin: 0;
   font-size: var(--ys-text-xs);
   line-height: var(--ys-lh-xs);
   color: var(--ys-meta);
+}
+
+/* 展开态才需要占满整行 —— 长文案不该被挤在按钮旁边 */
+.pub__hint:has(.pub__hint-text) {
+  flex: 1 0 100%;
+  margin-bottom: var(--ys-space-1);
+}
+
+.pub__hint-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  cursor: pointer;
+}
+
+/* 「?」圆圈：14px，与圈子发帖里那枚完全同形 */
+.pub__hint-q {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--ys-border-control);
+  border-radius: 50%;
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+.pub__hint-text {
+  display: block;
+  margin-top: 4px;
 }
 
 .pub__upload {
@@ -226,7 +327,14 @@
   background: var(--ys-surface-2);
 }
 
-/* 发布主按钮:全圆角胶囊(A 方向主动作语言,与 GreetButton 同形) */
+/*
+ * 发布主按钮:全圆角胶囊(A 方向主动作语言,与 GreetButton 同形)。
+ *
+ * disabled 态（2026-10-21 改）：原来是 opacity:0.5，青底半透明后变成一只
+ * 灰绿色的按钮 —— 看起来像「加载失败/坏掉了」，而不是「还不能点」。
+ * 现在换成中性底 + 明确描边 + 低对比字色：一眼能读出「未激活」，
+ * 且与激活态的青色形成清晰的层级差。
+ */
 .pub__submit {
   flex: 1;
   max-width: 200px;
@@ -241,11 +349,14 @@
   cursor: pointer;
   transition:
     background-color var(--ys-motion-fast) var(--ys-ease-out),
-    opacity var(--ys-motion-instant) var(--ys-ease-out);
+    border-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
 .pub__submit:disabled {
-  opacity: 0.5;
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border);
+  color: var(--ys-meta);
   cursor: default;
 }
 
@@ -257,14 +368,28 @@
     padding-right: var(--ys-gutter-desktop);
   }
 
+  /*
+   * 这一段给「占满整行的文本块」补左右内边距，让它们与 .pub__bar 的文字对齐。
+   *
+   * 【2026-10-21 把 .pub__hint 移出这一组】它现在是一枚 92px 宽的小按钮，
+   * 不是占满整行的文本块。继续给它加 gutter 内边距，会让它在弹性行里
+   * 被推得与左边图标对不齐（实测左边缘 32px vs 图标 16px）。
+   * 展开后的说明文字仍然需要这层内边距 —— 那部分由 .pub__hint-text 自己管。
+   */
   .pub__label,
-  .pub__count,
   .pub__count-tip,
   .pub__chips,
   .pub__err,
-  .pub__hint {
+  .pub__topic-tip {
     padding-left: var(--ys-gutter-desktop);
     padding-right: var(--ys-gutter-desktop);
+  }
+
+  /* 纸卡与 label-group 在桌面端按 desktop gutter 缩进 */
+  .pub__paper,
+  .pub__label-group {
+    margin-left: var(--ys-gutter-desktop);
+    margin-right: var(--ys-gutter-desktop);
   }
 
   .pub__editor :deep(.el-textarea__inner),
@@ -301,19 +426,27 @@
   }
 
   /*
-   * A 方向(2026-10-15):桌面端把「正文 + 话题」包成一张白纸卡。
-   * 原来是表单一根到底:label、输入框、计数器直接坐在灰底上,
-   * 页面下方拖几百 px 空白(用户截图第 3 张的问题)。
-   * 成卡之后:书写区是有边界的一块「纸」,高度也放大到 280px,
-   * 桌面端写长动态不用在 180px 的小窗里憋。
+   * 桌面端（2026-10-21 调整）：卡片的主体从 .pub__body 挪到 .pub__paper。
+   *
+   * 移动端现在也是纸卡，如果桌面端还让 .pub__body 整体成卡，
+   * 就会变成「卡里套卡」——外层卡片 + 内层纸卡，两层边框叠在一起。
+   * 所以桌面端只负责 .pub__body 的定位与间距，卡片观感交给 .pub__paper，
+   * 两端共用同一份纸张样式。
    */
   .pub__body {
-    background: var(--ys-surface);
-    border: 1px solid var(--ys-border);
-    border-radius: var(--ys-radius-2xl);
-    box-shadow: var(--ys-shadow-1);
     padding: var(--ys-space-6) 0 var(--ys-space-5);
     margin-top: var(--ys-space-6);
+    /* 不再画卡片：背景/边框/圆角/阴影都归 .pub__paper */
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  /* 桌面端纸卡不需要移动端那层水平 margin（.pub__body 已限宽居中） */
+  .pub__paper {
+    margin-left: 0;
+    margin-right: 0;
+    padding: var(--ys-space-4) var(--ys-space-4) var(--ys-space-3);
   }
 
   .pub__editor :deep(.el-textarea__inner) {

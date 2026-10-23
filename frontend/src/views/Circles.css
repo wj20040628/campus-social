@@ -1,11 +1,10 @@
 /*
   Circles.vue 的样式。
-
-  移动端是单列全宽行(设计 §1.1);桌面端恢复卡片网格。
-  形态切换全部由媒体查询承担,模板里不为形态写分支。
+  手机单列行 / 桌面卡片网格,形态差异在 CircleRow.vue 的媒体查询里,
+  这里只管页面骨架:工具条、分组头、尾部、抽屉。
 */
 
-/* ---------------- 工具条 ---------------- */
+/* ---------------- 工具条(C11-C13/C19) ---------------- */
 .circles__tools {
   display: flex;
   align-items: center;
@@ -14,11 +13,17 @@
   margin: 0 auto var(--ys-space-2);
 }
 
-.circles__search {
+/* 搜索框外壳:输入框内的清空 ✕ 需要一个定位上下文 */
+.circles__searchbox {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+.circles__search {
+  width: 100%;
   min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-3);
+  padding: 0 36px 0 var(--ys-space-3);
   border: 1px solid var(--ys-border-control);
   border-radius: var(--ys-radius-full);
   background: var(--ys-surface);
@@ -34,32 +39,27 @@
   outline: none;
 }
 
-.circles__search-go,
-.circles__search-clear {
-  flex: none;
-  /* min-width 不是多余的:375px 实测「搜」这个按钮 37x44,高度够但宽度差 7px。
-     单字按钮在 xs 字号下宽度只有 37,AC-15 要的是 44x44 的正方形热区。 */
-  min-width: var(--ys-touch-min);
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-3);
+/* 清空 ✕ 收在输入框内(C13):不占行内位置,按钮含义不跳 */
+.circles__search-x {
+  position: absolute;
+  top: 50%;
+  right: var(--ys-space-2);
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
   border: 0;
+  border-radius: var(--ys-radius-full);
   background: none;
-  font-family: var(--ys-font-body);
   font-size: var(--ys-text-sm);
-  color: var(--ys-accent);
+  color: var(--ys-meta);
   cursor: pointer;
 }
 
-.circles__search-clear {
-  color: var(--ys-muted);
+.circles__search-x:hover {
+  color: var(--ys-fg-2);
 }
 
-.circles__search-go:disabled {
-  color: var(--ys-meta);
-  cursor: not-allowed;
-}
-
-/* 创建入口:列表非空时唯一的创建路径,不能只在空态里给 */
+/* 创建入口:全页唯一(C12),带文字 */
 .circles__create {
   flex: none;
   display: inline-flex;
@@ -73,17 +73,13 @@
   color: var(--ys-accent-on);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-sm);
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
 .circles__create:hover {
   background: var(--ys-accent-hover);
-}
-
-/* 手机端只留 44x44 图标:搜索框 + 按钮在 375px 下会把输入框挤到装不下字 */
-.circles__create-text {
-  display: none;
 }
 
 .circles__skeleton {
@@ -104,15 +100,14 @@
   border: 0;
 }
 
-.circles-inner {
+/* ---------------- 分组(我的 / 发现) ---------------- */
+.circles__group {
   max-width: 900px;
   margin: 0 auto;
-  padding: 0 var(--ys-gutter-phone);
 }
 
-/* 分组头。移动端才需要 —— 桌面端不分组 */
 .circles__group-head {
-  display: none;
+  display: flex;
   align-items: baseline;
   gap: var(--ys-space-2);
   margin: 0;
@@ -123,185 +118,80 @@
   color: var(--ys-fg-2);
 }
 
-.circles__group {
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-/*
-  移动端两个入口按钮(我创建的 / 我加入的)。
-  卡片式:暖米 surface + 1px 暖描边 + 圆角 + 轻影,与桌面端圈子卡片同一套语言(A 方向)。
-  桌面端这两张按钮隐藏(模板里 v-if 已经按 isMobile 门控)。
-*/
-.circles__entries {
-  max-width: 900px;
-  margin: 0 auto var(--ys-space-4);
-  padding: 0 var(--ys-gutter-phone);
-  display: flex;
-  flex-direction: column;
-  gap: var(--ys-space-3);
-}
-
-.entry {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-3);
-  width: 100%;
-  min-height: 64px;
-  padding: 0 var(--ys-space-4);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-xl);
-  background: var(--ys-surface);
-  color: var(--ys-fg);
-  font-family: var(--ys-font-body);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color var(--ys-motion-fast) var(--ys-ease-out),
-    box-shadow var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.entry:hover {
-  border-color: var(--ys-accent);
-  box-shadow: 0 0 0 3px var(--ys-accent-soft);
-}
-
-.entry__title {
-  flex: 1;
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-}
-
-.entry__count {
-  font-family: var(--ys-font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--ys-meta);
-}
-
-.entry__caret {
-  color: var(--ys-meta);
-}
-
-/* 视图展开/收起:淡入上移(用户拍板,150ms 级别),不闪不跳 */
-.circles-view-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-.circles-view-enter-active {
-  transition:
-    opacity 150ms var(--ys-ease-out),
-    transform 150ms var(--ys-ease-out);
-}
-
-.circles-view-leave-active {
-  transition: opacity 120ms var(--ys-ease-out);
-}
-
-.circles-view-leave-to {
-  opacity: 0;
-}
-
-/* 分组头里的「← 返回」按钮(移动端展开列表时出现):把当前列表退回到入口按钮组 */
-.circles__group-back {
-  flex: none;
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-2);
-  border: none;
-  background: transparent;
-  color: var(--ys-accent);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
-  cursor: pointer;
-}
-
-.circles__group-back:hover {
-  color: var(--ys-accent-hover);
-}
-
-/* 分组标题(与计数一起居左,返回按钮在更左) */
 .circles__group-title {
   font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg-2);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
 }
 
-/* 空分组时的一句话:比渲染空列表友好 */
-.circles__group-empty {
-  margin: 0;
-  padding: var(--ys-space-4) 0;
-  font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
-  text-align: center;
-}
-
+/* 计数用后端 total / 分组真实条数,等宽数字防跳动 */
 .circles__group-count {
   font-family: var(--ys-font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--ys-meta);
 }
 
-@media (min-width: 1024px) {
-  .circles-inner {
-    padding: 0 var(--ys-gutter-desktop);
-  }
-  /* 桌面端工具条与列表容器拉宽到 1320:
-     4 个圈子排 1 行 4 个(用户已拍板),1280 视口下侧栏挤占,容器实际 ~1011、
-     每卡 241px 显窄("别太窄")。放宽到 1320:1280 视口每卡 ~310px、1440 下 ~320px,
-     圈子名 1 行装得下,下方「全部圈子」节奏统一。 */
-  .circles__tools {
-    max-width: 1320px;
-  }
-  .circles__group-head {
-    display: flex;
-  }
-  /* 桌面端工具条有整行宽度,「创建圈子」把文字放回来(设计 §2) */
-  .circles__create-text {
-    display: inline;
-  }
-  .circles__create {
-    padding: 0 var(--ys-space-4);
-  }
-  /* 桌面端:移动端入口按钮/「← 返回」按钮隐藏;三个分组头(我创建的/我加入的/全部圈子)直显,
-     分组容器也拉宽到 1320,与全部圈子的 4 列网格对齐 */
-  .circles__entries,
-  .circles__group-back {
-    display: none;
-  }
-  .circles__group {
-    max-width: 1320px;
-  }
+.circles__group-meta {
+  color: var(--ys-muted);
 }
 
-/*
-  桌面端从行式切回卡片网格。
-  移动端的单列由 .crow 自身撑满,这里只负责 >=1024px 的网格。
-*/
+/* C15:换一批(发现段)。文字按钮,不抢标题的视觉重量 */
+.circles__group-swap {
+  margin-left: auto;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+.circles__group-swap:hover {
+  color: var(--ys-accent-hover);
+}
+
+/* ---------------- 分组空态(C14:给出口) ---------------- */
+.circles__empty {
+  padding: var(--ys-space-5) var(--ys-space-4);
+  text-align: center;
+}
+
+.circles__empty-t {
+  margin: 0 0 var(--ys-space-1);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.circles__empty-p {
+  margin: 0 0 var(--ys-space-4);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.circles__empty-b {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-5);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  color: var(--ys-accent);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.circles__empty-b:hover {
+  background: var(--ys-accent-soft);
+}
+
+/* ---------------- 列表与尾部(C2) ---------------- */
 .circle-rows {
   max-width: 900px;
   margin: 0 auto;
-}
-
-@media (min-width: 1024px) {
-  .circle-rows {
-    display: grid;
-    /*
-      1 行 4 个:用户拍板"改成一行放 4 个" + 卡片统一大小 + 别太窄。
-      容器 1320px,1280 视口下每张卡 ~310px,4 列 4 个一排,
-      下方「全部圈子」自然收尾。圈子变多(>4)往下换行成 4 列网格。
-      ≥1536 视口容器封顶 1320,卡片 ~320,不再更宽。
-    */
-    max-width: 1320px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--ys-space-4);
-  }
-}
-
-@media (min-width: 1536px) {
-  .circle-rows {
-    max-width: 1320px;
-  }
 }
 
 .sentinel {
@@ -354,8 +244,7 @@
 
 /* ------------------------------------------------------------------
    创建圈子抽屉(移动端全屏)
-   用原生元素而不是 el-form:抽屉里只有一个字段,
-   el-form 的 label/error 布局在这个尺寸下反而是负担。
+   用原生元素而不是 el-form:抽屉里只有一个字段。
    ------------------------------------------------------------------ */
 
 .circles-drawer :deep(.el-drawer__body) {
@@ -365,7 +254,6 @@
 .create {
   display: flex;
   flex-direction: column;
-  /* 100% 高度抽屉:吸底主按钮要能贴到安全区上沿 */
   height: 100%;
 }
 
@@ -432,7 +320,6 @@
   border-radius: var(--ys-radius-md);
   background: var(--ys-surface);
   font-family: var(--ys-font-body);
-  /* 16px:iOS Safari 下<16px 的输入聚焦会缩放整页 */
   font-size: var(--ys-text-md);
   color: var(--ys-fg);
 }
@@ -480,4 +367,40 @@
   background: var(--ys-surface-2);
   color: var(--ys-meta);
   cursor: not-allowed;
+}
+
+/* ---------------- 桌面 ---------------- */
+@media (min-width: 1024px) {
+  /*
+    C19:搜索框限宽,不占满 1080px 整行。
+    与「创建圈子」一起靠左,右侧留白给内容,不塞进输入框。
+  */
+  .circles__tools {
+    max-width: 1320px;
+    justify-content: flex-start;
+  }
+
+  .circles__searchbox {
+    flex: 0 1 480px;
+    max-width: 480px;
+  }
+
+  .circles__create {
+    padding: 0 var(--ys-space-4);
+  }
+
+  .circles__group,
+  .circle-rows {
+    max-width: 1320px;
+  }
+
+  /*
+    4 列卡片网格:1280 视口下每卡 ~310px(容器 1320,侧栏挤占后实际 ~1011)。
+    圈子变多往下换行成 4 列;>=1536 容器封顶 1320,卡片不再更宽。
+  */
+  .circle-rows {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ys-space-4);
+  }
 }

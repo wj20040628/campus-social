@@ -9,6 +9,36 @@
           <el-tag :type="actStatusTag(act.status)">{{ actStatusText(act.status) }}</el-tag>
           <span>名额 {{ act.capacity === 0 ? '不限' : act.currentCount + ' / ' + act.capacity }}</span>
         </div>
+
+        <!--
+          名额进度（2026-10-21 加）。
+          原来只有「3 / 10」一串数字，要自己算还剩几个；
+          一条进度条 + 一句「还剩 7 个名额」让人一眼判断还来不来得及。
+          capacity=0 表示不限名额，此时不画进度条（没有分母）。
+        -->
+        <div v-if="act.capacity > 0" class="a-quota">
+          <div class="a-quota__row">
+            <span class="a-quota__n ys-num">{{ act.currentCount }}</span>
+            <span class="a-quota__t">/ {{ act.capacity }} 人已报名</span>
+            <!--
+              右侧那句话按活动状态分流（2026-10-21 修）。
+              原来只判了 status!==4（已取消），于是**已结束/进行中**的活动
+              也会出现「还剩 N 个名额」—— 报名通道早就关了，这句话是错的，
+              会让人以为自己还能报。现在只在「报名中」才谈剩余。
+            -->
+            <span v-if="act.status === 4" class="a-quota__state">活动已取消</span>
+            <span v-else-if="act.status === 3" class="a-quota__state">活动已结束</span>
+            <span v-else-if="act.status === 2" class="a-quota__state">已开始</span>
+            <span v-else-if="remainCount > 0" class="a-quota__left">
+              还剩 {{ remainCount }} 个名额
+            </span>
+            <span v-else class="a-quota__full">名额已满</span>
+          </div>
+          <div class="a-quota__bar">
+            <span class="a-quota__fill" :style="{ width: quotaPct + '%' }" />
+          </div>
+        </div>
+
         <div class="a-time">
           <el-icon><Calendar /></el-icon>
           <div class="a-time-box">
@@ -23,11 +53,52 @@
           </div>
         </div>
 
+        <!--
+          参加的人（2026-10-21 新增）。
+          【为什么要有】改版前这里只有一个数字，报了名不知道同去的是谁 ——
+          而这类活动常是线下见面，「知道谁去」直接影响来不来、也关系到安全。
+          用 chip 而不是列表：多数活动 3~10 人，chip 更紧凑；
+          超过 12 人折叠成「+N」，点开看完整名单。
+        -->
+        <div v-if="signups.length" class="a-signed">
+          <div class="a-signed__h">
+            <span class="a-signed__t">参加的人</span>
+            <span class="a-signed__n">{{ signups.length }} 人</span>
+            <button
+              v-if="signups.length > CHIP_LIMIT"
+              type="button"
+              class="a-signed__more"
+              @click="showAllSignups = !showAllSignups"
+            >
+              {{ showAllSignups ? '收起' : `看全部 ${signups.length} 人` }}
+            </button>
+          </div>
+          <div class="a-signed__list">
+            <span
+              v-for="s in visibleSignups"
+              :key="s.userId"
+              class="a-chip"
+              :class="{ 'a-chip--me': s.isMe }"
+            >
+              <span class="a-chip__av">
+                <img v-if="s.avatarUrl" :src="resolveThumb(s.avatarUrl)" alt="" />
+                <template v-else>{{ (s.nickname || '匿').slice(0, 1) }}</template>
+              </span>
+              <span class="a-chip__n">{{ s.nickname }}</span>
+            </span>
+            <span v-if="!showAllSignups && hiddenCount > 0" class="a-chip a-chip--more">
+              +{{ hiddenCount }}
+            </span>
+          </div>
+        </div>
+
         <el-divider />
 
         <div class="a-actions">
           <template v-if="act.signedUp">
             <el-tag type="success">已报名</el-tag>
+            <!-- 已报名的提示：原来只有一枚「已报名」标签，用户不知道接下来还会发生什么 -->
+            <span class="a-actions__hint">你的名字已出现在上面</span>
             <el-button v-if="canCancel" type="danger" plain @click="onCancel">取消报名</el-button>
           </template>
           <template v-else>
@@ -40,6 +111,7 @@
               立即报名
             </el-button>
             <el-text v-if="!act.canSignup" type="info">{{ signupBlockedReason(act) }}</el-text>
+            <span v-else class="a-actions__hint">报名后你的名字会出现在上面</span>
           </template>
           <el-button
             v-if="isCreator && act.status !== 4"
@@ -63,9 +135,11 @@ import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { Calendar, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import { resolveThumb } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
 import {
   activityDetail,
+  activitySignups,
   signup as signupApi,
   cancelSignup,
   closeActivity,
@@ -77,6 +151,29 @@ const userStore = useUserStore()
 const myId = computed(() => userStore.userInfo?.id)
 const act = ref(null)
 const signing = ref(false)
+
+/** 报名者名单（2026-10-21 新增）。与 act 分开存：名单拉失败不影响活动本体渲染 */
+const signups = ref([])
+/** 超过 12 人先折叠，点「看全部」展开 */
+const CHIP_LIMIT = 12
+const showAllSignups = ref(false)
+
+const visibleSignups = computed(() =>
+  showAllSignups.value ? signups.value : signups.value.slice(0, CHIP_LIMIT),
+)
+
+const hiddenCount = computed(() => Math.max(0, signups.value.length - CHIP_LIMIT))
+
+const remainCount = computed(() => {
+  if (!act.value || !(act.value.capacity > 0)) return 0
+  return Math.max(0, act.value.capacity - act.value.currentCount)
+})
+
+/** 进度条百分比。分母固定且 >0（capacity=0 时不渲染这条），所以不用担心除零 */
+const quotaPct = computed(() => {
+  if (!act.value || !(act.value.capacity > 0)) return 0
+  return Math.min(100, Math.round((act.value.currentCount / act.value.capacity) * 100))
+})
 
 const isCreator = computed(
   () => !!act.value && !!act.value.creatorId && act.value.creatorId === myId.value
@@ -113,6 +210,12 @@ function signupBlockedReason(a) {
 
 async function load() {
   act.value = await activityDetail(route.params.id)
+  // 名单单独拉：它失败不该让整个页面进错误态（活动本体已经拿到了）
+  try {
+    signups.value = (await activitySignups(route.params.id)) || []
+  } catch {
+    signups.value = []
+  }
 }
 
 async function onSignup() {
@@ -157,62 +260,5 @@ async function onCloseActivity() {
 onMounted(load)
 </script>
 
-<style scoped>
-/*
- * 变量纪律(2026-10-15):原写法混用 --el-* 与 --card-radius。
- * --el-* 虽经 Bridge 最终指向 --ys-*,但业务代码直接写违反
- * design-tokens.css 头部硬规则 2;--card-radius 是 tokens.css 的
- * 兼容垫片,新代码一律直接写 --ys-*(Profile.css 有过因此踩直角的历史)。
- */
-.adetail-inner {
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 20px;
-}
-.adetail-inner .el-card {
-  border-radius: var(--ys-radius-xl);
-}
-.a-title { font-size: 22px; font-weight: 700; }
-.a-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 12px 0;
-}
-.a-time {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--ys-surface-2);
-  border-radius: var(--ys-radius-lg);
-  padding: 12px 16px;
-  color: var(--ys-fg);
-}
-.a-time .el-icon {
-  font-size: 22px;
-  color: var(--ys-accent);
-}
-.a-time-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-}
-.a-time-k {
-  display: inline-block;
-  width: 32px;
-  margin-right: 8px;
-  font-size: 12px;
-  color: var(--ys-meta);
-}
-.a-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-}
-/* A 方向:主动作按钮统一胶囊(与全站 CTA 同形) */
-.a-actions :deep(.el-button) {
-  border-radius: var(--ys-radius-full);
-}
-</style>
+<style scoped src="./ActivityDetail.css"></style>
+

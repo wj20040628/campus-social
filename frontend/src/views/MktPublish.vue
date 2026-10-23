@@ -1,39 +1,81 @@
 <template>
   <div class="mpub">
     <!--
-      顶栏:ownTop(路由 meta)—— 返回 + 标题 + 提交。
+      顶栏:ownTop(路由 meta) —— 返回 + 标题。
       手机/桌面同构:本页不做 el-drawer/el-dialog 双壳,是独立发布页。
       编辑模式(?id=)标题变「编辑活动」,隐藏时长选择。
+
+      【2026-10-21 去掉顶栏提交按钮】改版前这里有个 .mpub__submit（文案「发布」），
+      它和吸底的 .mpub__foot-btn（文案「发布活动」）绑的是**同一个 submit 函数** ——
+      同一屏两个提交入口、文案还不一致，用户会怀疑「点上面那个是不是不完整」。
+      现在顶栏只留标题，提交只走吸底那一个（键盘弹起时也够得着）。
     -->
     <header class="mpub__bar">
       <button type="button" class="mpub__back" aria-label="返回" @click="goBack">
         <el-icon :size="20"><ArrowLeft /></el-icon>
       </button>
       <h1 class="mpub__title">{{ isEdit ? '编辑活动' : '发布活动' }}</h1>
-      <button
-        type="button"
-        class="mpub__submit"
-        :disabled="submitting"
-        @click="submit"
-      >
-        {{ submitting ? (isEdit ? '存中' : '发中') : (isEdit ? '保存' : '发布') }}
-      </button>
+      <!-- 占位：与左侧返回按钮等宽，让标题真正居中 -->
+      <span class="mpub__bar-spacer" aria-hidden="true" />
     </header>
 
     <div class="mpub__body">
-      <MktPublishForm :form="form" :is-edit="isEdit" label-position="top" />
+      <!-- 2026-10-21：表单已不用 el-form，label 布局由 MktPublishForm 内部掌控 -->
+      <MktPublishForm :form="form" :is-edit="isEdit" />
+
+      <!--
+        桌面端右栏（2026-10-21 加，仅 ≥1280px 显示）。
+        实测内容列 720px、1512 视口下右侧 500px 整片空白。
+        这里放三块，全部是**静态/本地计算**的内容，不新增接口：
+          发布须知 —— 说明流程与规则
+          卡片预览 —— 发布前看看自己的活动在广场上长什么样
+          安全提示 —— 与详情页/留言区同一套口径
+      -->
+      <aside class="mpub__aside" aria-label="发布须知">
+        <section class="panel">
+          <h2 class="panel__h"><span class="panel__sq" aria-hidden="true"></span>发布须知</h2>
+          <p class="panel__tip">
+            <b>先选分类再写详情</b>，详情里把时间、地点、费用说清楚。<br />
+            <b>投放最长 12 小时</b>，到期自动下架，可重新激活。
+          </p>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__h"><span class="panel__sq" aria-hidden="true"></span>卡片会长这样</h2>
+          <div class="pvcard">
+            <span class="pvcard__cat">{{ previewCategory }}</span>
+            <p class="pvcard__title">{{ previewTitle }}</p>
+            <p class="pvcard__cont">{{ previewContent }}</p>
+            <p class="pvcard__meta">
+              <span>{{ previewLocation }}</span>
+              <span v-if="previewPrice">{{ previewPrice }}</span>
+              <span v-if="form.targetNum > 0">目标 {{ form.targetNum }} 人</span>
+            </p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__h"><span class="panel__sq" aria-hidden="true"></span>安全提示</h2>
+          <p class="panel__tip">
+            <b>不要写手机号、微信号</b>，沟通只在平台留言区。<br />
+            涉及金钱请当面结清，<b>拒绝转账</b>。
+          </p>
+        </section>
+      </aside>
     </div>
 
-    <!-- 吸底提交栏:手机键盘弹起时仍可达 -->
+    <!-- 吸底提交栏:手机键盘弹起时仍可达，也是**唯一**的提交入口 -->
     <div class="mpub__foot">
-      <button
-        type="button"
-        class="mpub__foot-btn"
-        :disabled="submitting"
-        @click="submit"
-      >
-        {{ submitting ? '提交中…' : (isEdit ? '保存修改' : '发布活动') }}
-      </button>
+      <div class="mpub__foot-row">
+        <button
+          type="button"
+          class="mpub__foot-btn"
+          :disabled="submitting"
+          @click="submit"
+        >
+          {{ submitting ? '提交中…' : (isEdit ? '保存修改' : '发布活动') }}
+        </button>
+      </div>
       <SafeArea position="bottom" />
     </div>
   </div>
@@ -49,7 +91,7 @@
  * 编辑模式(?id=):拉 detail 预填,隐藏时长选择(编辑不改 expire_time),
  * 提交走 editMkt(仅文案字段)。计划 §编辑语义。
  */
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ElMessage } from '@/utils/feedback'
@@ -75,6 +117,8 @@ function goBack() {
 const form = reactive({
   category: '',
   subTag: '',
+  /* 标题（2026-10-21 补）：可留空，留空时后端 derivedTitle 用「分类 · 游戏」兜底 */
+  title: '',
   content: '',
   launchHours: 6,
   customHours: null,
@@ -92,9 +136,53 @@ function clearErrors() {
   form.categoryError = form.contentError = form.durError = form.error = ''
 }
 
+/* ---------------- 右栏「卡片预览」（2026-10-21 加） ---------------- */
+/**
+ * 发布前预览。
+ *
+ * 集市卡片的展示结构比较特殊（分类 chip + 标题 + 内容 + 地点/价格/人数 + 倒计时），
+ * 用户填的时候看不到成品长什么样，发出去才发现「分类选错」「内容写太长被截断」。
+ * 这里用当前表单值实时拼一个与广场卡片同构的预览，**纯前端计算，不发请求**。
+ */
+const previewCategory = computed(() => form.category || '未选分类')
+
+/**
+ * 标题预览。
+ * 后端 derivedTitle() 的逻辑是：有 subTag 就拼成「分类 · 游戏」，否则只用分类。
+ * 预览跟着这个规则走，让用户看到的就是真实结果。
+ */
+const previewTitle = computed(() => {
+  if (!form.category) return '（还没选分类）'
+  return form.subTag ? `${form.category} · ${form.subTag}` : form.category
+})
+
+/** 内容预览：卡片上是单行截断的，这里截 40 字示意 */
+const previewContent = computed(() => {
+  const t = form.content.trim()
+  if (!t) return '（详情还没写）'
+  return t.length > 40 ? `${t.slice(0, 40)}…` : t
+})
+
+const previewLocation = computed(() => form.location.trim() || '地点未填')
+
+/** 价格：0 显示免费，与卡片同一口径 */
+const previewPrice = computed(() => {
+  if (!form.price) return '免费'
+  return `¥${Number(form.price)}`
+})
+
 /** 自填时长覆盖快捷选项;范围 1–12 */
+/**
+ * 生效时长：自填优先，否则用快捷选项。
+ *
+ * 2026-10-21：`??` 只对 null/undefined 生效，0 会被当成「有效值」返回 0，
+ * 进而让 validate 报「投放时长填 1–12 小时」—— 但用户只是把自填框清空或点了减号到 0。
+ * 现在把 0 与负数也视为「没填自填」，回落到 launchHours。
+ */
 const effectiveHours = () => {
-  const h = form.customHours ?? form.launchHours
+  const raw = form.customHours
+  const hasCustom = raw != null && Number.isFinite(Number(raw)) && Number(raw) > 0
+  const h = hasCustom ? Number(raw) : form.launchHours
   return Number.isFinite(Number(h)) ? Number(h) : null
 }
 
@@ -133,6 +221,7 @@ async function submit() {
       await mkt.editMkt(editId.value, {
         category: form.category,
         subTag: form.subTag || null,
+        title: form.title.trim() || null,
         content: form.content.trim(),
         targetNum: form.targetNum,
         price: form.price,
@@ -149,6 +238,7 @@ async function submit() {
       const id = await mkt.createMkt({
         category: form.category,
         subTag: form.subTag || null,
+        title: form.title.trim() || null,
         content: form.content.trim(),
         targetNum: form.targetNum,
         price: form.price,
@@ -173,6 +263,9 @@ onMounted(async () => {
     const d = await mkt.mktDetail(editId.value)
     form.category = d.category
     form.subTag = d.subTag || ''
+    // 编辑时回填标题；若库里的 title 是派生出来的（等于「分类 · 游戏」），
+    // 回填成空串更诚实 —— 否则用户会以为那条是自己写的标题。
+    form.title = d.title && d.title !== d.mainText ? d.title : ''
     form.content = d.content
     form.targetNum = d.targetNum ?? 0
     form.price = d.price ?? 0
@@ -184,106 +277,4 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.mpub {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.mpub-inner {
-  max-width: 720px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-/* 顶栏:自绘(ownTop),返回 + 标题 + 提交 */
-.mpub__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ys-space-3);
-  min-height: var(--ys-topbar-h);
-  padding: 0 var(--ys-gutter-phone);
-  border-bottom: 1px solid var(--ys-border);
-}
-
-.mpub__back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--ys-touch-min);
-  min-height: var(--ys-touch-min);
-  border: 0;
-  background: none;
-  color: var(--ys-fg-2);
-  cursor: pointer;
-}
-
-.mpub__title {
-  flex: 1;
-  margin: 0;
-  font-size: var(--ys-text-lg);
-  font-weight: var(--ys-weight-semibold);
-  text-align: center;
-  color: var(--ys-fg);
-}
-
-.mpub__submit {
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-3);
-  border: 0;
-  background: none;
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-accent);
-  cursor: pointer;
-}
-
-.mpub__submit:disabled { color: var(--ys-meta); cursor: not-allowed; }
-
-.mpub__body {
-  flex: 1;
-  padding: var(--ys-space-4) var(--ys-gutter-phone);
-}
-
-@media (min-width: 1024px) {
-  .mpub__body {
-    padding: var(--ys-space-6) var(--ys-gutter-desktop);
-    max-width: 720px;
-    margin: 0 auto;
-  }
-}
-
-/* 吸底提交栏:手机键盘弹起仍可达 */
-.mpub__foot {
-  padding: var(--ys-space-3) var(--ys-gutter-phone);
-  padding-top: 0;
-  border-top: 1px solid var(--ys-border);
-  background: var(--ys-surface);
-}
-
-.mpub__foot-btn {
-  width: 100%;
-  min-height: var(--ys-touch-min);
-  border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.mpub__foot-btn:hover { background: var(--ys-accent-hover); }
-
-.mpub__foot-btn:disabled {
-  border-color: var(--ys-border-control);
-  background: var(--ys-surface-2);
-  color: var(--ys-meta);
-  cursor: not-allowed;
-}
-</style>
+<style scoped src="./MktPublish.css"></style>

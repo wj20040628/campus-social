@@ -43,45 +43,104 @@
   }
 }
 
-/* 品牌区:设计要求「嘤其鸣矣，求其友声」这句在,
-   它是产品名的出处,不是装饰文案 */
+/*
+ * 品牌区（2026-10-21 改版 B：印鉴 + 左对齐）。
+ *
+ * 【为什么从「居中两行字」改成「印鉴 + 左对齐」】
+ * 原来只有一行 30px 的「友声」和一行副句，整页第一眼落不到任何东西上 ——
+ * 用户看到的第一屏是一串表单字段，没有任何东西告诉他这是哪个产品。
+ *
+ * 印鉴方块里就一个「友」字，用系统字体渲染：不需要任何图片资源，
+ * 也不会因为字体/网络问题变成空框 —— 用字而不是图标，
+ * 字体缺失时最多变丑，图标缺失会直接消失。
+ *
+ * 登录页与注册页共用这一段（共三处品牌区：登录、忘记密码、注册）。
+ */
 .auth-brand {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--ys-space-1);
+  gap: var(--ys-space-3);
   margin-bottom: var(--ys-space-6);
+}
+
+.auth-brand__seal {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--ys-radius-lg);
+  display: grid;
+  place-items: center;
+  /* 主色到深主色的轻微渐变：让它像一枚有厚度的章，而不是一块平色 */
+  background: linear-gradient(145deg, var(--ys-accent), var(--ys-accent-hover));
+  color: var(--ys-accent-on);
+  font-size: 19px;
+  font-weight: var(--ys-weight-semibold);
+  line-height: 1;
+  box-shadow: 0 3px 9px rgba(14, 116, 144, 0.28);
+  user-select: none;
+}
+
+/* 文字竖排两块：产品名上、出处下，与印鉴垂直居中 */
+.auth-brand__txt {
+  min-width: 0;
 }
 
 .auth-brand__name {
   margin: 0;
-  font-size: var(--ys-text-3xl);
-  line-height: var(--ys-lh-3xl);
-  /* 30px 是展示字号,用最紧的字距 */
-  letter-spacing: var(--ys-ls-3xl);
+  font-size: var(--ys-text-2xl);
+  line-height: 1.25;
+  letter-spacing: var(--ys-ls-2xl);
   font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
 }
 
 .auth-brand__slogan {
-  margin: 0;
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
+  margin: 1px 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
   color: var(--ys-muted);
 }
 
-/* 表单区字段间距:设计要求 20px = --ys-space-5 */
+/* 表单区字段间距。20px 是原设计值，注册页分了卡片后由 .reg-card 承担分组，
+   这里收到 16px：2 张卡 × 4 个字段，每处省 4px 就能把提交按钮推进首屏。 */
 .auth-card :deep(.el-form-item) {
-  margin-bottom: var(--ys-space-5);
+  margin-bottom: var(--ys-space-4);
 }
 
 /* label 在上(设计 §1.1 label-position="top"),13px/500 */
 .auth-card :deep(.el-form-item__label) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding-bottom: var(--ys-space-1);
   font-size: var(--ys-text-sm);
   line-height: var(--ys-lh-sm);
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg-2);
+}
+
+/*
+ * 必填标记（2026-10-21 改）。
+ *
+ * 【为什么换掉 Element Plus 的默认星号】它渲染成一个裸 `*`，
+ * 颜色是正文色 rgb(74,64,51) —— 既不是红也不够显眼，
+ * 挂在「邮箱」后面像标签的一部分，而不像「这项必填」的标记。
+ *
+ * 现在换成 5px 圆点：暖橙（--ys-accent-2）表示必填，
+ * 与项目里「未填/未选」的提示色同一族，但不会红到像报错。
+ *
+ * EP 的默认星号是 .el-form-item__label 的 ::before 伪元素，
+ * 这里直接覆盖它的样式而不是隐藏后另加元素 —— 少一层 DOM，也不会与
+ * label 的文字节点错位。
+ */
+.auth-card :deep(.el-form-item.is-required .el-form-item__label::before) {
+  content: '';
+  width: 5px;
+  height: 5px;
+  margin-right: 0;
+  border-radius: 50%;
+  background: var(--ys-accent-2);
+  flex: none;
 }
 
 /* 44px 触控热区 */
@@ -103,11 +162,23 @@
   color: var(--ys-danger);
 }
 
-/* 主按钮:全圆角胶囊(A 方向主动作语言,与 GreetButton/发布钮同形) */
+/*
+ * 主按钮：全圆角胶囊（A 方向主动作语言，与 GreetButton/发布钮同形）。
+ *
+ * 【投影只加在可用态】EP 的 disabled 态会把背景调成半透明主色，
+ * 此时如果还留着投影，会变成「一块发光的淡色块」，看起来像可点的。
+ * 所以 :not(.is-disabled) 才给投影 —— 这也是「能不能按」的第二个视觉线索
+ * （第一个是颜色深浅）。
+ */
 .auth-submit {
   width: 100%;
   min-height: var(--ys-touch-min);
   border-radius: var(--ys-radius-full);
+  font-weight: var(--ys-weight-semibold);
+}
+
+.auth-submit:not(.is-disabled):not(:disabled) {
+  box-shadow: 0 3px 12px rgba(14, 116, 144, 0.24);
 }
 
 /* 验证码行:输入 flex:1 + 按钮最小宽 104px,一行两列 */
@@ -193,6 +264,31 @@
 .auth-legal__sep {
   margin: 0 var(--ys-space-1);
   color: var(--ys-meta);
+}
+
+/*
+ * 行内文字按钮（「忘记密码？」等）。
+ *
+ * 【为什么提到这里】它原先只在 ForgotPasswordForm.vue 的 scoped 样式里定义，
+ * 而 Login.vue 的「忘记密码？」用的是同一个 .link-btn 类 ——
+ * scoped 样式到不了那边，于是登录页上它渲染成浏览器默认的灰色方块按钮，
+ * 夹在「去注册 · 忘记密码？」这一行里非常突兀（实测截图确认）。
+ * 三个页面都要用同一个外观，就该放在共享的 Auth.css 里。
+ */
+.link-btn {
+  border: 0;
+  background: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ys-accent);
+  font-size: var(--ys-text-sm);
+  line-height: var(--ys-lh-sm);
+  font-family: var(--ys-font-body);
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  color: var(--ys-accent-hover);
 }
 
 /* 协议名做成行内文字链接：重置浏览器默认按钮样式，accent 色 + 下划线表明可点 */

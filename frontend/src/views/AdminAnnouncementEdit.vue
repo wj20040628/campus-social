@@ -36,10 +36,16 @@
         />
       </div>
 
-      <!-- 区 2:分类 -->
-      <fieldset class="ed__sec">
-        <legend class="ed__label">分类</legend>
-        <div class="ed__chips" role="radiogroup" aria-label="公告分类">
+      <!--
+        区 2:分类。
+        2026-10-21:从 <fieldset>/<legend> 换成 div + 3×2 网格，两个原因：
+          1. fieldset 的 UA 默认边框会露出来（CSS 里那段 border:0 之前漏了）
+          2. 390px 下 6 个 chip 横排会折成「5 + 1」，「其他」孤零零挂第二行
+        网格在手机上两行整齐 6 个，桌面端同样整齐。
+      -->
+      <div class="ed__sec">
+        <span class="ed__label" id="ed-cat-label">分类</span>
+        <div class="ed__cgrid" role="radiogroup" aria-labelledby="ed-cat-label">
           <button
             v-for="c in CATEGORY_CHIPS.slice(1)"
             :key="c.value"
@@ -53,7 +59,7 @@
             {{ c.label }}
           </button>
         </div>
-      </fieldset>
+      </div>
 
       <!-- 区 3:正文 -->
       <div class="ed__sec">

@@ -21,6 +21,14 @@
         @click="pickStatus(s.value)"
       >
         {{ s.label }}
+        <!--
+          计数（2026-10-21 加）。
+          改版前四个 chip 只有文字，管理员看不出「还有几条草稿没发、几条下架了待处理」，
+          必须逐个点进去数。加上计数后，筛选条本身就成了概况。
+          只在已加载数据里统计（列表 20 条一页），未翻完时数字会偏小 ——
+          所以用 muted 弱化，它是个提示而非权威总数。
+        -->
+        <span v-if="countOf(s.value) > 0" class="chip__n ys-num">{{ countOf(s.value) }}</span>
       </button>
     </div>
 
@@ -150,6 +158,25 @@ const actionError = ref('')
 const busyId = ref(null)
 
 const list = computed(() => all.value)
+
+/**
+ * 各状态下的条数（2026-10-21 加），供筛选 chip 显示计数。
+ *
+ * 只在**已加载的 all[]** 里统计：列表是 20 条一页的游标分页，
+ * 未翻完时数字偏小。所以模板里用 muted 弱化，它是「提示」不是「权威总数」；
+ * 真要精确总数得后端在 adminList 里一并下发各状态 count。
+ *
+ * @param {number|null} v STATUS_CHIPS 的值；null = 全部
+ */
+function countOf(v) {
+  if (v == null) return all.value.length
+  return all.value.filter((a) => a.status === v).length
+}
+
+/** 待处理条数：草稿 + 已下架（两者都需要管理员动作） */
+const pendingCount = computed(
+  () => all.value.filter((a) => a.status === 0 || a.status === 2).length,
+)
 
 /* ---- 「谁还没看」面板状态 ---- */
 const {

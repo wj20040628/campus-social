@@ -54,8 +54,18 @@
         所以不加 key,只去 mode。
       -->
       <Transition :name="dir > 0 ? 'slide-left' : 'slide-right'">
-        <StepTags
+        <!--
+          2026-10-21 新增第 1 步：学校归属 + 学号认证。
+          放在最前面，因为它决定后续功能可用范围（未认证不能发私信/建圈子/
+          加圈子/发集市），用户越早知道越不会在点击时被拦。
+        -->
+        <StepVerify
           v-if="step === 1"
+          @verified="onVerified"
+        />
+
+        <StepTags
+          v-else-if="step === 2"
           :groups="tagGroups"
           :picked="tagIds"
           :loading="tagLoading"
@@ -90,21 +100,28 @@
 
       <div class="ob__foot-row">
         <span v-if="step === 1" class="ob__foot-meta">
-          已选 {{ tagIds.length }} 个(至少 {{ minSelect }} 个)
+          学号可不填，稍后也能认证
         </span>
         <span v-else-if="step === 2" class="ob__foot-meta">
+          已选 {{ tagIds.length }} 个（至少 {{ minSelect }} 个）
+        </span>
+        <span v-else-if="step === 3" class="ob__foot-meta">
           已关注 {{ userIds.length }} 人 · 已加入 {{ circleIds.length }} 个圈子
         </span>
 
-        <!-- 第 1 步:可「跳过」进下一步,或「一键跳过」直接进首页 -->
+        <!--
+          第 1 步（认证）没有「跳过」：跳过就等于保持未认证，
+          用户照样能用（能浏览、能发帖），只是四类动作被限制。
+          与其给一个「跳过」按钮，不如让「保存归属但不填学号」自然成为跳过。
+        -->
         <button
-          v-if="step === 1"
+          v-if="step === 2"
           type="button"
           class="ob__skip"
           @click="finish"
         >跳过</button>
         <button
-          v-if="step === 1"
+          v-if="step === 2"
           type="button"
           class="ob__skip ob__skip--all"
           @click="onSkip"
@@ -142,6 +159,7 @@ import { TOTAL_STEPS, SCHOOLS } from '@/constants/schoolDict'
 import { useOnboardingData, toggleIn } from '@/composables/useOnboardingData'
 import { useOnboardingFlow } from '@/composables/useOnboardingFlow'
 import SafeArea from '@/components/mobile/SafeArea.vue'
+import StepVerify from '@/components/onboarding/StepVerify.vue'
 import StepTags from '@/components/onboarding/StepTags.vue'
 import StepFollow from '@/components/onboarding/StepFollow.vue'
 
@@ -179,12 +197,17 @@ const {
 } = useOnboardingData(() => goto(3))
 
 /**
- * 当前步能否提交。第 1 步由子组件暴露的 valid 决定(它要问 SchoolFields
- * 三个下拉都选上没有);第 3 步恒为 true —— openapi 说 followUserIds 可为空。
+ * 当前步能否前进。
+ *
+ * 2026-10-21 三步（认证 → 标签 → 关注）：
+ *   第 1 步：由 StepVerify 组件内部控制提交，外壳的「下一步」恒可用 ——
+ *            用户可以不填学号直接走（那就是「先浏览、后认证」的路径）
+ *   第 2 步：兴趣标签需选满最少数量
+ *   第 3 步：恒为 true（openapi 说 followUserIds 可为空）
  */
 const canAdvance = computed(() => {
-  // 第 1 步(兴趣标签)需选满最少数量才可前进;第 2 步(关注/圈子)恒可前进
-  if (step.value === 1) return tagIds.value.length >= minSelect.value
+  if (step.value === 1) return true
+  if (step.value === 2) return tagIds.value.length >= minSelect.value
   return true
 })
 
@@ -218,27 +241,43 @@ function pickCircle(id) {
   toggleIn(circleIds.value, id)
 }
 
-/** 供 StepTags 的「跳过」回调:拉推荐并跳到第 2 步(关注/圈子) */
+/** 供 StepTags 的「跳过」回调:拉推荐并跳到第 3 步(关注/圈子) */
 function finish() {
   loadRecommend()
-  goto(2)
+  goto(3)
+}
+
+/**
+ * 认证结果回调（2026-10-21 新增，来自 StepVerify）。
+ *
+ * 只做一件事：刷新 userInfo。
+ * 因为「已认证 / 审核中」会改变全站的可用范围（提示条消失、入口解禁），
+ * 而 userInfo 是那些判断的唯一来源 —— 不刷新的话用户回到首页仍看到旧状态。
+ * 不在这里跳到下一步：用户可能想先改归属再重填学号，让他自己点「下一步」。
+ */
+async function onVerified() {
+  try {
+    await userStore.fetchMe()
+  } catch {
+    /* 静默：本地旧值只让提示条多显示一次，不影响功能 */
+  }
 }
 
 /* ---------------- 返回手势拦截(AC-18) ---------------- */
 
 /**
- * 第 1 步拦截系统返回(安卓物理键 / iOS 边缘手势):
- * 弹一次提示并**把历史记录补回去**,否则用户连按几次返回就把引导页退掉了。
- * 实现方式:pushState 一个哨兵,popstate 时再 push 回去。
+ * 系统返回拦截（安卓物理键 / iOS 边缘手势）：
+ * 第 1 步拦截并**把历史记录补回去**，否则用户连按几次返回就把引导页退掉了；
+ * 第 2/3 步允许正常返回上一步。
  */
 function onPopState() {
   if (step.value > 1) {
     // 第 2/3 步允许正常返回上一步
-    if (step.value === 3) goto(2)
+    goto(step.value - 1)
     return
   }
   history.pushState(null, '', location.href)
-  ElMessage({ message: '先选几个兴趣标签,马上就好', type: 'info' })
+  ElMessage({ message: '先完成校内认证，或点「下一步」跳过', type: 'info' })
 }
 
 onMounted(() => {

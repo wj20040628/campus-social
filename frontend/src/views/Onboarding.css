@@ -107,10 +107,22 @@
   padding: 0 var(--ys-space-4);
 }
 
+/*
+ * 左侧说明文字。
+ *
+ * 【min-width:0 不能省】它与 .ob__primary 都是 flex:1 —— 两个 flex:1 平分剩余宽度。
+ * 没有 min-width:0 时，这段文字会被内容撑到比可用宽度还宽，
+ * 把右侧按钮挤成一条缝并折行（实测 390px 下「下一步」与说明文字重叠）。
+ * nowrap + ellipsis 保证它永远只占一行，宁可省略也不挤压主按钮。
+ */
 .ob__foot-meta {
   flex: 1;
+  min-width: 0;
   font-size: var(--ys-text-sm);
   color: var(--ys-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ob__primary {

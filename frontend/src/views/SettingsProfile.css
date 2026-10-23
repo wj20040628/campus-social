@@ -294,3 +294,22 @@
   /* 桌面不用通栏大按钮:限宽靠左,和表单左边线对齐 */
   .sp-savebar { max-width: 280px; }
 }
+
+/*
+ * 「添加兴趣」按钮热区（2026-10-21）。
+ * .sp-chip 是兴趣标签的通用样式（28px 高，多数是不可点的展示标签），
+ * 所以加在 --add 这一档上，不影响纯展示的那些。
+ */
+.sp-chip--add {
+  position: relative;
+}
+
+.sp-chip--add::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+}

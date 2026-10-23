@@ -1,11 +1,156 @@
 /* Announcement.vue 的样式,抽离到外部文件以控制单文件行数。 */
+
+/*
+ * 外层容器（2026-10-21 加）。
+ *
+ * 移动端：单列，与改版前观感一致（外层不产生任何视觉）。
+ * 桌面端 >=1280px：变双栏，主列 640px + 右栏 270px。
+ *   加右栏的直接原因：1440 窗口下主列只有 640px，右侧 800px 整片空白，
+ *   观感像「页面没做完」。公告列表本身不需要更宽（一行 30-38 字最易读），
+ *   所以补的是**信息**而不是把列表拉长。
+ */
+.ann-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * 右栏基础态（移动端隐藏）。
+ *
+ * 移动端不显示：那里屏幕宽度就是内容宽度，加右栏只能变成内容下方第二块，
+ * 反而把「看公告」这条主线打断。
+ *
+ * 【声明顺序】这条必须写在 @media (min-width:1280px) 的**前面**。
+ * CSS 同优先级下「后写者胜」：改版时我把这段放在媒体查询之后，
+ * 于是 `.ann-aside { display:none }` 覆盖了媒体查询里的 `display:flex`，
+ * 桌面端右栏整块不渲染（实测 asideDisplay="none"、width=0）。
+ */
+.ann-aside {
+  display: none;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  min-height: 0;
+}
+
+@media (min-width: 1280px) {
+  .ann-wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, var(--ys-content-col)) 270px;
+    gap: var(--ys-space-6);
+    justify-content: center;
+    align-items: start;
+    /* 与首页同款：两列各自滚动，容器不滚 */
+    box-sizing: border-box;
+    height: calc(100dvh - 57px - 72px);
+    overflow: hidden;
+  }
+
+  /* 主列自己滚 */
+  .ann-page {
+    height: 100%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .ann-page::-webkit-scrollbar {
+    width: 0;
+  }
+
+  /* 右栏显示：这条在 .ann-aside 基础态之后，后写者胜 */
+  .ann-aside {
+    display: flex;
+  }
+}
+
+.panel {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.panel__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+.panel__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.panel__row + .panel__row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.panel__row b {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.75;
+  color: var(--ys-muted);
+}
+
+.panel__tip b {
+  color: var(--ys-fg-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+.panel__hint {
+  margin: 0;
+  padding: var(--ys-space-2) 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
 .ann-page {
+  /*
+   * 2026-10-21 修横向溢出（真机实测确认的 bug）。
+   *
+   * 改版前只有 max-width，缺 width:100% 与 min-width:0：
+   *   .ann-page 是 MainLayout 里 .content 的 flex 子项，
+   *   而 flex 子项的默认 min-width 是 auto（= 不小于内容最小宽度）。
+   *   列表里出现一条长数字/长 URL 时，卡片被内容顶到 388px，
+   *   再叠 .content 的 16px 左右 padding → 右边界到 405px，
+   *   而视口只有 390px —— 右侧圆角被裁、卡片贴到屏幕外沿。
+   *
+   * width:100% 让它按容器宽度走；min-width:0 去掉那个隐含下限，
+   * 长内容才会老实折行（配合 .ann-item__title 的 overflow-wrap）。
+   */
+  width: 100%;
+  min-width: 0;
   max-width: var(--ys-content-col);
   margin: 0 auto;
   background: var(--ys-surface);
   border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-2xl);
   overflow: hidden;
+  /* 桌面端双栏时本列要能自己滚 */
+  min-height: 0;
 }
 
 .unread-bar {
@@ -39,14 +184,44 @@
   border-radius: var(--ys-radius-lg);
 }
 
+/*
+ * 分类 chip 横滑条。
+ *
+ * 2026-10-21：7 个分类（全部/教务/后勤/活动/社团/紧急/其他）在 390px 下只放得下
+ * 5 个多，「紧急」「其他」完全在屏幕外，而横滑条**没有任何可滑的暗示** ——
+ * 用户不知道还有两档分类。手机上「看不见 = 不存在」。
+ *
+ * 修法：两侧加渐隐遮罩（mask-image），让最边上那个 chip 呈现「被切了一半」的
+ * 半透明效果，这是横向可滑动的通用视觉语言。不用滚动条：iOS 上滚动条本来就
+ * 默认隐藏，加了也看不见。
+ *
+ * mask 只在「确实溢出」时才有意义，但 CSS 无法条件判断 —— 所以两侧都加，
+ * 内容没溢出时遮罩落在空白区，不产生可见影响（滚动容器左右没有内容）。
+ */
 .chips {
   display: flex;
   gap: var(--ys-space-2);
-  /* 横滑到屏幕边缘,让 chip 视觉上贴边 */
   padding: 0 var(--ys-space-4) var(--ys-space-3);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  /*
+   * 右侧渐隐：提示「还能往右滑」。12px 渐隐宽度刚好让最后一个 chip 的
+   * 描边淡出，形成被切一半的观感。
+   */
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 16px), transparent 100%);
+}
+
+/*
+ * 滚动到最右端时取消右侧渐隐 —— 否则「到底了」也会一直显示可滑暗示，
+ * 用户会反复往右滑却滑不动。
+ * 用现代 CSS 的 animation-timeline 不现实（兼容性差），
+ * 改由 JS 在 scroll 时打 .is-end 类（见 Announcement.vue）。
+ */
+.chips.is-end {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .chips::-webkit-scrollbar {
@@ -87,6 +262,17 @@
   color: var(--ys-warning);
 }
 
+.group {
+  /*
+   * 2026-10-21 加：网格/块容器里的分组也要能收窄。
+   * .ann-page 已经是 grid 的子项并设了 min-width:0，
+   * 但它内部的 .group 仍是普通块 —— 长内容（超长标题、长 URL）
+   * 会把 .group 顶宽，进而顶破 .ann-page 的滚动容器。
+   * 桌面端实测 .ann-item 672px > .ann-page 642px 就是这么来的。
+   */
+  min-width: 0;
+}
+
 .group__head {
   display: flex;
   align-items: center;
@@ -118,4 +304,44 @@
 .more-hint--end {
   color: var(--ys-meta);
   cursor: default;
+}
+
+/*
+ * 列表尾部（2026-10-21）。
+ *
+ * 改版前一律显示「没有更多了」。但实测：只有 1 条公告时，页面上出现的
+ * 是一句孤零零的「没有更多了」+ 下面 529px 全空 —— 既占掉半屏，
+ * 又答非所问（不是「没有更多」，是「这一类本来就少」）。
+ *
+ * 现在分两种：
+ *   .tail--few  条数很少（<= 3）→「这一类只有 N 条」+ 换分类的出口
+ *   .tail--end  真正翻完了 →「没有更多了」
+ */
+.tail {
+  text-align: center;
+  padding: var(--ys-space-5) var(--ys-space-4) var(--ys-space-6);
+}
+
+.tail__t {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-meta);
+}
+
+.tail__act {
+  margin-top: var(--ys-space-2);
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.tail__act:hover {
+  background: var(--ys-accent-soft);
 }

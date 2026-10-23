@@ -128,3 +128,33 @@
     gap: var(--ys-space-4);
   }
 }
+
+/* ---------------- 处置弹层的「处理说明」必填标记（2026-10-21） ---------------- */
+/*
+ * 理由见 AdminFeedback.vue 模板里的注释：handleNote 为空时确认按钮是 disabled 的，
+ * 而原来界面上没有任何地方说明这件事 —— 管理员会对着一个灰按钮发呆。
+ */
+.af__note-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-3) 0 var(--ys-space-1);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+}
+
+/* 「必填」用暖橙：与全站「未填/未选」的提示色同一族，但不到红色的报错程度 */
+.af__req {
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-accent-2);
+}
+
+/* 说明会发给谁 —— 这句话比「必填」更重要，管理员据此决定措辞 */
+.af__note-hint {
+  margin-left: auto;
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-regular);
+  color: var(--ys-meta);
+}

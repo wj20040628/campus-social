@@ -5,7 +5,8 @@
         设置页(/settings):2026-10-18 改版为「分类首页」。
         - 首页 = 个人卡(进编辑资料) + 四个分类入口 + 深色模式快捷开关 + 退出
         - 陌生人消息开关搬去 /settings/privacy(隐私设置)
-        - 我的审核记录弹层搬去导航抽屉(全局入口,不再只属于设置页)
+        - 我的审核记录弹层 2026-10-20 从导航抽屉搬回本页:被审过才有记录,
+          是全站最低频的入口之一,不该占抽屉中段还独立占一个分组标题
         - 管理后台入口保留在本页:手机端管理员没有侧栏,这里是唯一入口,
           拿掉会让管理员在手机上失去后台(桌面有 SideNav 不受影响)
       -->
@@ -90,22 +91,25 @@
         </div>
       </el-card>
 
-      <!-- 深色模式快捷开关:高频项外露,通用设置里也有同一开关(共享 useTheme) -->
+      <!--
+        我的审核记录(2026-10-20 从抽屉搬回)。
+        放在分类入口之后、深色模式之前:它既不是设置项也不是高频入口,
+        只是「我的历史」,靠后但和内容相关的位置最合适。
+      -->
       <el-card class="settings__group">
-        <div class="set-row set-row--switch">
-          <span class="set-row__icon"><el-icon :size="18"><Moon /></el-icon></span>
-          <span class="set-row__text">
-            <span class="set-row__label">深色模式</span>
-            <span class="set-row__desc">夜间刷校园动态更护眼,切换即时生效,刷新不丢</span>
-          </span>
-          <el-switch
-            :model-value="isDark"
-            aria-label="深色模式开关"
-            style="--el-switch-on-color: var(--ys-accent)"
-            @change="toggleTheme"
-          />
+        <div class="set-row set-row--link">
+          <button type="button" class="set-row__btn" @click="openReview">
+            <span class="set-row__icon"><el-icon :size="18"><Tickets /></el-icon></span>
+            <span class="set-row__text">
+              <span class="set-row__label">我的审核记录</span>
+              <span class="set-row__desc">看自己发过的动态和评论审到哪一步了</span>
+            </span>
+            <el-icon class="set-row__chevron"><ArrowRight /></el-icon>
+          </button>
         </div>
       </el-card>
+
+      
 
       <!-- 退出登录:危险项 -->
       <el-card class="settings__group settings__group--danger">
@@ -128,6 +132,13 @@
         <button type="button" class="asheet__item" @click="goAdmin('/admin/circles')">圈子处置</button>
         <button type="button" class="asheet__item" @click="goAdmin('/admin/feedback')">意见反馈</button>
       </ActionSheet>
+
+      <!-- 我的审核记录弹层:从抽屉整体搬来,懒加载 /review/mine,拉过不重复 -->
+      <ActionSheet v-model="reviewOpen" title="我的审核记录" height="70vh">
+        <div v-if="reviewLoading" class="review-empty">加载中…</div>
+        <MyReviewBlock v-else-if="reviewList.length" :list="reviewList" />
+        <div v-else class="review-empty">还没有审核记录</div>
+      </ActionSheet>
     </div>
   </div>
 </template>
@@ -138,19 +149,21 @@
  * - 个人卡进编辑资料(/profile);四个分类入口进二级页
  * - 深色模式快捷开关外露(与 /settings/general、桌面顶栏下拉共享 useTheme 单例)
  * - 管理后台 ActionSheet 保留:手机端管理员没有侧栏,这里是唯一入口
- * - 陌生人消息开关在 /settings/privacy;审核记录弹层在导航抽屉
+ * - 陌生人消息开关在 /settings/privacy;审核记录弹层 2026-10-20 从抽屉搬回本页
  */
 import {
-  ArrowRight, Bell, Hide, InfoFilled, Lock, Moon, Operation, Setting, SwitchButton,
+  ArrowRight, Bell, Hide, InfoFilled, Lock, Moon, Operation, Setting, SwitchButton, Tickets,
 } from '@element-plus/icons-vue'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { me as meApi } from '@/api/auth'
+import { mine as myReviewApi } from '@/api/review'
 import { useUserStore } from '@/stores/user'
 import { useSettings } from '@/composables/useSettings'
 import { useTheme } from '@/composables/useTheme'
 import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -166,6 +179,28 @@ const avatarFallback = computed(() => {
   const n = userStore.userInfo?.nickname
   return n ? String(n).slice(0, 1) : '友'
 })
+
+/* ---- 我的审核记录(2026-10-20 从抽屉搬回,懒加载,拉过不重复) ---- */
+const reviewOpen = ref(false)
+const reviewList = ref([])
+const reviewLoading = ref(false)
+
+function openReview() {
+  reviewOpen.value = true
+  if (reviewList.value.length) return
+  reviewLoading.value = true
+  myReviewApi(null, 50)
+    .then((data) => {
+      reviewList.value = (data?.list || []).filter(Boolean)
+    })
+    .catch(() => {
+      // 拉不到就展示空态,不在设置页弹 toast —— 这是增强信息,不是主流程
+      reviewList.value = []
+    })
+    .finally(() => {
+      reviewLoading.value = false
+    })
+}
 
 onMounted(async () => {
   try {

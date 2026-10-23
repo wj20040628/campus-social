@@ -17,54 +17,116 @@
   }
 }
 /*
- * >=1280px 双栏:主栏自适应 + 右栏 var(--ys-aside-w)(320px,token 里
- * 早就定义但一直没页面用,这次首页第一个用上)。1280 写字面量:
- * 没有 postcss-custom-media 时 @media(--ys-bp-xl) 会被浏览器静默丢弃,
- * 值取自 design-tokens.json 的 breakpoint.xl。
+ * >=1280px 双栏:主栏 + 右栏。
+ *
+ * 2026-10-21 重做（宽屏实测暴露的问题）：
+ *
+ * 【问题】此前 max-width 写死 1024px，主栏写死 588px、右栏 320px。
+ * 到 1920px 宽屏上实测：.home-inner 只有 1064px 宽，左右各空 318px，
+ * 内容被挤在中间一条窄带里 —— 观感是「飘在中间」，而不是「一屏内容」。
+ *
+ * 【为什么不把主栏拉宽】主栏 588px 是为了中文每行 30-38 字（易读区间，
+ * 与 --ys-content-col 的 640 同一考量）。窗口变宽就拉宽正文，行长会
+ * 一路涨到 50+ 字，读起来眼睛要来回扫 —— 这是把「填满」误当成「更好」。
+ *
+ * 【解法】主栏宽度固定（保证行长），**容器上限放宽**并整体居中：
+ * 宽屏上左右留白变大是正常的，不是缺陷（知乎/掘金/V2EX 都是窄正文列）。
+ * 关键是让「左右留白对称」，而不是让内容贴边或飘在一侧。
+ * 上限 1180px = --ys-container-max，与全站其它页面的容器口径一致。
  */
 @media (min-width: 1280px) {
-  .home-inner--wide { max-width: 1024px; display: grid; grid-template-columns: minmax(0, 1fr) var(--ys-aside-w); gap: var(--ys-space-6); align-items: start; }
-  .home-aside { position: sticky; top: var(--ys-space-6); }
+  .home-inner--wide {
+    max-width: var(--ys-container-max);
+    display: grid;
+    /*
+     * 两列都自适应，但都有上限：
+     *   主栏 minmax(0, 640px)  — 正文列上限 = --ys-content-col，保证行长
+     *   右栏 var(--ys-aside-w) — 320px 固定，右栏内容本来就是短行列表
+     * 剩余空间交给 justify-content:center 变成对称留白。
+     */
+    grid-template-columns: minmax(0, var(--ys-content-col)) var(--ys-aside-w);
+    justify-content: center;
+    gap: var(--ys-space-6);
+    /*
+     * 【盒模型】项目没有全局 box-sizing: border-box（默认 content-box），
+     * 所以下面这条 height **只算内容盒**，padding 会在它之外再加。
+     * 必须显式 border-box，否则：
+     *   height 893px + padding-top 20px = 实际占位 913px
+     *   再叠 .content 的顶边距 → 底边到 995px，视口 950px → 溢出 45px
+     * 这 45px 会撑出**页面级滚动条**，与主栏自己的滚动条并存，
+     * 表现为「右边出现两条滚动条、滚轮一滚公告被顶栏挡住」。这是本次修复的核心。
+     *
+     * 【高度算式】不能只减顶栏 —— 本组件位于 MainLayout 的 <main class="content"> 内部，
+     * 而 .content 在桌面端有 `padding: 24px 24px 48px`（上 24 / 下 48）。
+     * 所以可用高度是：
+     *   100dvh − 顶栏 57 − .content 上 padding 24 − .content 下 padding 48
+     * 实测只减 57 时：893 + 24 + 48 = 965 > 950，仍溢出 15px，页面照样出现滚动条。
+     * 下面用 72px（= 24 + 48）显式表达这部分，并在注释里锁住来源。
+     */
+    box-sizing: border-box;
+    /*
+     * 57 = 顶栏（--ys-topbar-h）；72 = .content 的上下 padding 之和（24 + 48）。
+     * 这三个值任一改动都要同步这里，否则页面级滚动条会重新出现。
+     */
+    height: calc(100dvh - 57px - 72px);
+    align-items: stretch;
+    /* 容器本身绝不滚动：滚动只发生在 .home-main / .home-aside 内部 */
+    overflow: hidden;
+    padding-top: var(--ys-space-5);
+    padding-bottom: 0;
+  }
+
+  /* 主栏自己滚：让右栏能贴着不动，两栏滚动互不牵连 */
+  .home-main {
+    min-height: 0;
+    overflow-y: auto;
+    /* 隐藏滚动条但保留滚动能力：主栏滚动条会挤掉内容宽度、且在暖色底上很脏 */
+    scrollbar-width: none;
+  }
+  .home-main::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  /*
+   * 右栏：整列吃满高度并独立滚动。
+   * 这是「右栏下方 1800px 空白」的正解 —— 不是给 .has 加 min-height
+   * （那样只是把空白涂成卡片色），而是让它成为一条独立滚动的侧列：
+   * 主栏滚到哪，右栏始终填满可视区，内容超出时右栏自己滚。
+   *
+   * 【盒模型】同样要 border-box。实测改前 .home-aside 的
+   * getBoundingClientRect().height = 918px，而单元格只有 894px ——
+   * 差的 24px 正是 padding-bottom，它被加在 height 之外，
+   * 于是右栏底部溢出容器 24px，再贡献一点页面级滚动。
+   * 改 border-box 后 height 含 padding，与单元格严丝合缝。
+   */
+  .home-aside {
+    box-sizing: border-box;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    /* 右栏内容不多时不需要滚动条；只有添加更多模块才会出现 */
+    scrollbar-width: thin;
+    scrollbar-color: var(--ys-border) transparent;
+    padding-bottom: var(--ys-space-4);
+  }
+  .home-aside::-webkit-scrollbar {
+    width: 6px;
+  }
+  .home-aside::-webkit-scrollbar-thumb {
+    background: var(--ys-border);
+    border-radius: 3px;
+  }
+  .home-aside::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
-/* 公告入口横幅:仅在移动端出现(桌面侧栏已有入口),宽度贴 home-inner,热区 ≥44px */
-.home-ann {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
-  width: 100%;
-  min-height: var(--ys-touch-min);
-  padding: var(--ys-space-2) var(--ys-space-4);
-  margin-bottom: var(--ys-space-3);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-surface-2);
-  color: var(--ys-fg-2);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-.home-ann:hover {
-  border-color: var(--ys-accent);
-  color: var(--ys-fg);
-}
-.home-ann__icon { flex: none; color: var(--ys-accent); }
-.home-ann__text {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  font-size: var(--ys-text-sm);
-  font-family: var(--ys-font-body);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.home-ann__chev {
-  flex: none;
-  font-size: 14px;
-  color: var(--ys-muted);
-}
-@media (min-width: 1024px) {
-  .home-ann { display: none; }
-}
+/*
+ * 公告入口横幅样式已移除（2026-10-21）。
+ * 手机端进公告列表的入口改由顶栏汉堡 → AppDrawer 提供：
+ * 抽屉导航里本来就有 { label: '公告', path: '/announcement' }，
+ * 首页再放一条横幅属于重复入口。
+ */
 .feed-tabs {
   margin-bottom: 8px;
 }
@@ -97,9 +159,28 @@
  * 搜索框 append 里的「搜索」按钮:375px 实测 60x32。
  * 它与输入框同行,输入框本身够高,但按钮自身只有 32px,拇指点它偏小。
  * 只给 min-height,宽度 60 已过线。
+ *
+ * 配色(2026-10-21):改白底 + 强调色字。
+ * 原来用 EP 默认 append 底(--el-fill-color),落到暖色体系就是 --ys-surface-2 #F4E9D8,
+ * 与页面底 #FBF3E9 几乎同色 —— 按钮看起来像禁用态,用户不知道能不能点。
+ * 现在用白底(与输入框同一张纸)+ 左侧一条分隔线划出按钮区 + 强调色文字,
+ * 既保持「同一张纸」的整体感,又让按钮明确可点。
  */
+.feed-search :deep(.el-input-group__append) {
+  background: var(--ys-surface);
+  border-left: 1px solid var(--ys-border-soft);
+  box-shadow: none;
+}
 .feed-search :deep(.el-input-group__append .el-button) {
   min-height: var(--ys-touch-min);
+  border: 0;
+  background: transparent;
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-semibold);
+}
+.feed-search :deep(.el-input-group__append .el-button:hover) {
+  color: var(--ys-accent-hover);
+  background: var(--ys-accent-soft);
 }
 .feed-tools {
   display: flex;
@@ -125,7 +206,8 @@
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  /* 14 → 12：卡片之间不再像「各自一屏」，同屏能多看到约 1/4 张卡 */
+  gap: 12px;
 }
 .skeleton-card {
   width: 100%;
