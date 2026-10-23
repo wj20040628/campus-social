@@ -45,25 +45,25 @@ public class NotifyServiceImpl implements NotifyService {
     @Transactional
     public void read(long notifyId, long userId) {
         notifyMapper.markRead(notifyId, userId);
-        // 同步未读计数:重算(简单)
-        Long unread = notifyMapper.selectCount(new LambdaQueryWrapper<Notify>()
-                .eq(Notify::getUserId, userId)
-                .eq(Notify::getIsRead, 0));
-        User u = userMapper.selectById(userId);
-        if (u != null) {
-            u.setUnreadNotifyCount(unread.intValue());
-            userMapper.updateById(u);
-        }
+        /*
+         * 未读数口径统一(2026-10-23 修,审查 P1-13):
+         * 旧写法是 selectCount 全量重算 → setUnreadNotifyCount → updateById 整行覆盖。
+         * 两个问题:①读到的 unread 可能早于另一条 +1 提交,回写把它抹掉;
+         * ②updateById 会把 follower_count 等无关计数一起写回,覆盖面过大。
+         * 改为单语句原子重算:读和写之间没有窗口,也不碰其它列。
+         */
+        userMapper.recomputeUnreadNotifyCount(userId);
     }
 
     @Override
     @Transactional
     public void readAll(long userId) {
-        int affected = notifyMapper.markAllRead(userId);
-        if (affected > 0) {
-            userMapper.clearUnreadNotifyCount(userId);
-        }
-        log.info("notify readAll: user={}, affected={}", userId, affected);
+        notifyMapper.markAllRead(userId);
+        // 无条件清零(2026-10-23 修,审查 P1-13):原先只在 affected>0 时清,
+        // 而计数漂移(红点亮着但已无未读行)时 affected=0 → 红点永远清不掉。
+        // markAllRead 本身幂等,清零同样幂等,不需要条件。
+        userMapper.clearUnreadNotifyCount(userId);
+        log.info("notify readAll: user={}", userId);
     }
 
     @Override

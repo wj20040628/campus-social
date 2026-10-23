@@ -71,6 +71,19 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE user SET unread_notify_count = 0, update_time = NOW() WHERE id = #{userId}")
     int clearUnreadNotifyCount(@Param("userId") Long userId);
 
+    /**
+     * 未读数原子重算(2026-10-23 加,审查 P1-13):一条 SQL 内 count + 写回,
+     * 不再「selectCount → setXxx → updateById 整行覆盖」。
+     *
+     * <p>旧写法的问题:读到的 unread 可能早于另一条 +1 提交,回写即把这个增量抹掉;
+     * 且 updateById 会把整行(含 follower/following 等计数)写回,覆盖面更大。
+     * 单语句子查询保证「读和写之间没有窗口」。
+     */
+    @Update("UPDATE user SET unread_notify_count = "
+            + "(SELECT COUNT(*) FROM notify n WHERE n.user_id = #{userId} AND n.is_read = 0 AND n.is_deleted = 0), "
+            + "update_time = NOW() WHERE id = #{userId}")
+    int recomputeUnreadNotifyCount(@Param("userId") Long userId);
+
     /** 对账:从 relation 表重算某用户的 follower_count / following_count */
     @Update("UPDATE user u SET " +
             "  follower_count = (SELECT COUNT(*) FROM relation r WHERE r.to_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
