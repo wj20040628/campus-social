@@ -1,0 +1,148 @@
+name: CI
+
+# ============================================================
+# 最小 CI(2026-10-23 加,审查报告 TD-10 / 「基础设施建议」):
+#   此前仓库没有任何 CI,后端测试红了 19 个也无人察觉 —— pre-push 钩子只跑前端门禁。
+#   本流水线把「后端编译 + 测试」和「前端构建 + 门禁」都跑起来。
+#
+# 说明:
+#   - 后端测试是 @SpringBootTest + @ActiveProfiles("local"),连真实 MySQL/Redis,
+#     所以用 service container;application-local.yml 不入库,由 env 注入等价配置。
+#   - 门禁脚本只跑正式脚本(run-all-gates.py 的 GATES 表),
+#     scripts/ 下的一次性 diag/shot 脚本已 gitignore,不参与。
+# ============================================================
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 后端编译 + 测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pw
+          MYSQL_DATABASE: campus_social_v2
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+          --character-set-server=utf8mb4
+          --collation-server=utf8mb4_0900_ai_ci
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 导入数据库基线
+        run: |
+          # schema.sql 现在是完整基线(37 张表);MySQL service 已建库
+          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw --default-character-set=utf8mb4 \
+            < sql/schema.sql
+          echo "表数:"
+          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw -N -e \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='campus_social_v2';"
+
+      - name: 编译
+        working-directory: backend
+        run: mvn -B -DskipTests compile
+
+      - name: 测试
+        working-directory: backend
+        env:
+          # 与 application.yml 的 ${ENV:默认} 占位符对应;local profile 文件不入库,
+          # 测试靠这些环境变量连上 service container
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: '3306'
+          MYSQL_USER: root
+          MYSQL_PASSWORD: ci_root_pw
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: '6379'
+          JWT_ACCESS_SECRET: ci-access-secret-please-replace-with-64-bytes-random-value-xxxxxxxx
+          JWT_REFRESH_SECRET: ci-refresh-secret-please-replace-with-64-bytes-random-value-yyyyyyyy
+          APP_MESSAGE_GATEWAY: dev
+          CAMPUS_EMAIL_DOMAIN_WHITELIST: campus.test
+          UPLOAD_DIR: ./uploads
+        run: mvn -B test
+
+      - name: 上传测试报告(失败时)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
+
+  frontend:
+    name: 前端构建 + 门禁
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: npm ci
+
+      - name: 门禁(10 条)
+        run: python3 scripts/run-all-gates.py
+
+      - name: 构建
+        working-directory: frontend
+        run: npm run build
+
+      - name: 首屏体积护栏(AC-17:JS < 300KB gzip)
+        working-directory: frontend
+        run: |
+          node -e '
+            const fs=require("fs"),path=require("path"),zlib=require("zlib");
+            let total=0;
+            const walk=d=>fs.readdirSync(d,{withFileTypes:true}).forEach(e=>{
+              const p=path.join(d,e.name);
+              if(e.isDirectory())return walk(p);
+              if(p.endsWith(".js")){total+=zlib.gzipSync(fs.readFileSync(p)).length}
+            });
+            walk("dist");
+            const kb=Math.round(total/1024);
+            console.log(`首屏 JS 合计 gzip: ${kb}KB`);
+            if(kb>300){console.error("超出 AC-17 预算 300KB");process.exit(1)}
+          '
