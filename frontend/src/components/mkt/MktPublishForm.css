@@ -1,0 +1,386 @@
+/*
+  MktPublishForm.vue 的样式,2026-10-21 重做。
+  外置原因:文件超 400 行门禁。
+
+  【设计基调】
+  一张卡承载全部字段，字段之间用 1px 细线分隔，而不是「每个字段一张带边框的卡」。
+  单值字段走「标签左 / 控件右」的行式布局 —— 这是设置类表单的通用语言，
+  也让同一张卡里的行高整齐，视觉上有秩序感。
+
+  省高度的策略换成**结构**（行式布局 + 合并说明行），
+  而不是压内边距和字号 —— 上一版把内边距压到 10px、标签压到 11px，
+  是「能一屏放下但看着像半成品」的直接原因。
+*/
+
+.mpf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  font-family: var(--ys-font-body);
+}
+
+/* ---------------------------------------------------------------- 主卡 */
+.mpf__card {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-2xl);
+  /*
+   * 内边距给足 16px：卡片本身的呼吸感靠它，行与行之间的紧凑靠分隔线，
+   * 两者不冲突。上一版把 padding 压到 10px 换高度，代价就是挤。
+   */
+  padding: var(--ys-space-4);
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * 行式字段：标签固定列宽 + 控件自适应。
+ * 用 grid 而不是 flex：标签列宽统一后，右侧所有控件的左边缘能严格对齐，
+ * 这是「看着整齐」的关键 —— flex 下标签宽度随文字变化，控件会参差不齐。
+ */
+.mpf__row {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ys-space-3);
+  /*
+   * 行高 48 → 44px（2026-10-21）。
+   * 44 是触控最小热区标准，48 是额外余量。五个行式字段各让 4px = 20px，
+   * 补上了手机端缺的高度，而 44px 依然合规，不牺牲可点性。
+   */
+  min-height: 44px;
+  padding: var(--ys-space-1) 0;
+}
+
+/* 行之间加分隔线（最后一行不加） */
+.mpf__row + .mpf__row,
+.mpf__row + .mpf__block,
+.mpf__block + .mpf__row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+/* 块式字段：标签单独一行，控件占满整行（详情、投放时长） */
+.mpf__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  /* 上下 12 → 8px：块式字段两个就省 16px */
+  padding: var(--ys-space-2) 0;
+}
+
+.mpf__block .mpf__k {
+  /* 块式标签不参与 grid 列宽，直接左对齐 */
+  text-align: left;
+}
+
+/* 标签 + 右侧小注释同一行（投放时长用） */
+.mpf__krow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+}
+
+/* 字段名 */
+.mpf__k {
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg-2);
+  line-height: 1.4;
+  /* 允许中文在窄列里折行而不是撑破 */
+  min-width: 0;
+}
+
+/* 必填星号：贴在字段名后面，与标签同色系偏红 */
+.mpf__req {
+  color: var(--ys-danger);
+  margin-left: 2px;
+}
+
+/* 字段名右侧的辅助说明（如「最长 12 小时」） */
+.mpf__knote {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* 控件默认吃满所在列 */
+.mpf__v {
+  width: 100%;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- 控件外观 */
+/*
+ * 统一输入框外观：40px 高、圆角 10px、暖白底。
+ * 40px 而不是 44px —— 4px 的差别在触控上感知不到（远大于苹果 44px 的
+ * 最小热区在设备像素下的实际容差），但六个控件能省 24px。
+ */
+.mpf :deep(.el-input__wrapper),
+.mpf :deep(.el-select__wrapper),
+.mpf :deep(.el-textarea__inner) {
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  box-shadow: 0 0 0 1px var(--ys-border) inset;
+}
+
+.mpf :deep(.el-input__wrapper),
+.mpf :deep(.el-select__wrapper) {
+  min-height: 40px;
+  padding: 0 var(--ys-space-3);
+}
+
+/*
+ * 输入框字号统一 16px（2026-10-21）。
+ *
+ * 【为什么必须是 16px】iOS Safari 在输入控件字体 < 16px 时，
+ * 聚焦会把整个页面放大，而且**不会自动缩回** —— 用户点进「价格」那一栏，
+ * 页面就再也回不到原尺寸，只能手动双击缩回。
+ * 实测这一页原来有 7 个控件是 13~14px（EP 默认值），全部会触发。
+ *
+ * 16px 是不触发自动缩放的下限。用 --ys-text-md（=16px）而不是写死数值，
+ * 桌面端的 tokens 覆盖会把它抬到 17/18px，文字更大但一样安全。
+ */
+.mpf :deep(.el-input__inner),
+.mpf :deep(.el-select__input),
+.mpf :deep(.el-textarea__inner) {
+  font-size: var(--ys-text-md);
+}
+
+/* 聚焦时边框换主色，与全站一致 */
+.mpf :deep(.el-input__wrapper.is-focus),
+.mpf :deep(.el-select__wrapper.is-focused),
+.mpf :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px var(--ys-accent) inset;
+}
+
+.mpf :deep(.el-textarea__inner) {
+  padding: var(--ys-space-2) var(--ys-space-3);
+  font-family: var(--ys-font-body);
+  line-height: 1.6;
+  color: var(--ys-fg);
+}
+
+/* 计数器挪到输入框右下角的留白里，不再单独占一行 */
+.mpf :deep(.el-input__count) {
+  position: absolute;
+  right: var(--ys-space-3);
+  bottom: 4px;
+  background: transparent;
+  font-size: 11px;
+  color: var(--ys-meta);
+}
+
+.mpf :deep(.el-input),
+.mpf :deep(.el-select) {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------- 时长 */
+/*
+ * 时长：4 个快捷按钮 + 自填输入框，同一行（2026-10-21）。
+ *
+ * 改版前是「按钮一行（4 等分）+ 自填另占一整行」，共两行约 92px。
+ * 现在用 flex 一行排完：四个按钮各占等分，自填框固定 92px。
+ * 358px 容器下：4 × 58px + 92px + 4 × 6px gap = 348px，正好放下。
+ * 「1h / 3h / 6h / 12h」用简写（原来写「1 小时」），58px 才放得下。
+ */
+.mpf__durs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.mpf__dur {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 2px;
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
+  position: relative;
+}
+
+.mpf__dur:hover {
+  background: var(--ys-surface-2);
+}
+
+/* 选中态：主色实底。四格同时只亮一个，指向明确 */
+.mpf__dur--on {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/*
+ * 自填输入框：作为第五个格子，固定宽 92px。
+ *
+ * 【必踩的坑】文件上方有一条通用规则
+ *   `.mpf :deep(.el-input) { width: 100%; }`
+ * 它会给所有 el-input 设 100% 宽。这里必须显式覆盖成固定宽，
+ * 否则自填框吃满整行，四个按钮被压成 6px 宽（实测过：按钮 w=6px）。
+ *
+ * 2026-10-21 改 el-input-number（带右侧上下箭头）：
+ * 宽度从 92 → 96px，右侧要给箭头留 22px，否则输入数字的位置只剩 40px，
+ * 输入「12」会被挤。
+ */
+.mpf__durs .mpf__custom {
+  flex: 0 0 96px;
+  width: 96px !important;
+  max-width: 96px;
+  min-width: 96px;
+}
+
+/* 与快捷按钮同高（40px），去掉默认外间距 */
+.mpf__custom :deep(.el-input__wrapper) {
+  min-height: 40px;
+  padding: 0 4px 0 6px;
+}
+
+.mpf__custom :deep(.el-input__inner) {
+  text-align: center;
+  /*
+   * 仍要 16px：这个控件虽然只有 96px 宽，但窄不改变 iOS 的判定 ——
+   * 只要 <16px 聚焦就会放大页面。字号小只会让它更难读，还多一个缩放的坑。
+   */
+  font-size: var(--ys-text-md);
+  padding: 0;
+}
+
+/*
+ * 右侧上下箭头：默认宽 22px、高度对半分。
+ * 原生的 el-input-number 控件是浅灰底，这里给它一点对比，
+ * 让「这里能点」这件事看得出来。
+ */
+.mpf__custom :deep(.el-input-number__decrease),
+.mpf__custom :deep(.el-input-number__increase) {
+  width: 22px;
+  background: var(--ys-surface-2);
+  border-left: 1px solid var(--ys-border);
+  color: var(--ys-fg-2);
+}
+
+.mpf__custom :deep(.el-input-number__decrease) {
+  border-bottom: 1px solid var(--ys-border);
+}
+
+.mpf__custom :deep(.el-input-number__decrease:hover),
+.mpf__custom :deep(.el-input-number__increase:hover) {
+  background: var(--ys-border-soft);
+  color: var(--ys-accent);
+}
+
+/* ---------------------------------------------------------------- 步进器 */
+/*
+ * 自绘 -/+ 放在输入框两侧，36px 方形热区。
+ *
+ * 为什么不用 el-input-number 的 controls-position="right"：
+ * 它在两列窄格里被压成 12px 宽的小箭头，手机上基本点不中（实测截图里就是两条细线）。
+ * 自绘后每个按钮 36×36，且左右对称，行式布局下正好用满。
+ */
+.mpf__stepper {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: stretch;
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  overflow: hidden;
+  background: var(--ys-surface);
+}
+
+.mpf__step {
+  min-height: 40px;
+  border: 0;
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.mpf__step:hover {
+  background: var(--ys-border-soft);
+}
+
+.mpf__step:active {
+  background: var(--ys-border);
+}
+
+/* 步进器中间的输入框：去掉自己的边框，交给外层容器画 */
+.mpf__stepper :deep(.el-input__wrapper) {
+  box-shadow: none;
+  border-radius: 0;
+  min-height: 40px;
+  padding: 0 var(--ys-space-2);
+}
+
+.mpf__stepper :deep(.el-input__inner) {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 2026-10-21：三个数字输入框已从 type="number" 改成 type="text"，
+ * 所以下面这些「隐藏原生上下箭头」的规则不再需要了 ——
+ * text 类型从根源上没有 spin button，也不用再为 Firefox 的
+ * -moz-appearance 单独补一条。留着它们只会让人误以为输入框还是 number。
+ */
+
+/* ---------------------------------------------------------------- 提示与错误 */
+/* 三个选填项的说明并成一行，省掉三行小字 */
+.mpf__note {
+  margin: var(--ys-space-3) 0 0;
+  padding-top: var(--ys-space-3);
+  border-top: 1px solid var(--ys-border-soft);
+  font-size: var(--ys-text-xs);
+  line-height: 1.6;
+  color: var(--ys-meta);
+}
+
+.mpf__err {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
+}
+
+.mpf__err--top {
+  margin-top: 0;
+}
+
+/* ---------------------------------------------------------------- 免责声明 */
+.mpf__disclaimer {
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+  color: var(--ys-muted);
+  font-size: var(--ys-text-xs);
+  line-height: 1.65;
+}
+
+/*
+ * 投放时长快捷按钮热区（2026-10-21）。
+ * 四个按钮 flex:1 平分，视觉 40px 高；外扩到 44 不改变等分布局。
+ */
+.mpf__dur::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}

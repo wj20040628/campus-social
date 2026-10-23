@@ -1,13 +1,21 @@
 /*
-  MktCard.vue 的样式,2026-10-15 外置(与 views/*.css 同一模式)。
-  选择器与规则原样搬迁。外置原因:MktCard.vue 317 行超 300 行门禁,
-  拆后回到约 137 行。
+  MktCard.vue 的样式，2026-10-21 按设计稿 docs/design/preview-mkt.html 重写。
+
+  【结构来源】设计稿的卡片是四段纵向结构：
+    .acard__h  顶行：分类徽章 + 副标签
+    .atitle    标题
+    .acont     内容预览
+    .ameta     地点 / 价格
+    .afoot     底部行：上分隔线 + 剩余时间（左）+ 目标人数（右）
+  倒计时从顶行挪到底部 —— 顶行在手机两列（173px）下放不下「分类+副标签+时间」三样，
+  而时间和人数是「限时活动」的核心决策信息，值得独占一行。
+
+  【未做的部分】设计稿里有一个名额进度条（x / N 人 + pbar）。
+  后端 mkt_activity 只有 target_num 与 is_full，**没有已报名人数**，
+  编一个数字比不显示更糟，所以只写「目标 N 人」。
 */
 
-/*
- * 卡片盒子:1px 边框 + 圆角 + shadow,与 .ys-card 同语。
- * 我的发布加左侧状态灯列;操作组收在右下。
- */
+/* ---------------- 卡片盒子 ---------------- */
 .mktcard {
   display: flex;
   flex-direction: column;
@@ -15,7 +23,14 @@
   border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-xl);
   box-shadow: var(--ys-shadow-1);
-  padding: var(--ys-space-4);
+  /* 设计稿内边距 13px 14px */
+  padding: 13px 14px;
+  box-sizing: border-box;
+  /*
+   * 手机两列时卡片 173px 宽、内容天然撑够高度，不需要额外下限；
+   * 宽屏多列时内容少会显得扁（实测桌面曾只有 106px 高），保留 150px。
+   */
+  min-height: 132px;
   transition: box-shadow var(--ys-motion-fast) var(--ys-ease-out),
     border-color var(--ys-motion-fast) var(--ys-ease-out);
 }
@@ -29,7 +44,13 @@
   gap: var(--ys-space-3);
 }
 
-/* ---------------- 状态灯 ---------------- */
+@media (min-width: 600px) {
+  .mktcard {
+    min-height: 150px;
+  }
+}
+
+/* ---------------- 状态灯（我的发布） ---------------- */
 .mktcard__lamp {
   display: flex;
   align-items: center;
@@ -57,6 +78,7 @@
 .mktcard__open {
   display: flex;
   flex-direction: column;
+  /* 设计稿的段间距约 8px */
   gap: var(--ys-space-2);
   flex: 1;
   min-width: 0;
@@ -69,85 +91,246 @@
   color: var(--ys-fg);
 }
 
-.mktcard__open:active { opacity: 0.7; }
+.mktcard__open:active {
+  opacity: 0.7;
+}
 
+/* ---------------- 状态标记：我的 / 已满 ---------------- */
+/*
+ * 顶行布局（2026-10-21 重做）。
+ *
+ * 【为什么换行】手机两列后卡片只有 173px，顶行要同时放
+ * 「分类（4 字）+ 副标签（王者荣耀）+ 我的/已满徽标」，
+ * 实测「游戏组队」被截成「游戏…」。压副标签也没用 —— 三个东西加起来就是放不下。
+ *
+ * 现在：分类单独占第一行（保证完整），徽标与副标签放第二行。
+ * 高度多一行（约 17px），但分类名不再被截断，这是更重要的信息。
+ * 桌面端卡片宽（≥300px）不受影响，仍是一行。
+ */
+/*
+ * 顶行（2026-10-21 再调）。
+ *
+ * 【为什么从 wrap 改回 nowrap】上一版为了让「已满」徽标有位置，把顶行设成
+ * flex-wrap:wrap。实测发现：手机两列 173px 下「分类 + 副标签 + 已满」放不下，
+ * 结果「已满」掉到第二行、孤零零夹在标题上方，反而更难看。
+ *
+ * 现在改回单行，靠**副标签先让位**来腾空间：
+ *   分类（flex:none，完整显示）
+ *   副标签（flex:0 1 auto + max-width，最先被压缩/省略）
+ *   已满徽标（flex:none，贴右，完整显示）
+ * 这样优先级明确 —— 游戏名最次要，分类和满员状态必须一眼可见。
+ */
 .mktcard__top {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--ys-space-2);
+  gap: 6px;
+  min-width: 0;
 }
 
+/* 分类：不参与换行压缩，永远完整显示 */
 .mktcard__cat {
   flex: none;
-  padding: 2px var(--ys-space-2);
-  border-radius: var(--ys-radius-sm);
+  padding: 2px 8px;
+  border-radius: 5px;
   background: var(--ys-accent-2-soft);
   color: var(--ys-accent-2);
-  font-size: var(--ys-text-xs);
-  font-weight: var(--ys-weight-medium);
-}
-
-.mktcard__timer {
-  margin-left: auto;
-  flex: none;
-  font-family: var(--ys-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
-}
-
-.mktcard__timer--warn {
-  color: var(--ys-danger);
-  font-weight: var(--ys-weight-medium);
-}
-
-.mktcard__title {
-  margin: 0;
-  font-size: var(--ys-text-lg);
+  font-size: 11px;
+  line-height: 1.5;
   font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/*
+ * 副标签（游戏名等）：11px 灰字，2026-10-21 放宽宽度上限。
+ *
+ * 【为什么从 4em 改到 6.5em】上一轮为了给「已满」徽标腾位置，把它限制成
+ * `max-width: 4em`（约 44px）。实测：「王者荣耀」正好约 44px 勉强够，
+ * 「三角洲行动」需要 55px —— 被截成「王者…」「三角洲…」，
+ * 用户质疑「为什么没显示完」。
+ *
+ * 现在 6.5em（约 72px）：
+ *   手机两列顶行 143px = 分类 60 + 间距 6 + 副标签 ≤72
+ *   即使同时有「已满」徽标（约 36）也够：60+6+36+6=108，剩 35 给副标签。
+ * 副标签仍是最先让位的那个（flex:0 1 auto），只是让位下限提高了，
+ * 常见游戏名（4-5 字）能完整显示。
+ */
+.mktcard__sub {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 6.5em;
+  font-size: 11px;
+  color: var(--ys-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 归属用颜色区分（2026-10-21 取代「我的」文字徽标）。
+ *
+ * 【为什么换掉徽标】手机两列时卡片只有 173px，顶行要放
+ * 「分类 + 副标签 + 我的」三样，实测「游戏组队」被截成「游戏…」。
+ * 文字徽标只在桌面端好看，在窄卡里成本高于收益。
+ *
+ * 【颜色方案】自己发的活动：
+ *   1px 主色描边 —— 轮廓一眼可辨
+ *   极浅主色底（--ys-accent-soft）—— 强化归属感
+ * 两处一起用：单描边在密集网格里不够明显。
+ *
+ * 用现成 token 而不是 color-mix：--ys-accent-soft 在亮/暗两套主题里都已定义，
+ * 且经过对比度校验（accent 落在其上 = 4.59）；color-mix 需要自己算，
+ * 暗色主题下容易调出看不见的底。
+ */
+.mktcard--mine {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+}
+
+/* 悬停时描边加深，同时保持「这是我的」「这条能点」两种信号 */
+.mktcard--mine:hover {
+  border-color: var(--ys-accent);
+  box-shadow: 0 0 0 1px var(--ys-accent), var(--ys-shadow-2);
+}
+
+/*
+ * 「已满」角标。
+ *
+ * 满员后活动仍留在广场（后端已去掉 is_full 过滤），
+ * 但必须明确告诉别人「这条已经找齐人了」——
+ * 否则用户会点进去留言却发现自己插不上队。
+ * 用中性灰而不是红色：满员是正常完成状态，不是错误。
+ */
+.mktcard__full {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  color: var(--ys-fg-2);
+  font-size: 10.5px;
+  font-weight: var(--ys-weight-semibold);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* 「已满」角标贴右：与副标签同一行时把它推到右边 */
+.mktcard__top > .mktcard__full {
+  margin-left: auto;
+}
+
+/* ---------------- 标题 / 内容 ---------------- */
+/*
+ * 标题：设计稿是 14.5px / 行高 1.45 / 600，最多两行。
+ * 上一版我在两列窄卡里把它压到 13px 单行，结果标题几乎读不出信息 ——
+ * 现在回到设计稿的字号，靠两行 clamp 容下。
+ */
+.mktcard__title {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.45;
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* 内容预览：设计稿 12.5px / 单行截断 */
 .mktcard__preview {
   margin: 0;
-  font-size: var(--ys-text-sm);
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--ys-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* ---------------- 信息行：地点 / 价格 ---------------- */
 .mktcard__info {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ys-space-2) var(--ys-space-3);
-  font-size: var(--ys-text-xs);
+  gap: 4px var(--ys-space-2);
+  font-size: 11.5px;
   color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 .mktcard__meta {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mktcard__full {
-  padding: 1px var(--ys-space-2);
-  border-radius: var(--ys-radius-sm);
-  background: var(--ys-danger-soft);
-  color: var(--ys-danger);
+/* ---------------- 底部行：剩余时间 + 目标人数 ---------------- */
+/*
+ * 照设计稿 .afoot：margin-top:auto 贴底 + padding-top 8px + 上分隔线。
+ * margin-top:auto 让内容少时这一行也压在卡片底部，信息行不会浮在中间。
+ */
+.mktcard__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--ys-border-soft);
+  /* 两项都为空时不占位（比如「我的发布」里没有倒计时、也没填人数） */
+  min-height: 0;
+}
+
+/* 剩余时间：与设计稿 .left 同构，11.5px + 图标 + 不换行 */
+.mktcard__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
   font-weight: var(--ys-weight-medium);
+  color: var(--ys-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ---------------- 操作组(我的发布) ---------------- */
+/* 紧迫（<= 2h）：橙红色 —— 设计稿 .left--soon / .left--urgent */
+.mktcard__timer--warn {
+  color: var(--ys-warning);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* ---------------- 操作组（我的发布） ---------------- */
+/*
+ * 2026-10-21：从「一排带边框的胶囊」改成「文字操作行」。
+ * 5 个胶囊在 323px 里折成两行、中间还留大片空白；
+ * 文字按钮 30-50px 宽，一行排完，破坏性动作标红。
+ */
+/*
+ * 操作行（2026-10-21 再改：横向滚动 → 允许折行）。
+ *
+ * 【为什么改】上一版用 `overflow-x:auto` 把超出的按钮藏进横向滚动条。
+ * 实测手机两列（卡片 173px）下：3 个按钮需要 215px，容器只有 143px ——
+ * 「删除」被完全挤出可视区，而滚动条在手机上默认隐藏，
+ * 用户既看不到那个按钮、也不知道可以滑，等于功能缺失。
+ *
+ * 现在 `flex-wrap: wrap`：放不下就换行，所有按钮都可见。
+ * 桌面卡片宽，仍然是一行。
+ */
 .mktcard__ops {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ys-space-2);
+  align-items: center;
+  gap: 2px var(--ys-space-1);
   padding-top: var(--ys-space-2);
   border-top: 1px solid var(--ys-border-soft);
 }
@@ -155,30 +338,35 @@
 .mktcard__op {
   display: inline-flex;
   align-items: center;
-  gap: var(--ys-space-1);
+  gap: 3px;
+  flex: none;
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-2);
-  border: 1px solid var(--ys-border-control);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface);
+  border: 0;
+  background: transparent;
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-xs);
   color: var(--ys-fg-2);
+  white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
-.mktcard__op:hover { background: var(--ys-surface-2); }
+.mktcard__op:hover {
+  color: var(--ys-accent);
+}
 
 .mktcard__op--primary {
-  border-color: var(--ys-accent);
   color: var(--ys-accent);
-  font-weight: var(--ys-weight-medium);
+  font-weight: var(--ys-weight-semibold);
 }
-.mktcard__op--primary:hover { background: var(--ys-accent-soft); }
 
 .mktcard__op--danger {
-  border-color: var(--ys-danger);
   color: var(--ys-danger);
 }
-.mktcard__op--danger:hover { background: var(--ys-danger-soft); }
+
+.mktcard__op--danger:hover {
+  color: var(--ys-danger);
+  background: var(--ys-danger-soft);
+  border-radius: var(--ys-radius-sm);
+}

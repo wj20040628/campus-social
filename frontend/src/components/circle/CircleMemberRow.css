@@ -1,0 +1,97 @@
+/*
+  CircleMemberRow.vue 的样式（2026-10-21）。
+
+  一行由四段组成：头像 / 昵称+身份 / 角色标签或私信按钮。
+  宽度分配是关键：中间那段 flex:1 + min-width:0，
+  否则长昵称会把右侧标签挤出容器（项目里踩过多次的坑）。
+*/
+
+.cmrow {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  border-bottom: 1px solid var(--ys-border-soft);
+}
+
+.cmrow:last-child {
+  border-bottom: 0;
+}
+
+.cmrow__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmrow__name {
+  margin: 0;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmrow__meta {
+  margin: 1px 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 角色标签：圈主暖橙、管理主色。两者都与「成员」明显区分 */
+.cmrow__role {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--ys-radius-full);
+  font-size: 10.5px;
+  font-weight: var(--ys-weight-semibold);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.cmrow__role--owner {
+  background: var(--ys-accent-2-soft);
+  color: var(--ys-accent-2);
+}
+
+.cmrow__role--admin {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
+/*
+ * 「私信」文字按钮。
+ * 视觉是一行小字（它在一列人名里反复出现，做成按钮块会很吵），
+ * 用 ::after 把可点范围补到 44 高。
+ */
+.cmrow__op {
+  position: relative;
+  flex: none;
+  min-height: 32px;
+  padding: 0 var(--ys-space-2);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+.cmrow__op::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.cmrow__op:hover {
+  color: var(--ys-accent-hover);
+  text-decoration: underline;
+}

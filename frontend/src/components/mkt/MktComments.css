@@ -1,54 +1,87 @@
 /*
-  MktComments.vue 的样式,2026-10-15 外置(同一模式)。
-  外置原因:304 行超 300 行门禁,拆后回到约 139 行。
+  MktComments.vue 的样式（2026-10-21 重做）。
+  配合「手机抽屉 / 桌面常驻」的分端输入方式重写。
+
+  删掉的旧样式：
+    .mkc__hint / .mkc__warn —— 顶部引导语 + 橙色隐私警示，
+      现在改成抽屉里一行小字，不再常驻占高度
 */
 
 .mkc {
   display: flex;
   flex-direction: column;
-  gap: var(--ys-space-4);
+  gap: var(--ys-space-3);
 }
 
-/* ---------------- 顶部提示 + 隐私警示 ---------------- */
-.mkc__hint {
+/* ---------------- 标题行 ---------------- */
+/*
+ * 一行内：留言 + 条数 + 右侧「写留言」按钮。
+ * 按钮贴右用 margin-left:auto —— 位置固定，不随条数文字长度漂移。
+ */
+.mkc__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-height: 36px;
+}
+
+.mkc__title {
   margin: 0;
   font-size: var(--ys-text-sm);
-  color: var(--ys-muted);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg-2);
 }
 
-.mkc__warn {
-  padding: var(--ys-space-3) var(--ys-space-4);
-  border: 1px solid var(--ys-warning);
-  border-radius: var(--ys-radius-lg);
-  background: var(--ys-warning-soft);
-  color: var(--ys-warning);
+.mkc__count {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* 手机端「写留言」入口 */
+.mkc__write {
+  margin-left: auto;
+  flex: none;
+  min-height: 34px;
+  padding: 0 var(--ys-space-4);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
   font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
+  font-weight: var(--ys-weight-semibold);
+  cursor: pointer;
+  position: relative;
 }
 
-/* ---------------- 输入区 ---------------- */
+/* ---------------- 桌面端常驻输入区 ---------------- */
 .mkc__composer {
   display: flex;
   flex-direction: column;
   gap: var(--ys-space-2);
 }
 
-.mkc__input {
+.mkc__input,
+.mkc__sheet-input {
   width: 100%;
   box-sizing: border-box;
-  min-height: 56px;
-  padding: var(--ys-space-3);
-  border: 1px solid var(--ys-border-control);
+  border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-lg);
   background: var(--ys-surface);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);
-  line-height: var(--ys-lh-base);
+  line-height: 1.6;
   color: var(--ys-fg);
+  padding: var(--ys-space-2) var(--ys-space-3);
+}
+
+.mkc__input {
+  min-height: 56px;
   resize: vertical;
 }
 
-.mkc__input:focus-visible {
+.mkc__input:focus-visible,
+.mkc__sheet-input:focus-visible {
   border-color: var(--ys-accent);
   box-shadow: var(--ys-focus-ring);
   outline: none;
@@ -56,12 +89,23 @@
 
 .mkc__composer-foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+/* 「请勿留手机号」这类提示：轻、短、贴着输入框 */
+.mkc__privacy {
+  font-size: 11px;
+  color: var(--ys-meta);
+}
+
+.mkc__composer-foot .mkc__privacy {
+  margin-right: auto;
 }
 
 .mkc__submit {
+  flex: none;
   min-height: var(--ys-touch-min);
-  min-width: var(--ys-touch-min);
   padding: 0 var(--ys-space-5);
   border: 1px solid var(--ys-accent);
   border-radius: var(--ys-radius-full);
@@ -69,46 +113,50 @@
   color: var(--ys-accent-on);
   font-family: var(--ys-font-body);
   font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
+  font-weight: var(--ys-weight-semibold);
   cursor: pointer;
   transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
 }
 
 .mkc__submit:hover { background: var(--ys-accent-hover); }
 
-.mkc__submit:disabled {
-  border-color: var(--ys-border-control);
+.mkc__submit:disabled,
+.mkc__sheet-send:disabled {
+  border-color: var(--ys-border);
   background: var(--ys-surface-2);
   color: var(--ys-meta);
   cursor: not-allowed;
 }
 
-/* 留言失败:贴近输入框而不是 toast,草稿保留(与发帖同纪律) */
+/* 留言失败：贴近输入框而不是 toast，草稿保留（与发帖同纪律） */
 .mkc__err {
   margin: 0;
-  font-size: var(--ys-text-sm);
+  font-size: var(--ys-text-xs);
   color: var(--ys-danger);
 }
 
 /* ---------------- 列表 ---------------- */
-.mkc__head {
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  color: var(--ys-fg-2);
-}
-
+/*
+ * 列表项间距 16 → 10px，并把分隔改成细线：
+ * 详情页现在留言紧跟信息卡，间距太大反而像两块无关内容。
+ */
 .mkc__list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--ys-space-4);
 }
 
 .mkc__item {
   display: flex;
-  gap: var(--ys-space-3);
+  gap: var(--ys-space-2);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ys-border-soft);
+}
+
+.mkc__item:last-child {
+  border-bottom: 0;
 }
 
 .mkc__body {
@@ -118,42 +166,63 @@
 
 .mkc__nick {
   margin: 0;
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-medium);
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg-2);
 }
 
 .mkc__text {
-  margin: var(--ys-space-1) 0 0;
-  font-size: var(--ys-text-base);
-  line-height: var(--ys-lh-base);
+  margin: 3px 0 0;
+  font-size: var(--ys-text-sm);
+  line-height: 1.55;
   color: var(--ys-fg);
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .mkc__meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: var(--ys-space-1);
+  gap: var(--ys-space-3);
+  margin-top: 3px;
 }
 
 .mkc__time {
-  font-family: var(--ys-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--ys-text-xs);
+  font-size: 11px;
   color: var(--ys-meta);
+  font-variant-numeric: tabular-nums;
 }
 
+/*
+ * 每条留言右下角的「举报」。
+ *
+ * 【2026-10-21 补热区】原来只有 30×20（padding 2px 4px + 11px 字），
+ * 是全站最小的可点元素之一 —— 手指几乎点不中，而它是举报骚扰留言的唯一入口。
+ *
+ * 视觉尺寸保持不变（小字次要动作，放大字体会让它抢戏），
+ * 用 ::after 向左右各外扩 12px、纵向撑到 40px，把**可点区域**补足。
+ * absolute 不参与流，所以列表行高不会变。
+ */
 .mkc__report {
+  position: relative;
   border: 0;
   background: none;
   font-family: var(--ys-font-body);
-  font-size: var(--ys-text-xs);
+  font-size: 11px;
   color: var(--ys-meta);
   cursor: pointer;
-  padding: 2px var(--ys-space-1);
+  padding: 2px 4px;
   border-radius: var(--ys-radius-sm);
+}
+
+.mkc__report::after {
+  content: '';
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
 }
 
 .mkc__report:hover {
@@ -164,5 +233,96 @@
 .mkc__loading {
   display: flex;
   flex-direction: column;
-  gap: var(--ys-space-4);
+  gap: var(--ys-space-3);
+}
+
+/* 空态：一行小字，不用 StateBlock 的大图标版式（它太占高度） */
+.mkc__empty {
+  margin: 0;
+  padding: var(--ys-space-4) 0;
+  text-align: center;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* ---------------- 手机端写留言抽屉 ---------------- */
+.mkc__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  padding-bottom: var(--ys-safe-bottom);
+}
+
+.mkc__sheet-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--ys-space-1);
+}
+
+.mkc__sheet-title {
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.mkc__sheet-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ys-muted);
+  cursor: pointer;
+  border-radius: var(--ys-radius-lg);
+}
+
+.mkc__sheet-input {
+  min-height: 88px;
+  resize: none;
+}
+
+.mkc__sheet-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+.mkc__sheet-foot .mkc__privacy {
+  margin-right: auto;
+}
+
+.mkc__sheet-send {
+  flex: none;
+  min-height: 40px;
+  padding: 0 var(--ys-space-6);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  cursor: pointer;
+}
+
+.mkc__sheet-tip {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ys-meta);
+}
+
+/*
+ * 「写留言 / 写第一条」热区（2026-10-21）。
+ * 视觉 34px 高，差 10px；它是手机端留言的唯一入口，补到 44。
+ */
+.mkc__write::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
 }

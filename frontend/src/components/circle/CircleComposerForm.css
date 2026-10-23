@@ -1,0 +1,201 @@
+/*
+  CircleComposerForm.vue 的样式（2026-10-21 从 CircleComposer.vue 拆出）。
+
+  【与旧样式的关键差别】
+  旧版是一张常驻卡片（自带 padding + 边框 + 圆角），因为它要独立存在于列表里。
+  现在它只在浮层内部出现，外壳已经提供了容器（抽屉内容区 / 弹窗盒子），
+  所以这里**去掉卡片装饰**，只排布控件 —— 否则会变成「弹窗里再套一张卡片」。
+*/
+
+.cff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+}
+
+.cff__err {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: 1.5;
+  color: var(--ys-danger);
+}
+
+.cff__box {
+  width: 100%;
+}
+
+/*
+ * textarea 固定 5 行。
+ *
+ * 旧版有「聚焦从 3 行展开到 6 行」的 max-height 过渡 ——
+ * 那是在常驻状态下省高度的技巧。现在表单只在浮层里出现，省高度没有意义，
+ * 反而会在打开瞬间抖一下，所以直接固定高度。
+ */
+.cff__box :deep(.el-textarea__inner) {
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  line-height: 1.6;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  /* 1px 描边用 inset box-shadow：EP 的 wrapper 没有 border 属性可改 */
+  box-shadow: 0 0 0 1px var(--ys-border) inset;
+}
+
+.cff__box :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px var(--ys-accent) inset;
+}
+
+/* 字数统计：13px 会挤，压到 11px 并让它在边框内右下角 */
+.cff__box :deep(.el-input__count) {
+  font-size: 11px;
+  color: var(--ys-meta);
+  background: transparent;
+}
+
+/* ---------------- 附件预览 ---------------- */
+.cff__media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cff__media-item {
+  position: relative;
+}
+
+.cff__thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--ys-radius-lg);
+  object-fit: cover;
+  display: block;
+}
+
+/* 移除按钮：视觉 22px，热区靠 -5px 外扩补到 32 —— 它压在缩略图角上，太大会盖住图 */
+.cff__media-del {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-fg);
+  color: var(--ys-surface);
+  cursor: pointer;
+}
+
+.cff__media-del::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+
+/* ---------------- 操作行 ---------------- */
+.cff__ops {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-1);
+}
+
+/*
+ * 「图片或视频」用带描边的胶囊，与右侧「发布到圈子」的实底区分开。
+ * 旧版是无边框纯文字按钮，在浮层里会显得像可点的一行字而不是控件。
+ */
+.cff__op-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  transition: border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cff__op-btn:hover:not(:disabled) {
+  border-color: var(--ys-accent);
+  color: var(--ys-accent);
+}
+
+.cff__op-btn:disabled {
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+/* 发布按钮贴右，整宽留给它 —— 浮层里它是唯一的终点动作 */
+.cff__submit {
+  flex: 1;
+  min-height: var(--ys-touch-min);
+  margin-left: auto;
+  padding: 0 var(--ys-space-4);
+  border-radius: var(--ys-radius-full);
+  border: 1px solid var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cff__submit:hover:not(:disabled) {
+  background: var(--ys-accent-hover);
+}
+
+.cff__submit:disabled {
+  background: var(--ys-surface-2);
+  border-color: var(--ys-border);
+  color: var(--ys-meta);
+  cursor: not-allowed;
+}
+
+/* ---------------- 视频格式说明（按需展开） ---------------- */
+.cff__hint {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.5;
+  color: var(--ys-meta);
+}
+
+.cff__hint-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  cursor: pointer;
+}
+
+.cff__hint-q {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--ys-border-control);
+  border-radius: 50%;
+  font-size: 9.5px;
+  line-height: 1;
+}
+
+.cff__hint-text {
+  display: block;
+  margin-top: 4px;
+}

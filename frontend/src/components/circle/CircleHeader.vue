@@ -45,7 +45,18 @@
       </span>
       <span class="cd__owner">{{ ownerName }}</span>
       <span class="cd__dot">·</span>
-      <span class="cd__count ys-num">{{ cap(circle.memberCount) }} 成员</span>
+      <!--
+        「N 成员」改成可点入口（2026-10-21）。
+        改版前它是一个纯文本 —— 圈子头是全页最显眼的位置，
+        却把「里面有哪些人」这个决定加不加入的关键信息做成了不可点的数字。
+        现在点它进成员页。
+      -->
+      <RouterLink
+        :to="`/circles/${circle.id}/members`"
+        class="cd__count cd__count--link ys-num"
+      >
+        {{ cap(circle.memberCount) }} 成员
+      </RouterLink>
     </div>
   </header>
 </template>

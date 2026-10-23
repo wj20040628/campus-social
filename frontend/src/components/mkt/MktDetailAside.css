@@ -1,0 +1,82 @@
+/*
+  MktDetailAside.vue 的样式（2026-10-21 从 MktDetail.css 复制）。
+
+  为什么复制而不是迁移：`.md__aside` 的显示/隐藏受 MktDetail.vue 的
+  `.mdetail-inner` 媒体查询控制（基础态 display:none，桌面打开），
+  那条规则必须留在父组件的样式里。而面板内部样式（.panel 系列）
+  随组件走更合理，且能避免父组件样式污染其它地方的 .panel。
+
+  代价是两份 .panel 定义 —— 它们作用域分别是父组件和新组件，
+  scoped 下互不干扰。若将来要统一，应提取成公共 class 到全局样式。
+*/
+
+.panel {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.panel__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__sq {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+.panel__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  padding: 5px 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.panel__row + .panel__row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.panel__row b {
+  flex: none;
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.panel__tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.75;
+  color: var(--ys-muted);
+}
+
+.panel__tip b {
+  color: var(--ys-fg-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* 状态色：投放中绿 / 满员暂停橙 / 过期红 */
+.panel__v--live {
+  color: var(--ys-success) !important;
+}
+
+.panel__v--warn {
+  color: var(--ys-warning) !important;
+}
+
+.panel__v--danger {
+  color: var(--ys-danger) !important;
+}

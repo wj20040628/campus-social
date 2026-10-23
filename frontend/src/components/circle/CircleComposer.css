@@ -1,0 +1,90 @@
+/*
+  CircleComposer.vue 的样式（2026-10-21 改成浮层外壳后重写）。
+
+  只放「外壳」：手机抽屉的内容区、桌面弹窗的遮罩与盒子、标题行。
+  表单控件样式全部在 CircleComposerForm.css。
+*/
+
+/* ---------------- 手机抽屉内容区 ---------------- */
+.cf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding-bottom: var(--ys-safe-bottom);
+}
+
+.cf__head {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--ys-space-1);
+}
+
+.cf__title {
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* 关闭按钮贴右；32px 可见，热区靠 padding 撑到 44（见下） */
+.cf__close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ys-muted);
+  cursor: pointer;
+  border-radius: var(--ys-radius-lg);
+}
+
+.cf__close:hover {
+  background: var(--ys-surface-2);
+  color: var(--ys-fg);
+}
+
+/* ---------------- 桌面居中弹窗 ---------------- */
+/*
+ * 遮罩：铺满视口、置于最上层。
+ * 用 rgba(36,28,21,.42) 而不是纯黑 —— 黑罩在暖米底上会显脏，
+ * 与全站其它浮层（MktRiskNotice）保持一致。
+ */
+.cf-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(36, 28, 21, 0.42);
+}
+
+.cf-dialog {
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-4);
+  background: var(--ys-surface);
+  border-radius: var(--ys-radius-xl);
+  box-shadow: 0 12px 40px rgba(36, 28, 21, 0.22);
+}
+
+/*
+ * 关闭按钮在两种外壳里都要够得着。
+ * 32px 的可见方块 + 上下左右各 6px 的透明外扩 = 44 的最小热区，
+ * 视觉上仍是那个小方框，手指不用瞄准。
+ */
+.cf__close {
+  position: relative;
+}
+
+.cf__close::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}

@@ -97,6 +97,7 @@
   font-size: var(--ys-text-sm);
   cursor: pointer;
   transition: all 0.15s;
+  position: relative;
 }
 
 .cd__manage:hover {
@@ -133,3 +134,48 @@
   text-overflow: ellipsis;
 }
 
+
+/*
+ * 「管理」按钮热区（2026-10-21）。
+ * 视觉 70×28 不变（它要跟圈子名并排，撑高会破坏那一行），
+ * ::after 外扩把可点区域补到 44 高、左右各 8 —— 圈主圈管理是高频动作。
+ */
+.cd__manage::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+/*
+ * 「N 成员」可点入口（2026-10-21）。
+ *
+ * 视觉上仍是一行灰色小字（它和「圈主 · 」是同一句话的一部分，
+ * 做成按钮块会把那句话读断），但：
+ *   - 加下划线 + 主色，让人看得出能点
+ *   - ::after 把热区补到 44 高，否则一行 13px 的字很难点中
+ */
+.cd__count--link {
+  position: relative;
+  color: var(--ys-accent);
+  text-decoration: underline;
+  text-decoration-color: rgba(14, 116, 144, 0.35);
+  text-underline-offset: 2px;
+}
+
+.cd__count--link::after {
+  content: '';
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.cd__count--link:hover {
+  color: var(--ys-accent-hover);
+  text-decoration-color: currentColor;
+}

@@ -11,6 +11,20 @@ export const CATEGORIES = [
   '运动约伴', '干饭搭子', '闲置互助', '其它',
 ]
 
+/**
+ * 广场筛选条的分类列表 = 「全部」+ 9 个具体分类（2026-10-21 加「全部」）。
+ *
+ * 【为什么必须补「全部」】改版前只有 CATEGORIES 那 9 个，筛选项里没有「全部」，
+ * 而 pickCategory(c) 只做 `category.value = c` —— 用户一旦点了「跑腿代办」，
+ * 就再也回不到「看全部」的状态，只能刷新页面。这是功能性缺陷。
+ *
+ * null 代表不筛选，与后端 mktPlaza(category=null) 的口径一致。
+ */
+export const PLAZA_FILTERS = [
+  { label: '全部', value: null },
+  ...CATEGORIES.map((c) => ({ label: c, value: c })),
+]
+
 /** 投放时长快捷选项(小时)。自填范围 1–12,上限与后端 MAX_LAUNCH_HOURS 一致。 */
 export const DURATION_OPTIONS = [1, 3, 6, 12]
 
@@ -26,4 +40,4 @@ export const HOT_GAMES = [
   '英雄联盟', '永劫无间', '暗区突围', '蛋仔派对', '金铲铲之战',
 ]
 
-export default { CATEGORIES, DURATION_OPTIONS, MAX_LAUNCH_HOURS, HOT_GAMES }
+export default { CATEGORIES, PLAZA_FILTERS, DURATION_OPTIONS, MAX_LAUNCH_HOURS, HOT_GAMES }

@@ -1,0 +1,99 @@
+/*
+  CircleDetailAside.vue 的样式（2026-10-21 新增）。
+
+  与 MktDetailAside.css 同一套面板语言：白底 + 1px 边框 + 12px 圆角 + 轻阴影。
+  两处保持一致的理由：它们都是「桌面端右侧的静态信息栏」，
+  用户在不同页面看到的应该是同一种东西。
+*/
+
+.cda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+  width: 268px;
+  flex: none;
+}
+
+.cda__panel {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  padding: var(--ys-space-3) var(--ys-space-4);
+  box-shadow: var(--ys-shadow-1);
+}
+
+.cda__h {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+/* 标题前的小方色块：主色，与卡片标题一致 */
+.cda__sq {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--ys-accent);
+  flex: none;
+}
+
+/* 键值行：左标签右数值，行间用极细线分隔 */
+.cda__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  padding: 5px 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.cda__row + .cda__row {
+  border-top: 1px solid var(--ys-border-soft);
+}
+
+.cda__row b {
+  flex: none;
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 圈主：头像 + 昵称 + 一句说明 */
+.cda__owner {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+.cda__owner-txt {
+  min-width: 0;
+}
+
+.cda__owner-n {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cda__owner-d {
+  margin: 1px 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+
+/* 规则说明：11px 行高放宽，右栏窄，密排会难读 */
+.cda__tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.75;
+  color: var(--ys-muted);
+}

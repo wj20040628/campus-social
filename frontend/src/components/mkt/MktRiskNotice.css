@@ -1,0 +1,155 @@
+/*
+  MktRiskNotice.vue 的样式（2026-10-21）。
+
+  自绘遮罩 + 弹窗，不用 el-dialog（原因见组件注释）。
+  遮罩铺满视口并置于最上层；弹窗在视觉中心，320px 宽。
+*/
+
+.risk__mask {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(36, 28, 21, 0.42);
+  /* 遮罩出现时轻微淡入，避免生硬弹出 */
+  animation: risk-fade 0.16s var(--ys-ease-out) both;
+}
+
+@keyframes risk-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.risk__dialog {
+  width: 100%;
+  max-width: 320px;
+  background: var(--ys-surface);
+  border-radius: 16px;
+  padding: 20px 18px 16px;
+  box-shadow: 0 12px 40px rgba(36, 28, 21, 0.24);
+  animation: risk-pop 0.18s var(--ys-ease-out) both;
+}
+
+@keyframes risk-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 标题：图标 + 文字 */
+.risk__t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.risk__t .el-icon {
+  color: var(--ys-warning);
+}
+
+.risk__body {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ys-fg-2);
+}
+
+.risk__body b {
+  color: var(--ys-fg);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/*
+ * 「本次登录不再提醒」勾选行。
+ *
+ * 【触控热区】第一版整行实测只有 18px 高，远低于 44px 最小热区，
+ * 手指很难点中。现在 min-height:44px，可点范围覆盖文字与方块周围。
+ * 真实 checkbox 用 inset:0 铺满整行（视觉透明但可聚焦、可 Tab）。
+ */
+.risk__check {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0 0 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ys-muted);
+}
+
+/* 真实 checkbox：透明铺满整行，保证任何位置点击都命中 */
+.risk__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* 自绘方块 */
+.risk__box {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--ys-border-control);
+  border-radius: 4px;
+  background: var(--ys-surface);
+  position: relative;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.risk__box--on {
+  background: var(--ys-accent);
+  border-color: var(--ys-accent);
+}
+
+.risk__box--on::after {
+  content: '';
+  position: absolute;
+  left: 4.2px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: 2px solid var(--ys-accent-on);
+  border-top: 0;
+  border-left: 0;
+  transform: rotate(42deg);
+}
+
+/* 键盘聚焦时给方块一个可见轮廓 */
+.risk__input:focus-visible + .risk__box {
+  outline: 2px solid var(--ys-accent);
+  outline-offset: 2px;
+}
+
+.risk__label {
+  line-height: 1.4;
+}
+
+/* 主按钮：整宽，与全站底部操作语言一致 */
+.risk__ok {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.risk__ok:hover {
+  background: var(--ys-accent-hover);
+}
