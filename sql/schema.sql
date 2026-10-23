@@ -1,36 +1,68 @@
 -- ============================================================
--- 校园社交网站 数据库 schema
--- MySQL 8.x  /  字符集 utf8mb4  /  InnoDB
--- 通用字段（每张表）：id, create_time, update_time, is_deleted
--- 逻辑外键（不建 FK 约束，由应用层保证一致性）
+-- 校园社交(友声)数据库完整基线 schema
+-- MySQL 8.4 LTS / 字符集 utf8mb4 / InnoDB
+-- 通用字段(每张表):id, create_time, update_time, is_deleted
+-- 逻辑外键(不建 FK 约束,由应用层保证一致性)
 --
--- 注意:本文件用 CREATE TABLE IF NOT EXISTS,全新建库直接跑本文件即可。
--- 已存在的库要加新列,跑对应 migration_b1_*.sql(增量 ALTER),不要重跑本文件。
+-- 【2026-10-23 重构:本文件恢复为唯一完整基线】
+--   重构前的问题(代码审查报告 P0-1):
+--     - 只有 26 张表,而实体有 37 个 —— 缺 11 张表,建库必全站 500;
+--     - user 表缺 10 列(email/verify_status/notify_pref/bio 等);
+--     - post 缺 favorite_count、activity 缺 creator_id;
+--     - 文件尾用裸 ALTER 追加 review_task.ai_* 三列,重复执行必报 1060。
+--   现在:全部 DDL(散落在 docs/sql/migration_v1|v2.sql 与 sql/migration_*.sql
+--   中)已合并回本文件,全新建库只需跑这一个文件即可。
+--
+--   已存在的库不要重跑本文件(全是 CREATE IF NOT EXISTS,不会加列),
+--   升级请按顺序跑 sql/migration_*.sql;本次重构的增量见
+--   sql/migration_2026-10-23_baseline_sync.sql。
+--
+-- 字符集约定:所有表统一 `DEFAULT CHARSET=utf8mb4` 且不写 COLLATE ——
+--   MySQL 会取该字符集的默认 collation(8.0+ 为 utf8mb4_0900_ai_ci),
+--   与历史 22 张表完全一致。显式写 COLLATE 会造成跨表 JOIN 抛
+--   "Illegal mix of collations" 且字符串比较走不上索引。
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS `campus_social_v2`
-    DEFAULT CHARACTER SET utf8mb4
-    DEFAULT COLLATE utf8mb4_unicode_ci;
+    DEFAULT CHARACTER SET utf8mb4;
+    -- 注:库级 collation 不显式指定,与表级保持一致
 
 USE `campus_social_v2`;
 
 -- ------------------------------------------------------------
 -- 用户
 -- status: 0正常 1冻结 2注销
--- follower_count / following_count / unread_notify_count 冗余计数
---   在关注/取关/新通知 事务内 SET x = x ± 1，绝不读改写
+-- role: 0普通 1管理员
+-- verify_status: 0未认证 1已认证 2审核中 3驳回
+--   AC-11 判定依据:只有 1 才允许发起搭话与发布公告
+-- follower_count / following_count / unread_notify_count / joined_circle_count 冗余计数
+--   在关注/取关/新通知/加圈退圈 事务内 SET x = x ± 1,绝不读改写
+-- 字典 id 与名称快照双存:
+--   dept_id/grade_id/major_id = 权威值(匹配一律比 id,改名不影响匹配)
+--   dept/grade               = 名称快照(列表直接读,避免 join)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `user` (
     `id`                    BIGINT       NOT NULL AUTO_INCREMENT COMMENT '用户ID',
-    `username`              VARCHAR(64)  NOT NULL                COMMENT '邮箱或手机号',
+    `username`              VARCHAR(64)  NOT NULL                COMMENT '登录主标识:学号(或历史遗留的邮箱/手机号)',
     `password_hash`         VARCHAR(128) NOT NULL                COMMENT 'BCrypt',
     `student_no`            VARCHAR(32)  NULL                    COMMENT '学号(可选)',
     `nickname`              VARCHAR(64)  NULL,
+    `bio`                   VARCHAR(200) NULL                    COMMENT '个人介绍,NULL/空=还没写',
     `avatar_url`            VARCHAR(512) NULL,
-    `grade`                 VARCHAR(16)  NULL                    COMMENT '年级',
-    `dept`                  VARCHAR(64)  NULL                    COMMENT '院系',
+    `cover_url`             VARCHAR(512) NULL                    COMMENT '个人主页封面图(相对路径),NULL=默认渐变封面',
+    `grade`                 VARCHAR(16)  NULL                    COMMENT '年级名称快照',
+    `grade_id`              BIGINT       NULL                    COMMENT '年级字典id → school_grade.id',
+    `dept`                  VARCHAR(64)  NULL                    COMMENT '院系名称快照',
+    `dept_id`               BIGINT       NULL                    COMMENT '院系字典id → school_dept.id',
+    `major_id`              BIGINT       NULL                    COMMENT '专业字典id → school_major.id;学号专业码校验的权威归属',
+    `school_id`             BIGINT       NOT NULL DEFAULT 1      COMMENT '学校ID,默认1,预留多校',
+    `email`                 VARCHAR(64)  NULL                    COMMENT '安全凭证邮箱,有值时唯一(找回密码/绑定/邮箱验证码登录)',
+    `verify_status`         TINYINT      NOT NULL DEFAULT 0      COMMENT '0未认证 1已认证 2审核中 3驳回',
+    `stranger_msg_enabled`  TINYINT      NOT NULL DEFAULT 1      COMMENT '是否接收陌生人消息 0否 1是(F3 护栏)',
+    `onboarding_step`       TINYINT      NOT NULL DEFAULT 0      COMMENT '引导进度 0未开始 1已填归属 2已选标签 3已完成',
     `status`                TINYINT      NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',
     `role`                  TINYINT      NOT NULL DEFAULT 0      COMMENT '角色:0普通用户 1管理员',
+    `notify_pref`           TEXT         NULL                    COMMENT '通知偏好JSON:{"disabled":[类型id]}',
     `follower_count`        INT          NOT NULL DEFAULT 0,
     `following_count`       INT          NOT NULL DEFAULT 0,
     `unread_notify_count`   INT          NOT NULL DEFAULT 0,
@@ -41,6 +73,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_username` (`username`),
     UNIQUE KEY `uk_student_no` (`student_no`),
+    UNIQUE KEY `uk_user_email` (`email`),
     KEY `idx_dept_grade` (`dept`, `grade`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户';
 
@@ -48,6 +81,8 @@ CREATE TABLE IF NOT EXISTS `user` (
 -- 关系
 -- type: 1关注 2好友 3黑名单
 -- 好友双向各存一行；关注计数在事务内 ±1 user.follower_count / following_count
+-- 注意:2026-10-23 起 POST /relation/friend 已移除(审查 P0-4:单方面成立可绕过
+--   陌生人搭话护栏)。好友关系如需恢复必须做成申请-同意两阶段。
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `relation` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
@@ -66,17 +101,19 @@ CREATE TABLE IF NOT EXISTS `relation` (
 -- 帖子
 -- status: 0审核中 1通过 2下架 3删除
 -- media: JSON 数组 [{"type":"img|video","url":"...","dur":秒}]
--- like_count / comment_count 冗余缓存,事务内原子 ±1
--- hot_score 由 HotScoreTask 定时算 (like+2*comment)/(age_hours+2)^1.5
+-- like_count / comment_count / favorite_count 冗余缓存,事务内原子 ±1
+-- hot_score 由 ReconcileJob 定期重算 (like+2*comment)/(age_hours+2)^1.5
+-- is_top: 圈内置顶(同圈仅 1 个)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `post` (
     `id`              BIGINT       NOT NULL AUTO_INCREMENT,
     `author_id`       BIGINT       NOT NULL,
     `content`         MEDIUMTEXT   NULL,
-    `media`          JSON         NULL,
+    `media`           JSON         NULL,
     `status`          TINYINT      NOT NULL DEFAULT 0 COMMENT '0审核中 1通过 2下架 3删除',
     `like_count`      INT          NOT NULL DEFAULT 0,
     `comment_count`   INT          NOT NULL DEFAULT 0,
+    `favorite_count`  INT          NOT NULL DEFAULT 0 COMMENT '收藏数(冗余,与like_count同构)',
     `view_count`      INT          NOT NULL DEFAULT 0 COMMENT '浏览量,进详情 +1',
     `circle_id`       BIGINT       NULL,
     `hot_score`       DOUBLE       NOT NULL DEFAULT 0,
@@ -97,7 +134,10 @@ CREATE TABLE IF NOT EXISTS `post` (
 -- ------------------------------------------------------------
 -- Feed 写扩散收件箱
 -- 游标基于 last_id (idx_fan_time: fan_id, id DESC)
--- 发帖事务1 → 发 MQ post.created → 消费者按 500 条/批 INSERT feed_item(事务2)
+-- 发帖事务1 → 同步写扩散(500 条/批 INSERT IGNORE)
+-- uk_fan_post(2026-10-23 加,审查 P0-7):同一粉丝对同一帖只允许一行。
+--   审核并发通过(AI+人审同时点)此前会双写,导致 Feed 同帖出现两次、通知双发;
+--   唯一键 + INSERT IGNORE 让重复扩散静默去重。
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `feed_item` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
@@ -108,12 +148,14 @@ CREATE TABLE IF NOT EXISTS `feed_item` (
     `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT  NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_fan_post` (`fan_id`, `post_id`),
     KEY `idx_fan_time` (`fan_id`, `id` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='写扩散 Feed 收件箱';
 
 -- ------------------------------------------------------------
 -- 评论
 -- level ≤ 3 (1帖 2评 3评中评)；parent_id NULL=一级；reply_to_user_id 被回复的人
+-- mentioned: 被 @ 用户「昵称→id」JSON,前端渲染 @昵称 时据此跳主页
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `comment` (
     `id`                  BIGINT       NOT NULL AUTO_INCREMENT,
@@ -138,6 +180,7 @@ CREATE TABLE IF NOT EXISTS `comment` (
 -- target_type: 1帖 2评
 -- 独立表 + 冗余 count，事务内 ±1 post.like_count
 -- 唯一键保证幂等(重复点赞不报错)
+-- idx_like_target: 支撑「按对象反查点赞」与删帖/删评论时清理
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `like` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
@@ -148,7 +191,8 @@ CREATE TABLE IF NOT EXISTS `like` (
     `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT  NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_like` (`user_id`, `target_type`, `target_id`)
+    UNIQUE KEY `uk_like` (`user_id`, `target_type`, `target_id`),
+    KEY `idx_like_target` (`target_type`, `target_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='点赞';
 
 -- ------------------------------------------------------------
@@ -171,6 +215,8 @@ CREATE TABLE IF NOT EXISTS `chat_conversation` (
 -- ------------------------------------------------------------
 -- 私信消息
 -- status: 0未读 1已读 (receiver 侧)
+-- is_recalled: 发送方 60s 内可撤
+-- reply_to_id: 引用回复的被引消息 id
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `chat_message` (
     `id`              BIGINT       NOT NULL AUTO_INCREMENT,
@@ -190,23 +236,53 @@ CREATE TABLE IF NOT EXISTS `chat_message` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='私信消息';
 
 -- ------------------------------------------------------------
+-- 会话偏好(置顶 / 免打扰 / 删除),按人存
+-- kind: dm=私信(target_id=对方 user_id) / group=群聊(target_id=group.id)
+-- 为什么独立表:chat_conversation 是两人共享一行,偏好是每人独立的;
+--   pinned_a/pinned_b/muted_a/... 会翻倍列数,群聊还得再来一遍。
+-- hidden + hidden_upto:删除记「当时最后一条消息 id」,来了新消息自动回到列表
+--   (hidden=1 且 lastMsgId <= hidden_upto 才隐藏)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `chat_conv_pref` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`     BIGINT       NOT NULL COMMENT '偏好的归属人',
+    `kind`        VARCHAR(8)   NOT NULL COMMENT '会话类型:dm=私信, group=群聊',
+    `target_id`   BIGINT       NOT NULL COMMENT 'dm=对方user_id, group=group.id',
+    `pinned`      TINYINT      NOT NULL DEFAULT 0 COMMENT '置顶:0否 1是',
+    `muted`       TINYINT      NOT NULL DEFAULT 0 COMMENT '免打扰:0否 1是',
+    `hidden`      TINYINT      NOT NULL DEFAULT 0 COMMENT '已从列表删除:0否 1是',
+    `hidden_upto` BIGINT       NOT NULL DEFAULT 0 COMMENT '删除时的最后消息id;lastMsgId>此值则重新显示',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_pref` (`user_id`, `kind`, `target_id`) COMMENT '一个用户对一条会话只有一份偏好',
+    KEY `idx_user_kind` (`user_id`, `kind`) COMMENT '列表一次取某用户某类型的全部偏好'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话偏好(置顶/免打扰/删除),按人存';
+
+-- ------------------------------------------------------------
 -- 通知
--- type: 1被关注 2被赞 3被评 4私信 5活动
+-- type: 1被关注 2被赞 3被评 4私信 5活动 6送审 7审核通过 8审核驳回 9被@ 11反馈回复
 -- user.unread_notify_count 冗余
+-- actor_id: NULL 合法 —— AI 系统判定没有具体操作人(2026-10-23 改,审查 P0-5:
+--   原 NOT NULL 导致 AI 机审写通知必报 1364,作者永远收不到机审结果)
+-- content: 自由文本通知内容(反馈回复原文等),旧类型恒为 NULL
+-- post_id: 被指向帖子(点赞/评论/提及/审核跳详情用);删帖时按此列清理通知
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `notify` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
     `user_id`         BIGINT   NOT NULL,
-    `type`            TINYINT  NOT NULL COMMENT '1被关注 2被赞 3被评 4私信 5活动',
+    `type`            TINYINT  NOT NULL COMMENT '1被关注 2被赞 3被评 4私信 5活动 6送审 7审核通过 8审核驳回 9被@ 11反馈回复',
     `target_id`       BIGINT   NOT NULL COMMENT '关联实体 id (帖子/评论/会话/活动)',
-    `post_id`         BIGINT   NULL COMMENT '被指向的帖子 id(点赞/评论跳帖子详情用),其他类型可空',
-    `actor_id`        BIGINT   NOT NULL COMMENT '触发者 userId',
+    `post_id`         BIGINT   NULL COMMENT '被指向的帖子 id(点赞/评论/审核跳帖子详情用),其他类型可空',
+    `actor_id`        BIGINT   NULL COMMENT '触发者 userId;NULL=系统(AI 机审/定时任务)',
+    `content`         VARCHAR(500) NULL COMMENT '自由文本通知内容(如反馈回复原文);旧类型通知恒为 NULL',
     `is_read`         TINYINT  NOT NULL DEFAULT 0,
     `create_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT  NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
-    KEY `idx_user_read` (`user_id`, `is_read`, `create_time` DESC)
+    KEY `idx_user_read` (`user_id`, `is_read`, `create_time` DESC),
+    KEY `idx_post` (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='通知';
 
 -- ------------------------------------------------------------
@@ -230,6 +306,7 @@ CREATE TABLE IF NOT EXISTS `circle` (
 -- ------------------------------------------------------------
 -- 圈子成员
 -- role: 1creator 2admin 3member
+-- ban_status/ban_until: 圈内软封禁(保留成员行,禁发帖/评论/点赞,保留查看);到点动态解除
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `circle_member` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
@@ -264,11 +341,13 @@ CREATE TABLE IF NOT EXISTS `reserved_circle_name` (
 -- 状态机: 0报名中 →1已满 →2进行中 →3已结束; 任意 →4已取消
 -- capacity: 名额上限, 0 不限
 -- current_count 冗余, 报名事务内 ±1
+-- creator_id: 活动创建者,报名通知(type=5)需要;NULL=迁移前旧数据
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `activity` (
     `id`              BIGINT       NOT NULL AUTO_INCREMENT,
     `title`           VARCHAR(128) NOT NULL,
     `circle_id`       BIGINT       NULL,
+    `creator_id`      BIGINT       NULL COMMENT '活动创建者用户id;NULL=迁移前旧数据',
     `capacity`        INT          NOT NULL DEFAULT 0 COMMENT '名额,0不限',
     `current_count`   INT          NOT NULL DEFAULT 0,
     `start_time`      DATETIME     NOT NULL,
@@ -360,6 +439,10 @@ CREATE TABLE IF NOT EXISTS `sensitive_word` (
 -- 审核任务
 -- post.status=0 入队；reviewer 处理：status 1通过 2驳回
 -- review_task(post_id UK) 防重复审
+-- hit_words: 命中敏感词(JSON数组,送审时记录,审核台展示用)
+-- ai_verdict/ai_reason/ai_reviewed_at: AI 机审预判(manual 时留给人审参考)
+--   三列已在基线内(原先是文件尾的裸 ALTER,重复执行必报 1060,审查 P0-1)
+-- 状态跃迁必须用条件 UPDATE(status=0 才流转),见 ReviewTaskMapper#casMarkProcessed
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `review_task` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
@@ -368,6 +451,9 @@ CREATE TABLE IF NOT EXISTS `review_task` (
     `status`          TINYINT  NOT NULL DEFAULT 0 COMMENT '0待审 1通过 2驳回',
     `reason`          VARCHAR(512) NULL,
     `hit_words`       VARCHAR(256) NULL COMMENT '命中敏感词(JSON数组,送审时记录,审核台展示用)',
+    `ai_verdict`      VARCHAR(16)  NULL COMMENT 'AI 机审结论:approve/reject/manual',
+    `ai_reason`       VARCHAR(512) NULL COMMENT 'AI 机审理由',
+    `ai_reviewed_at`  DATETIME     NULL COMMENT 'AI 机审完成时间',
     `create_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT  NOT NULL DEFAULT 0,
@@ -508,24 +594,239 @@ CREATE TABLE IF NOT EXISTS `upload_file` (
     KEY `idx_owner` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='上传文件归属';
 
--- ------------------------------------------------------------
--- 审核任务 AI 机审列(在既有 review_task 上加)
--- 新建库直接进 schema;已有库跑 migration_review_task_ai.sql
--- ------------------------------------------------------------
-ALTER TABLE `review_task`
-    ADD COLUMN `ai_verdict`    VARCHAR(16)  NULL COMMENT 'AI 机审结论:approve/reject/manual',
-    ADD COLUMN `ai_reason`     VARCHAR(512) NULL COMMENT 'AI 机审理由',
-    ADD COLUMN `ai_reviewed_at` DATETIME    NULL COMMENT 'AI 机审完成时间';
+-- ============================================================
+-- 以下 11 张表原先只存在于迁移脚本中(审查 P0-1),
+-- 2026-10-23 合并进基线,让「建库只跑 schema.sql」重新成立。
+-- ============================================================
 
 -- ------------------------------------------------------------
--- 初始化数据：内置敏感词（level 1 替换 / level 2 拒发）
--- 实际词库可后续扩充
+-- 兴趣标签字典(原 docs/sql/migration_v1.sql 第 1 节)
+-- category: 1兴趣 2游戏 3运动 4学习 5生活
+-- 人工维护,不做 UGC(避免脏标签与审核成本)
+-- uk_name 保证标签唯一;use_count 由 user_tag 增减时事务内 SET x = x ± 1 维护
 -- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `interest_tag` (
+    `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '标签ID',
+    `name`        VARCHAR(32) NOT NULL                COMMENT '标签名',
+    `category`    TINYINT     NOT NULL                COMMENT '1兴趣 2游戏 3运动 4学习 5生活',
+    `sort`        INT         NOT NULL DEFAULT 100    COMMENT '组内排序,升序;步长 10 便于插队',
+    `use_count`   INT         NOT NULL DEFAULT 0      COMMENT '被多少用户选中,冷启动期为 0',
+    `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT     NOT NULL DEFAULT 0      COMMENT '逻辑删除,MyBatis-Plus 全局字段',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_name` (`name`),
+    KEY `idx_category_sort` (`category`, `sort`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='兴趣标签字典';
+
+-- ------------------------------------------------------------
+-- 用户-标签关系(原 docs/sql/migration_v1.sql 第 1 节)
+-- uk_user_tag 保证同一用户对同一标签只有一行(PUT 覆盖写的幂等基础)
+-- idx_tag 支撑「按标签反查人」
+-- 注意:取消选择走物理删除(逻辑删会占住唯一键,再选必撞 Duplicate)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `user_tag` (
+    `id`          BIGINT   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`     BIGINT   NOT NULL                COMMENT '用户ID',
+    `tag_id`      BIGINT   NOT NULL                COMMENT '标签ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT  NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_tag` (`user_id`, `tag_id`),
+    KEY `idx_tag` (`tag_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-兴趣标签';
+
+-- ------------------------------------------------------------
+-- 举报(原 docs/sql/migration_v1.sql 第 2 节)
+-- target_type 多态指向:1用户 2帖子 3评论 4聊天消息 5搭子
+-- uk_report 是 AC-13 幂等的数据库兜底:同一人对同一目标只能有一条
+-- idx_status_time 支撑后台「待审优先 + 最新在前」的列表查询
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `report` (
+    `id`           BIGINT      NOT NULL AUTO_INCREMENT COMMENT '举报ID',
+    `reporter_id`  BIGINT      NOT NULL                COMMENT '举报人ID',
+    `target_type`  TINYINT     NOT NULL                COMMENT '1用户 2帖子 3评论 4聊天消息 5搭子',
+    `target_id`    BIGINT      NOT NULL                COMMENT '被举报对象ID',
+    `reason_type`  TINYINT     NOT NULL                COMMENT '1骚扰 2广告 3色情 4诈骗 5其他',
+    `reason_text`  VARCHAR(500) NULL                   COMMENT '补充说明',
+    `status`       TINYINT     NOT NULL DEFAULT 0      COMMENT '0待审 1成立 2驳回',
+    `handler_id`   BIGINT      NULL                    COMMENT '处置管理员ID',
+    `handle_time`  DATETIME    NULL                    COMMENT '处置时间',
+    `handle_note`  VARCHAR(500) NULL                   COMMENT '处置备注,同步写 audit_log',
+    `create_time`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`   TINYINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_report` (`reporter_id`, `target_type`, `target_id`),
+    KEY `idx_status_time` (`status`, `create_time` DESC),
+    KEY `idx_target` (`target_type`, `target_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='举报';
+
+-- ------------------------------------------------------------
+-- 官方公告(原 docs/sql/migration_v1.sql 第 3 节)
+-- 不用 notify 表达的原因:notify 是用户级事件,公告是广播级内容,
+-- 一人一行会造成 1 万用户 x 100 公告 = 100 万行的写入放大
+-- idx_school_status_top_time 直接对应前台列表排序:
+--   is_top DESC -> publish_time DESC,且 school_id / status 前置做等值过滤
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `announcement` (
+    `id`              BIGINT      NOT NULL AUTO_INCREMENT COMMENT '公告ID',
+    `title`           VARCHAR(120) NOT NULL               COMMENT '标题',
+    `content`         TEXT        NOT NULL                COMMENT '正文,纯文本+换行,MVP 不做富文本',
+    `category`        TINYINT     NOT NULL DEFAULT 6      COMMENT '1教务 2后勤 3活动 4社团 5紧急 6其他',
+    `publisher_id`    BIGINT      NOT NULL                COMMENT '发布人ID',
+    `school_id`       BIGINT      NOT NULL DEFAULT 1      COMMENT '学校ID,默认1,预留多校',
+    `is_top`          TINYINT     NOT NULL DEFAULT 0      COMMENT '0否 1是',
+    `top_expire_time` DATETIME    NULL                    COMMENT '置顶到期时间,到期后自然回落',
+    `status`          TINYINT     NOT NULL DEFAULT 0      COMMENT '0草稿 1已发布 2已下架',
+    `publish_time`    DATETIME    NULL                    COMMENT '发布时间,草稿为 NULL',
+    `read_count`      INT         NOT NULL DEFAULT 0      COMMENT '已读人数,仅首次已读时 +1',
+    `create_time`     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`      TINYINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_school_status_top_time` (`school_id`, `status`, `is_top` DESC, `publish_time` DESC),
+    KEY `idx_category` (`category`, `status`, `publish_time` DESC),
+    KEY `idx_publisher` (`publisher_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='官方公告';
+
+-- ------------------------------------------------------------
+-- 公告已读回执(原 docs/sql/migration_v1.sql 第 3 节)
+-- uk_ann_user 是 AC-09 幂等的数据库兜底,重复上报走 INSERT IGNORE 不新增行
+-- 只在实际有人读时写一行,未读数用 count 查询而非全量写入
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `announcement_read` (
+    `id`              BIGINT   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `announcement_id` BIGINT   NOT NULL                COMMENT '公告ID',
+    `user_id`         BIGINT   NOT NULL                COMMENT '用户ID',
+    `read_time`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '已读时间',
+    `create_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`      TINYINT  NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_ann_user` (`announcement_id`, `user_id`),
+    KEY `idx_user` (`user_id`, `read_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='公告已读回执';
+
+-- ------------------------------------------------------------
+-- 院系字典(原 docs/sql/migration_v1.sql 第 8 节)
+-- uk_school_name 而不是只对 name 建唯一键:多校时两个学校可以都有「外国语学院」
+-- enabled 与 is_deleted 是两种不同的退役语义:
+--   enabled=0  学校撤销/合并了该院系,不再让新用户选,但历史用户主页仍要显示原名
+--   is_deleted=1 记录彻底不要了(误录脏数据)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `school_dept` (
+    `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '院系ID',
+    `name`        VARCHAR(64) NOT NULL                COMMENT '院系名称',
+    `school_id`   BIGINT      NOT NULL DEFAULT 1      COMMENT '所属学校ID,MVP 单校恒为 1',
+    `sort`        INT         NOT NULL DEFAULT 100    COMMENT '排序权重,升序;步长 10 便于插队',
+    `enabled`     TINYINT     NOT NULL DEFAULT 1      COMMENT '1启用 0停用;停用后不再让新用户选但历史数据仍可解析',
+    `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT     NOT NULL DEFAULT 0      COMMENT '逻辑删除,MyBatis-Plus 全局字段',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_school_name` (`school_id`, `name`),
+    KEY `idx_school_enabled_sort` (`school_id`, `enabled`, `sort`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='院系字典';
+
+-- ------------------------------------------------------------
+-- 年级字典(原 docs/sql/migration_v1.sql 第 8 节)
+-- 不带 school_id:年级是「入学年份」,跨校同年级天然可比(刻意的不对称)
+-- enroll_year 单独存而不从 name 截:避免把解析规则复制到每个消费方
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `school_grade` (
+    `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '年级ID',
+    `name`        VARCHAR(32) NOT NULL                COMMENT '年级名称,如 2024级',
+    `enroll_year` SMALLINT    NOT NULL                COMMENT '入学年份,如 2024',
+    `sort`        INT         NOT NULL DEFAULT 100    COMMENT '排序权重,升序;最近入学的年级给最小',
+    `enabled`     TINYINT     NOT NULL DEFAULT 1      COMMENT '1启用 0停用;已毕业年级置 0',
+    `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT     NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_name` (`name`),
+    KEY `idx_enabled_sort` (`enabled`, `sort`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='年级字典';
+
+-- ------------------------------------------------------------
+-- 专业字典(原 sql/migration_f12_school_major.sql)
+-- 学院下属专业,支撑「学院 → 专业」二级联动与学号六层校验
+-- 为什么 level 放在专业而不是学院:一个学院同时有本科和专科专业,层次是专业的属性
+-- 为什么 code 用 CHAR(6):学号专业码定长 6 位、可含前导 0
+-- 本表是全项目唯一保留外键约束的表(学院被引用时不允许删)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `school_major` (
+    `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '专业ID',
+    `dept_id`     BIGINT      NOT NULL                COMMENT '所属学院ID → school_dept.id',
+    `school_id`   BIGINT      NOT NULL DEFAULT 1      COMMENT '所属学校ID,必须=dept.school_id',
+    `name`        VARCHAR(64) NOT NULL                COMMENT '专业名称,如 计算机科学与技术',
+    `code`        CHAR(6)     NOT NULL                COMMENT '6 位校内专业编码(学号位 3-8),定长、可含前导 0',
+    `level`       TINYINT     NOT NULL                COMMENT '层次:1=本科 2=专科',
+    `code_type`   TINYINT     NOT NULL DEFAULT 1      COMMENT '专业码类型:1本科国标码 2专科校内码 3高职占位码',
+    `sort`        INT         NOT NULL DEFAULT 100    COMMENT '排序权重,升序;步长 10 便于插队',
+    `enabled`     TINYINT     NOT NULL DEFAULT 1      COMMENT '1启用 0停用;停招专业不再让新用户选',
+    `create_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT     NOT NULL DEFAULT 0      COMMENT '逻辑删除,MyBatis-Plus 全局字段',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_school_code` (`school_id`, `code`) COMMENT '同一学校内 6 位专业码唯一;学号按码查专业的唯一入口',
+    UNIQUE KEY `uk_dept_name` (`dept_id`, `name`)     COMMENT '同一学院内专业名唯一,防止重复录入',
+    KEY `idx_dept_level_enabled_sort` (`dept_id`, `level`, `enabled`, `sort`, `id`) COMMENT '学院→专业下拉:按学院+层次过滤+启用+排序',
+    CONSTRAINT `fk_major_dept` FOREIGN KEY (`dept_id`)
+        REFERENCES `school_dept` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='专业字典(学院下属专业,支撑级联下拉与学号专业码校验)';
+
+-- ------------------------------------------------------------
+-- 意见反馈(原 sql/migration_g1_feedback.sql)
+-- user_id 不加唯一约束:反馈本就允许重复提交(同一问题提两次是常事)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `feedback` (
+    `id`           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '反馈ID',
+    `user_id`      BIGINT       NOT NULL                COMMENT '提交人ID',
+    `category`     TINYINT      NOT NULL                COMMENT '1功能建议 2使用问题 3内容问题 4界面体验 5其他',
+    `content`      VARCHAR(1000) NOT NULL               COMMENT '文字描述',
+    `media_json`   VARCHAR(2000) NULL                   COMMENT '图片/视频,[{type,url}] JSON 数组',
+    `status`       TINYINT      NOT NULL DEFAULT 0      COMMENT '0待处理 1已采纳 2已忽略',
+    `handler_id`   BIGINT       NULL                    COMMENT '处理管理员ID',
+    `handle_time`  DATETIME     NULL                    COMMENT '处理时间',
+    `handle_note`  VARCHAR(500) NULL                    COMMENT '处理备注,同步写 audit_log',
+    `create_time`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`   TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_status_time` (`status`, `create_time` DESC),
+    KEY `idx_user` (`user_id`, `id` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='意见反馈';
+
+-- ------------------------------------------------------------
+-- 帖子收藏(原 sql/migration_j1_post_favorite.sql)
+-- uk_fav_user_post 唯一键兜底「同一人不能重复收藏同一条」
+-- 取消收藏走物理删除:软删会留下行继续占用唯一键,再收藏必撞 Duplicate
+-- favorite_count 冗余在 post 上,与 like_count/comment_count 对称
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `post_favorite` (
+    `id`          BIGINT   NOT NULL AUTO_INCREMENT,
+    `user_id`     BIGINT   NOT NULL COMMENT '收藏人',
+    `post_id`     BIGINT   NOT NULL COMMENT '被收藏的帖子',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT  NOT NULL DEFAULT 0 COMMENT '保留列,实际取消收藏走物理删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_fav_user_post` (`user_id`, `post_id`),
+    KEY `idx_fav_user_id` (`user_id`, `id`) COMMENT '按收藏时间倒序翻页',
+    KEY `idx_fav_post` (`post_id`) COMMENT '删帖时清理收藏'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='帖子收藏';
+
+-- ============================================================
+-- 内置种子:敏感词(level 1 替换 / level 2 拒发)
+-- 实际词库可后续扩充;INSERT IGNORE 靠 uk_word 去重,可重复执行
+-- ============================================================
 INSERT IGNORE INTO `sensitive_word` (`word`, `level`) VALUES
     ('测试违禁词', 2),
     ('示例敏感词A', 2),
     ('示例敏感词B', 1),
-    -- 集市活动禁发：商业/代做/代考/违规跑腿/赌博/烟酒（level 2 拒发）
+    -- 集市活动禁发:商业/代做/代考/违规跑腿/赌博/烟酒(level 2 拒发)
     ('商业广告', 2),
     ('有偿代做', 2),
     ('代考', 2),
