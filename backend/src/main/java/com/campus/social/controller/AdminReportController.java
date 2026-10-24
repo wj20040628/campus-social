@@ -48,9 +48,10 @@ public class AdminReportController {
     @GetMapping
     public Result<ReportAdminPageVO> list(
             @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "handled", required = false) Boolean handled,
             @RequestParam(value = "cursor", required = false) Long cursor,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(reportAdminService.list(status, cursor, size));
+        return Result.ok(reportAdminService.list(status, handled, cursor, size));
     }
 
     /**

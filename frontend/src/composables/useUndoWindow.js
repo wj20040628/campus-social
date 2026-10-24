@@ -28,11 +28,14 @@ export function useUndoWindow() {
   /** null 或 { text, ratio, meta } */
   const undo = ref(null)
   let timer = null
+  /** 当前窗口待落库的回调。clear() 会清 undo 但保留它，供 flush 用 */
+  let pendingCommit = null
 
   function clear() {
     if (timer) clearInterval(timer)
     timer = null
     undo.value = null
+    pendingCommit = null
   }
 
   /**
@@ -49,13 +52,15 @@ export function useUndoWindow() {
     const started = Date.now()
     const state = { text, ratio: 1, meta }
     undo.value = state
+    pendingCommit = commit
     timer = setInterval(() => {
       const left = UNDO_MS - (Date.now() - started)
       state.ratio = Math.max(0, left / UNDO_MS)
       if (left <= 0) {
+        const fire = pendingCommit
         clear()
         // 不 await:窗口消失与请求发出解耦,请求失败走各自的错误处理
-        commit()
+        if (fire) fire()
       }
     }, TICK_MS)
   }
@@ -72,7 +77,55 @@ export function useUndoWindow() {
     return meta
   }
 
-  onBeforeUnmount(clear)
+  /**
+   * 立刻落库（2026-10-24 加）。
+   *
+   * 【为什么必须有】原先只有 onBeforeUnmount(clear)：管理员点完处置、
+   * 在 5 秒窗口内刷新页面或切走路由，定时器被清掉、commit 永远不执行 ——
+   * 处置**静默丢失**，刷新后那条举报又回到待处理列表。
+   * 代码注释里承认过这个代价（「管理员杀页面则处置丢失」），
+   * 但代价不该由「以为已经处置完了」的管理员来承担。
+   *
+   * 与 undoNow 的区别：撤销是「当作没点过」，flush 是「点过了，立刻生效」。
+   */
+  function flush() {
+    if (!undo.value) return
+    const fire = pendingCommit
+    clear()
+    if (fire) fire()
+  }
 
-  return { undo, open, clear, undoNow }
+  /** 是否还有未落库的处置 */
+  function hasPending() {
+    return !!undo.value
+  }
+
+  /*
+   * 离开组件时**落库**而不是丢弃。
+   *
+   * 这里覆盖 SPA 内的路由切换（window 不会卸载，但组件会）。
+   * 浏览器刷新/关闭走下面的 pagehide —— Vue 的 unmount 在那种情况下
+   * 不保证触发，只靠它仍会丢。
+   */
+  onBeforeUnmount(flush)
+
+  /*
+   * 刷新/关标签页时兜底。
+   *
+   * pagehide 比 beforeunload 可靠（iOS Safari 上 beforeunload 常不触发），
+   * 两个都挂上，重复触发由 hasPending 天然去重（flush 后 undo 已清空）。
+   */
+  if (typeof window !== 'undefined') {
+    const onLeave = () => {
+      if (hasPending()) flush()
+    }
+    window.addEventListener('pagehide', onLeave)
+    window.addEventListener('beforeunload', onLeave)
+    onBeforeUnmount(() => {
+      window.removeEventListener('pagehide', onLeave)
+      window.removeEventListener('beforeunload', onLeave)
+    })
+  }
+
+  return { undo, open, clear, undoNow, flush, hasPending }
 }

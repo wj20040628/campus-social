@@ -488,10 +488,31 @@ paths:
         默认 `status = 0`（待审）在前，按 `create_time` 倒序，游标分页。
         **本页必须在 375px 视口可用**（OD-19 / AC-14），故单次返回字段保持精简：
         不返回 `reason_text` 全量，超过 60 字截断并附 `reasonTextTruncated`。
+
+        ## 用 handled 而不是 status 区分「待处理 / 已处理」
+
+        `ignore` 按契约**不改变 status**（仍是 0），只写 `handler_id`。于是单看 status：
+          - 待处理列表过滤不掉已忽略的（status 仍是 0，刷新后又冒出来）
+          - 已处理列表也表达不出它（status 不是 1/2）
+
+        `handler_id` 才是三种处置（ignore / reject / ban）都会落下的标记：
+          - `handled=false` → 待处理：`status = 0 AND handler_id IS NULL`
+          - `handled=true`  → 已处理：`handler_id IS NOT NULL`（含被忽略的）
+          - 都不传 → 退回按 status 过滤（兼容旧调用）
+
+        `handle_time` 三种处置都会写（原先忽略不写，导致已处理里查不到处置时间）。
       parameters:
+        - name: handled
+          in: query
+          description: |
+            true=已处理（含被忽略的，靠 handler_id 判定）；
+            false=待处理（status=0 且无人处置过）。传了它就以它为准，status 被忽略。
+          required: false
+          schema:
+            type: boolean
         - name: status
           in: query
-          description: 0待审 1成立 2驳回。不传表示全部
+          description: 0待审 1成立 2驳回。不传表示全部。仅在未传 handled 时生效
           required: false
           schema:
             type: integer

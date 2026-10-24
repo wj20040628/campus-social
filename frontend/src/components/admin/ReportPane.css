@@ -513,3 +513,36 @@
     transition: none;
   }
 }
+
+/* ==========================================================================
+   处置结论（2026-10-24 加）
+   --------------------------------------------------------------------------
+   已处理态唯一能说明「这条后来怎么了」的地方：谁处置的、什么时候、什么结论。
+   在此之前已处理列表根本没接上，管理员处置完就再也查不到自己做过什么。
+
+   用与「被举报内容」不同的底色区分：上面那块是举报对象，这块是处置结果，
+   两者混在一起时管理员容易把结论看成内容的一部分。
+   ========================================================================== */
+.report-card__verdict {
+  margin-top: var(--ys-space-4);
+  padding: var(--ys-space-3) var(--ys-space-3);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+}
+
+.report-card__verdict-line {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: 1.7;
+  color: var(--ys-muted);
+}
+
+.report-card__verdict-line + .report-card__verdict-line {
+  margin-top: var(--ys-space-1);
+}
+
+/* 结论本身是这块的重点，用正文色 + 粗一档，别混在灰字里 */
+.report-card__verdict-line b {
+  color: var(--ys-fg);
+  font-weight: var(--ys-weight-semibold);
+}

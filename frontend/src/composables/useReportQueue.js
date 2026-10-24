@@ -33,7 +33,13 @@ const REASON_TEXT = {
   5: '其他',
 }
 
-export function useReportQueue(status) {
+/**
+ * @param {import('vue').Ref<boolean>} handled false=待处理 / true=已处理
+ *
+ * 用 handled 而不是 status 区分两个列表：忽略按契约不改 status（仍为 0），
+ * 只写 handler_id，所以 status 既过滤不掉已忽略的、也表达不出它。
+ */
+export function useReportQueue(handled) {
   const list = ref([])
   const total = ref(0)
   const loading = ref(false)
@@ -96,9 +102,14 @@ export function useReportQueue(status) {
     failed.value = false
     actionError.value = ''
     try {
-      const data = await adminReports({ status: status.value })
+      const data = await adminReports({ handled: handled.value })
       list.value = data.list || []
-      // pendingCount 是后端给的待审总数;非待审状态下可能不给,退化为本页条数
+      /*
+       * pendingCount 是后端给的待审总数。
+       * 已处理列表拿到的是「已处置总数」，不能拿来算进度 —— 那个进度条
+       * （已处置 / 总数）只在待处理列表里有意义。已处理态下 total 退化为
+       * 本页条数即可，反正进度条那里会按 handled 隐藏。
+       */
       total.value = data.pendingCount ?? list.value.length
       // 重拉后列表是全新的,旧下标没有意义(可能指向另一条)。
       // 处置失败会触发 load,不清的话管理员会看到「还在处置刚才那条」——

@@ -18,5 +18,5 @@ public interface ReportAdminService {
      * @param status 0待审 1成立 2驳回；null 表示全部
      * @param cursor 上一页最后一条的 id；null 表示第一页
      */
-    ReportAdminPageVO list(Integer status, Long cursor, int size);
+    ReportAdminPageVO list(Integer status, Boolean handled, Long cursor, int size);
 }

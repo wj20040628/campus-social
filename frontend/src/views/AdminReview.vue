@@ -41,7 +41,7 @@
           </button>
         </h1>
         <p class="review-admin__hint">
-          {{ tab === 'report' ? '举报有时效,先处理' : '机审可以等' }}
+          {{ tabHint }}
         </p>
       </header>
 
@@ -51,8 +51,24 @@
         <el-tab-pane label="已处理" name="processed" />
       </el-tabs>
 
-      <!-- 举报域。数据、动作、撤销、五态全在组件内 -->
-      <ReportPane v-if="tab === 'report'" :status="0" @switch-tab="onTabChange" />
+      <!-- 举报域：待处理。数据、动作、撤销、五态全在组件内 -->
+      <ReportPane
+        v-if="tab === 'report'"
+        :handled="false"
+        @switch-tab="onTabChange"
+      />
+
+      <!--
+        已处理：同一套举报卡片，但只读（没有处置按钮）。
+        【2026-10-24 补】此前这个 tab 落到下面的 v-else，渲染的是「机审队列」——
+        于是管理员处置完举报，点「已处理」看到的是另一批数据（而且因为机审队列
+        独立于举报，通常是空的），看起来像「处置没生效」。
+      -->
+      <ReportPane
+        v-else-if="tab === 'processed'"
+        :handled="true"
+        @switch-tab="onTabChange"
+      />
 
       <!-- 机审队列 -->
       <div v-else class="task-list">
@@ -282,9 +298,25 @@ function aiVerdictText(v) {
 /** 切 Tab。两个域的数据各自管理,这里只做「离开时收摊、进来时开工」 */
 function onTabChange(name) {
   tab.value = name
-  if (name === 'report') return // 举报域无分页,组件自己在 setup 里拉
+  /*
+   * 举报域与已处理域都归 ReportPane 管，它在自己的 setup 里拉数据。
+   * 这里不能再 load 一次 —— 那会去打机审队列的接口（/review/processed），
+   * 而那个列表现在根本不渲染，纯属白跑一趟。
+   */
+  if (name === 'report' || name === 'processed') return
   load(name, true).then(() => observeSentinel(name))
 }
+
+/**
+ * 标题下那行提示（2026-10-24 补第三档）。
+ * 原先是二元的 `tab === 'report' ? '举报有时效,先处理' : '机审可以等'`，
+ * 于是「已处理」页顶着「机审可以等」——一句话说的是另一个域的事。
+ */
+const tabHint = computed(() => {
+  if (tab.value === 'report') return '举报有时效，先处理'
+  if (tab.value === 'processed') return '处置过的都能回查，谁在什么时候怎么处理的'
+  return '机审可以等'
+})
 
 watch(
   () => userStore.isAdmin,

@@ -81,12 +81,26 @@ export function submitReport(body) {
  * axios 会把 undefined 的参数从 query 里剔掉,但传空串会变成 `?status=`,
  * 后端按「空字符串」解析会 400。宁可少传一个可选参数,不多传一个空值。
  *
- * @param {{status?: 0|1|2, lastId?: number|null, size?: number}} [params]
+ * 【为什么用 handled 而不是只靠 status 区分两个列表】
+ * 「忽略」按契约不改 status（仍是 0），只写 handler_id。于是单看 status：
+ *   - 待处理列表过滤不掉已忽略的（status 仍是 0，刷新后又冒出来）
+ *   - 已处理列表也表达不出它（status 不是 1/2）
+ * handler_id 才是三种处置（忽略/驳回/成立封禁）都会落下的可靠标记。
+ *
+ * @param {{handled?: boolean, status?: 0|1|2, lastId?: number|null, size?: number}} [params]
+ *   handled=false → 待处理（status=0 且无人处置过）
+ *   handled=true  → 已处理（含被忽略的）
+ *   不传 handled  → 退回按 status 过滤（兼容旧调用）
  */
 export function adminReports(params = {}) {
-  const { status, lastId, size = 20 } = params
+  const { status, handled, lastId, size = 20 } = params
   const query = { size }
-  if (status !== undefined && status !== null) query.status = status
+  if (handled !== undefined && handled !== null) {
+    query.handled = handled
+  } else if (status !== undefined && status !== null) {
+    // handled 已能表达全部语义，两者同时传反而让人猜不透以谁为准
+    query.status = status
+  }
   if (lastId !== undefined && lastId !== null) query.lastId = lastId
   return request.get('/admin/reports', { params: query })
 }

@@ -21,15 +21,19 @@
       只写「A 忽略」怕管理员带着机审的肌肉记忆来;写「A 忽略(不采纳)」最稳。
       「成立并封禁」不在列表里 —— 它没绑键,列出来会让人去找那个键。
     -->
-    <p v-if="!isMobile && !listMode" class="report-pane__keys">
+    <p v-if="!isMobile && !listMode && !readOnly" class="report-pane__keys">
       <span><kbd>J</kbd><kbd>K</kbd> 切换</span>
       <span><kbd>A</kbd> 忽略（不采纳）</span>
       <span><kbd>R</kbd> 驳回</span>
       <span><kbd>U</kbd> 撤销</span>
     </p>
 
-    <!-- 行 2:进度条。告诉管理员「还剩多少」,这是他继续点下去的动力 -->
-    <div v-if="current" class="report-pane__progress">
+    <!--
+      行 2:进度条。告诉管理员「还剩多少」,这是他继续点下去的动力。
+      已处理态不显示：那里没有「待处置」这回事，进度条的分母是待审总数、
+      分子却是已处理条数，画出来是个没有意义的比例。
+    -->
+    <div v-if="current && !readOnly" class="report-pane__progress">
       <div class="report-pane__progress-track">
         <span class="report-pane__progress-fill" :style="{ width: `${progressPct}%` }" />
       </div>
@@ -99,6 +103,26 @@
             {{ current.reasonText }}<span v-if="current.reasonTextTruncated">（后端已截断）</span>
           </p>
         </div>
+
+        <!--
+          处置结论（2026-10-24 加）：已处理态唯一能说明「这条后来怎么了」的地方。
+          在此之前已处理列表根本不存在，管理员处置完就再也查不到自己做过什么。
+
+          三种结论的判定：status=1 成立 / 2 驳回；而「忽略」按契约不改 status
+          （仍为 0）只写 handler_id —— 所以 status=0 但 handlerId 非空 = 已忽略，
+          这个分支不能少，否则忽略过的记录会被显示成「待处理」。
+        -->
+        <div v-if="readOnly" class="report-card__verdict">
+          <p class="report-card__verdict-line">
+            处置结论：<b>{{ verdictText(current) }}</b>
+          </p>
+          <p v-if="current.handleTime" class="report-card__verdict-line">
+            处置时间：{{ fmt(current.handleTime) }}
+          </p>
+          <p v-if="current.handleNote" class="report-card__verdict-line">
+            处置说明：{{ current.handleNote }}
+          </p>
+        </div>
       </article>
 
       <!--
@@ -118,11 +142,11 @@
       <StateBlock
         v-else-if="!loading && list.length === 0 && !failed"
         variant="empty"
-        title="没有待处理的举报"
-        description="校园里这会儿挺安静，这是好事"
+        :title="readOnly ? '还没有处理过的举报' : '没有待处理的举报'"
+        :description="readOnly ? '处置过的举报会留在这里，能查到谁在什么时候怎么处理的' : '校园里这会儿挺安静，这是好事'"
         :icon="Files"
-        action-label="看看已处理的"
-        @action="emit('switch-tab', 'report-done')"
+        :action-label="readOnly ? '回到待处理' : '看看已处理的'"
+        @action="emit('switch-tab', readOnly ? 'report' : 'processed')"
       />
     </div>
 
@@ -131,7 +155,7 @@
       「成立并封禁」放最右是**刻意的**:右手握持拇指落在右下,
       把不可逆动作放在最容易误触的位置,是防误触而不是反人体工学。
     -->
-    <footer v-if="current && !listMode" class="report-pane__foot">
+    <footer v-if="current && !listMode && !readOnly" class="report-pane__foot">
       <!--
         封禁天数:默认 7 天。0(永久)不设默认 ——
         永久封禁是不可逆里最重的一档,必须让管理员主动去选,不能顺手点到。
@@ -210,15 +234,26 @@ import { useIsMobile } from '@/composables/useBreakpoint'
 import StateBlock from '@/components/common/StateBlock.vue'
 
 const props = defineProps({
-  /** 0 待审 / 1 成立 / 2 驳回 */
+  /** 0 待审 / 1 成立 / 2 驳回。handled=true 时忽略本字段 */
   status: { type: Number, default: 0 },
+  /**
+   * false=待处理（可处置），true=已处理（只读回看）。
+   *
+   * 【为什么不能只看 status】「忽略」按契约不改 status（仍是 0），
+   * 只写 handler_id。所以待处理列表必须靠 handler_id 排除它，
+   * 已处理列表也必须靠 handler_id 才能包含它 —— 单凭 status 两边都表达不了。
+   */
+  handled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['switch-tab'])
 
 const isMobile = useIsMobile()
 
-const q = useReportQueue(toRef(props, 'status'))
+/** 只看不改：已处理态不出现任何处置按钮 */
+const readOnly = computed(() => props.handled)
+
+const q = useReportQueue(toRef(props, 'handled'))
 const {
   list, total, loading, failed, busy, actionError, listMode,
   expanded, banDays, stage, undo, doneCount, progressPct, current, currentIndex,
@@ -262,9 +297,22 @@ useReviewHotkeys({
   // 把 useReportQueue 的下标交给快捷键用,不能让它自己再存一份 ——
   // 两份下标会各走各的,界面停在第 2 条而 act() 处置第 1 条,且不报错。
   index: currentIndex,
-  approve: () => act('ignore'),
-  reject: () => act('reject'),
-  undoReview: onUndo,
+  /*
+   * 已处理态下 A/R/U 一律不动作（2026-10-24 加）。
+   * 不拦的话，管理员在只读列表里随手按一下 A 就会去打 handle 接口，
+   * 拿回一个 409「该举报已被处置」——不危险，但屏幕上凭空冒出一句
+   * 看不懂的报错，而管理员只是翻看历史记录而已。
+   * （提示条本身也已按 readOnly 隐藏，这里再兜一道，因为键可能是盲按的。）
+   */
+  approve: () => {
+    if (!readOnly.value) act('ignore')
+  },
+  reject: () => {
+    if (!readOnly.value) act('reject')
+  },
+  undoReview: () => {
+    if (!readOnly.value) onUndo()
+  },
   listMode,
   // J/K 切到哪条就直接进逐条处置:J/K 的语义是「我要处置这一条」,
   // 停在纯回看的列表模式里再按 A 是多余的一步。
@@ -274,11 +322,27 @@ useReviewHotkeys({
     listMode.value = false
     reset()
   },
-  onHint: (msg) => ElMessage.info(msg),
+  onHint: (msg) => {
+    if (!readOnly.value) ElMessage.info(msg)
+  },
 })
 
 function fmt(t) {
   return t ? dayjs(t).format('MM-DD HH:mm') : ''
+}
+
+/**
+ * 处置结论文案（2026-10-24 加）。
+ *
+ * 关键分支：status=0 但 handlerId 非空 = **已忽略**。
+ * 「忽略」按契约不改 status，只看 status 会把它标成「待处理」——
+ * 一条已被忽略的举报在已处理列表里写着「待处理」，比不显示更误导。
+ */
+function verdictText(r) {
+  if (!r) return ''
+  if (r.status === 1) return '成立并封禁'
+  if (r.status === 2) return '驳回'
+  return r.handlerId ? '忽略' : '待处理'
 }
 </script>
 

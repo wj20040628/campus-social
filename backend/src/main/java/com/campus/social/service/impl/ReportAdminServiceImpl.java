@@ -37,9 +37,9 @@ public class ReportAdminServiceImpl implements ReportAdminService {
     private final ReportMapper reportMapper;
 
     @Override
-    public ReportAdminPageVO list(Integer status, Long cursor, int size) {
+    public ReportAdminPageVO list(Integer status, Boolean handled, Long cursor, int size) {
         int limit = Math.max(1, Math.min(size, 50));
-        List<ReportListVO> rows = reportMapper.selectAdminList(status, cursor, limit + 1);
+        List<ReportListVO> rows = reportMapper.selectAdminList(status, handled, cursor, limit + 1);
 
         boolean hasMore = rows.size() > limit;
         List<ReportListVO> page = hasMore ? rows.subList(0, limit) : rows;

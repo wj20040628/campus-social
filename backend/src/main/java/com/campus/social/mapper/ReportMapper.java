@@ -65,32 +65,62 @@ public interface ReportMapper extends BaseMapper<Report> {
      * 处置后 status 变为 1/2，service 层已在进入本方法前拦掉，
      * 不会与「已阅但未处置」的记录混淆。
      */
-    @Update("UPDATE report SET handler_id = #{handlerId}, handle_note = #{handleNote}, update_time = NOW() "
+    /*
+     * 忽略也要写 handle_time（2026-10-24 加）。
+     *
+     * 原来只写 handler_id + handle_note，于是「已处理」里那条被忽略的举报
+     * 显示不出处置时间 —— 管理员看到「处置结论：忽略」却不知道是什么时候忽略的，
+     * 而时间正是这类回查记录最有用的一半。
+     * handle_time 语义是「这条被处置的时刻」，忽略同样是一次处置，没有理由留空。
+     * 没有任何后端逻辑依赖它为 NULL（全仓库只有 UI 读它）。
+     */
+    @Update("UPDATE report SET handler_id = #{handlerId}, handle_time = NOW(), "
+            + "handle_note = #{handleNote}, update_time = NOW() "
             + "WHERE id = #{id} AND status = 0 AND handler_id IS NULL")
     int markIgnored(@Param("id") Long id, @Param("handlerId") Long handlerId,
             @Param("handleNote") String handleNote);
 
-    /** status=0 的总数,供手机端审核页顶栏红点 */
-    @Select("SELECT COUNT(*) FROM report WHERE status = 0 AND is_deleted = 0")
+    /**
+     * 待处理总数，供手机端审核页顶栏红点。
+     *
+     * <p>必须**同时**排除「已被忽略」的（2026-10-24 修）。
+     * 忽略按契约不改 status（仍是 0），只写 handler_id —— 所以只看 status=0
+     * 会把已忽略的算进待处理数，红点永远清不掉。
+     */
+    @Select("SELECT COUNT(*) FROM report WHERE status = 0 AND handler_id IS NULL AND is_deleted = 0")
     int countPending();
 
     /**
-     * 管理端列表（游标分页，按 create_time 倒序、id 倒序）。
+     * 管理端列表（游标分页，按 id 倒序）。
      *
      * <p>游标用 id 而不是 create_time：create_time 可能撞同一秒，
      * 用它做游标会漏行或重复行。id 单调且唯一，是唯一可靠的游标键。
      *
      * <p>联表带出举报人昵称，省掉 Java 侧的 N+1 查询。
+     *
+     * <p><b>handled 参数（2026-10-24 加）</b>：区分「待处理」与「已处理」。
+     * 之所以不能只用 status 表达，是因为「忽略」按契约不改 status ——
+     * 一条被忽略的举报 status 仍是 0，只凭 status 既过滤不掉它（待处理里阴魂不散），
+     * 也表达不出它（已处理里看不到）。真正可靠的判定是 handler_id：
+     * 三种处置（忽略/驳回/成立封禁）都会写它。
+     * <ul>
+     *   <li>{@code handled=false} → 待处理：status=0 且还没人看过</li>
+     *   <li>{@code handled=true}  → 已处理：handler_id 非空（含被忽略的）</li>
+     *   <li>{@code handled=null}  → 兼容旧调用：退回按 status 过滤</li>
+     * </ul>
      */
     @Select("<script>"
             + "SELECT r.*, u.nickname AS reporter_nickname FROM report r "
             + "LEFT JOIN user u ON u.id = r.reporter_id "
             + "WHERE r.is_deleted = 0 "
-            + "<if test='status != null'>AND r.status = #{status} </if>"
+            + "<if test='handled != null and handled'>AND r.handler_id IS NOT NULL </if>"
+            + "<if test='handled != null and !handled'>AND r.status = 0 AND r.handler_id IS NULL </if>"
+            + "<if test='handled == null'><if test='status != null'>AND r.status = #{status} </if></if>"
             + "<if test='cursor != null'>AND r.id &lt; #{cursor} </if>"
             + "ORDER BY r.id DESC LIMIT #{limit}"
             + "</script>")
     List<com.campus.social.vo.ReportListVO> selectAdminList(@Param("status") Integer status,
+            @Param("handled") Boolean handled,
             @Param("cursor") Long cursor, @Param("limit") int limit);
 
     /** 被举报对象的摘要文本,供管理员在手机上快速判断 */
