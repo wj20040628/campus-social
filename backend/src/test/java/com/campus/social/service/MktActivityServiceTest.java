@@ -44,6 +44,8 @@ class MktActivityServiceTest {
     @Autowired private MktCommentMapper mktCommentMapper;
     @Autowired private UserMapper userMapper;
     @Autowired private StringRedisTemplate redis;
+    /** 清理用：绕过 @TableLogic 做物理删除 */
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** 造数用的固定 user_id(清理时一起删,避免污染真实数据) */
     private final long OWNER = 9_900_001L;
@@ -55,17 +57,41 @@ class MktActivityServiceTest {
     @AfterEach
     void cleanup() {
         try {
+            /*
+             * 必须**物理删**（2026-10-24 修）。
+             *
+             * mktCommentMapper/mktMapper.deleteById 都走 @TableLogic 软删，
+             * 行会留在表里且不再被读到 —— 每跑一次就积一批。
+             * 实测本地库积了 297 条（全属测试账号 9900001/9900002），
+             * 把 mkt_activity 撑到 310 行，而真实数据只有 13 行。
+             * 这类垃圾不报错，只让库越来越难看清。
+             */
             for (Long cid : myCommentIds) {
-                mktCommentMapper.deleteById(cid);
+                jdbc.update("DELETE FROM mkt_comment WHERE id = ?", cid);
             }
             myCommentIds.clear();
             if (createdId > 0) {
-                mktMapper.deleteById(createdId);
+                // 先删挂在其下的留言，再删本体，避免留下孤儿
+                jdbc.update("DELETE FROM mkt_comment WHERE activity_id = ?", createdId);
+                jdbc.update("DELETE FROM mkt_activity WHERE id = ?", createdId);
                 createdId = 0;
             }
             // 清掉限流窗口键,避免下次跑测试被 24h/3 次卡住
             clearMktRedisKeys();
-        } catch (Exception ignore) {
+            /*
+             * 连测试账号一起删。OWNER/OTHER 是固定 id，下次运行会幂等重建，
+             * 所以这里删掉不会影响用例；不删的话跑完测试库里就总会多出这两个用户，
+             * 与「只保留真实账号」的意愿相悖。
+             */
+            for (long uid : new long[]{OWNER, OTHER}) {
+                jdbc.update("DELETE FROM user_tag WHERE user_id = ?", uid);
+                jdbc.update("DELETE FROM upload_file WHERE user_id = ?", uid);
+                jdbc.update("DELETE FROM relation WHERE from_user_id = ? OR to_user_id = ?", uid, uid);
+                jdbc.update("DELETE FROM user WHERE id = ?", uid);
+            }
+        } catch (Exception e) {
+            // 不静默：清理失败会在库里留垃圾，必须看得见
+            System.err.println("[MktActivityServiceTest] 清理失败: " + e.getMessage());
         }
     }
 
@@ -124,6 +150,9 @@ class MktActivityServiceTest {
         dto.setCategory("游戏组队");
         dto.setSubTag("王者荣耀");
         Long id = service.create(OWNER, dto);
+        // 登记待清理。漏了这两处（本用例与 create_acceptsOmittedTitle）时，
+        // 每跑一次测试就会在 mkt_activity 留下一条永远不删的记录 —— 实测泄漏 2 条/次。
+        createdId = id;
         MktActivityVO vo = service.detail(id, OTHER);
         assertEquals("游戏组队 · 王者荣耀", vo.getMainText());
     }
@@ -133,6 +162,7 @@ class MktActivityServiceTest {
         MktActivityDTO dto = fixTitle();
         dto.setTitle(null); // 标题已改可选,缺省用「分类 · 游戏」当主文案
         Long id = service.create(OWNER, dto);
+        createdId = id; // 同上：不登记就会泄漏
         assertNotNull(id);
     }
 

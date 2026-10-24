@@ -166,6 +166,23 @@ class CircleAdminServiceTest {
                 jdbc.update("DELETE FROM circle WHERE id = ?", circleId);
             }
             /*
+             * 测试用户也要删（2026-10-24 补）。
+             *
+             * setUp 里 creator/admin/member/outsider 取自 SEQ.incrementAndGet()，
+             * 每个用例都是**全新的 4 个 id** —— 于是 19 个用例跑一次就留 76 个用户，
+             * 而且从来没人删。实测一次运行就把清空的库从 2 个用户涨到 81 个。
+             * 这些用户 id 很大、不撞唯一键，所以一直没暴露成失败，只是纯垃圾。
+             * 平台管理员（固定 id）同样在这里删掉，下次 setUp 会幂等重建。
+             */
+            for (long uid : new long[]{creator, admin, member, outsider, adminUser}) {
+                if (uid <= 0) continue;
+                jdbc.update("DELETE FROM user_tag WHERE user_id = ?", uid);
+                jdbc.update("DELETE FROM upload_file WHERE user_id = ?", uid);
+                jdbc.update("DELETE FROM relation WHERE from_user_id = ? OR to_user_id = ?", uid, uid);
+                jdbc.update("DELETE FROM circle_member WHERE user_id = ?", uid);
+                jdbc.update("DELETE FROM user WHERE id = ?", uid);
+            }
+            /*
              * 预留名同样必须物理删除。
              *
              * ReservedCircleName 带 @TableLogic，reservedMapper.deleteById 是**软删**，

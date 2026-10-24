@@ -34,6 +34,8 @@ class RefreshJtiConcurrencyIntegrationTest {
     @Autowired private AuthService authService;
     @Autowired private UserMapper userMapper;
     @Autowired private StringRedisTemplate redis;
+    /** 清理用：绕过 @TableLogic 做物理删除 */
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private Long userId;
     private String refreshKey;
@@ -58,8 +60,20 @@ class RefreshJtiConcurrencyIntegrationTest {
     void tearDown() {
         try {
             redis.delete(refreshKey);
-            if (userId != null) userMapper.deleteById(userId);
-        } catch (Exception ignore) { }
+            /*
+             * 必须物理删（2026-10-24 修）。
+             * userMapper.deleteById 走 @TableLogic 软删，行会留在表里，
+             * 每跑一次就多一个 itest_* 用户 —— 实测一次清空到 2 个用户的库，
+             * 跑完测试就变成 4 个。
+             */
+            if (userId != null) {
+                jdbc.update("DELETE FROM user_tag WHERE user_id = ?", userId);
+                jdbc.update("DELETE FROM upload_file WHERE user_id = ?", userId);
+                jdbc.update("DELETE FROM user WHERE id = ?", userId);
+            }
+        } catch (Exception e) {
+            System.err.println("[RefreshJtiConcurrency] 清理失败: " + e.getMessage());
+        }
     }
 
     @Test

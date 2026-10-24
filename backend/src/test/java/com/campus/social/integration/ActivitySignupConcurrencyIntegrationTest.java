@@ -31,16 +31,26 @@ class ActivitySignupConcurrencyIntegrationTest {
     @Autowired private ActivityService activityService;
     @Autowired private ActivityMapper activityMapper;
     @Autowired private ActivitySignupMapper signupMapper;
+    /** 清理用：绕过 @TableLogic 做物理删除 */
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private final long circleless = -1L; // 无圈子活动
 
-    /** 尽力清理,失败不影响断言。两个 @Test 各自在 finally 里调本方法(传自己造的活动 id)。 */
+    /**
+     * 尽力清理,失败不影响断言。两个 @Test 各自在 finally 里调本方法(传自己造的活动 id)。
+     *
+     * <p>必须**物理删**（2026-10-24 修）：activityMapper.deleteById 走 @TableLogic 软删，
+     * 而 activity_signup 的删除也是逻辑删 —— 两者都只把 is_deleted 置 1，行永远留在表里。
+     * 实测本地库因此积了 82 条 creator_id 为 NULL 的活动（本测试造的活动不带 creator），
+     * 直到做数据清理时才发现；它们不报错，只是让「库里到底有什么」越来越看不清。
+     */
     void cleanup(long activityId) {
         try {
-            signupMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ActivitySignup>()
-                    .eq(ActivitySignup::getActivityId, activityId));
-            activityMapper.deleteById(activityId);
-        } catch (Exception ignore) { }
+            jdbc.update("DELETE FROM activity_signup WHERE activity_id = ?", activityId);
+            jdbc.update("DELETE FROM activity WHERE id = ?", activityId);
+        } catch (Exception e) {
+            System.err.println("[ActivitySignupConcurrency] 清理失败: " + e.getMessage());
+        }
     }
 
     private long createActivity(int capacity) {
