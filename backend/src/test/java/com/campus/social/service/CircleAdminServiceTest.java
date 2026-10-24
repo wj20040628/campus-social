@@ -73,7 +73,23 @@ class CircleAdminServiceTest {
         admin   = SEQ.incrementAndGet();
         member  = SEQ.incrementAndGet();
         outsider= SEQ.incrementAndGet();
-        adminUser = 1L; // 假定 id=1 是平台管理员(mkt/verify 测试同款约定,见 RoleService)
+        adminUser = 1L;
+        /*
+         * 平台管理员必须**真实存在**：RoleServiceImpl.isAdmin 是查库判 role==1，
+         * 不是拿 id 猜的。
+         *
+         * 这里原先只写了「假定 id=1 是平台管理员」，没人创建它 ——
+         * 本地恰好有 id=1 的真实账号，所以一直通过；而 CI 用 schema.sql
+         * 建的是**全新空库**（该文件不含任何 INSERT，用户表是空的），
+         * 于是三个走管理员权限的用例全部抛「需要管理员权限」：
+         *   banCircle_adminSetsStatus1 / reservedName_addRemoveList /
+         *   transferCircle_flipsOwnerAndRoles
+         * 这正是 CI 后端 job 一直红的原因，而本地永远复现不出来。
+         *
+         * 对齐 MktActivityServiceTest 的做法：显式确保存在。
+         * ensureUser 对已存在的 id 直接返回，所以不会覆盖本地真实账号数据。
+         */
+        ensureUser(adminUser, "circle_test_admin", "平台管理员", 1);
 
         for (long uid : new long[]{creator, admin, member, outsider}) {
             ensureUser(uid, "circle_test_" + uid, "圈测" + uid, 0);
