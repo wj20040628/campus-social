@@ -37,13 +37,17 @@ jobs:
           MYSQL_DATABASE: campus_social_v2
         ports:
           - 3306:3306
+        # 注意：这里的每一项都必须是 **docker 参数**。
+        # 曾经写过 --character-set-server=utf8mb4 / --collation-server=...，
+        # 那是 MySQL 服务端参数、要放在镜像名之后，而 GitHub 会把 options
+        # 整体拼到镜像名**之前**，docker 认不出 → unknown flag → 退出码 125，
+        # 表现为 "Initialize containers" 失败、整条流水线一步都没跑。
+        # MySQL 8 的默认字符集本就是 utf8mb4 / utf8mb4_0900_ai_ci，无需再传。
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
-          --character-set-server=utf8mb4
-          --collation-server=utf8mb4_0900_ai_ci
 
       redis:
         image: redis:7-alpine
@@ -130,19 +134,6 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: 首屏体积护栏(AC-17:JS < 300KB gzip)
+      - name: 首屏体积护栏(AC-17:首屏 JS < 300KB gzip)
         working-directory: frontend
-        run: |
-          node -e '
-            const fs=require("fs"),path=require("path"),zlib=require("zlib");
-            let total=0;
-            const walk=d=>fs.readdirSync(d,{withFileTypes:true}).forEach(e=>{
-              const p=path.join(d,e.name);
-              if(e.isDirectory())return walk(p);
-              if(p.endsWith(".js")){total+=zlib.gzipSync(fs.readFileSync(p)).length}
-            });
-            walk("dist");
-            const kb=Math.round(total/1024);
-            console.log(`首屏 JS 合计 gzip: ${kb}KB`);
-            if(kb>300){console.error("超出 AC-17 预算 300KB");process.exit(1)}
-          '
+        run: node scripts/check-firstscreen-size.mjs
