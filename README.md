@@ -323,7 +323,6 @@ cd backend && mvn test             # 44 个用例
 | [API 契约](docs/api/openapi.yaml)      | OpenAPI 3.0，63 条路径 |
 | [部署清单](docs/DEPLOY_ECS.md)           | ECS 从零部署步骤         |
 | [推广前检查清单](docs/推广前检查清单.md)           | 上线前待办              |
-| [代码审查报告](docs/代码审查报告-2026-10-21.md)  | 全量审查与修复            |
 | [ADR](docs/decisions/)               | 架构决策记录             |
 
 ---
