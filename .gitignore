@@ -108,3 +108,6 @@ backend/cp.txt
 # README 预览产物（由 scripts/preview-readme.py 生成，非源文件）
 .readme-preview.html
 scripts/__pycache__/
+
+# 一次性排查脚本（下划线前缀，勿入库）
+scripts/_*.mjs
