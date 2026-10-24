@@ -58,6 +58,13 @@ class CircleAdminServiceTest {
 
     /** 固定测试 user(与 mkt 测试错开,避免串号) */
     private static final AtomicLong SEQ = new AtomicLong(8_800_000L);
+
+    /**
+     * 本类专用的平台管理员 id。
+     * 避开 SEQ 的 8_800_000+ 与 MktActivityServiceTest 的 9_900_001+，互不干扰。
+     * 不用 1L —— 那个 id 在本机是真实账号、在 CI 空库里不存在，两边行为不一致。
+     */
+    private static final long ADMIN_UID = 9_800_001L;
     private long creator;   // 圈主 role=1
     private long admin;     // 圈管理 role=2
     private long member;    // 普通成员 role=3
@@ -73,23 +80,32 @@ class CircleAdminServiceTest {
         admin   = SEQ.incrementAndGet();
         member  = SEQ.incrementAndGet();
         outsider= SEQ.incrementAndGet();
-        adminUser = 1L;
+        adminUser = ADMIN_UID;
         /*
          * 平台管理员必须**真实存在**：RoleServiceImpl.isAdmin 是查库判 role==1，
          * 不是拿 id 猜的。
          *
-         * 这里原先只写了「假定 id=1 是平台管理员」，没人创建它 ——
-         * 本地恰好有 id=1 的真实账号，所以一直通过；而 CI 用 schema.sql
-         * 建的是**全新空库**（该文件不含任何 INSERT，用户表是空的），
-         * 于是三个走管理员权限的用例全部抛「需要管理员权限」：
-         *   banCircle_adminSetsStatus1 / reservedName_addRemoveList /
-         *   transferCircle_flipsOwnerAndRoles
-         * 这正是 CI 后端 job 一直红的原因，而本地永远复现不出来。
+         * 这里原先写死 adminUser = 1L 并注释「假定 id=1 是平台管理员」，但没人创建它。
+         * 本地恰好有 id=1 的真实账号所以一直通过；CI 用 schema.sql 建的是**全新空库**
+         * （该文件不含任何 INSERT，user 表是空的），于是三个走管理员权限的用例
+         * 全部抛「需要管理员权限」—— 这正是 CI 后端 job 一直红、本地却永远复现不出来的原因。
          *
-         * 对齐 MktActivityServiceTest 的做法：显式确保存在。
-         * ensureUser 对已存在的 id 直接返回，所以不会覆盖本地真实账号数据。
+         * 两个刻意的选择：
+         *  1) 用一个**独立于其他测试**的 id（既不与 SEQ 的 8_800_000+ 重叠，
+         *     也不与 MktActivityServiceTest 的 9_900_001+ 重叠），互不干扰。
+         *  2) 用 ON DUPLICATE KEY UPDATE 做成**幂等**。不能走 ensureUser 的
+         *     「先 selectById 再 insert」：那张表在空库上第一次会插入 id=1，
+         *     而 id=1 在本机是真实账号、在 CI 是空 —— 两条路径行为不一致。
+         *     幂等 upsert 在两种环境下都只留一行，也不会覆盖本地真实账号
+         *     （本用例完全不碰 id=1）。
          */
-        ensureUser(adminUser, "circle_test_admin", "平台管理员", 1);
+        jdbc.update(
+                "INSERT INTO user (id, username, nickname, role, password_hash, status, is_deleted,"
+                        + " create_time, update_time) "
+                        + "VALUES (?, ?, ?, 1, ?, 0, 0, NOW(), NOW()) "
+                        + "ON DUPLICATE KEY UPDATE role = 1, is_deleted = 0",
+                adminUser, "circle_test_admin", "平台管理员",
+                "$2a$12$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 
         for (long uid : new long[]{creator, admin, member, outsider}) {
             ensureUser(uid, "circle_test_" + uid, "圈测" + uid, 0);
