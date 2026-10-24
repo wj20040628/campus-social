@@ -41,6 +41,7 @@ GATES = [
     ("verify-contract", PROJECT, ["python", "scripts/verify-contract.py"], "契约与 Java VO 字段一致"),
     ("verify-datetime-format", PROJECT, ["python", "scripts/verify-datetime-format.py"], "日期字段带 date-time"),
     ("verify-studentno-parse", PROJECT, ["python", "scripts/verify-studentno-parse.py"], "学号解析与 5 个真实样本一致"),
+    ("verify-reason-enum", PROJECT, ["python", "scripts/verify-reason-enum.py"], "举报理由枚举与契约一致 + 唯一出处"),
 ]
 
 # 失败时每个门禁最多回显这么多行输出，避免刷屏

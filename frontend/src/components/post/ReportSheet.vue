@@ -55,18 +55,21 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import { REPORT_REASONS } from '@/constants/reportReason'
 
 /** 目标类型:1用户 2帖子 3评论 4聊天消息 5搭子 */
 const TARGET = { USER: 1, POST: 2, COMMENT: 3, MESSAGE: 4, PARTNER: 5 }
 
-/** 原因类型。与 openapi §ReportSubmitRequest.reasonType 的 enum 逐项对应 */
-const REASONS = [
-  { v: 1, label: '骚扰' },
-  { v: 2, label: '广告' },
-  { v: 3, label: '色情' },
-  { v: 4, label: '诈骗' },
-  { v: 5, label: '其他' },
-]
+/**
+ * 原因类型。文案来自 constants/reportReason.js —— **本文件不再自己写一遍**。
+ *
+ * 原先这里是第二份枚举（管理端 useReportQueue 还有一份），两份漂移过一次：
+ * 管理端写成「2不实信息 3广告营销 4违规内容」，而用户端与契约都是
+ * 「2广告 3色情 4诈骗」。于是用户报「色情」（码 3），管理员看到「广告营销」。
+ * 管理员据此决定处置方向 —— 标签错了，依据就错了。
+ * 现在只有一处定义，两边同源，结构上不会再分叉。
+ */
+const REASONS = REPORT_REASONS
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

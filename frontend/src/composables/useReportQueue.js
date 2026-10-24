@@ -14,6 +14,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { adminReports, handleReport } from '@/api/review'
+import { REASON_TEXT as REASON_TEXT_SRC, reasonLabel } from '@/constants/reportReason'
 import { useUndoWindow } from '@/composables/useUndoWindow'
 
 /** 封禁时长。0 = 永久,放最后并单独标注 */
@@ -24,14 +25,16 @@ export const BAN_DAY_OPTIONS = [
   { v: 0, t: '永久' },
 ]
 
-/** reasonType 枚举 → 文案。契约 ReportVO.reasonType */
-const REASON_TEXT = {
-  1: '骚扰',
-  2: '不实信息',
-  3: '广告营销',
-  4: '违规内容',
-  5: '其他',
-}
+/**
+ * 举报理由文案统一走 constants/reportReason.js，本文件不再自己维护一份。
+ *
+ * 【为什么删掉本地那份】原先这里另写了一张 REASON_TEXT 表，与用户端
+ * ReportSheet 的选项漂移了：本地写成「2不实信息 3广告营销 4违规内容」，
+ * 而契约与用户端都是「2广告 3色情 4诈骗」。后果是用户举报「色情」（码 3），
+ * 管理员屏幕上显示「广告营销」—— 管理员据此决定处置方向，标签错了依据就错了。
+ * 这类不一致最难查：两边各自都自洽，只有交叉验证才暴露。
+ * 现在只有一处定义，结构上不会再分叉。
+ */
 
 /**
  * @param {import('vue').Ref<boolean>} handled false=待处理 / true=已处理
@@ -94,7 +97,7 @@ export function useReportQueue(handled) {
   })
 
   function reasonText(t) {
-    return REASON_TEXT[t] || '其他'
+    return reasonLabel(t)
   }
 
   async function load() {

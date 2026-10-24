@@ -24,7 +24,7 @@
 ![Redis](https://img.shields.io/badge/Redis-7-dc382d?logo=redis&logoColor=white)
 ![Element Plus](https://img.shields.io/badge/Element%20Plus-2.14-409eff?logo=element&logoColor=white)
 
-![门禁](https://img.shields.io/badge/门禁-10%2F10%20通过-success)
+![门禁](https://img.shields.io/badge/门禁-11%2F11%20通过-success)
 ![后端测试](https://img.shields.io/badge/mvn%20test-44%2F44%20绿-success)
 ![数据表](https://img.shields.io/badge/数据表-37%20张-informational)
 
@@ -271,11 +271,11 @@ cd frontend && npm install && npm run dev
 ### 质量门禁
 
 ```bash
-python scripts/run-all-gates.py    # 10 条门禁
+python scripts/run-all-gates.py    # 11 条门禁
 cd backend && mvn test             # 44 个用例
 ```
 
-门禁涵盖：单文件 400 行上限、外部 CSS 括号平衡、契约字段一致性、日期格式、学号解析等。pre-push 钩子会自动执行，真逻辑错拦 push，环境类失败（OOM/缺命令）只告警放行。
+门禁涵盖：单文件 400 行上限、外部 CSS 括号平衡、契约字段一致性、日期格式、学号解析、举报理由枚举与契约一致等。pre-push 钩子会自动执行，真逻辑错拦 push，环境类失败（OOM/缺命令）只告警放行。
 
 ---
 
