@@ -100,6 +100,31 @@ jobs:
           UPLOAD_DIR: ./uploads
         run: mvn -B test
 
+      - name: 测试失败摘要(写成 annotation 便于定位)
+        # 失败原因只留在 surefire 报告里，而 artifact 需要登录才能下载。
+        # 用 ::error:: 工作流命令把它变成 check-run annotation —— 公开仓库
+        # 下通过 API 即可读到，不必登录，排查 CI 不必靠猜。
+        if: failure()
+        working-directory: backend
+        run: |
+          shopt -s nullglob
+          found=0
+          for f in target/surefire-reports/*.txt; do
+            if grep -qE "Failures: [1-9]|Errors: [1-9]" "$f"; then
+              found=1
+              grep -E "Tests run:|<<< (FAILURE|ERROR)!|Caused by:|### Cause:|Duplicate entry|Exception" "$f" \
+                | head -25 | while IFS= read -r line; do
+                    echo "::error file=${f}::$(echo "$line" | tr -d '\r')"
+                  done
+            fi
+          done
+          if [ "$found" = "0" ]; then
+            echo "::error::没有找到带失败的 surefire 报告 —— 可能是 Spring 上下文启动失败或编译期问题"
+            ls -la target/surefire-reports/ 2>/dev/null || echo "(目录不存在)"
+          fi
+          # 无论上面如何，这一步不该改变 job 的成败
+          exit 0
+
       - name: 上传测试报告(失败时)
         if: failure()
         uses: actions/upload-artifact@v4

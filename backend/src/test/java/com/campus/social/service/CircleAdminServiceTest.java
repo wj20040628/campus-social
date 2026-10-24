@@ -133,8 +133,19 @@ class CircleAdminServiceTest {
                 jdbc.update("DELETE FROM circle_member WHERE circle_id = ?", circleId);
                 jdbc.update("DELETE FROM circle WHERE id = ?", circleId);
             }
+            /*
+             * 预留名同样必须物理删除。
+             *
+             * ReservedCircleName 带 @TableLogic，reservedMapper.deleteById 是**软删**，
+             * 而 reserved_circle_name.uk_rname 建在纯 name 上（不含 is_deleted）——
+             * 软删的行仍然占着那个名字，于是每跑一次就永久锁掉一个预留名。
+             * 用例里用的是「预留 + 4 位随机数」，只有 1 万种取值，
+             * 累积几十条之后就必然撞键：表现为**随机某个用例偶发**
+             * DuplicateKey，且每次失败的用例都不一样（本地实测：
+             * 一次是 banMember_...，清库后换成 createCircle_hitsReservedName_rejected）。
+             */
             for (Long rid : reservedCleanup) {
-                reservedMapper.deleteById(rid);
+                jdbc.update("DELETE FROM reserved_circle_name WHERE id = ?", rid);
             }
             reservedCleanup.clear();
         } catch (Exception e) {
@@ -408,7 +419,7 @@ class CircleAdminServiceTest {
         ReservedCircleName rn = new ReservedCircleName();
         // 预留名必须也能通过建圈的长度正则(3-7 字符 + 含汉字),否则建圈先撞 1056 长度错误,
 // 根本走不到「撞预留名」那段 —— 这正是该用例原先红的原因。
-        rn.setName("预留" + String.format("%04d", System.nanoTime() % 10_000));
+        rn.setName("预留" + String.format("%05d", System.nanoTime() % 100_000));
         rn.setNote("test");
         reservedMapper.insert(rn);
         reservedCleanup.add(rn.getId());
@@ -435,7 +446,16 @@ class CircleAdminServiceTest {
 
         service.removeReservedName(nm, adminUser);
         assertFalse(service.isReservedName(nm), "移除后 isReservedName=false");
-        // 清 reservedCleanup(移除已删库行,reservedCleanup 里的 id 可能已不存在,deleteById 幂等无害)
+        /*
+         * removeReservedName 走的是 @TableLogic 软删，行仍留在库里；
+         * 而 reserved_circle_name.uk_rname 建在纯 name 上（不含 is_deleted），
+         * 这条软删行会永久占住该名字。本用例用完整 nanoTime，名字唯一、
+         * 不会撞键，但每跑一次就积一行，所以这里显式物理删掉。
+         *
+         * 原来只写 reservedCleanup.clear()，等于把它交给 tearDown 的软删、
+         * 再把待清理列表清空 —— 只积累不回收。
+         */
+        jdbc.update("DELETE FROM reserved_circle_name WHERE name = ?", nm);
         reservedCleanup.clear();
     }
 
