@@ -50,6 +50,11 @@ class CircleAdminServiceTest {
     @Autowired private PostMapper postMapper;
     @Autowired private ReservedCircleNameMapper reservedMapper;
     @Autowired private UserMapper userMapper;
+    /**
+     * 清理用。测试要绕过 @TableLogic 做物理删除，而 Mapper 上没有对应的
+     * hardDelete，为此在生产 Mapper 里加方法不值得 —— 直接走原生 SQL。
+     */
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** 固定测试 user(与 mkt 测试错开,避免串号) */
     private static final AtomicLong SEQ = new AtomicLong(8_800_000L);
@@ -96,21 +101,50 @@ class CircleAdminServiceTest {
     @AfterEach
     void tearDown() {
         try {
-            for (long pid : new long[]{postA, postB}) {
-                if (pid > 0) postMapper.deleteById(pid);
+            /*
+             * 清理必须全部走【物理删除】（2026-10-23 修）。
+             *
+             * 原来的三个问题叠加，导致每跑一次就永久留下一批数据：
+             *
+             * 1) memberMapper.hardDelete(circleId, uid, 0) —— 那条 SQL 是
+             *    `WHERE circle_id=? AND user_id=? AND role=?`，而本测试里成员角色是
+             *    1/2/3，传 0 一条都匹配不上 → 成员行从未被删过。
+             * 2) circleMapper.deleteById(circleId) 走的是 @TableLogic 软删，
+             *    而 circle.uk_name 是建在 name 上的**不含 is_deleted**，
+             *    所以软删后这个名字永久不可复用 —— 这正是「圈名随机 6 位数仍会
+             *    撞 DuplicateKey」的根因：库里的测试圈越积越多，可用名字越来越少。
+             * 3) catch (Exception ignore) 把失败吞得干干净净，没人知道清理没生效。
+             *
+             * 实测后果：本地库里积了 180 个测试圈 / 525 行成员，直到某次跑测试
+             * 撞上 uk_name 才暴露，表现为随机某个用例偶发 DuplicateKey。
+             */
+            if (postA > 0 || postB > 0) {
+                // 帖子及其衍生行：同样物理删，避免 feed_item/comment 长期堆积
+                for (long pid : new long[]{postA, postB}) {
+                    if (pid <= 0) continue;
+                    jdbc.update("DELETE FROM comment WHERE post_id = ?", pid);
+                    jdbc.update("DELETE FROM post_topic WHERE post_id = ?", pid);
+                    jdbc.update("DELETE FROM post_favorite WHERE post_id = ?", pid);
+                    jdbc.update("DELETE FROM feed_item WHERE post_id = ?", pid);
+                    jdbc.update("DELETE FROM post WHERE id = ?", pid);
+                }
             }
             if (circleId > 0) {
-                // 物理删成员行(绕 @TableLogic),再删圈
-                for (long uid : new long[]{creator, admin, member, outsider}) {
-                    memberMapper.hardDelete(circleId, uid, 0);
-                }
-                circleMapper.deleteById(circleId);
+                jdbc.update("DELETE FROM circle_member WHERE circle_id = ?", circleId);
+                jdbc.update("DELETE FROM circle WHERE id = ?", circleId);
             }
             for (Long rid : reservedCleanup) {
                 reservedMapper.deleteById(rid);
             }
             reservedCleanup.clear();
-        } catch (Exception ignore) {
+        } catch (Exception e) {
+            /*
+             * 清理失败不该让用例失败（它不影响被测逻辑），但也绝不能静默 ——
+             * 静默正是上面那堆垃圾数据积累至今的原因。打到 stderr，
+             * surefire 报告里能看到。
+             */
+            System.err.println("[CircleAdminServiceTest] 清理残留数据失败，"
+                    + "会在库里留下测试圈/成员，累计后会导致 uk_name 冲突: " + e.getMessage());
         }
     }
 
@@ -223,10 +257,15 @@ class CircleAdminServiceTest {
             Post p = reloadPost(postA);
             assertEquals(otherCircle, p.getCircleId(), "移到目标圈");
         } finally {
-            // 清理目标圈
-            memberMapper.hardDelete(otherCircle, creator, 0);
-            memberMapper.hardDelete(otherCircle, admin, 0);
-            circleMapper.deleteById(otherCircle);
+            /*
+             * 清理目标圈必须物理删除（2026-10-23 修）。
+             * 原来的 hardDelete(otherCircle, uid, 0) 里 role 传 0，而那条 SQL 要
+             * role 精确匹配（实际是 1/2/3），一条都删不掉；
+             * 再配 deleteById 的软删，circle.uk_name 不含 is_deleted，
+             * 于是每跑一次这个用例就永久锁死一个「标XXXXXX」圈名。
+             */
+            jdbc.update("DELETE FROM circle_member WHERE circle_id = ?", otherCircle);
+            jdbc.update("DELETE FROM circle WHERE id = ?", otherCircle);
         }
     }
 
@@ -245,8 +284,9 @@ class CircleAdminServiceTest {
             assertEquals(ResultCode.NOT_CIRCLE_OWNER.getCode(), ex.getCode(),
                     "非目标圈管理不能把帖子移入他人圈子");
         } finally {
-            memberMapper.hardDelete(otherCircle, creator, 0);
-            circleMapper.deleteById(otherCircle);
+            // 同 movePost_toOtherCircle_setsTargetCircleId：必须物理删，否则圈名被永久锁死
+            jdbc.update("DELETE FROM circle_member WHERE circle_id = ?", otherCircle);
+            jdbc.update("DELETE FROM circle WHERE id = ?", otherCircle);
         }
     }
 
