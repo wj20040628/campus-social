@@ -79,6 +79,9 @@ public interface PostService {
     /** 评论(非幂等,事务内 ±comment_count + notify) */
     long comment(long postId, CreateCommentDTO dto, long userId);
 
+    /** 删除自己的评论(连同其子回复)。仅作者可删;计数与热度按删除行数扣减。 */
+    void deleteComment(long postId, long commentId, long userId);
+
     CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId);
 
     /**

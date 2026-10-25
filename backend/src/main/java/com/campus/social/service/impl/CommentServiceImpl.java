@@ -65,6 +65,7 @@ public class CommentServiceImpl {
     private final CommentTreeAssembler treeAssembler;
     /** 圈内封禁拦截:评论前查 ban_status */
     private final com.campus.social.service.CircleAdminService circleAdminService;
+    private final com.campus.social.service.AuditService auditService;
 
     @Transactional
     public long comment(long postId, CreateCommentDTO dto, long userId) {
@@ -142,6 +143,57 @@ public class CommentServiceImpl {
 
         pushCommentNotify(c, dto, post, userId);
         return c.getId();
+    }
+
+    /**
+     * 删除自己的评论(2026-10-24 新增,此前评论无任何自救手段)。
+     *
+     * <p><b>删除范围是整棵子树</b>:评论是 ≤3 层的树,树装配按 is_deleted 过滤,
+     * 只删父评论会让子回复变成不可见的幽灵行——comment_count 还计着它们,
+     * 每天凌晨的 ReconcileJob 又会按表把计数改回来,计数永久漂移。
+     * 所以父 + 全部子孙一起软删,计数与热度按实际删除行数扣减,
+     * 与对账口径(数正常态行)自洽。
+     *
+     * <p>子回复作者的通知不回滚:历史通知保留是平台惯例,
+     * 通知里的链接点开会因评论已删而失效,属可接受行为。
+     */
+    @Transactional
+    public void deleteComment(long postId, long commentId, long userId) {
+        Comment c = commentMapper.selectById(commentId);
+        if (c == null || !c.getPostId().equals(postId)
+                || !Integer.valueOf(1).equals(c.getStatus())) {
+            throw new BusinessException(com.campus.social.common.ResultCode.COMMENT_NOT_FOUND);
+        }
+        if (!c.getUserId().equals(userId)) {
+            throw new BusinessException(com.campus.social.common.ResultCode.FORBIDDEN, "只能删除自己的评论");
+        }
+        // 子树收集:层级 ≤3,父(level n)的 children(level n+1)与 grandchildren(level n+2)
+        java.util.List<Long> toDelete = new java.util.ArrayList<>();
+        toDelete.add(commentId);
+        java.util.List<Comment> children = commentMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getParentId, commentId)
+                        .eq(Comment::getStatus, 1));
+        for (Comment ch : children) {
+            toDelete.add(ch.getId());
+        }
+        if (!children.isEmpty()) {
+            java.util.List<Long> childIds = children.stream().map(Comment::getId).toList();
+            for (Comment gc : commentMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Comment>()
+                            .in(Comment::getParentId, childIds)
+                            .eq(Comment::getStatus, 1))) {
+                toDelete.add(gc.getId());
+            }
+        }
+        // @TableLogic:deleteByIds 自动变 UPDATE is_deleted = 1
+        commentMapper.deleteByIds(toDelete);
+        postMapper.adjustCommentCount(postId, -toDelete.size());
+        postMapper.adjustHotScore(postId, -2.0 * toDelete.size());
+        auditService.record(userId, "delete_comment", "comment", commentId,
+                "删除评论及 " + (toDelete.size() - 1) + " 条回复,帖子 #" + postId, null);
+        log.info("comment deleted: comment={}, post={}, rows={}, user={}",
+                commentId, postId, toDelete.size(), userId);
     }
 
     /**

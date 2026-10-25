@@ -385,6 +385,11 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    public void deleteComment(long postId, long commentId, long userId) {
+        commentService.deleteComment(postId, commentId, userId);
+    }
+
+    @Override
     public CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId) {
         return commentService.comments(postId, lastId, size, viewerId);
     }
