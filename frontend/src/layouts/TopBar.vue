@@ -34,6 +34,22 @@
 
     <div class="topbar__right">
       <!--
+        游客态(2026-10-25):扫码进免登录详情页的游客,右侧整组换成显眼的
+        「登录」——原按钮组(发布/找人/头像/抽屉)全是登录态功能,游客点了
+        只会撞 requiresAuth;而主动想注册的人此前在页面上找不到任何入口,
+        分享落地页的转化漏斗在这里漏掉。
+      -->
+      <button
+        v-if="!userStore.hasToken"
+        type="button"
+        class="topbar__login"
+        @click="goLogin"
+      >
+        登录
+      </button>
+
+      <template v-else>
+      <!--
         发布按钮(2026-10-20 移动端恢复):TabBar 中位已让位给「集市」,
         顶栏「+」是移动端唯一常驻发帖入口,手机/桌面两端都显示
         (桌面为实心圆样式,见 TopBar.css 媒体查询)。
@@ -135,6 +151,7 @@
           />
         </svg>
       </button>
+      </template>
     </div>
   </header>
 </template>
@@ -185,6 +202,11 @@ function goBack() {
   // 有历史就退,没有(直接输 URL 进来)就去首页 —— 退无可退时给个确定去处
   if (window.history.length > 1) router.back()
   else router.replace('/')
+}
+
+/** 游客登录:带 returnUrl,登录后回到当前页(分享落地页的转化闭环) */
+function goLogin() {
+  router.push({ path: '/login/form', query: { returnUrl: router.currentRoute.value.fullPath } })
 }
 </script>
 

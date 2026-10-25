@@ -25,6 +25,24 @@
   min-width: 0;
 }
 
+/* 游客态登录按钮(2026-10-25):分享落地页唯一显眼出口,实心主色胶囊 */
+.topbar__login {
+  min-height: 32px;
+  padding: 0 var(--ys-space-4);
+  border: none;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+}
+
+.topbar__login:active {
+  background: var(--ys-accent-active);
+}
+
 .topbar__brand {
   font-size: var(--ys-text-lg);
   line-height: var(--ys-lh-lg);

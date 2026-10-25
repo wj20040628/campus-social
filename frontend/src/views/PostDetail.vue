@@ -6,6 +6,16 @@
         <el-icon :size="20"><ArrowLeft /></el-icon>
       </button>
       <h1 class="detail__title">帖子详情</h1>
+      <!-- 游客态(2026-10-25):扫码进来的游客在本页找不到任何登录入口,
+           主动想注册的人反而没门——顶栏给一枚显眼出口,带 returnUrl 闭环 -->
+      <button
+        v-if="!userStore.hasToken"
+        type="button"
+        class="detail__login"
+        @click="router.push({ path: '/login/form', query: { returnUrl: route.fullPath } })"
+      >
+        登录
+      </button>
       <!-- 分享卡片(2026-10-25):扫码进来的人免登录可读(后端已放游客 GET) -->
       <button
         v-if="post"
