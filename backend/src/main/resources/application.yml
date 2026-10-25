@@ -158,11 +158,21 @@ server:
     # 2000 足够覆盖「500 个 WS + 数百个 HTTP keep-alive」,同时防止被大量空连接拖垮。
     max-connections: 2000
 
+# ------------------------------------------------------------
+# API 文档(2026-10-24 收口):默认关闭。
+# 此前 /v3/api-docs/** 与 /swagger-ui/** 在 auth 白名单里且无开关,
+# 63 条端点的完整契约对公网敞开——对攻击者是免费的攻击面地图。
+# 默认 false:两端点 404(比 401 更不暴露"这里有个文档服务")。
+# 本地开发要 swagger 时,环境变量 SWAGGER_ENABLED=true 再启动。
+# 注意:WebMvcConfig 白名单里的 swagger 路径保留——开关打开时仍需免登录可达。
+# ------------------------------------------------------------
 springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
   api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
     path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+    path: /swagger-ui.html
 
 # ------------------------------------------------------------
 # 健康检查(TD-09):Nginx / 运维探活依赖 /actuator/health
@@ -286,6 +296,20 @@ campus:
   max-tags: 12
   # 单个群最大成员数(拉人时校验,满员返 1045)。校园场景 500 足够,防超大群撑爆写扩散/未读
   group-max-members: ${CAMPUS_GROUP_MAX_MEMBERS:500}
+  # ----------------------------------------------------------
+  # 内容审核:信任闸门 + 举报阈值折叠(2026-10-24)。
+  # 无 AI 机审模式下的队列瘦身与快速发现,详见 ReviewTrustService / ReportFoldService。
+  # ----------------------------------------------------------
+  review:
+    # 受信用户账龄下限(天):已认证 + 注册满 N 天 + 无成立举报/直接封禁记录
+    # 的用户,level-1 敏感词直接命中可豁免送审(替换后直发,audit_log 留痕)
+    trust-min-days: ${CAMPUS_REVIEW_TRUST_MIN_DAYS:14}
+    # 同一帖子的独立待处置举报人数达到阈值 → 自动折叠(出 Feed)并进人审队列。
+    # 管理员在审核台 approve 即恢复、reject 维持下架;<=0 关闭本机制
+    report-fold-threshold: ${CAMPUS_REVIEW_FOLD_THRESHOLD:3}
+    # 圈主协审升级窗口(小时):圈内待审任务超时未处理即滑入平台队列。
+    # 不落列不起 Job,纯查询期按 create_time 计算
+    owner-escalate-hours: ${CAMPUS_REVIEW_OWNER_ESCALATE_HOURS:24}
 
 # ------------------------------------------------------------
 # AI 内容机审(LLM):直接接真实 LLM API

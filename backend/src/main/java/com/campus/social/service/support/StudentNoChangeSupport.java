@@ -63,16 +63,21 @@ public class StudentNoChangeSupport {
         user.setStudentNo(studentNo);
         if (Integer.valueOf(VERIFY_REJECTED).equals(user.getVerifyStatus())) {
             resubmit(user, studentNo, oldStudentNo);
-        } else if (Integer.valueOf(0).equals(user.getVerifyStatus())) {
-            // 从未提交过核验的用户(verify_status=0)在设置页填学号 = 提交核验申请:
-            // 否则改学号只是存字段,verify_status 永远 0,主页永远显示「去认证」,
-            // 用户以为保存无效(WJ 实测:student_no 存上了,状态纹丝不动)。
-            // markVerifyPending 无状态前置条件,直接 0 -> 2。
-            // 与 resubmit 同理:内存对象必须同步,否则紧随其后的 updateById
-            // 会把状态覆盖回去(上一轮死循环 bug 的同款坑)。
+        } else {
+            /*
+             * 0(未认证)/1(已认证)/2(审核中)统一走「改号即重审」(2026-10-24 收敛)。
+             *
+             * 此前 1/2 是隐式 else:只换号落库、认证状态原样保留 ——
+             * 已认证用户可以随意换学号而认证身份不失效,认证背书形同虚设。
+             * 现在与状态 0 同待遇:markVerifyPending 重新进核验队列
+             * (SQL 无状态前置,1→2 也成立),自动通过条件满足则直接置 1。
+             *
+             * 「未认证填学号=提交核验」的原注释(WJ 实测状态纹丝不动的那次)
+             * 语义不变;内存对象必须同步,否则紧随其后的 updateById
+             * 会把状态覆盖回去(上一轮死循环 bug 的同款坑)。
+             */
             userMapper.markVerifyPending(user.getId(), studentNo);
             if (autoPass.canAutoPass(studentNo, user)) {
-                // 院系与学号大类对得上 → 直接置已认证,与提交接口同待遇
                 userMapper.approveVerify(user.getId());
                 user.setVerifyStatus(VERIFY_OK);
                 log.info("verify auto approved by profile edit: user={}, studentNo={}",
@@ -80,7 +85,7 @@ public class StudentNoChangeSupport {
             } else {
                 user.setVerifyStatus(VERIFY_PENDING);
             }
-            log.info("verify submitted by profile edit: user={}, studentNo={}",
+            log.info("verify (re)submitted by profile edit: user={}, studentNo={}",
                     user.getId(), UserVoAssembler.maskUsername(studentNo));
         }
     }

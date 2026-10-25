@@ -41,4 +41,71 @@ public interface ReviewTaskMapper extends BaseMapper<ReviewTask> {
     List<ReviewTask> selectByAuthor(@Param("authorId") Long authorId,
                                     @Param("lastId") Long lastId,
                                     @Param("size") int size);
+
+    // ---------------- 圈主协审(2026-10-24) ----------------
+    // 升级机制不落列、不起 Job:「是否已升级」= create_time 是否早于截止线
+    // (now - escalateHours)。窗口内的圈内任务归圈主,超窗后自然滑入平台队列。
+    //
+    // 【坑:XML 实体只在 <script> 模式下解码】2026-10-24 实测:计数查询没包
+    // <script> 却写了 &lt;/&gt;=,实体被原样发给 MySQL 直接语法错误 500。
+    // 无动态标签的 @Select 直接写 > 和 < 字符;只有带 <if> 的才包 <script>。
+
+    /**
+     * 圈主协审队列:我 owned 的圈内待审任务,仅升级窗口内(create_time ≥ 截止线)。
+     * JOIN circle 走 owner_id 过滤——只认圈主,圈管理(role=2)不参与协审,
+     * 与 approve/reject 的权限判定同口径。
+     */
+    @Select("""
+            <script>
+            SELECT t.* FROM review_task t
+            JOIN post p ON p.id = t.post_id AND p.is_deleted = 0
+            JOIN circle c ON c.id = p.circle_id AND c.is_deleted = 0 AND c.owner_id = #{ownerId}
+            WHERE t.status = 0 AND t.is_deleted = 0
+              AND t.create_time &gt;= #{cutoff}
+            <if test="lastId != null"> AND t.id &lt; #{lastId}</if>
+            ORDER BY t.id DESC LIMIT #{size}
+            </script>
+            """)
+    List<ReviewTask> selectPendingForOwner(@Param("ownerId") Long ownerId,
+                                           @Param("cutoff") java.time.LocalDateTime cutoff,
+                                           @Param("lastId") Long lastId,
+                                           @Param("size") int size);
+
+    /** 圈主待审数(协审入口角标,与上一条同一 WHERE) */
+    @Select("""
+            SELECT COUNT(*) FROM review_task t
+            JOIN post p ON p.id = t.post_id AND p.is_deleted = 0
+            JOIN circle c ON c.id = p.circle_id AND c.is_deleted = 0 AND c.owner_id = #{ownerId}
+            WHERE t.status = 0 AND t.is_deleted = 0 AND t.create_time >= #{cutoff}
+            """)
+    int countPendingForOwner(@Param("ownerId") Long ownerId,
+                             @Param("cutoff") java.time.LocalDateTime cutoff);
+
+    /**
+     * 平台队列(管理员):非圈内任务 + 已升级(超窗)的圈内任务。
+     * LEFT JOIN:帖子被删时 p.* 全空,circle_id IS NULL 成立,任务仍对管理员可见
+     * (处置会因帖子不存在被拒,但至少不静默消失)。
+     */
+    @Select("""
+            <script>
+            SELECT t.* FROM review_task t
+            LEFT JOIN post p ON p.id = t.post_id
+            WHERE t.status = 0 AND t.is_deleted = 0
+              AND (p.circle_id IS NULL OR t.create_time &lt; #{cutoff})
+            <if test="lastId != null"> AND t.id &lt; #{lastId}</if>
+            ORDER BY t.id DESC LIMIT #{size}
+            </script>
+            """)
+    List<ReviewTask> selectPendingPlatform(@Param("cutoff") java.time.LocalDateTime cutoff,
+                                           @Param("lastId") Long lastId,
+                                           @Param("size") int size);
+
+    /** 平台待审数(与上一条同一 WHERE;待办聚合角标用它,口径必须与队列一致) */
+    @Select("""
+            SELECT COUNT(*) FROM review_task t
+            LEFT JOIN post p ON p.id = t.post_id
+            WHERE t.status = 0 AND t.is_deleted = 0
+              AND (p.circle_id IS NULL OR t.create_time < #{cutoff})
+            """)
+    int countPendingPlatform(@Param("cutoff") java.time.LocalDateTime cutoff);
 }

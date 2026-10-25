@@ -31,8 +31,19 @@ public interface BanService {
      */
     LocalDateTime ban(long userId, int banDays);
 
-    /** 管理员手动解封 */
+    /** 管理员手动解封（历史兼容入口，归因系统） */
     void unban(long userId);
+
+    /**
+     * 解封（2026-10-24 加 adminId 重载）。
+     *
+     * <p>为什么必须区分操作者：此前 unban 只写 {@code recordSystem}
+     * （operator=系统），「到期自动解封」与「管理员手动解封」在 audit_log 里
+     * 长得一模一样——手动解封无法归因，出争议时说不清是谁放的人。
+     *
+     * @param adminId 操作管理员 id；null 或 <=0 表示系统任务（到期自动解封）
+     */
+    void unban(long userId, Long adminId);
 
     /** 查解封时间；永久封禁或未被封禁返回 null */
     LocalDateTime bannedUntil(long userId);

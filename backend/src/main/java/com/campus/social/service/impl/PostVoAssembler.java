@@ -59,6 +59,23 @@ public class PostVoAssembler {
     private final SensitiveWordFilter sensitive;
     private final ObjectMapper om;
 
+    /**
+     * 帖子内容的展示层打码规则（唯一出处，2026-10-24 收口）。
+     *
+     * <p>status=1（已发布）→ 一级敏感词替换为 *；待审(0)/驳回(2)保留原文
+     * （作者看自己的原貌、审核员要看真实文本）。
+     *
+     * <p>为什么必须是公共方法：此前这条规则只活在本类的 baseVo 里，
+     * 搜索结果（SearchController）与圈子帖列表（CircleServiceImpl.circlePosts）
+     * 各自裸拼 {@code p.getContent()}，一级词在那两处原样泄露。
+     * **任何**把帖子内容发给客户端的出口都必须走这里，别再各写一份。
+     */
+    public String displayContent(Post p) {
+        return (p.getStatus() != null && p.getStatus() == 1)
+                ? sensitive.replaceAll(p.getContent())
+                : p.getContent();
+    }
+
     /** 单条转换：作者与话题在此一并回填，调用方无需再处理 */
     public PostVO toVo(Post p, long viewerId) {
         PostVO vo = baseVo(p, viewerId);
@@ -156,11 +173,11 @@ public class PostVoAssembler {
                 // media 解析失败不阻塞帖子展示:退化成无图,内容照常显示
             }
         }
-        // 展示层替换:DB 存原文,公开展示(status=1)时把命中词替换成 *,
-        // 待审(0)/驳回(2)帖保留原文(作者/审核员看原貌)
-        String outContent = (p.getStatus() != null && p.getStatus() == 1)
-                ? sensitive.replaceAll(p.getContent())
-                : p.getContent();
+        /*
+         * 展示层替换:规则唯一出处见 displayContent() 的 javadoc——
+         * 所有把帖子内容发给客户端的出口都必须走它。
+         */
+        String outContent = displayContent(p);
         return PostVO.builder()
                 .id(p.getId())
                 .authorId(p.getAuthorId())

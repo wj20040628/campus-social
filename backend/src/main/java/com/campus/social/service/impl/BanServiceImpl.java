@@ -74,12 +74,23 @@ public class BanServiceImpl implements BanService {
 
     @Override
     public void unban(long userId) {
+        // 历史 compat 入口：BanExpireJob 走这里，归因系统
+        unban(userId, null);
+    }
+
+    @Override
+    public void unban(long userId, Long adminId) {
         redis.opsForZSet().remove(KEY_EXPIRING, String.valueOf(userId));
         userMapper.updateAccountStatus(userId, STATUS_NORMAL);
         evictStatusCache(userId);
-        // 审计:解封(到期自动 / 管理员手动),操作者记为系统
-        auditService.recordSystem("account_unban", "user", userId, "封禁到期自动解封/管理员解封");
-        log.info("user unbanned by admin: user={}", userId);
+        if (adminId != null && adminId > 0) {
+            // 手动解封：归因到管理员本人
+            auditService.record(adminId, "account_unban", "user", userId, "管理员手动解封", "");
+        } else {
+            // 到期自动解封：操作者记为系统
+            auditService.recordSystem("account_unban", "user", userId, "封禁到期自动解封");
+        }
+        log.info("user unbanned: user={}, admin={}", userId, adminId == null ? "system" : adminId);
     }
 
     @Override

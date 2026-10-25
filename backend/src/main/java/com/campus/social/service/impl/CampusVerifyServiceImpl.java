@@ -129,6 +129,28 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         // 专业必须属于所选学院：选了 A 学院却提交 B 学院的专业 id，会写出
         // 「学院与专业对不上」的脏数据，后续学号专业码校验也会失真。
         SchoolMajor major = dictService.requireSelectableMajor(dto.getMajorId(), dept.getId());
+        /*
+         * 改即重审·归属侧(2026-10-24):归属与学号在六层校验里是一套绑定凭证,
+         * 已认证(1)/审核中(2)的用户改了学院/年级/专业,旧背书对新组合不再成立 ——
+         * 状态退回未认证(0),由用户带新归属重新提交学号核验
+         * (编辑页「填学号保存=提交核验」的既有链路,无需额外入口)。
+         *
+         * 只在**归属真的变了**时重置:原样保存不该把认证弄丢。
+         * 审核中(2)改归属同样退回:管理员不该审一个新旧混合的组合。
+         */
+        User owner = userMapper.selectById(userId);
+        boolean identityChanged = owner != null
+                && (Integer.valueOf(1).equals(owner.getVerifyStatus())
+                    || Integer.valueOf(VERIFY_PENDING).equals(owner.getVerifyStatus()))
+                && (!java.util.Objects.equals(owner.getDeptId(), dept.getId())
+                    || !java.util.Objects.equals(owner.getGradeId(), grade.getId())
+                    || !java.util.Objects.equals(owner.getMajorId(), major.getId()));
+        if (identityChanged) {
+            userMapper.updateVerifyStatus(userId, VERIFY_NONE);
+            auditService.record(userId, "verify_reset_by_profile_change", "user", userId,
+                    "已认证/审核中用户修改学校归属,认证状态重置为未认证(改即重审)", "");
+            log.info("verify reset by school-profile change: user={}", userId);
+        }
         userMapper.updateSchoolProfile(userId, schoolId, dept.getId(), dept.getName(),
                 grade.getId(), grade.getName(), major.getId());
         // 填了归属即推进引导进度：onboarding_step 单调递增，WHERE 已挡住回退

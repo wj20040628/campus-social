@@ -179,6 +179,19 @@ public class PostController {
         return Result.ok(Map.of("commentId", commentId));
     }
 
+    /**
+     * 删除自己的评论(2026-10-24 新增):仅作者可删,连同其子回复软删。
+     * 403 FORBIDDEN 删他人的;404 COMMENT_NOT_FOUND 不存在或已删。
+     */
+    @DeleteMapping("/{id}/comment/{commentId}")
+    public Result<Map<String, String>> deleteComment(@PathVariable("id") long id,
+                                                     @PathVariable("commentId") long commentId,
+                                                     HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        postService.deleteComment(id, commentId, me);
+        return Result.ok(Map.of("message", "评论已删除"));
+    }
+
     /** 评论列表（一级评论 + 各条的 children 树） */
     @GetMapping("/{id}/comments")
     public Result<CursorPage<CommentVO>> comments(

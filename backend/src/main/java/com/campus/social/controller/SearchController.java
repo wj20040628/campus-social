@@ -35,14 +35,18 @@ public class SearchController {
     private final CircleMapper circleMapper;
     private final CircleMemberMapper circleMemberMapper;
     private final MktActivityMapper mktActivityMapper;
+    /** 展示层打码(2026-10-24):搜索结果的帖子内容必须与其余链路同规则 */
+    private final com.campus.social.service.impl.PostVoAssembler postVoAssembler;
 
     public SearchController(PostMapper postMapper, UserMapper userMapper, CircleMapper circleMapper,
-                            CircleMemberMapper circleMemberMapper, MktActivityMapper mktActivityMapper) {
+                            CircleMemberMapper circleMemberMapper, MktActivityMapper mktActivityMapper,
+                            com.campus.social.service.impl.PostVoAssembler postVoAssembler) {
         this.postMapper = postMapper;
         this.userMapper = userMapper;
         this.circleMapper = circleMapper;
         this.circleMemberMapper = circleMemberMapper;
         this.mktActivityMapper = mktActivityMapper;
+        this.postVoAssembler = postVoAssembler;
     }
 
     @GetMapping
@@ -120,7 +124,13 @@ public class SearchController {
         return PostVO.builder()
                 .id(p.getId())
                 .authorId(p.getAuthorId())
-                .content(p.getContent())
+                /*
+                 * 展示层打码(2026-10-24 修):此前裸拼 p.getContent(),一级敏感词
+                 * 在搜索结果原样显示——正文链路全打码,唯独搜索漏。
+                 * 规则唯一出处 PostVoAssembler.displayContent(搜索只回 status=1,
+                 * 实际总是走 replaceAll 分支)。
+                 */
+                .content(postVoAssembler.displayContent(p))
                 .status(p.getStatus())
                 .likeCount(p.getLikeCount())
                 .commentCount(p.getCommentCount())
