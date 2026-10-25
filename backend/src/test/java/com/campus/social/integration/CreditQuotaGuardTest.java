@@ -115,6 +115,35 @@ class CreditQuotaGuardTest {
         assertEquals(ResultCode.POST_DAILY_LIMIT_REACHED.getCode(), e.getCode());
     }
 
+    @Test
+    void reactivationAndReEnableCannotBypassActiveQuota() {
+        // 配额 1:发 A → 1/1
+        Long a = mktService.create(verifiedUserId, sampleMkt("配额集市A"));
+
+        // 暂停 A(腾出在投数)→ 发 B → 1/1,B 在投
+        mktService.toggleEnable(a, verifiedUserId, false);
+        Long b = mktService.create(verifiedUserId, sampleMkt("配额集市B"));
+
+        // 绕过口 1:重激活 A(过期/暂停态)→ 应被拦
+        com.campus.social.dto.MktReactivDTO rd = new com.campus.social.dto.MktReactivDTO();
+        rd.setNewExpire(LocalDateTime.now().plusHours(2));
+        BusinessException e1 = assertThrows(BusinessException.class,
+                () -> mktService.reactivate(a, verifiedUserId, rd));
+        assertEquals(ResultCode.MKT_ACTIVE_LIMIT_REACHED.getCode(), e1.getCode());
+
+        // 绕过口 2:重新开启暂停中的 A → 应被拦
+        BusinessException e2 = assertThrows(BusinessException.class,
+                () -> mktService.toggleEnable(a, verifiedUserId, true));
+        assertEquals(ResultCode.MKT_ACTIVE_LIMIT_REACHED.getCode(), e2.getCode());
+
+        // 合法续期:对**在投中**的 B 重激活(=延长到期),不增加在投数,应放行
+        mktService.reactivate(b, verifiedUserId, rd);
+
+        // 删 B 腾名额后,重激活 A 放行(0/1 → 1/1)
+        mktService.delete(b, verifiedUserId);
+        mktService.reactivate(a, verifiedUserId, rd);
+    }
+
     private MktActivityDTO sampleMkt(String title) {
         MktActivityDTO dto = new MktActivityDTO();
         dto.setCategory("游戏组队");

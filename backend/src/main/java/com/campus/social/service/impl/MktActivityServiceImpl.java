@@ -69,11 +69,7 @@ public class MktActivityServiceImpl implements MktActivityService {
     public Long create(long userId, MktActivityDTO dto) {
         rateLimiter.guardPublish(userId);
         // 在投配额:与频率限流互补(429 管太快,这里管太多)。认证门槛由 @RequireVerified 拦
-        int quota = trustService.creationQuota(userId);
-        if (quota <= 0 || mktActivityMapper.countActiveByUser(userId) >= quota) {
-            throw new BusinessException(ResultCode.MKT_ACTIVE_LIMIT_REACHED,
-                    "在投的集市活动已达上限(" + quota + " 条),等待到期或提升信誉分后可再发");
-        }
+        guardActiveQuota(userId, false, null, "发布");
 
         validateCategory(dto.getCategory());
         // 标题不再必填:主文案由「分类 · 游戏(游戏组队时)」派生,未传则留 null(前端不再采集)。
@@ -186,7 +182,17 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Override
     @Transactional
     public void toggleEnable(long id, long me, boolean enable) {
-        ownedBy(id, me);
+        MktActivity a = ownedBy(id, me);
+        /*
+         * 在投配额(2026-10-25 补洞):开启一条「暂停但未过期」的活动会把它拉回
+         * 在投池,与重激活是同一个绕过口,必须同检。注意两个不拦的边界:
+         * 已在投的开=无操作;**已过期**的开不改变在投数(expire_time 仍在过去,
+         * 拉不进广场),想回广场必须走 reactivate(那里刷新到期并查配额)。
+         */
+        if (enable && !isActivelyLive(a)
+                && a.getExpireTime() != null && a.getExpireTime().isAfter(LocalDateTime.now())) {
+            guardActiveQuota(me, false, a, "重新开启");
+        }
         int affected = mktActivityMapper.updateEnable(id, me, enable ? 1 : 0);
         if (affected == 0) {
             throw new BusinessException(ResultCode.MKT_NOT_FOUND);
@@ -209,6 +215,12 @@ public class MktActivityServiceImpl implements MktActivityService {
         MktActivity a = ownedBy(id, me);
         LocalDateTime expire = validateExpire(dto.getNewExpire());
         rateLimiter.guardReactivate(id);
+        /*
+         * 在投配额(2026-10-25 补洞):重激活把过期/暂停的活动拉回「在投」池。
+         * 只在新发布查配额的话,「发 A → 到期 → 发 B → 重激活 A」可以无限堆在投数。
+         * 已在投的活动走重激活=续期,不增加在投数,不占新名额(仍受 24h/3 次限流)。
+         */
+        guardActiveQuota(me, true, a, "再激活");
         int affected = mktActivityMapper.reactivate(id, me, expire, LocalDateTime.now());
         if (affected == 0) {
             throw new BusinessException(ResultCode.MKT_NOT_FOUND);
@@ -289,6 +301,32 @@ public class MktActivityServiceImpl implements MktActivityService {
             throw new BusinessException(ResultCode.MKT_NOT_OWNER);
         }
         return a;
+    }
+
+    /** 是否处于在投状态(投放中且未过期);软删行过不了 ownedBy 的 selectById */
+    private boolean isActivelyLive(MktActivity a) {
+        return Integer.valueOf(1).equals(a.getIsEnable())
+                && a.getExpireTime() != null && a.getExpireTime().isAfter(LocalDateTime.now());
+    }
+
+    /**
+     * 在投配额守护:create / reactivate / toggleEnable(开启) 三个「使活动进入
+     * 在投池」的入口共用——漏一个口子,配额就能被「暂停→开启」「到期→重激活」绕过。
+     *
+     * @param skipIfAlreadyLive true 时,目标已在投则直接放行(重激活=续期,
+     *                          不增加在投数,不该被拦);create 恒传 false
+     * @param target            被操作的活动;create 无目标传 null
+     * @param action            报错文案里的动作词(发布/再激活/重新开启)
+     */
+    private void guardActiveQuota(long userId, boolean skipIfAlreadyLive, MktActivity target, String action) {
+        if (skipIfAlreadyLive && target != null && isActivelyLive(target)) {
+            return;
+        }
+        int quota = trustService.creationQuota(userId);
+        if (quota <= 0 || mktActivityMapper.countActiveByUser(userId) >= quota) {
+            throw new BusinessException(ResultCode.MKT_ACTIVE_LIMIT_REACHED,
+                    "在投的集市活动已达上限(" + quota + " 条),等待到期或暂停/删除腾出名额,提升信誉分后自动扩容");
+        }
     }
 
     private void validateCategory(String category) {
