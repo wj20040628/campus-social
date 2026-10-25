@@ -24,13 +24,23 @@ public class ReportVO implements Serializable {
 
     private String reporterNickname;
 
-    /** 1用户 2帖子 3评论 4聊天消息 5搭子 */
+    /** 1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动 */
     private Integer targetType;
 
     private Long targetId;
 
     /** 被举报对象的摘要，供管理员在一屏内判断 */
     private String targetSummary;
+
+    /**
+     * 被举报内容的作者（2026-10-24 加）。targetType=1（举报用户）时即被举报人本身。
+     * 管理员处置的核心依据是「谁在发」——只给摘要不给作者，
+     * "666" 这种摘要等于让人盲判。可空：内容已物理删除时查不到。
+     */
+    private Long targetAuthorId;
+
+    /** 作者昵称（与 targetAuthorId 同批解析）；查不到用户时为 null */
+    private String targetAuthorNickname;
 
     /** 1骚扰 2广告 3色情 4诈骗 5其他 */
     private Integer reasonType;

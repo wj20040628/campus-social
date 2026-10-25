@@ -35,6 +35,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
     private static final int TARGET_SUMMARY_LIMIT = 80;
 
     private final ReportMapper reportMapper;
+    private final com.campus.social.mapper.UserMapper userMapper;
 
     @Override
     public ReportAdminPageVO list(Integer status, Boolean handled, Long cursor, int size) {
@@ -44,9 +45,13 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         boolean hasMore = rows.size() > limit;
         List<ReportListVO> page = hasMore ? rows.subList(0, limit) : rows;
 
+        // 作者昵称按页批量回填:先逐行解析 authorId(与 summaryOf 同一 N+1 取舍),
+        // 昵称一次 IN 查回来,不让一页 50 条变成 50 次 user 单查
+        java.util.Map<Long, String> nickByAuthor = nicknameBatchOf(page);
+
         List<ReportVO> list = new ArrayList<>(page.size());
         for (ReportListVO row : page) {
-            list.add(toVo(row));
+            list.add(toVo(row, nickByAuthor));
         }
 
         Long nextCursor = hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null;
@@ -60,12 +65,51 @@ public class ReportAdminServiceImpl implements ReportAdminService {
         return vo;
     }
 
-    private ReportVO toVo(ReportListVO row) {
+    /**
+     * 解析每行的被举报作者昵称(2026-10-24 加)。
+     * targetType=1(举报用户)的"作者"就是被举报人本身。
+     */
+    private java.util.Map<Long, String> nicknameBatchOf(List<ReportListVO> page) {
+        java.util.Set<Long> authorIds = new java.util.HashSet<>();
+        for (ReportListVO row : page) {
+            Long id = authorIdOf(row);
+            if (id != null) {
+                authorIds.add(id);
+            }
+        }
+        if (authorIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<Long, String> out = new java.util.HashMap<>();
+        for (com.campus.social.entity.User u : userMapper.selectBatchIds(authorIds)) {
+            out.put(u.getId(), u.getNickname());
+        }
+        return out;
+    }
+
+    /** 按 targetType 解析被举报作者 id;查不到(内容已删)返回 null */
+    private Long authorIdOf(ReportListVO row) {
+        if (row.getTargetType() == null || row.getTargetId() == null) {
+            return null;
+        }
+        Long id = row.getTargetId();
+        return switch (row.getTargetType()) {
+            case ReportTargetType.POST -> reportMapper.selectPostAuthorId(id);
+            case ReportTargetType.COMMENT -> reportMapper.selectCommentAuthorId(id);
+            case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageSenderId(id);
+            case ReportTargetType.USER -> id;
+            case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivityOwnerId(id);
+            default -> null;
+        };
+    }
+
+    private ReportVO toVo(ReportListVO row, java.util.Map<Long, String> nickByAuthor) {
         boolean truncated = false;
         String reasonText = truncate(row.getReasonText(), REASON_TEXT_LIMIT, false);
         if (row.getReasonText() != null && row.getReasonText().length() > REASON_TEXT_LIMIT) {
             truncated = true;
         }
+        Long authorId = authorIdOf(row);
         return ReportVO.builder()
                 .id(row.getId())
                 .reporterId(row.getReporterId())
@@ -73,6 +117,8 @@ public class ReportAdminServiceImpl implements ReportAdminService {
                 .targetType(row.getTargetType())
                 .targetId(row.getTargetId())
                 .targetSummary(truncate(summaryOf(row), TARGET_SUMMARY_LIMIT, true))
+                .targetAuthorId(authorId)
+                .targetAuthorNickname(authorId == null ? null : nickByAuthor.get(authorId))
                 .reasonType(row.getReasonType())
                 .reasonText(reasonText)
                 .reasonTextTruncated(truncated)

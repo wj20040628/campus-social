@@ -177,6 +177,10 @@ tags:
     description: F4 举报提交（上线门槛项）
   - name: admin-report
     description: F4 举报处置（管理员，手机端可用，OD-19）
+  - name: admin-users
+    description: 用户处置（管理员，2026-10-24 新增）：找人 / 直接封禁 / 手动解封
+  - name: admin-summary
+    description: 管理端待办聚合（2026-10-24 新增）：入口角标的数据源
   - name: feedback
     description: 意见反馈提交（导航抽屉「意见反馈」）
   - name: admin-feedback
@@ -565,6 +569,112 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin-users]
+      summary: 用户处置列表（管理员）
+      description: |
+        按昵称/登录名/学号模糊搜 + 状态（0 正常 / 1 冻结）筛选，游标分页，按 id 倒序。
+        2026-10-24 新增：此前封人只能走举报流程，找人/直接封禁/手动解封均无入口。
+        `username` 打码下发（口径同审计日志 operatorName）；
+        `bannedUntil` 仅冻结行有值，永久封禁为 null。
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 昵称/登录名/学号模糊匹配；空 = 不筛
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          description: 0 正常 / 1 冻结（封禁中）；不传 = 全部
+          schema: { type: integer, nullable: true }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 用户处置列表游标分页
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAdminPageResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{userId}/ban:
+    post:
+      operationId: banUserDirect
+      tags: [admin-users]
+      summary: 直接封禁用户（不依赖举报流程）
+      description: |
+        2026-10-24 新增。此前封人唯一入口是举报处置——管理员看到刷屏 spam
+        得先自己以用户身份举报、再去队列处置，绕一整圈。
+        422：封自己 / 封管理员（封掉唯一管理员 = 后台锁死且无人能解封）；
+        404：用户不存在。审计动作名 `account_ban`。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserBanRequest' }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{userId}/unban:
+    post:
+      operationId: unbanUser
+      tags: [admin-users]
+      summary: 手动解封用户
+      description: |
+        2026-10-24 新增。此前 `BanService.unban` 的唯一调用方是到期定时任务——
+        永久封禁误判后没有任何 API/UI 能撤销，只能改数据库。
+        审计动作名 `account_unban`，operator 归因到操作管理员（非系统）。
+        422：该账号不在封禁中（看的列表是旧的，应刷新）。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/pending-summary:
+    get:
+      operationId: adminPendingSummary
+      tags: [admin-summary]
+      summary: 管理端待办聚合（四条队列一次拉全）
+      description: |
+        2026-10-24 新增。此前六个管理入口各自为政，每个队列的待审数
+        要进对应页面才能看到——管理员必须逐页巡检才知道有没有活。
+        本端点供抽屉/侧栏管理入口挂角标：举报 / 机审 / 学号核验 / 反馈。
+      responses:
+        '200':
+          description: 四条队列的待办数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingSummaryResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /feedback:
@@ -1515,6 +1625,36 @@ paths:
         '422': { $ref: '#/components/responses/Unprocessable' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /post/{id}/comment/{commentId}:
+    delete:
+      operationId: deleteComment
+      tags: [comment]
+      summary: 删除自己的评论（连同其子回复）
+      description: |
+        2026-10-24 新增——此前评论无任何删除手段，发错/发敏感内容只能找管理员改库。
+        仅作者本人可删：403 `FORBIDDEN` 删他人的；404 `COMMENT_NOT_FOUND` 不存在或已删。
+        删除范围是整棵子树（父 + 全部子孙一起软删），评论计数与热度分按实际删除行数扣减，
+        与 ReconcileJob 的对账口径一致。写 audit_log（delete_comment）。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: commentId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: 404 `COMMENT_NOT_FOUND(1043)` 评论不存在或已删除
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /post/{id}/comments:
     parameters:
       - $ref: '#/components/parameters/PostId'
@@ -1648,6 +1788,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SchoolDictResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/trust-status:
+    get:
+      operationId: getUserTrustStatus
+      tags: [user]
+      summary: 发布信誉清单（自己的）
+      description: |
+        设置页「账号与安全」信誉卡的数据源（2026-10-24 新增）。
+        三条清单（认证/账龄/违规记录）+ 是否受信，与发帖信任闸门
+        （ReviewTrustService）同一套判定——用户看到的必须和实际生效的一致。
+        刻意不披露的：变体检测等审核细节不在此返回，只给结论性清单。
+      responses:
+        '200':
+          description: 信誉清单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTrustStatusResponse'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2648,7 +2808,8 @@ components:
           type: string
         targetType:
           type: integer
-          enum: [1, 2, 3, 4, 5]
+          enum: [1, 2, 3, 4, 5, 6]
+          description: 1用户 2帖子 3评论 4聊天消息 5搭子(未上线) 6集市活动(2026-10-21 加)
         targetId:
           type: integer
           format: int64
@@ -2656,6 +2817,17 @@ components:
           type: string
           description: 被举报对象的摘要文本，供管理员在手机上快速判断
           example: 今晚王者缺一个，来吗
+        targetAuthorId:
+          type: integer
+          format: int64
+          nullable: true
+          description: |
+            被举报内容的作者(2026-10-24 加)。targetType=1 时即被举报人本身。
+            管理员处置的核心依据是「谁在发」;内容已物理删除时为 null。
+        targetAuthorNickname:
+          type: string
+          nullable: true
+          description: 作者昵称,与 targetAuthorId 同批解析
         reasonType:
           type: integer
           enum: [1, 2, 3, 4, 5]
@@ -4673,6 +4845,132 @@ components:
           minLength: 1
           maxLength: 200
           description: 驳回理由，必填——用户要靠它知道该怎么改。写 audit_log
+
+    UserTrustStatusVO:
+      type: object
+      properties:
+        trusted:
+          type: boolean
+          description: 是否受信（条件全满足）——命中 level-1 词的帖子可直接发布（展示时打码）
+        verified:
+          type: boolean
+          description: 学号认证是否通过
+        accountAgeDays:
+          type: integer
+          description: 账号已注册天数
+        trustMinDays:
+          type: integer
+          description: 受信要求的账龄下限（天）
+        hasBadRecord:
+          type: boolean
+          description: 是否有违规记录（成立的用户举报或直接封禁史）
+
+    UserTrustStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/UserTrustStatusVO' }
+
+    # ---------------- admin-users（2026-10-24 新增） ----------------
+    # schema 名与 Java VO 类名严格一致：verify-contract 门禁按同名比对字段，
+    # 命名不一致等于免检（见该脚本的灵敏度说明）。
+    UserAdminItemVO:
+      type: object
+      properties:
+        userId: { type: integer, format: int64 }
+        nickname: { type: string, nullable: true }
+        username:
+          type: string
+          nullable: true
+          description: 登录标识（打码版，口径同审计日志 operatorName）
+        avatarUrl: { type: string, nullable: true }
+        studentNo:
+          type: string
+          nullable: true
+          description: 学号；未提交认证的用户为 null
+        dept: { type: string, nullable: true }
+        grade: { type: string, nullable: true }
+        verifyStatus:
+          type: integer
+          nullable: true
+          description: 0 未认证 / 2 审核中 / 1 已认证 / 3 已驳回
+        role:
+          type: integer
+          nullable: true
+          description: 1 = 管理员（前端据此隐藏「封禁」按钮）
+        status:
+          type: integer
+          description: 0 正常 / 1 冻结（封禁中）
+        bannedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: 解封时间；永久封禁为 null，未封禁也为 null——须与 status 同看
+        createTime:
+          type: string
+          format: date-time
+
+    UserAdminPageVO:
+      type: object
+      properties:
+        list:
+          type: array
+          items: { $ref: '#/components/schemas/UserAdminItemVO' }
+        nextCursor:
+          type: integer
+          format: int64
+          nullable: true
+        hasMore: { type: boolean }
+        total:
+          type: integer
+          format: int64
+          description: 当前筛选条件下的总用户数（不是本页条数）
+
+    UserAdminPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/UserAdminPageVO' }
+
+    UserBanRequest:
+      type: object
+      required: [banDays, reason]
+      properties:
+        banDays:
+          type: integer
+          minimum: 0
+          maximum: 3650
+          description: 0=永久；1/7/30 为常用档（与举报处置 BAN_DAY_OPTIONS 同一套语义）
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 必填——半年后回看 audit_log 时「为什么封」只有这一句话可依赖
+
+    PendingSummaryVO:
+      type: object
+      properties:
+        reportPending:
+          type: integer
+          description: 待处置举报数（report status=0 且无人处理）
+        reviewPending:
+          type: integer
+          description: 待人审机审任务数（review_task status=0）
+        verifyPending:
+          type: integer
+          description: 待审核学号核验数（user verify_status=2）
+        feedbackPending:
+          type: integer
+          description: 待处理意见反馈数（feedback status=0）
+
+    PendingSummaryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/PendingSummaryVO' }
 
     TokenPairEnvelope:
       allOf:

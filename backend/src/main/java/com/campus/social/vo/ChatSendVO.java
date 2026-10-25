@@ -24,4 +24,12 @@ public class ChatSendVO implements Serializable {
 
     /** 本次为向新对象发起首条时的剩余额度；否则 null */
     private Integer remainingNewPeerQuota;
+
+    /**
+     * 打码后的消息文本（2026-10-24 加）。
+     * 发送路径入库前会做一级敏感词替换(MessageContentGuard),
+     * 前端乐观气泡必须渲染这个版本而不是本地草稿——否则发送者自己
+     * 看到原文、接收方看到星号,同一句话两个人读到的内容不一样。
+     */
+    private String content;
 }

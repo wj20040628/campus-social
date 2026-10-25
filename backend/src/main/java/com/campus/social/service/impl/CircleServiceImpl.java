@@ -37,6 +37,8 @@ public class CircleServiceImpl implements CircleService {
     private final CircleAdminService circleAdminService;
     /** 敏感词 DFA:建圈名命中 level-2(拒发)直接 422;level-1(替换)也拒,圈名是永久标识,不允许打码入库 */
     private final SensitiveWordFilter sensitive;
+    /** 展示层打码规则的唯一出处(2026-10-24:圈子帖列表此前裸拼原文,一级词泄露) */
+    private final PostVoAssembler postVoAssembler;
 
     @Override
     @Transactional
@@ -225,7 +227,12 @@ public class CircleServiceImpl implements CircleService {
                     .id(p.getId())
                     .authorId(p.getAuthorId())
                     .author(avo)
-                    .content(p.getContent())
+                    /*
+                     * 展示层打码(2026-10-24 修):此前裸拼 p.getContent(),
+                     * 一级敏感词在圈子帖列表原样显示——首页/详情都打码,
+                     * 唯独圈子页漏。规则唯一出处 PostVoAssembler.displayContent。
+                     */
+                    .content(postVoAssembler.displayContent(p))
                     .media(null)
                     .status(p.getStatus())
                     .likeCount(p.getLikeCount())

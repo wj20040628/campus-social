@@ -32,16 +32,19 @@ public class UserController {
     private final LikeMapper likeMapper;
     private final PostFavoriteMapper favoriteMapper;
     private final PostService postService;
+    private final com.campus.social.service.impl.ReviewTrustService trustService;
 
     public UserController(AuthService authService, UserMapper userMapper,
                           PostMapper postMapper, LikeMapper likeMapper,
-                          PostFavoriteMapper favoriteMapper, PostService postService) {
+                          PostFavoriteMapper favoriteMapper, PostService postService,
+                          com.campus.social.service.impl.ReviewTrustService trustService) {
         this.authService = authService;
         this.userMapper = userMapper;
         this.postMapper = postMapper;
         this.likeMapper = likeMapper;
         this.favoriteMapper = favoriteMapper;
         this.postService = postService;
+        this.trustService = trustService;
     }
 
     @GetMapping("/me")
@@ -113,6 +116,16 @@ public class UserController {
     public Result<String> getNotifyPref(HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(userMapper.selectNotifyPrefById(me));
+    }
+
+    /**
+     * 发布信誉清单（2026-10-24）：认证/账龄/违规记录三条 + 是否受信。
+     * 只读、只查自己；判定与信任闸门同一套（ReviewTrustService.status）。
+     */
+    @GetMapping("/trust-status")
+    public Result<com.campus.social.vo.UserTrustStatusVO> trustStatus(HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(trustService.status(me));
     }
 
     /**
