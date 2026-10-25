@@ -1811,6 +1811,34 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /user/{id}/trust-badge:
+    get:
+      operationId: getUserTrustBadge
+      tags: [user]
+      summary: 他人主页的公开信誉徽章（2026-10-25）
+      description: |
+        只回「是否受信」一个布尔，供他人主页渲染「信誉良好」小徽章。
+
+        **刻意模糊**：false 的原因可能是未认证、新号、或有前科，响应不区分——
+        前端对 false 不渲染任何内容（不公开处刑、不让新号被误读）。
+        判定与信任闸门（ReviewTrustService）/设置页信誉卡同源，
+        三处显示必须严格一致。本人视角的完整清单走 `/user/trust-status`。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+          description: 被查看的用户 id
+      responses:
+        '200':
+          description: 信誉徽章
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustBadgeResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /user/me:
     put:
       operationId: updateMyProfile
@@ -3859,6 +3887,13 @@ components:
           type: integer
           format: int64
           nullable: true
+        circleName:
+          type: string
+          nullable: true
+          description: |
+            所属圈子名。`circleId` 非空但本字段为 null 表示该圈已解散/被封禁
+            （或查不到），前端此时**不渲染**圈子标签——给一个点进去 404 的
+            链接比不显示更糟。由服务端按页批量下发（一次查询覆盖整页）。
         createTime:
           type: string
           format: date-time
@@ -4931,6 +4966,24 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/UserTrustStatusVO' }
+
+    TrustBadgeVO:
+      type: object
+      description: 他人主页的公开信誉徽章（vo/TrustBadgeVO.java）。刻意只有一个字段
+      required: [trusted]
+      properties:
+        trusted:
+          type: boolean
+          description: |
+            是否受信（已认证 + 注册满 trust-min-days + 无成立举报 + 无封禁史）。
+            false 的原因刻意不下发——前端对 false 不渲染，避免公开处刑与新号误读。
+
+    TrustBadgeResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/TrustBadgeVO' }
 
     # ---------------- admin-users（2026-10-24 新增） ----------------
     # schema 名与 Java VO 类名严格一致：verify-contract 门禁按同名比对字段，

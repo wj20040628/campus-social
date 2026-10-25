@@ -94,6 +94,15 @@ export function userCard(id) {
 }
 
 /**
+ * 他人主页的公开信誉徽章(2026-10-25):只回「是否受信」一个布尔。
+ * false 的原因刻意不下发(未认证/新号/有前科不可区分),前端对 false 不渲染。
+ * 本人视角的完整清单走 trustStatus()。
+ */
+export function trustBadge(id) {
+  return request.get(`/user/${id}/trust-badge`)
+}
+
+/**
  * 设置 / 清除个人主页封面(2026-10-20)。
  *
  * <p>传 null 或 '' = 恢复默认渐变封面。**与 updateMe 的 null 语义相反**:

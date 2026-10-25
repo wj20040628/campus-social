@@ -54,6 +54,9 @@
           @change-avatar="changeAvatar"
         />
 
+        <!-- 信誉条:他人=受信徽章(不受信不渲染),本人=完整信誉卡(复用设置页组件) -->
+        <ProfileTrust :target-id="targetId" :is-me="isMe" />
+
         <!-- 拉黑关系提示(设计 §3 权限态)。给出解除出口,不能只告知 -->
         <p v-if="relStatus?.blacklisted" class="p-blocked">
           你已经把 {{ displayName(user) }} 拉黑了
@@ -187,6 +190,7 @@ import ProfileCover from '@/components/profile/ProfileCover.vue'
 import ProfileTabs from '@/components/profile/ProfileTabs.vue'
 import ProfileTags from '@/components/profile/ProfileTags.vue'
 import ProfileStats from '@/components/profile/ProfileStats.vue'
+import ProfileTrust from '@/components/profile/ProfileTrust.vue'
 import RelationSheet from '@/components/profile/RelationSheet.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 import { useProfileData } from '@/composables/useProfileData'

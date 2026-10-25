@@ -157,6 +157,18 @@ public class UserController {
         return Result.ok();
     }
 
+    /**
+     * 他人主页的公开信誉徽章(2026-10-25):只回「是否受信」一个布尔,
+     * false 的原因(未认证/新号/有前科)不下发——组件只渲染 true,
+     * 响应本身保持模糊,无前科泄露。判定与信任闸门同源(ReviewTrustService)。
+     */
+    @GetMapping("/{id}/trust-badge")
+    public Result<com.campus.social.vo.TrustBadgeVO> trustBadge(@PathVariable("id") long id) {
+        com.campus.social.vo.TrustBadgeVO vo = new com.campus.social.vo.TrustBadgeVO();
+        vo.setTrusted(trustService.status(id).getTrusted());
+        return Result.ok(vo);
+    }
+
     /** 用户卡片(公开,看他人主页用) */
     @GetMapping("/{id}")
     public Result<UserVO> card(@PathVariable("id") long id, HttpServletRequest req) {
