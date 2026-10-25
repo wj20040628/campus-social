@@ -6,6 +6,7 @@ import com.campus.social.service.AuthService;
 import com.campus.social.service.CampusVerifyService;
 import com.campus.social.dto.SchoolProfileDTO;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,6 +51,22 @@ class ReverifyOnChangeEventTest {
         u.setMajorId(1L);
         userMapper.insert(u);
         uid = u.getId();
+    }
+
+    @BeforeEach
+    void seedDict() {
+        /*
+         * CI 只加载 schema.sql,院系/年级/专业字典为空(实测 40155172098:
+         * requireSelectableDept 直接抛「所选学院不存在」)。固定 id 播种
+         * 最小字典:INSERT IGNORE 在本地(字典已存在)零副作用,
+         * 在 CI(空表)插入本测试需要的 4 行。enabled/is_deleted 默认即可。
+         */
+        jdbc.update("INSERT IGNORE INTO school_dept (id, name, school_id, sort, enabled) VALUES "
+                + "(1,'测试学院A',1,100,1),(3,'测试学院B',1,100,1)");
+        jdbc.update("INSERT IGNORE INTO school_grade (id, name, enroll_year, sort, enabled) VALUES "
+                + "(9,'2023级',2023,100,1)");
+        jdbc.update("INSERT IGNORE INTO school_major (id, name, dept_id, code, level, enabled) VALUES "
+                + "(1,'测试专业甲',1,'080901',1,1),(37,'测试专业乙',3,'080902',1,1)");
     }
 
     @AfterEach

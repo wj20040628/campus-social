@@ -33,8 +33,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ActiveProfiles("local")
 class PostDisplayMaskTest {
 
-    private static final String MASKED_WORD = "代跑"; // 词库 level-1
-    private static final String RAW = "明天有人代跑乐跑吗,一次十块";
+    /*
+     * 测试专用词(2026-10-25 改自播种):CI 只加载 schema.sql 不加载
+     * seed_data.sql,词库在 CI 是空的——依赖迁移词'代跑'会让 CI 必红而本地绿
+     * (实测 40155172098)。改用带后缀的专用词,自播种自清理,任何环境都成立。
+     */
+    private static final String MASKED_WORD = "打码回归词" + System.nanoTime() % 10000;
+    private static final String RAW = "明天有人" + MASKED_WORD + "乐跑吗,一次十块";
 
     @Autowired
     private PostMapper postMapper;
@@ -44,12 +49,19 @@ class PostDisplayMaskTest {
     private CircleService circleService;
     @Autowired
     private SearchController searchController;
+    @Autowired
+    private com.campus.social.util.SensitiveWordFilter sensitiveFilter;
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private Long circleId;
     private Long postId;
 
     @BeforeEach
     void seed() {
+        // 播种测试词并重建 DFA(词表 5 分钟才自动刷,不等)
+        jdbc.update("INSERT INTO sensitive_word (word, level) VALUES (?, 1)", MASKED_WORD);
+        sensitiveFilter.load();
         Circle c = new Circle();
         c.setName("mask-regression-" + System.currentTimeMillis());
         c.setOwnerId(1L);
@@ -78,6 +90,8 @@ class PostDisplayMaskTest {
         if (circleId != null) {
             circleMapper.delete(new LambdaQueryWrapper<Circle>().eq(Circle::getId, circleId));
         }
+        jdbc.update("DELETE FROM sensitive_word WHERE word = ?", MASKED_WORD);
+        sensitiveFilter.load();
     }
 
     @Test
