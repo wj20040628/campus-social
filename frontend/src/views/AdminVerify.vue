@@ -60,7 +60,17 @@
           </p>
 
           <p class="vcard__who">
-            <span class="vcard__nick">{{ row.item.nickname }}</span>
+            <!--
+              昵称可点跳主页(2026-10-24 补):核验真伪的旁证是「这个人像不像本校学生」
+              ——头像/昵称风格/历史动态,此前都是纯文本,管理员得手拼 URL。
+            -->
+            <button
+              type="button"
+              class="vcard__nick vcard__nick--link"
+              @click="router.push(`/user/${row.item.userId}`)"
+            >
+              {{ row.item.nickname }}
+            </button>
             <span v-if="row.item.dept" class="vcard__dept">{{ row.item.dept }}</span>
           </p>
 

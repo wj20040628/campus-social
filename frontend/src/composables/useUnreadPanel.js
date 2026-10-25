@@ -66,14 +66,17 @@ export function useUnreadPanel() {
   }
 
   /**
-   * 单人提醒 —— **明确的降级,不是假装成功**。
-   * openapi 的 remind 端点本轮不支持 body 带 userIds(只支持整条公告全量提醒),
-   * 所以单人操作只写入本地 remindedIds 做视觉标记,不发请求。
-   * 后续端点支持了,把这里换成一次带 userIds 的调用即可,UI 不用改。
+   * 单人提醒 —— **明示不可用,不假装成功**（2026-10-24 修）。
+   *
+   * 原实现只往本地 remindedIds 塞标记、不发任何请求,UI 却显示「已提醒」——
+   * 管理员以为提醒了那个人,实际什么都没发生。假成功比没有功能更糟:
+   * 公告没触达的后果由相信了「已提醒」的管理员承担。
+   *
+   * 在 openapi 的 remind 端点支持按人提醒(userIds 入参)之前,这里只说真话。
+   * 端点补上后,把 toast 换成一次带 userIds 的调用即可,UI 不用改。
    */
-  function remindOne(userId) {
-    if (remindedIds.value.includes(userId)) return
-    remindedIds.value = [...remindedIds.value, userId]
+  function remindOne() {
+    ElMessage.info('单人提醒暂未开放，请用右上角「一键提醒」')
   }
 
   return {

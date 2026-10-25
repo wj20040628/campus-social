@@ -48,6 +48,12 @@
       <el-tabs v-model="tab" class="review-admin__tabs" @tab-change="onTabChange">
         <el-tab-pane label="举报" name="report" />
         <el-tab-pane :label="`内容审核${pendingCount ? ` (${pendingCount})` : ''}`" name="review" />
+        <!--
+          机审记录（2026-10-24 新增）：此前「已处理」tab 挂的是举报留档，
+          /review/processed 成了死接口——管理员驳回过哪些帖子、为什么驳，
+          无处回查。补第四个 tab 让机审处置历史可见。
+        -->
+        <el-tab-pane label="机审记录" name="reviewHistory" />
         <el-tab-pane label="已处理" name="processed" />
       </el-tabs>
 
@@ -111,7 +117,20 @@
             <div class="task-head">
               <el-avatar :size="36" :src="resolveThumb(t.author?.avatarUrl)" />
               <div class="task-author">
-                <p class="task-author__name">{{ t.author ? displayName(t.author) : '未知用户' }}</p>
+                <!--
+                  作者可点跳主页(2026-10-24 补):处置机审任务的辅助依据是
+                  「这个人平时发什么」,昵称一直是纯文本,管理员得手拼 URL。
+                  帖子本体不跳:待审帖(status=0)对非作者不可见,详情页会 404。
+                -->
+                <button
+                  v-if="t.author?.id"
+                  type="button"
+                  class="task-author__name task-author__name--link"
+                  @click="router.push(`/user/${t.author.id}`)"
+                >
+                  {{ displayName(t.author) }}
+                </button>
+                <p v-else class="task-author__name">未知用户</p>
                 <p class="task-author__time">{{ fmt(t.createTime) }}</p>
               </div>
               <span class="task-status" :data-status="t.status">{{ statusText(t.status) }}</span>
@@ -176,13 +195,17 @@
         <StateBlock
           v-if="!loading && list.length === 0"
           :variant="failed ? 'error' : 'empty'"
-          :title="failed ? '审核队列没拉出来' : tab === 'review' ? '机审队列是空的' : '还没有处理记录'"
+          :title="failed
+            ? '审核队列没拉出来'
+            : tab === 'review'
+              ? '机审队列是空的'
+              : '还没有机审处置记录'"
           :description="
             failed
               ? '可能是网络断了,点一下重试'
               : tab === 'review'
                 ? '有命中敏感词的内容会自动进这里'
-                : '审过的内容会留档在这里'
+                : '审过的机审任务会留档在这里,驳回理由作者看得到'
           "
           :icon="failed ? WarningFilled : Files"
           :action-label="failed ? '重试' : '看看举报'"
@@ -194,8 +217,9 @@
         无限滚动哨兵。放在滚动区**外面**:
         放在里面且列表为空时它一开始就在视口,IntersectionObserver
         会连发多次 load,第一页被重复追加。
+        只挂机审两个 tab:report/processed 归 ReportPane 管(它有自己的哨兵)。
       -->
-      <div v-if="tab !== 'report'" class="sentinel">
+      <div v-if="tab === 'review' || tab === 'reviewHistory'" class="sentinel">
         <p v-if="loading && list.length" class="sentinel__text">正在加载更多</p>
         <p v-else-if="!hasMore && list.length" class="sentinel__text">到底了</p>
       </div>
@@ -226,6 +250,7 @@ import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import AdminDenied from '@/components/common/AdminDenied.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import ReportPane from '@/components/admin/ReportPane.vue'
+import { reviewStatusLabel } from '@/constants/reviewStatus'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -287,8 +312,14 @@ function fmt(t) {
   return t ? dayjs(t).format('MM-DD HH:mm') : ''
 }
 
+/**
+ * 审核状态文案（管理员视角）。
+ *
+ * 来自 constants/reviewStatus.js —— 码 1/2 与作者端「我的审核」那块同源，
+ * 只有码 0 是「待审」而非「审核中」（视角不同，刻意为之）。
+ */
 function statusText(s) {
-  return ['待审', '已通过', '已驳回'][s] || '未知'
+  return reviewStatusLabel(s, true)
 }
 
 function aiVerdictText(v) {
@@ -299,9 +330,10 @@ function aiVerdictText(v) {
 function onTabChange(name) {
   tab.value = name
   /*
-   * 举报域与已处理域都归 ReportPane 管，它在自己的 setup 里拉数据。
-   * 这里不能再 load 一次 —— 那会去打机审队列的接口（/review/processed），
-   * 而那个列表现在根本不渲染，纯属白跑一趟。
+   * 举报域（report/processed）归 ReportPane 管，它在自己的 setup 里拉数据。
+   * 这里不能再 load 一次 —— 那会去打机审队列的接口,纯属白跑一趟。
+   * 机审两个 tab（review/reviewHistory）走同一个 useReviewQueue,
+   * 靠 which 参数区分打 pending 还是 processed。
    */
   if (name === 'report' || name === 'processed') return
   load(name, true).then(() => observeSentinel(name))
@@ -315,6 +347,7 @@ function onTabChange(name) {
 const tabHint = computed(() => {
   if (tab.value === 'report') return '举报有时效，先处理'
   if (tab.value === 'processed') return '处置过的都能回查，谁在什么时候怎么处理的'
+  if (tab.value === 'reviewHistory') return '机审处置的留档，驳过的帖子为什么驳都在这里'
   return '机审可以等'
 })
 

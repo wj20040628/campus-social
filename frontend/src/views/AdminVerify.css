@@ -328,3 +328,18 @@
     animation: none;
   }
 }
+/* 昵称可点跳主页(2026-10-24 补) */
+.vcard__nick--link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.vcard__nick--link:hover {
+  color: var(--ys-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

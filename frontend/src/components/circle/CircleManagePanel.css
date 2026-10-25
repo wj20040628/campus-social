@@ -135,3 +135,100 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ---------------- 圈主协审(2026-10-24) ---------------- */
+
+.cm__review-count {
+  margin-left: var(--ys-space-2);
+  padding: 0 var(--ys-space-2);
+  border-radius: 999px;
+  background: var(--ys-accent-2);
+  color: var(--ys-accent-on);
+  font-size: var(--ys-text-xs);
+  line-height: 18px;
+  vertical-align: 1px;
+}
+
+.cm__review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ys-space-3);
+}
+
+.cm__review-item {
+  display: grid;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface-2);
+}
+
+.cm__review-author {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.cm__review-hits {
+  font-weight: 400;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent-2);
+}
+
+.cm__review-content {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  line-height: 1.6;
+  color: var(--ys-fg);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cm__review-reason {
+  min-height: 34px;
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface);
+  color: var(--ys-fg);
+  font-size: var(--ys-text-sm);
+  font-family: var(--ys-font-body);
+}
+
+.cm__review-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ys-space-2);
+}
+
+.cm__review-hint {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/* 圈主协审:作者可点跳主页(2026-10-24 补) */
+.cm__review-author-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--ys-weight-semibold);
+  color: inherit;
+  cursor: pointer;
+}
+
+.cm__review-author-link:hover {
+  color: var(--ys-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

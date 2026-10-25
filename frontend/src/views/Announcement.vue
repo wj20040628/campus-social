@@ -195,13 +195,20 @@ import { useUserStore } from '@/stores/user'
 import AnnouncementItem from '@/components/AnnouncementItem.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
+import { CATEGORY, CATEGORY_CHIPS } from '@/constants/announcement'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-const CATEGORY = { 1: '教务', 2: '后勤', 3: '活动', 4: '社团', 5: '紧急', 6: '其他' }
+/**
+ * 分类文案来自 constants/announcement.js —— 本文件不再自写一份。
+ *
+ * 原先这里、AnnouncementDetail.vue、AnnouncementItem.vue 各写了一份
+ * 同样的 {1:教务 2后勤 …}，而常量文件早就导出了 CATEGORY。
+ * 四处并存时改一处漏三处只是时间问题（举报理由文案就是这么漂移的）。
+ */
 const CATEGORY_LABEL = CATEGORY
-const CATEGORIES = [{ label: '全部', value: null }, ...Object.entries(CATEGORY).map(([value, label]) => ({ value: Number(value), label }))]
+const CATEGORIES = CATEGORY_CHIPS
 
 const all = ref([])
 const category = ref(null)

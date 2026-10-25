@@ -32,13 +32,18 @@
       行 2:进度条。告诉管理员「还剩多少」,这是他继续点下去的动力。
       已处理态不显示：那里没有「待处置」这回事，进度条的分母是待审总数、
       分子却是已处理条数，画出来是个没有意义的比例。
+
+      文案按 hasMore 分叉（2026-10-24 修）：列表没加载完时
+      「第 X 条 / 共 Y 条」里的 X 会把没拉下来的待处置算成已处置——
+      治理办法不是撒谎，是明说「还没加载完」。
     -->
     <div v-if="current && !readOnly" class="report-pane__progress">
       <div class="report-pane__progress-track">
         <span class="report-pane__progress-fill" :style="{ width: `${progressPct}%` }" />
       </div>
       <p class="report-pane__progress-text">
-        第 {{ doneCount + 1 }} 条 / 共 {{ total }} 条待处置
+        <template v-if="hasMore">已加载 {{ list.length }} / 共 {{ total }} 条待处置，下滑加载更多</template>
+        <template v-else>第 {{ doneCount + 1 }} 条 / 共 {{ total }} 条待处置</template>
       </p>
     </div>
 
@@ -85,8 +90,13 @@
 
         <hr class="report-card__rule" />
 
-        <h3 class="report-card__label">被举报内容</h3>
-        <p class="report-card__content" :class="{ 'is-open': expanded }">{{ current.targetSummary }}</p>
+        <!--
+          被举报对象信息区(2026-10-24 拆出 ReportTargetInfo):
+          作者(可跳主页) + 类型标签 + 内容(帖子/集市可跳详情) + 补充说明。
+          此前只有摘要——"666"两个字的摘要配上未知类型,管理员等于盲判。
+        -->
+        <ReportTargetInfo :report="current" :expanded="expanded" />
+
         <button
           v-if="longContent"
           type="button"
@@ -96,13 +106,6 @@
         >
           {{ expanded ? '收起' : '展开全文' }}
         </button>
-
-        <!-- 补充说明:举报人填的 reasonText,超 60 字后端已截断并置 truncated -->
-        <div v-if="current.reasonText" class="report-card__note">
-          <p class="report-card__note-text">
-            {{ current.reasonText }}<span v-if="current.reasonTextTruncated">（后端已截断）</span>
-          </p>
-        </div>
 
         <!--
           处置结论（2026-10-24 加）：已处理态唯一能说明「这条后来怎么了」的地方。
@@ -148,6 +151,18 @@
         :action-label="readOnly ? '回到待处理' : '看看已处理的'"
         @action="emit('switch-tab', readOnly ? 'report' : 'processed')"
       />
+
+      <!--
+        加载哨兵（2026-10-24 补）：后端是游标分页,待审超过一页 20 条时,
+        不滚动加载 = 剩下的举报对管理员不可见。
+        必须放在 v-if/v-else-if 链**外面**——插进链中间会打断相邻性,
+        模板直接编译失败(实测 build 报 v-else-if 无相邻 v-if)。
+        列表为空时它不渲染文字,只在有数据后随滚动出现。
+      -->
+      <div ref="sentinelEl" class="report-pane__sentinel" aria-hidden="true">
+        <p v-if="loading && list.length" class="report-pane__sentinel-text">正在加载更多</p>
+        <p v-else-if="!hasMore && list.length" class="report-pane__sentinel-text">到底了</p>
+      </div>
     </div>
 
     <!--
@@ -224,14 +239,16 @@
  * 权限不足与机审队列,再加举报的三动作会破 300 行。
  * 两域共享 Tab 但数据源、动作集、错误语义完全不同,耦合起来每次改一边都要读另一边。
  */
-import { computed, ref, toRef } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import dayjs from 'dayjs'
 import { Files, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
 import { useReportQueue, BAN_DAY_OPTIONS } from '@/composables/useReportQueue'
 import { useReviewHotkeys } from '@/composables/useReviewHotkeys'
 import { useIsMobile } from '@/composables/useBreakpoint'
+import { reasonLabel } from '@/constants/reportReason'
 import StateBlock from '@/components/common/StateBlock.vue'
+import ReportTargetInfo from '@/components/admin/ReportTargetInfo.vue'
 
 const props = defineProps({
   /** 0 待审 / 1 成立 / 2 驳回。handled=true 时忽略本字段 */
@@ -255,11 +272,34 @@ const readOnly = computed(() => props.handled)
 
 const q = useReportQueue(toRef(props, 'handled'))
 const {
-  list, total, loading, failed, busy, actionError, listMode,
+  list, total, hasMore, loading, failed, busy, actionError, listMode,
   expanded, banDays, stage, undo, doneCount, progressPct, current, currentIndex,
   longContent, banLabel,
-  reasonText, load, openOne, confirmBan, act, onUndo, reset,
+  reasonText, load, loadMore, openOne, confirmBan, act, onUndo, reset,
 } = q
+
+// ---------------- 无限滚动（2026-10-24 补） ----------------
+// 哨兵在列表模式分支里,进逐条模式时元素卸载——所以观察器随 sentinelEl
+// 出现/消失重连,而不是 onMounted 一次性挂上。
+const sentinelEl = ref(null)
+let observer = null
+
+function connectObserver() {
+  observer?.disconnect()
+  observer = null
+  const el = sentinelEl.value
+  if (!el) return
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting) loadMore()
+    },
+    { threshold: 0.1, rootMargin: '300px' },
+  )
+  observer.observe(el)
+}
+
+watch(sentinelEl, () => connectObserver())
+onBeforeUnmount(() => observer?.disconnect())
 
 /**
  * busy 的适配。useReviewHotkeys 读 `busy[t.id]`(机审域是按 id 的表),

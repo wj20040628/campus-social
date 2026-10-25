@@ -50,6 +50,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Top } from '@element-plus/icons-vue'
 import { relTime } from '@/utils/relTime'
+import { CATEGORY } from '@/constants/announcement'
 
 /**
  * @param {object} item  AnnouncementListItem(见 openapi.yaml)
@@ -64,15 +65,12 @@ const props = defineProps({
   showReadCount: { type: Boolean, default: false },
 })
 
-/** 分类 1教务 2后勤 3活动 4社团 5紧急 6其他 */
-const CATEGORY = {
-  1: '教务',
-  2: '后勤',
-  3: '活动',
-  4: '社团',
-  5: '紧急',
-  6: '其他',
-}
+/**
+ * 分类文案来自 constants/announcement.js，本文件不再自写一份。
+ * 原先「1教务 2后勤 3活动 4社团 5紧急 6其他」在四个文件里各写了一遍
+ * （常量文件 + Announcement.vue + AnnouncementDetail.vue + 本文件），
+ * 四处并存时改一处漏三处只是时间问题 —— 举报理由文案就是这么漂移的。
+ */
 
 /**
  * 分类名（2026-10-21）。

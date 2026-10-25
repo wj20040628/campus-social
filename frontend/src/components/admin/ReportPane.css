@@ -546,3 +546,63 @@
   color: var(--ys-fg);
   font-weight: var(--ys-weight-semibold);
 }
+/* ---------------- 无限滚动哨兵（2026-10-24 补） ---------------- */
+
+.report-pane__sentinel {
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+}
+
+.report-pane__sentinel-text {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* ---------------- 类型标签 / 被举报人 / 可跳转内容(2026-10-24 补) ---------------- */
+
+/* 类型标签:中性描边,与暖色理由标签区分——类型是「这是什么」,理由是「为什么被报」 */
+.report-card__type {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  border: 1px solid var(--ys-border);
+  border-radius: 999px;
+  padding: 0 var(--ys-space-2);
+  line-height: 20px;
+}
+
+/* 被举报内容的作者:链接形态,处置前能一键到现场 */
+.report-card__target-author {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.report-card__link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 可跳转的内容摘要:保留正文观感,仅加 hover 反馈表明可点 */
+.report-card__content--link {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--ys-font-body);
+}
+
+.report-card__content--link:hover {
+  color: var(--ys-accent);
+}

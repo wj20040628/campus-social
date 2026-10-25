@@ -161,6 +161,7 @@ import * as api from '@/api/announcement'
 import { relTime } from '@/utils/relTime'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
+import { CATEGORY } from '@/constants/announcement'
 /* 2026-10-21：VerifiedShield 已移除 —— 公告不再显示发布方的认证状态 */
 
 const route = useRoute()
@@ -174,8 +175,7 @@ const readDone = ref(false)
 /** 相关公告（同分类优先，取自列表接口，不新增后端端点） */
 const related = ref([])
 
-const CATEGORY = { 1: '教务', 2: '后勤', 3: '活动', 4: '社团', 5: '紧急', 6: '其他' }
-
+/* 分类文案来自 constants/announcement.js，本文件不再自写一份 */
 const categoryLabel = computed(() => CATEGORY[ann.value?.category] || '通知')
 
 /*

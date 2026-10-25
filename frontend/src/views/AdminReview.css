@@ -572,3 +572,22 @@
     animation: none;
   }
 }
+
+/* 作者可点跳主页(2026-10-24 补):链接形态但保持原排版 */
+.task-author__name--link {
+  display: inline;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.task-author__name--link:hover {
+  color: var(--ys-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

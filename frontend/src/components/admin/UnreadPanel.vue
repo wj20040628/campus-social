@@ -63,6 +63,7 @@
           :class="{ 'is-done': reminded.has(u.id) }"
           :disabled="reminded.has(u.id)"
           :aria-label="`提醒 ${u.nickname}`"
+          title="单人提醒暂未开放，用右上角一键提醒"
           @click="$emit('remind-one', u.id)"
         >
           {{ reminded.has(u.id) ? '已提醒' : '提醒' }}

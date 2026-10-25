@@ -160,7 +160,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { ChatLineSquare, Filter, WarningFilled } from '@element-plus/icons-vue'
-import { adminFeedback, handleFeedback } from '@/api/feedback'
+import { adminFeedback, handleFeedback, FEEDBACK_STATUS_TEXT, FEEDBACK_CATEGORIES } from '@/api/feedback'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import AdminFeedbackItem from '@/components/admin/AdminFeedbackItem.vue'
@@ -168,12 +168,22 @@ import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
 import VerifiedShield from '@/icons/VerifiedShield.vue'
+import { useAdminPending } from '@/composables/useAdminPending'
 
-/** 筛选 chip。null = 全部,与后端「不传 status」对应 */
+/**
+ * 筛选 chip。null = 全部,与后端「不传 status」对应。
+ *
+ * 【2026-10-24 改为从 FEEDBACK_STATUS_TEXT 派生】
+ * 原先这里手写了「0待处理 1已采纳 2已忽略」，而 api/feedback.js 早就导出了
+ * 同一份（AdminFeedbackItem.vue 用的正是后者）。两边各写一次没有东西保证一致 ——
+ * 举报理由文案就是这么漂移过一次：用户报「色情」，管理端显示「广告营销」。
+ * 现在标签只有一个出处，这里只决定「哪几个 + 顺序」。
+ */
 const STATUS_CHIPS = [
-  { value: 0, label: '待处理' },
-  { value: 1, label: '已采纳' },
-  { value: 2, label: '已忽略' },
+  ...Object.entries(FEEDBACK_STATUS_TEXT).map(([value, label]) => ({
+    value: Number(value),
+    label,
+  })),
   { value: null, label: '全部' },
 ]
 
@@ -181,14 +191,23 @@ const STATUS_CHIPS = [
  * 类型筛选 chip。普通内容分类(1~5)都带 kind=0(排除认证申诉),
  * 「认证申诉」带 kind=1(只看申诉),「全部类型」两个都为 null。
  * 这样申诉不再被塞进「使用问题」等分类,也能单独点出来。
+ *
+ * 【2026-10-24 文案改为派生】原先 c1~c5 的 label 在这里手写，
+ * 与 api/feedback.js 的 FEEDBACK_CATEGORIES 是同一批字面量。
+ * 两份并存正是举报理由文案漂移的成因（用户报「色情」、管理端显示「广告营销」）。
+ * 这里只保留「接线」（key / kind），文案统一取自常量。
+ *
+ * 「认证申诉」不进派生：它不是一个 category，而是 kind=1 这个独立维度
+ * （申诉提交时 category 也填了值，靠 category 区分不出来）。
  */
 const TYPE_CHIPS = [
   { key: 'all', label: '全部类型', category: null, kind: null },
-  { key: 'c1', label: '功能建议', category: 1, kind: 0 },
-  { key: 'c2', label: '使用问题', category: 2, kind: 0 },
-  { key: 'c3', label: '内容问题', category: 3, kind: 0 },
-  { key: 'c4', label: '界面体验', category: 4, kind: 0 },
-  { key: 'c5', label: '其他', category: 5, kind: 0 },
+  ...FEEDBACK_CATEGORIES.map((c) => ({
+    key: `c${c.value}`,
+    label: c.label,
+    category: c.value,
+    kind: 0,
+  })),
   { key: 'appeal', label: '认证申诉', category: null, kind: 1 },
 ]
 
@@ -336,6 +355,8 @@ async function submitHandle() {
     item.handleNote = note
     handleTimeNow(item)
     if (pendingCount.value > 0) pendingCount.value -= 1
+    // 抽屉/侧栏聚合角标同步(2026-10-24 修:同核验/机审/举报三处的一致性问题)
+    useAdminPending().refresh(true)
     handleOpen.value = false
     // 申诉的处理说明是发邮件给对方，提示里说清楚，避免管理员以为只是站内备注
     ElMessage.success(

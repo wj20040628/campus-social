@@ -83,9 +83,14 @@
  * 门禁「全部通过」在这里等于没查。
  */
 import { ref } from 'vue'
+import { REVIEW_STATUS_TEXT } from '@/constants/reviewStatus'
 
-/** 审核状态码与文案。与后端 review_task.status 一致:0 审核中 1 已通过 2 已驳回 */
-const STATUS_TEXT = { 0: '审核中', 1: '已通过', 2: '已驳回' }
+/**
+ * 审核状态文案来自 constants/reviewStatus.js —— 本文件不再自写一份。
+ * 与管理端的「已通过 / 已驳回」同源；只有码 0 按视角不同
+ * （作者看「审核中」、管理员看「待审」），那个差异是刻意的，见常量文件说明。
+ */
+const STATUS_TEXT = REVIEW_STATUS_TEXT
 
 /** AI 判定枚举(与 AdminReview 页共用同一套文案,避免两页说法不一致) */
 const AI_TEXT = { approve: '建议通过', reject: '建议驳回', manual: '转人工' }

@@ -39,6 +39,16 @@ export function useUndoWindow() {
   }
 
   /**
+   * 立刻执行当前窗口的 commit（不弹任何提示）。
+   * open() 在已有未落库处置时调用它，而不是像原实现那样直接丢弃。
+   */
+  function firePending() {
+    const fire = pendingCommit
+    clear()
+    if (fire) fire()
+  }
+
+  /**
    * 开一个撤销窗口。`commit` 在窗口耗尽时才被调用。
    *
    * @param {string} text 撤销条上的那句话,必须是**已完成的事实**而不是「处理中」
@@ -48,7 +58,16 @@ export function useUndoWindow() {
    *   不传 meta 就只能撤销请求、恢复不了列表,那不叫撤销。
    */
   function open(text, commit, meta = null) {
-    clear()
+    /*
+     * 【2026-10-24 修：先落库上一个窗口，再开新窗口】
+     * 原实现 open() 开头调 clear()——它把 pendingCommit 直接置空，
+     * 上一个还没落库的处置被**静默丢弃**：机审队列里 5 秒内连批两条，
+     * 第一条的 API 调用永远不会发出，刷新后那条又回到队列，
+     * 而管理员看到的是「已通过」的撤销条闪过，以为处置成功了。
+     * 正确语义：第二个动作开始时，第一个动作立即落库
+     * （他已经点了下一个，5 秒反悔期对上一条而言已经用完了）。
+     */
+    if (pendingCommit) firePending()
     const started = Date.now()
     const state = { text, ratio: 1, meta }
     undo.value = state
@@ -57,10 +76,7 @@ export function useUndoWindow() {
       const left = UNDO_MS - (Date.now() - started)
       state.ratio = Math.max(0, left / UNDO_MS)
       if (left <= 0) {
-        const fire = pendingCommit
-        clear()
-        // 不 await:窗口消失与请求发出解耦,请求失败走各自的错误处理
-        if (fire) fire()
+        firePending()
       }
     }, TICK_MS)
   }

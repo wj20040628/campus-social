@@ -193,8 +193,18 @@
             <p class="log__meta">
               <span class="log__time">{{ fmt(l.createTime) }}</span>
               <span v-if="l.ip && l.ip !== 'system'" class="log__ip">· IP {{ l.ip }}</span>
-              <span v-if="l.targetType" class="log__target">
-                · {{ l.targetType }}<template v-if="l.targetId"> #{{ l.targetId }}</template>
+              <!--
+                对象可点跳详情(2026-10-24 补):日志的价值在于回查现场,
+                post #5 一直只是文本,管理员要自己拼 URL。无详情页的类型
+                (chat_message/report 等)保持纯文本。
+              -->
+              <template v-if="l.targetType && targetRoute(l)">
+                · <button type="button" class="log__target-link" @click="router.push(targetRoute(l))">
+                    {{ targetLabel(l.targetType) }} #{{ l.targetId }}
+                  </button>
+              </template>
+              <span v-else-if="l.targetType" class="log__target">
+                · {{ targetLabel(l.targetType) }}<template v-if="l.targetId"> #{{ l.targetId }}</template>
               </span>
             </p>
           </div>
@@ -221,7 +231,14 @@
           </button>
         </div>
         <dl class="ad__list">
-          <div class="ad__row"><dt>操作对象</dt><dd>{{ selected.targetType || '-' }}<template v-if="selected.targetId"> #{{ selected.targetId }}</template></dd></div>
+          <div class="ad__row"><dt>操作对象</dt><dd>
+                  <template v-if="selected.targetType && targetRoute(selected)">
+                    <button type="button" class="log__target-link" @click="router.push(targetRoute(selected))">
+                      {{ targetLabel(selected.targetType) }} #{{ selected.targetId }}
+                    </button>
+                  </template>
+                  <template v-else>{{ targetLabel(selected.targetType) || '-' }}<template v-if="selected.targetId"> #{{ selected.targetId }}</template></template>
+                </dd></div>
           <div class="ad__row"><dt>时间</dt><dd class="ad__mono">{{ fmt(selected.createTime) }}</dd></div>
           <div class="ad__row" v-if="selected.ip && selected.ip !== 'system'"><dt>IP</dt><dd class="ad__mono">{{ selected.ip }}</dd></div>
           <div class="ad__row ad__row--block"><dt>详情</dt><dd class="ad__detail">{{ selected.detail || '-' }}</dd></div>
@@ -258,6 +275,24 @@ const userName = (u) => displayName(u) || '未命名用户'
 
 /** 空态的「回首页」出口。管理员未必知道路由,给一个明确去处而不是让他自己找 */
 const goHome = () => router.push('/')
+
+/*
+ * 审计对象的类型码 → 中文与跳转路由(2026-10-24 补)。
+ * targetType 是后端 audit_service.record 的自由字符串("post"/"user"/"circle"...)。
+ * 有前台详情页的才给路由;report 的处置页在管理后台(本页旁边),跳它反而打断动线。
+ */
+const AUDIT_TARGET_TEXT = {
+  post: '帖子', user: '用户', circle: '圈子', announcement: '公告',
+  chat_message: '私聊消息', group_message: '群消息', mkt_activity: '集市活动',
+  report: '举报', review_task: '审核任务',
+}
+const AUDIT_TARGET_ROUTE = { post: '/post/', user: '/user/', circle: '/circles/', announcement: '/announcement/' }
+
+const targetLabel = (t) => AUDIT_TARGET_TEXT[t] || t || ''
+const targetRoute = (l) => {
+  const prefix = AUDIT_TARGET_ROUTE[l.targetType]
+  return prefix && l.targetId ? `${prefix}${l.targetId}` : null
+}
 </script>
 
 <style scoped src="./AdminAudit.css"></style>

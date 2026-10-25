@@ -15,6 +15,7 @@ import { onBeforeUnmount, reactive, ref } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { pending as pendingApi, processed as processedApi, approve as approveApi, reject as rejectApi } from '@/api/review'
 import { useUndoWindow } from '@/composables/useUndoWindow'
+import { useAdminPending } from '@/composables/useAdminPending'
 
 /** 单页条数。20 条在 375px 下是 3~4 屏,不至于让管理员滚到怀疑人生 */
 const PAGE = 20
@@ -51,7 +52,17 @@ export function useReviewQueue() {
       list.value = reset ? data.list : [...list.value, ...data.list]
       cursor.value = data.hasMore ? data.nextCursor : null
       hasMore.value = data.hasMore
-      if (which === 'review') pendingCount.value = data.pendingTotal ?? data.list.length
+      if (which === 'review') {
+        /*
+         * 角标口径（2026-10-24 修）：后端 CursorPage.total 现在是
+         * 「status=0 的全量待审数」（ReviewServiceImpl.pending 补填）。
+         * 原实现 `data.pendingTotal ?? data.list.length` 两头都错——
+         * 字段名对不上、回退值又只是首页条数,于是角标恒为 ≤20,
+         * 清完一页就归零,队列里还有几十条管理员却以为干完了。
+         * total 拿不到时宁可显示条数,也不显示一个会误导的假 0。
+         */
+        pendingCount.value = typeof data.total === 'number' ? data.total : data.list.length
+      }
     } catch {
       // request.js 已弹错,这里不重复提示。
       // 列表不清空:已经看到的 20 条比一个空白页有用,管理员还能手动重试
@@ -89,6 +100,16 @@ export function useReviewQueue() {
   /** 驳回理由。设计要求驳回要写依据 —— 发布者会看到,不能默认空 */
   function approve(t) {
     if (busy[t.id]) return
+    /*
+     * 终态守卫（2026-10-24 补）：机审记录 tab 复用同一套快捷键,
+     * A/R 落在已处理条目上时会打 approve/reject 接口——服务端 CAS 能拦住
+     * (422「该任务已处理」),但那是把可预判的错误留给服务器。
+     * 在数据层早退,历史 tab 里按键就只是无动作。
+     */
+    if (t.status !== 0) {
+      ElMessage.info('这条已经处理过了')
+      return
+    }
     const id = t.id
     // 乐观出栈 + 开撤销条。管理员的眼睛要「点完就动」
     list.value = list.value.filter((x) => x.id !== id)
@@ -105,6 +126,10 @@ export function useReviewQueue() {
 
   function reject(t) {
     if (busy[t.id]) return
+    if (t.status !== 0) {
+      ElMessage.info('这条已经处理过了')
+      return
+    }
     const reason = (reasons[t.id] || '').trim()
     if (!reason) {
       ElMessage.warning('驳回要写理由，发布者会看到')
@@ -125,6 +150,8 @@ export function useReviewQueue() {
 
   function done() {
     pendingCount.value = Math.max(0, pendingCount.value - 1)
+    // 队列真减一了,抽屉/侧栏的聚合角标同步刷新(2026-10-24 修:此前处置完角标不动)
+    useAdminPending().refresh(true)
   }
 
   /**

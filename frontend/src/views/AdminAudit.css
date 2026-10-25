@@ -541,3 +541,17 @@
     transition: none;
   }
 }
+/* 审计对象可点跳详情(2026-10-24 补) */
+.log__target-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--ys-accent);
+  cursor: pointer;
+}
+
+.log__target-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
