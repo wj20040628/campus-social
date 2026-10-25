@@ -7,12 +7,53 @@
       </header>
 
       <el-tabs v-model="tab" class="disc__tabs">
+        <!-- 本周搭子放首位(2026-10-25):主动撮合是免好友搭话差异化的放大器,
+             与被动浏览的「同好的人」错位;结果按周缓存,周一自然换一批 -->
+        <el-tab-pane label="本周搭子" name="buddy" />
         <el-tab-pane label="同好的人" name="users" />
         <el-tab-pane label="热门圈子" name="circles" />
       </el-tabs>
 
+      <!-- 本周搭子:共同标签加权撮合,行动是「想认识」(搭话通道)而非关注 -->
+      <section v-if="tab === 'buddy'" class="disc__list">
+        <div v-if="buddiesLoading" class="res-list">
+          <el-card v-for="i in 3" :key="'skb' + i"><el-skeleton :rows="2" animated /></el-card>
+        </div>
+        <template v-else>
+          <div
+            v-for="u in buddies"
+            :key="u.id"
+            class="disc-row"
+            @click="router.push(`/user/${u.id}`)"
+          >
+            <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+            <div class="disc-row__info">
+              <div class="disc-row__name">
+                {{ displayName(u) }}
+                <el-icon v-if="u.verified" class="disc-row__badge"><Select /></el-icon>
+              </div>
+              <div class="disc-row__sub">{{ [u.dept, u.grade].filter(Boolean).join(' · ') || '同校同学' }}</div>
+              <div v-if="u.reason" class="disc-row__reason">{{ u.reason }}</div>
+            </div>
+            <!-- @click.stop:按钮点击不冒泡进整行跳主页,搭话跳 /chat 才是本意 -->
+            <span class="disc-row__greet" @click.stop>
+              <GreetButton :peer-id="u.id" label="想认识" @need-verify="goVerify" />
+            </span>
+          </div>
+          <StateBlock
+            v-if="!buddiesLoading && !buddies.length"
+            variant="empty"
+            :title="buddiesEmptyHint || '本周还没凑到搭子'"
+            description="多选几个兴趣标签，匹配会更准"
+            action-label="去挑兴趣"
+            :icon="Compass"
+            @action="router.push('/profile')"
+          />
+        </template>
+      </section>
+
       <!-- 同好的人:按与当前用户标签重合度召回,理由由后端下发 -->
-      <section v-if="tab === 'users'" class="disc__list">
+      <section v-else-if="tab === 'users'" class="disc__list">
         <div v-if="usersLoading" class="res-list">
           <el-card v-for="i in 4" :key="'sk' + i"><el-skeleton :rows="2" animated /></el-card>
         </div>
@@ -93,23 +134,45 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Select, Compass, Collection } from '@element-plus/icons-vue'
-import { discoverUsers, discoverCircles } from '@/api/discover'
+import { discoverUsers, discoverCircles, buddyWeekly } from '@/api/discover'
 import { follow, unfollow } from '@/api/relation'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import GreetButton from '@/components/post/GreetButton.vue'
 import { ElMessage } from '@/utils/feedback'
 
 const router = useRouter()
-const tab = ref('users')
+const tab = ref('buddy')
 
+const buddies = ref([])
+const buddiesLoading = ref(true)
+const buddiesEmptyHint = ref('')
 const users = ref([])
 const usersLoading = ref(true)
 const usersEmptyHint = ref('')
 const circles = ref([])
 const circlesLoading = ref(true)
 const circlesEmptyHint = ref('')
+
+async function loadBuddies() {
+  buddiesLoading.value = true
+  try {
+    const data = await buddyWeekly(6)
+    buddies.value = data?.users || []
+    buddiesEmptyHint.value = data?.emptyHint || ''
+  } catch {
+    buddies.value = []
+  } finally {
+    buddiesLoading.value = false
+  }
+}
+
+/** 未认证点「想认识」:与 PostDetail 的 go-verify 同口径,认证入口在个人主页 */
+function goVerify() {
+  router.push('/profile')
+}
 
 async function loadUsers() {
   usersLoading.value = true
@@ -151,6 +214,7 @@ async function toggleFollow(u) {
 }
 
 onMounted(() => {
+  loadBuddies()
   loadUsers()
   loadCircles()
 })
@@ -252,5 +316,9 @@ onMounted(() => {
 }
 .disc-row__btn:active {
   opacity: 0.8;
+}
+/* 搭话按钮外包一层:挡住整行跳主页的冒泡,按钮自身不带边框样式(GreetButton 自绘) */
+.disc-row__greet {
+  flex: 0 0 auto;
 }
 </style>

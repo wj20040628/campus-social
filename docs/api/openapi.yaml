@@ -2189,6 +2189,44 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /discover/buddy:
+    get:
+      operationId: discoverWeeklyBuddies
+      tags: [onboarding]
+      summary: 本周搭子推荐（2026-10-25）
+      description: |
+        按共同兴趣标签主动撮合的「本周搭子」，与推荐关注（`/onboarding/recommend-users`）
+        的三点口径差异：
+
+        1. **标签主导**：打分为共同标签数 ×4 > 同院系 2 > 同年级 1，
+           且 `common_tag_count = 0` 的人不进名单——搭子的本质是兴趣撮合，
+           没共同兴趣的人留给「推荐关注」场景；
+        2. **拉黑双向过滤**：我拉黑的、拉黑我的都不出现（推荐关注只单向过滤）；
+        3. **只推可搭话的人**：`verify_status = 1` 且 `stranger_msg_enabled = 1`，
+           否则点「想认识」直接被 ChatGuard 拒，白占名额。
+
+        结果**按 ISO 周缓存**（Redis `buddy:week:{uid}:{周}`，TTL 8 天）：
+        同一周内每次进发现页是同一批人，周一自然换一批。
+        登录即可浏览（不要求已认证）；点「想认识」走 `POST /chat/send`，
+        认证门槛由搭话链路（`@RequireVerified` + ChatGuard）自行拦截。
+      parameters:
+        - name: size
+          in: query
+          description: 返回条数，默认 6，上限走全局分页 clamp
+          required: false
+          schema:
+            type: integer
+            default: 6
+      responses:
+        '200':
+          description: 本周搭子列表（结构与推荐关注一致，reason 为标签主导文案）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingRecommendUsersResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /onboarding/recommend-circles:
     get:
       operationId: recommendOnboardingCircles
@@ -3759,16 +3797,26 @@ components:
           nullable: true
           description: 话题名列表（**不带 #**）。写入 `post_topic` 关联表
           items: { type: string }
+        anonymous:
+          type: boolean
+          nullable: true
+          description: |
+            树洞匿名帖标记。**仅创建时生效**——编辑请求里传了也会被忽略，
+            匿名身份一次定终身。匿名帖的 `PostVO.author/authorId` 恒为 null。
 
     PostVO:
       type: object
       description: |
         帖子卡片 / 详情。字段与 `vo/PostVO.java` 一一对应。
         列表与详情**共用**这一个 schema——组装口径相同，不区分两个结构。
-      required: [id, authorId, status, liked]
+      required: [id, status, liked]
       properties:
         id: { type: integer, format: int64 }
-        authorId: { type: integer, format: int64 }
+        authorId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 作者 id。**树洞匿名帖恒为 null**（保留会被 `/user/{id}` 反查主页，等于实名）
         author:
           $ref: '#/components/schemas/UserVO'
         content:
@@ -3828,6 +3876,18 @@ components:
           type: boolean
           nullable: true
           description: 是否置顶（圈子内公告/置顶帖）。普通 Feed 里恒为 false 或 null
+        anonymous:
+          type: boolean
+          description: |
+            树洞匿名帖标记。为 true 时 `author/authorId` 恒为 null，
+            前端统一渲染「匿名」作者并禁用「访问主页/搭话」入口；
+            管理端（审核队列/举报处置/操作日志）不受此脱敏影响。
+        mine:
+          type: boolean
+          description: |
+            当前用户是否作者。匿名帖 authorId 已抹掉，前端靠本字段维持
+            编辑/删除入口。详情接口 (`GET /post/{id}`) 恒可靠；
+            Feed 列表里仅非缓存路径可靠（首屏共享骨架视角恒 false，卡片场景也用不到）。
 
     UserVO:
       type: object

@@ -285,6 +285,56 @@ public interface UserMapper extends BaseMapper<User> {
             @Param("schoolId") Long schoolId,
             @Param("limit") int limit);
 
+    /**
+     * 本周搭子推荐(2026-10-25,确定性规则,沿用「不上算法」的 PRD §9 红线)。
+     * 打分:共同标签数 x4 > 同院系 2 > 同年级 1 —— 搭子的本质是兴趣撮合,
+     * 标签权重压过院系;结果按周缓存(见 BuddyMatchService),一周内稳定。
+     *
+     * <p>与 selectRecommendUsers 的三点差异:
+     * <ul>
+     *   <li>HAVING common_tag_count > 0:没共同兴趣的人不进搭子名单
+     *       (那是「推荐关注」的事,两个场景不该长得一样);</li>
+     *   <li>拉黑过滤是**双向**的:推荐关注只排「我拉黑的/我关注的」,
+     *       搭子会把人推向线下见面,「拉黑了我的人」出现在名单里
+     *       点搭话直接 BLACKLISTED,体验更差;</li>
+     *   <li>只推 verify_status=1 且 stranger_msg_enabled=1 的人:
+     *       认证是搭话的硬门槛(ChatGuard AC-11),关了陌生人消息的人
+     *       推出来也发不进,白占名额。</li>
+     * </ul>
+     */
+    @Select("SELECT * FROM ("
+            + "SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade, u.verify_status, u.follower_count, "
+            + "(SELECT COUNT(*) FROM user_tag ut WHERE ut.user_id = u.id AND ut.is_deleted = 0 "
+            + " AND ut.tag_id IN (SELECT tag_id FROM user_tag WHERE user_id = #{me} AND is_deleted = 0)) AS common_tag_count, "
+            + "(SELECT COUNT(*) FROM user_tag ut2 WHERE ut2.user_id = u.id AND ut2.is_deleted = 0 "
+            + " AND ut2.tag_id IN (SELECT tag_id FROM user_tag WHERE user_id = #{me} AND is_deleted = 0)) * 4 "
+            + "+ (CASE WHEN #{deptId} IS NOT NULL AND u.dept_id = #{deptId} THEN 2 "
+            + "        WHEN #{deptId} IS NULL AND u.dept = #{dept} AND u.dept IS NOT NULL THEN 2 ELSE 0 END) "
+            + "+ (CASE WHEN #{gradeId} IS NOT NULL AND u.grade_id = #{gradeId} THEN 1 "
+            + "        WHEN #{gradeId} IS NULL AND u.grade = #{grade} AND u.grade IS NOT NULL THEN 1 ELSE 0 END) AS score "
+            + "FROM user u "
+            + "WHERE u.id <> #{me} AND u.status = 0 AND u.is_deleted = 0 AND u.role = 0 AND u.school_id = #{schoolId} "
+            + "  AND u.verify_status = 1 AND u.stranger_msg_enabled = 1 "
+            + "  AND NOT EXISTS (SELECT 1 FROM relation r "
+            + "                  WHERE r.type = 3 AND r.is_deleted = 0 "
+            + "                    AND ((r.from_user_id = #{me} AND r.to_user_id = u.id) "
+            + "                      OR (r.from_user_id = u.id AND r.to_user_id = #{me}))) "
+            + "  AND NOT EXISTS (SELECT 1 FROM relation r2 "
+            + "                  WHERE r2.from_user_id = #{me} AND r2.to_user_id = u.id "
+            + "                    AND r2.type IN (1, 3) AND r2.is_deleted = 0)"
+            + ") t "
+            + "WHERE t.common_tag_count > 0 "
+            + "ORDER BY t.score DESC, t.follower_count DESC, t.id DESC "
+            + "LIMIT #{limit}")
+    List<com.campus.social.vo.RecommendUserRow> selectWeeklyBuddies(
+            @Param("me") Long me,
+            @Param("deptId") Long deptId,
+            @Param("dept") String dept,
+            @Param("gradeId") Long gradeId,
+            @Param("grade") String grade,
+            @Param("schoolId") Long schoolId,
+            @Param("limit") int limit);
+
     /** 本校应触达人数(公告触达率分母) */
     @Select("SELECT COUNT(*) FROM user WHERE school_id = #{schoolId} AND status = 0 AND is_deleted = 0 AND role = 0")
     int countSchoolUsers(@Param("schoolId") Long schoolId);

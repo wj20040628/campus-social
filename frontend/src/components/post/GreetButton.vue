@@ -26,7 +26,7 @@
       :aria-describedby="quotaUsed ? 'greet-reason' : undefined"
       @click="onClick"
     >
-      {{ quotaUsed ? '今天到这儿' : '搭句话' }}
+      {{ quotaUsed ? '今天到这儿' : label }}
     </button>
     <!-- 置灰必须给原因。只给一个点不动的按钮,用户会一直试。 -->
     <p v-if="quotaUsed" id="greet-reason" class="greet__why">
@@ -50,6 +50,8 @@ import { isIdentityVerified } from '@/utils/mask'
 const props = defineProps({
   /** 对方用户 id。空值(帖子作者信息缺失)时整个按钮不渲染 */
   peerId: { type: [Number, String], default: null },
+  /** 按钮文案。默认「搭句话」;搭子推荐场景传「想认识」——同一个动作,语境不同 */
+  label: { type: String, default: '搭句话' },
 })
 
 const emit = defineEmits(['need-verify', 'error'])
