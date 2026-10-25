@@ -6,6 +6,10 @@
  *
  * 画布不用 CSS 变量:canvas 2d context 读不到 var(),这里按 design-tokens
  * 的值硬编码(与 design-tokens.css 同源,改 token 记得同步这里)。
+ *
+ * 高度自适应(2026-10-25):先按字体量出每块内容的行数与高度,
+ * 白卡与画布总高随之伸缩——短正文不再留半截空白,长正文也不截断。
+ * 量高与绘制用同一份行数组(wrapLines 的产物),两遍结果必然一致。
  */
 import QRCode from 'qrcode'
 import { resolveUrl } from '@/utils/resolve'
@@ -22,8 +26,13 @@ const C = {
 }
 
 const W = 750
-const H = 1150
 const PAD = 44
+const CARD_Y = 150 // 顶部品牌行高度,白卡从这开始
+const QR_SECTION = 300 // 底部二维码区固定高
+const CARD_TOP_PAD = 56
+const CARD_BOTTOM_PAD = 44
+/** 白卡最矮高度:再短的内容也保证留白不局促(低于此值卡片显得瘪) */
+const CARD_MIN_H = 360
 
 /**
  * 画一张分享卡片。
@@ -31,8 +40,8 @@ const PAD = 44
  * @param {{kind:'post'|'mkt'|'activity', title:string, excerpt?:string,
  *          authorName?:string, topics?:string[], image?:string,
  *          qrText:string, meta?:string}} opt
- *   title   卡片主标题(帖子取正文前段,活动取活动名)
- *   excerpt 帖子正文(与 title 分开时用;帖子场景 title=excerpt 首行)
+ *   title   卡片主文案(帖子取正文前段,活动取活动名)
+ *   excerpt 副文案(集市/活动的详情摘要)
  *   image   可选封面图 url(相对 /uploads 也行,内部走 resolveUrl;
  *           加载失败(跨域/文件缺失)自动跳过,不阻塞出图)
  *   qrText  二维码内容,调用方传 window.location.origin + 路由
@@ -40,6 +49,42 @@ const PAD = 44
  */
 export async function drawShareCard(opt) {
   const dpr = Math.min(2, window.devicePixelRatio || 1)
+  // 量高用的独立 2d context,与正式绘制分离
+  const measure = document.createElement('canvas').getContext('2d')
+
+  const titleFont = '600 38px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+  const bodyFont = '400 30px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+  const innerX = PAD + 44
+  const innerW = W - PAD * 2 - 88
+
+  // ---- 第一遍:量出所有内容块,推导白卡高与画布总高 ----
+  let contentBottom = CARD_Y + CARD_TOP_PAD
+  if (opt.authorName) contentBottom += 56
+
+  const titleLines = wrapLines(measure, opt.title || '', innerW, titleFont, 4)
+  contentBottom += titleLines.length * 42
+
+  const excerptLines = opt.excerpt ? wrapLines(measure, opt.excerpt, innerW, bodyFont, 7) : []
+  if (excerptLines.length) contentBottom += 10 + excerptLines.length * 44
+
+  const topics = (opt.topics || []).slice(0, 3)
+  if (topics.length) contentBottom += 26 + 46 + 14
+
+  let img = null
+  let imgH = 0
+  if (opt.image) {
+    img = await loadImageSafe(opt.image)
+    if (img) {
+      // 封面等比缩到卡内容宽,超高(竖图)封顶 360,绘制时居中裁切
+      imgH = Math.min(360, Math.round(innerW * (img.height / img.width)))
+    }
+  }
+  if (imgH) contentBottom += imgH + 20
+
+  const cardH = Math.max(CARD_MIN_H, contentBottom + CARD_BOTTOM_PAD - CARD_Y)
+  const H = CARD_Y + cardH + QR_SECTION
+
+  // ---- 第二遍:正式绘制 ----
   const canvas = document.createElement('canvas')
   canvas.width = W * dpr
   canvas.height = H * dpr
@@ -55,27 +100,21 @@ export async function drawShareCard(opt) {
   ctx.fillStyle = C.muted
   ctx.font = '400 24px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
   ctx.fillText('校园里的声音', PAD + 100, 90)
-  // 品牌点缀:右上角一个小圆
   ctx.beginPath()
   ctx.arc(W - PAD - 16, 78, 16, 0, Math.PI * 2)
   ctx.fillStyle = C.accentSoft
   ctx.fill()
 
-  // 内容白卡
-  const cardY = 150
-  const cardH = H - cardY - 300
-  roundRect(ctx, PAD, cardY, W - PAD * 2, cardH, 28)
+  // 内容白卡(高度由内容决定)
+  roundRect(ctx, PAD, CARD_Y, W - PAD * 2, cardH, 28)
   ctx.fillStyle = C.surface
   ctx.fill()
   ctx.strokeStyle = C.border
   ctx.lineWidth = 2
   ctx.stroke()
 
-  let y = cardY + 56
-  const innerX = PAD + 44
-  const innerW = W - PAD * 2 - 88
+  let y = CARD_Y + CARD_TOP_PAD
 
-  // 作者/来源行(匿名帖由调用方传「匿名」)
   if (opt.authorName) {
     ctx.fillStyle = C.accent
     ctx.font = '500 26px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
@@ -83,20 +122,28 @@ export async function drawShareCard(opt) {
     y += 56
   }
 
-  // 主文案:标题加粗 + 正文常规,统一走逐字换行(CJK 无空格,按字符断行)
-  const titleFont = '600 38px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
-  const bodyFont = '400 30px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
-  y = drawWrapped(ctx, opt.title || '', innerX, y, innerW, titleFont, C.fg, 42, 4)
-  if (opt.excerpt) {
-    y = drawWrapped(ctx, opt.excerpt, innerX, y + 10, innerW, bodyFont, C.fg2, 44, 7)
+  ctx.font = titleFont
+  ctx.fillStyle = C.fg
+  for (const line of titleLines) {
+    ctx.fillText(line, innerX, y)
+    y += 42
   }
 
-  // 话题 chips:单行排,放不下截断
-  if (opt.topics?.length) {
+  if (excerptLines.length) {
+    y += 10
+    ctx.font = bodyFont
+    ctx.fillStyle = C.fg2
+    for (const line of excerptLines) {
+      ctx.fillText(line, innerX, y)
+      y += 44
+    }
+  }
+
+  if (topics.length) {
     y += 26
     let x = innerX
     ctx.font = '400 24px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
-    for (const t of opt.topics.slice(0, 3)) {
+    for (const t of topics) {
       const label = `#${t}`
       const w = ctx.measureText(label).width + 32
       if (x + w > innerX + innerW) break
@@ -110,30 +157,20 @@ export async function drawShareCard(opt) {
     y += 60
   }
 
-  // 封面图(可选):等比缩放填宽,最多占卡内剩余高度的一半
-  if (opt.image) {
-    const img = await loadImageSafe(opt.image)
-    if (img) {
-      const maxH = Math.min(360, cardY + cardH - y - 44)
-      if (maxH > 120) {
-        const scale = Math.min(innerW / img.width, maxH / img.height)
-        const dw = img.width * scale
-        const dh = img.height * scale
-        ctx.save()
-        roundRect(ctx, innerX, y, innerW, dh, 16)
-        ctx.clip()
-        // 等比铺满裁切:按目标框绘制
-        const fillScale = Math.max(innerW / img.width, dh / img.height)
-        const fw = img.width * fillScale
-        const fh = img.height * fillScale
-        ctx.drawImage(img, innerX + (innerW - fw) / 2, y + (dh - fh) / 2, fw, fh)
-        ctx.restore()
-        y += dh + 20
-      }
-    }
+  if (img && imgH) {
+    ctx.save()
+    roundRect(ctx, innerX, y, innerW, imgH, 16)
+    ctx.clip()
+    // 等比铺满裁切:按目标框绘制,居中
+    const fillScale = Math.max(innerW / img.width, imgH / img.height)
+    const fw = img.width * fillScale
+    const fh = img.height * fillScale
+    ctx.drawImage(img, innerX + (innerW - fw) / 2, y + (imgH - fh) / 2, fw, fh)
+    ctx.restore()
+    y += imgH + 20
   }
 
-  // 底部:二维码 + 引导文案(固定位置,不随内容流)
+  // 底部:二维码 + 引导文案(固定在画布底,不随内容流)
   const qrSize = 240
   const qrDataUrl = await QRCode.toDataURL(opt.qrText, {
     width: qrSize * 2,
@@ -160,42 +197,46 @@ export async function drawShareCard(opt) {
   return canvas
 }
 
-/** 逐字换行绘制(CJK 场景),返回下一行基线 y。maxLines 截断,超出加省略号 */
-function drawWrapped(ctx, text, x, y, maxWidth, font, color, lineHeight, maxLines) {
+/**
+ * 逐字换行(CJK 无空格,按字符断行),返回行数组供量高与绘制共用。
+ * maxLines 截断,截断时最后一行补省略号。
+ */
+function wrapLines(ctx, text, maxWidth, font, maxLines) {
   ctx.font = font
-  ctx.fillStyle = color
   const chars = [...String(text)]
+  const lines = []
   let line = ''
-  let lines = 0
-  for (const ch of chars) {
+  let truncated = false
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]
     if (ch === '\n') {
-      ctx.fillText(line, x, y)
-      y += lineHeight
-      lines += 1
+      lines.push(line)
       line = ''
-      if (lines >= maxLines) break
+      if (lines.length >= maxLines) {
+        truncated = true
+        break
+      }
       continue
     }
-    if (ctx.measureText(line + ch).width > maxWidth) {
-      ctx.fillText(line, x, y)
-      y += lineHeight
-      lines += 1
+    if (line && ctx.measureText(line + ch).width > maxWidth) {
+      lines.push(line)
       line = ch
-      if (lines >= maxLines) {
+      if (lines.length >= maxLines) {
         line = ''
+        truncated = true
         break
       }
     } else {
       line += ch
     }
   }
-  if (line && lines < maxLines) {
-    ctx.fillText(ellipsize(ctx, line, maxWidth), x, y)
-    y += lineHeight
-  } else if (!line && lines >= maxLines) {
-    // 截断的那一行画省略号提示
+  if (line && lines.length < maxLines) {
+    lines.push(line)
   }
-  return y
+  if (truncated && lines.length) {
+    lines[lines.length - 1] = ellipsize(ctx, lines[lines.length - 1], maxWidth)
+  }
+  return lines
 }
 
 function ellipsize(ctx, text, maxWidth) {
