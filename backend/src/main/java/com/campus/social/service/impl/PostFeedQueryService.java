@@ -171,6 +171,9 @@ public class PostFeedQueryService {
         List<Post> rows = postMapper.selectList(new LambdaQueryWrapper<Post>()
                 .eq(Post::getAuthorId, authorId)
                 .in(Post::getStatus, self ? List.of(0, 1, 2) : List.of(1))
+                // 树洞:他人主页不放匿名帖——列表本身就会泄露作者(2026-10-25);
+                // 本人视角保留,作者靠 PostVO.mine 继续管理自己的匿名帖
+                .eq(!self, Post::getIsAnonymous, 0)
                 .lt(lastId != null, Post::getId, lastId)
                 .orderByDesc(Post::getId)
                 .last("LIMIT " + (size + 1)));

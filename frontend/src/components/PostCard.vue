@@ -8,13 +8,18 @@
   -->
   <article class="pc" @click="$emit('click', post)">
     <header class="pc__head">
-      <span class="pc__ava" @click.stop="goAuthor">
-        <InitialAvatar :size="40" :src="post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : ''" :seed="post.author?.id" :name="post.author ? displayName(post.author) : ''" />
+      <!--
+        树洞匿名帖(2026-10-25):后端不下发 author/authorId,这里统一渲染
+        「匿名」+ 树洞标签;头像/名字不挂点击(点了也没主页可去)。
+      -->
+      <span class="pc__ava" :class="{ 'pc__anon': isAnon }" @click.stop="goAuthor">
+        <InitialAvatar :size="40" :src="isAnon ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="isAnon ? '匿' : (post.author ? displayName(post.author) : '')" />
       </span>
-      <span class="pc__who" @click.stop="goAuthor">
-        <span class="pc__name">{{ post.author ? displayName(post.author) : '匿名' }}</span>
+      <span class="pc__who" :class="{ 'pc__anon': isAnon }" @click.stop="goAuthor">
+        <span class="pc__name">{{ isAnon ? '匿名' : (post.author ? displayName(post.author) : '匿名') }}</span>
         <span class="pc__time ys-num">{{ timeText }}</span>
       </span>
+      <span v-if="isAnon" class="pc__tag pc__tag--anon">树洞</span>
       <!--
         圈子标签：**必须有圈名**才渲染。
         改版前只写死「圈子」两个字（后端那时只下发 circleId、没有 circleName），
@@ -143,8 +148,14 @@ function onMediaError(i) {
  */
 const timeText = computed(() => relTime(props.post.createTime) || props.post.createTime || '')
 
+/** 树洞匿名帖:后端已抹掉 author,前端只负责统一视觉与禁跳转 */
+const isAnon = computed(() => !!props.post.anonymous)
+
 function goDetail() { router.push(`/post/${props.post.id}`) }
-function goAuthor() { if (props.post.author?.id) router.push(`/user/${props.post.author.id}`) }
+function goAuthor() {
+  if (isAnon.value) return // 匿名帖没有可去的主页
+  if (props.post.author?.id) router.push(`/user/${props.post.author.id}`)
+}
 function goTopic(name) { router.push(`/topic/${encodeURIComponent(name)}`) }
 /** 圈子标签直接进圈 —— 标签既然给出了圈名，就必须能点进那个圈 */
 function goCircle() {
@@ -269,6 +280,10 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 .pc__tag--warn { color: var(--ys-warning); background: var(--ys-warning-soft); }
 .pc__tag--danger { color: var(--ys-danger); background: var(--ys-danger-soft); }
 .pc__tag--top { color: var(--ys-accent-on); background: var(--ys-fg); }
+/* 树洞标签:中性信息色,与审核/驳回(警示系)区分开——匿名不是异常状态 */
+.pc__tag--anon { color: var(--ys-info); background: var(--ys-info-soft); }
+/* 匿名帖的头像/名字不可点:去掉手型,避免「点了没反应」的可点暗示 */
+.pc__anon { cursor: default; }
 
 /* 12 → 10：见 .pc 的 padding 注释 */
 .pc__body { margin-top: 10px; }

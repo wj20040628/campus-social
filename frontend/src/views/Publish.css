@@ -186,6 +186,41 @@
 }
 
 /*
+ * 树洞匿名开关(2026-10-25):话题区之后的一行卡片式开关。
+ * 描述文案写清「匿名」的边界——用户最担心的是可被反查。
+ */
+.pub__anon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-3);
+  margin: var(--ys-space-4) var(--ys-gutter-phone) 0;
+  padding: var(--ys-space-3) var(--ys-space-4);
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: 12px;
+}
+
+.pub__anon-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.pub__anon-name {
+  font-size: var(--ys-text-md);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.pub__anon-desc {
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
+/*
  * 字数条（2026-10-21）：收进正文纸卡内，紧跟正文。
  *
  * 改版前它 padding 0 16px、自成一行，飘在正文与话题框之间 ——

@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS `post` (
     `circle_id`       BIGINT       NULL,
     `hot_score`       DOUBLE       NOT NULL DEFAULT 0,
     `is_top`          TINYINT      NOT NULL DEFAULT 0 COMMENT '圈内置顶 0否1是(圈内列表置顶帖排最前)',
+    `is_anonymous`    TINYINT      NOT NULL DEFAULT 0 COMMENT '树洞匿名帖 0否1是(作者不出现在任何展示出口,管理端可见)',
     `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`      TINYINT      NOT NULL DEFAULT 0,

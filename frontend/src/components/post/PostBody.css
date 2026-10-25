@@ -58,6 +58,12 @@
   color: var(--ys-danger);
 }
 
+/* 树洞(2026-10-25):中性信息色——匿名是正常形态,不是审核异常态 */
+.author__status--anon {
+  background: var(--ys-info-soft);
+  color: var(--ys-info);
+}
+
 /* ---------------- 正文 ---------------- */
 .content {
   margin: 0;

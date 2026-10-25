@@ -25,7 +25,7 @@ import java.util.List;
 public class PostVO {
     private Long id;
     private Long authorId;
-    /** 作者卡片(脱敏) */
+    /** 作者卡片(脱敏)。匿名帖恒为 null——前端统一渲染「匿名」 */
     private UserVO author;
     private String content;
     /** 解析后的 JSON 节点 */
@@ -55,4 +55,8 @@ public class PostVO {
     private boolean favorited;
     /** 圈内置顶 */
     private boolean isTop;
+    /** 树洞匿名帖:作者字段已脱敏(author/authorId 恒 null),前端渲染「匿名」并禁跳主页 */
+    private boolean anonymous;
+    /** 当前用户是否作者。匿名帖 authorId 已抹掉,前端靠本字段维持编辑/删除入口(详情接口可靠) */
+    private boolean mine;
 }

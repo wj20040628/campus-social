@@ -222,11 +222,15 @@ public class CircleServiceImpl implements CircleService {
         List<Post> page = rows.stream().limit(size).toList();
 
         List<PostVO> vos = page.stream().map(p -> {
-            UserVO avo = UserVoAssembler.of(userMapper.selectById(p.getAuthorId()));
+            // 树洞:匿名帖不下发作者(authorId 一起抹掉,防止 /user/{id} 反查)
+            boolean anon = p.getIsAnonymous() != null && p.getIsAnonymous() == 1;
+            UserVO avo = anon ? null
+                    : UserVoAssembler.of(userMapper.selectById(p.getAuthorId()));
             return PostVO.builder()
                     .id(p.getId())
-                    .authorId(p.getAuthorId())
+                    .authorId(anon ? null : p.getAuthorId())
                     .author(avo)
+                    .anonymous(anon)
                     /*
                      * 展示层打码(2026-10-24 修):此前裸拼 p.getContent(),
                      * 一级敏感词在圈子帖列表原样显示——首页/详情都打码,

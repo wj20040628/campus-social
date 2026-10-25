@@ -110,6 +110,19 @@
           {{ tooLongTopics.length }} 个话题超过 {{ TOPIC_NAME_MAX }} 字，已忽略：
           <span class="pub__topic-tip-name">{{ tooLongTopics.join('、') }}</span>
         </p>
+
+        <!--
+          树洞匿名开关(2026-10-25):仅新建可选——匿名身份一次定终身,
+          后端对编辑请求里的 anonymous 也是忽略的,这里干脆不渲染,
+          避免「编辑时关掉开关却没生效」的假动作。
+        -->
+        <div v-if="!isEdit" class="pub__anon">
+          <label class="pub__anon-label" for="pub-anon">
+            <span class="pub__anon-name">匿名发布（树洞）</span>
+            <span class="pub__anon-desc">以「匿名」身份出现在广场，别人看不到你是谁</span>
+          </label>
+          <el-switch id="pub-anon" v-model="anonymous" />
+        </div>
       </main>
 
       <!-- 错误提示贴操作栏上方。**正文与图片全部保留**(Publish.vue.md §3) -->
@@ -211,6 +224,8 @@ const userStore = useUserStore()
 
 const content = ref('')
 const topicText = ref('')
+/** 树洞匿名:仅新建生效,编辑模式不渲染开关(后端同样忽略) */
+const anonymous = ref(false)
 const posting = ref(false)
 const submitError = ref('')
 const loading = ref(false)
@@ -311,6 +326,7 @@ watch(
   () => {
     content.value = ''
     topicText.value = ''
+    anonymous.value = false
     editingId.value = null
     submitError.value = ''
     reset()
@@ -332,9 +348,14 @@ async function submit() {
       markFeedDirty() // 编辑会改内容/话题,首页列表缓存需重拉
       router.push(`/post/${data.id}`)
     } else {
-      await createPost({ content: content.value, media, topics })
+      await createPost({
+        content: content.value,
+        media,
+        topics,
+        anonymous: anonymous.value || undefined,
+      })
       // AC-06:命中敏感词时后端给 status=0(审核中),要明确告诉用户「发出去了但还在审」
-      ElMessage.success('发出去了，等别人来搭话吧')
+      ElMessage.success(anonymous.value ? '已匿名发出，去广场看看' : '发出去了，等别人来搭话吧')
       markFeedDirty() // 新帖必须出现在首页,keep-alive 缓存不能拦着
       router.push('/')
     }

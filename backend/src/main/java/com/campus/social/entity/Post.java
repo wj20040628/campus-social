@@ -38,6 +38,9 @@ public class Post implements Serializable {
     /** 圈内置顶 0否1是(圈内列表置顶帖排最前) */
     private Integer isTop;
 
+    /** 树洞匿名帖 0否1是:作者不出现在任何展示出口,管理端(审核/举报/日志)仍可实锤 */
+    private Integer isAnonymous;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

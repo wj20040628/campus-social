@@ -121,9 +121,12 @@ public class SearchController {
     }
 
     private PostVO toPostVo(Post p) {
+        // 树洞:搜索结果不下发 authorId(会泄露作者),只保留 anonymous 标记
+        boolean anon = p.getIsAnonymous() != null && p.getIsAnonymous() == 1;
         return PostVO.builder()
                 .id(p.getId())
-                .authorId(p.getAuthorId())
+                .authorId(anon ? null : p.getAuthorId())
+                .anonymous(anon)
                 /*
                  * 展示层打码(2026-10-24 修):此前裸拼 p.getContent(),一级敏感词
                  * 在搜索结果原样显示——正文链路全打码,唯独搜索漏。

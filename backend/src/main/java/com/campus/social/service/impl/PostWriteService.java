@@ -102,6 +102,8 @@ public class PostWriteService {
         post.setViewCount(0);
         post.setCircleId(dto.getCircleId());
         post.setHotScore(0.0);
+        // 树洞匿名:仅创建时生效,edit 走列级 UPDATE 不碰此列,天然不可翻转
+        post.setIsAnonymous(Boolean.TRUE.equals(dto.getAnonymous()) ? 1 : 0);
         postMapper.insert(post);
 
         topicBinder.bind(post.getId(), dto.getTopics());

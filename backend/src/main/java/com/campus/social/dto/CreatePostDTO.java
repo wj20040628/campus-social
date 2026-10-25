@@ -14,6 +14,8 @@ import java.util.List;
  * 新建:content 必填;编辑:content 可空(允许只改话题/媒体,保留原内容)。
  * 用 DTO 层校验而非注解 @NotBlank:编辑场景下前端可能只传 topics,
  * 后端 service 层对"全空"做兜底拒绝,语义比 @NotBlank 更准确。
+ *
+ * anonymous(树洞):仅创建时生效,编辑忽略——匿名身份一次定终身。
  */
 @Data
 public class CreatePostDTO {
@@ -28,4 +30,7 @@ public class CreatePostDTO {
 
     /** 话题名列表(不带 #) */
     private List<String> topics;
+
+    /** 树洞匿名帖:创建时可选,编辑不可翻转 */
+    private Boolean anonymous;
 }

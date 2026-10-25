@@ -79,7 +79,13 @@ public class PostVoAssembler {
     /** 单条转换：作者与话题在此一并回填，调用方无需再处理 */
     public PostVO toVo(Post p, long viewerId) {
         PostVO vo = baseVo(p, viewerId);
-        vo.setAuthor(authorVo(p.getAuthorId()));
+        if (isAnon(p)) {
+            // 树洞:作者卡片与 authorId 都不下发(authorId 保留会被 /user/{id} 反查主页,等于实名)
+            vo.setMine(viewerId == p.getAuthorId());
+            vo.setAuthorId(null);
+        } else {
+            vo.setAuthor(authorVo(p.getAuthorId()));
+        }
         vo.setTopics(topicsOfPosts(List.of(p.getId())).getOrDefault(p.getId(), List.of()));
         vo.setFavorited(isFavorited(p.getId(), viewerId));
         vo.setCircleName(circleNamesOf(List.of(p.getCircleId() == null ? -1L : p.getCircleId()))
@@ -103,14 +109,23 @@ public class PostVoAssembler {
         if (vos.isEmpty()) {
             return vos;
         }
-        // 作者批量
+        // 作者批量 + 树洞脱敏(vos 与 posts 同序,按下标配对)
+        // 匿名帖:author/authorId 不下发,mine 维持作者自己的管理入口;
+        // 非匿名帖照旧批量回填作者卡。mine 对所有帖子都下发(顺手,前端免比较)。
         List<Long> authorIds = posts.stream().map(Post::getAuthorId).distinct().toList();
         Map<Long, User> authors = new HashMap<>();
         for (User u : userMapper.selectBatchIds(authorIds)) {
             authors.put(u.getId(), u);
         }
-        for (PostVO vo : vos) {
-            User a = authors.get(vo.getAuthorId());
+        for (int i = 0; i < vos.size(); i++) {
+            Post p = posts.get(i);
+            PostVO vo = vos.get(i);
+            vo.setMine(viewerId == p.getAuthorId());
+            if (isAnon(p)) {
+                vo.setAuthorId(null);
+                continue;
+            }
+            User a = authors.get(p.getAuthorId());
             if (a != null) {
                 vo.setAuthor(toUserVo(a));
             }
@@ -194,7 +209,13 @@ public class PostVoAssembler {
                 .liked(isLiked(p.getId(), viewerId))
                 .favorited(false) // 列表走批量回填、详情走 toVo 单查,此处只给默认值
                 .isTop(p.getIsTop() != null && p.getIsTop() == 1)
+                .anonymous(isAnon(p))
                 .build();
+    }
+
+    /** 树洞匿名判定:历史行 is_anonymous 可能为 null(迁移前数据),按 0 处理 */
+    private boolean isAnon(Post p) {
+        return p.getIsAnonymous() != null && p.getIsAnonymous() == 1;
     }
 
     private boolean isLiked(long postId, long viewerId) {
