@@ -92,7 +92,7 @@ const verified = computed(() => status.value?.verified === true)
 const badRecord = computed(() => status.value?.hasBadRecord === true)
 /** 产出加分(后端已按封顶截断;接口旧版本无此字段按 0 兜底,只影响展示) */
 const bonus = computed(() => Number(status.value?.creditBonus ?? 0))
-const decayDays = computed(() => Number(status.value?.creditDecayDays ?? 180))
+const decayDays = computed(() => Number(status.value?.creditDecayDays ?? 30))
 const circleQuota = computed(() => Number(status.value?.circleQuota ?? 0))
 const mktQuota = computed(() => Number(status.value?.mktQuota ?? 0))
 const postDaily = computed(() => Number(status.value?.postDailyQuota ?? 3))

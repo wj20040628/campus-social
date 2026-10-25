@@ -305,9 +305,10 @@ campus:
     # level-1 敏感词直接命中可豁免送审(替换后直发,audit_log 留痕)
     trust-min-days: ${CAMPUS_REVIEW_TRUST_MIN_DAYS:14}
     # 信誉记录(产出加分与违规扣分)的计算窗口(天):窗口外不计。
+    # 30 天=月度活跃度口径:扣分一个月出清,档位要靠当月产出维持。
     # 信誉分 = 60(基准) + 产出加分(过审帖/集市 ×1,封顶 40) - 成立举报×20 - 封禁×40
     # 受信线 60=基准(扣分掉线,产出补回);建圈/集市在投配额按分数档 1/2/3(75/90 分档)
-    credit-decay-days: ${CAMPUS_REVIEW_CREDIT_DECAY_DAYS:180}
+    credit-decay-days: ${CAMPUS_REVIEW_CREDIT_DECAY_DAYS:30}
     # 发帖日配额:未认证 3/日(防机器刷),认证 30/日(Redis 自然日分桶)
     post-daily-unverified: ${CAMPUS_REVIEW_POST_DAILY_UNVERIFIED:3}
     post-daily-verified: ${CAMPUS_REVIEW_POST_DAILY_VERIFIED:30}

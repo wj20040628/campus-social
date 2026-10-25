@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  * <h2>分数构成（动态计算不落库）</h2>
  * <pre>
  *   分数 = clamp( 60                                   基准
- *               + min(近180天过审帖 + 集市活动, 40)     产出加分 ×1/条
+ *               + min(近30天过审帖 + 集市活动, 40)     产出加分 ×1/条
  *               − 成立举报 × 20 − 封禁 × 40,           违规扣分
  *               0, 100 )
  * </pre>
@@ -60,7 +60,7 @@ public class ReviewTrustService {
     private int minDays;
 
     /** 信誉记录（加分产出与扣分）的计算窗口(天):窗口外不计 */
-    @Value("${campus.review.credit-decay-days:180}")
+    @Value("${campus.review.credit-decay-days:30}")
     private int creditDecayDays;
 
     /** 未认证用户的发帖日额（防机器刷；认证后大幅放宽） */
