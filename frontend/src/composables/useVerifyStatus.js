@@ -47,6 +47,18 @@ async function load(force = false) {
   if (!force && cached) return cached
   if (!force && inflight) return inflight
 
+  /*
+   * 游客不发请求(2026-10-25 修):分享卡片落地页是免登录的,
+   * 游客进详情页时若有组件顺手调 load(),GET /user/verify/status 会 401,
+   * request.js 的 401 拦截把它当成「登录过期」踢去登录页 —— 落地页整页报废。
+   * 游客本来就没有认证状态,直接给 null,不发请求。
+   */
+  const userStore = useUserStore()
+  if (!userStore.hasToken) {
+    failed.value = false
+    return null
+  }
+
   loading.value = true
   inflight = verifyStatus()
     .then((data) => {

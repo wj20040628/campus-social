@@ -228,10 +228,13 @@ const myId = computed(() => userStore.userInfo?.id)
 /*
  * 本人判定:常规帖比 author.id;树洞匿名帖的 author 被后端整体抹掉,
  * 靠服务端下发的 mine 维持编辑/删除入口(mine 只有作者本人为 true)。
+ * myId 必须先判空:游客(未登录)两者都是 undefined,严格相等成立,
+ * 会把匿名帖误判成「我是作者」而渲染编辑/删除(2026-10-25 游客实测)。
  */
-const isAuthor = computed(
-  () => !!post.value && (post.value.author?.id === myId.value || post.value.mine === true),
-)
+const isAuthor = computed(() => {
+  if (!post.value || !myId.value) return false
+  return post.value.author?.id === myId.value || post.value.mine === true
+})
 
 // 媒体解析仍在本页:PostBody 只收已解析好的 mediaList/cols/imgList,
 // 不再自己调 usePostMedia —— 解析规则(几个图排几列)是数据问题不是展示问题。

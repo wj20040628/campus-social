@@ -63,6 +63,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             java.util.regex.Pattern.compile("^/post/\\d+/comment/\\d+/children$"),
             java.util.regex.Pattern.compile("^/mkt/\\d+$"),
             java.util.regex.Pattern.compile("^/mkt/\\d+/comments$"),
+            // 集市广场列表:详情页右栏「同样在找」会带分类查它,无身份依赖的纯只读列表
+            java.util.regex.Pattern.compile("^/mkt/plaza$"),
             java.util.regex.Pattern.compile("^/activity/\\d+$"),
             java.util.regex.Pattern.compile("^/activity/\\d+/signups$"),
     };
