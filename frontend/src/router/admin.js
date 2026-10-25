@@ -27,6 +27,17 @@ const adminRoutes = [
     meta: { requiresAuth: true, requiresAdmin: true, title: '意见反馈', back: true },
   },
   {
+    /*
+      用户处置(2026-10-24 新增):找人 / 直接封禁 / 手动解封。
+      此前封人只能走举报流程、解封没有任何端点——永久封禁误判只能改库。
+      独立页:身份处置(封账号)与内容处置(审核帖子)语义不同,不塞进 AdminReview。
+    */
+    path: 'admin/users',
+    name: 'adminUsers',
+    component: () => import('@/views/AdminUsers.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '用户处置', back: true },
+  },
+  {
     path: 'admin/review',
     name: 'review',
     component: () => import('@/views/AdminReview.vue'),

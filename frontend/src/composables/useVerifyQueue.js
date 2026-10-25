@@ -19,6 +19,7 @@
 import { onBeforeUnmount, reactive, ref } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { approveVerify, pendingVerify, rejectVerify, } from '@/api/review'
+import { useAdminPending } from '@/composables/useAdminPending'
 
 /** 单页条数。20 条在 375px 下是 4~5 屏 */
 const PAGE = 20
@@ -140,6 +141,7 @@ function putBack(snap) {
     try {
       await approveVerify(id)
       ElMessage.success('已通过，TA 现在能搭话和发公告了')
+      useAdminPending().refresh(true) // 队列数变了,抽屉/侧栏角标立刻跟上
     } catch (err) {
       // 已被处理:保持移除状态,不塞回去,也不报红
       if (alreadyHandled(err)) {
@@ -185,6 +187,7 @@ function putBack(snap) {
     try {
       await rejectVerify(id, text)
       ElMessage.success('已驳回，理由会通知该用户')
+      useAdminPending().refresh(true)
     } catch (err) {
       if (alreadyHandled(err)) {
         ElMessage.info('该申请已被处理')

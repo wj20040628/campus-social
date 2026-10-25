@@ -1,0 +1,302 @@
+/* ============================================================
+   用户处置页(AdminUsers.vue,2026-10-24 新增)
+   与 AdminVerify/AdminReview 同一套管理页骨架:
+   自绘顶栏 + 筛选区 + 行列表 + 哨兵,token 全走 design-tokens。
+   ============================================================ */
+
+.uadmin {
+  min-height: 100dvh;
+  background: var(--ys-bg);
+}
+
+/* ---------------- 启动骨架:userInfo 未到时占位,防「加载中」被误判为无权限 ---------------- */
+
+.uadmin__boot {
+  padding: var(--ys-space-8) var(--ys-space-4);
+  display: grid;
+  gap: var(--ys-space-3);
+}
+
+.uadmin__boot-line {
+  height: 16px;
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  animation: uadmin-pulse 1.4s ease-in-out infinite;
+}
+
+.uadmin__boot-line--short {
+  width: 45%;
+}
+
+@keyframes uadmin-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.uadmin__bar {
+  padding: var(--ys-space-4) var(--ys-space-4) var(--ys-space-2);
+}
+
+.uadmin__title {
+  margin: 0;
+}
+
+.uadmin__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  cursor: pointer;
+}
+
+.uadmin__back-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.uadmin__hint {
+  margin: var(--ys-space-1) 0 0;
+  padding-left: 28px;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* ---------------- 筛选区 ---------------- */
+
+.uadmin__filters {
+  display: grid;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-space-4) var(--ys-space-3);
+}
+
+.uadmin__segs {
+  display: flex;
+  gap: var(--ys-space-2);
+}
+
+.uadmin__seg {
+  min-height: 32px;
+  padding: 0 var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: 999px;
+  background: var(--ys-surface);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2, var(--ys-fg));
+  cursor: pointer;
+}
+
+.uadmin__seg--on {
+  border-color: transparent;
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* ---------------- 行列表 ---------------- */
+
+.uadmin__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--ys-space-4);
+  display: grid;
+  gap: var(--ys-space-2);
+}
+
+.uadmin__row {
+  background: var(--ys-surface);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  padding: var(--ys-space-3);
+  display: grid;
+  gap: var(--ys-space-2);
+}
+
+.uadmin__who {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+}
+
+.uadmin__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.uadmin__name {
+  margin: 0;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uadmin__roletag {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-accent);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0 var(--ys-space-2);
+  line-height: 18px;
+}
+
+.uadmin__sub {
+  margin: 2px 0 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uadmin__status {
+  flex: none;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+.uadmin__status[data-status='1'] {
+  color: var(--ys-accent-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* ---------------- 行内动作 / 封禁面板 ---------------- */
+
+.uadmin__acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ys-space-2);
+}
+
+.uadmin__btn {
+  min-height: 34px;
+  padding: 0 var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg);
+  cursor: pointer;
+}
+
+.uadmin__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.uadmin__btn--danger-ghost {
+  color: var(--ys-accent-2);
+  border-color: currentColor;
+}
+
+.uadmin__btn--danger {
+  border-color: transparent;
+  background: var(--ys-accent-2);
+  color: var(--ys-accent-on);
+  font-weight: var(--ys-weight-semibold);
+}
+
+.uadmin__ban-panel {
+  display: grid;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface-2);
+}
+
+.uadmin__ban-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-3);
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2, var(--ys-fg));
+}
+
+.uadmin__ban-select {
+  min-height: 34px;
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  color: var(--ys-fg);
+  font-size: var(--ys-text-sm);
+}
+
+.uadmin__ban-panel input {
+  min-height: 38px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  color: var(--ys-fg);
+  font-size: var(--ys-text-sm);
+  font-family: var(--ys-font-body);
+}
+
+.uadmin__err {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-accent-2);
+}
+
+.uadmin__ban-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ys-space-2);
+}
+
+/* ---------------- 哨兵 / 空态 ---------------- */
+
+.uadmin__sentinel {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+}
+
+.uadmin__sentinel-text {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.uadmin__state {
+  padding: var(--ys-space-8) var(--ys-space-4);
+}
+
+/* 昵称可点跳主页(2026-10-24 补) */
+.uadmin__name-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--ys-weight-semibold);
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uadmin__name-link:hover {
+  color: var(--ys-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

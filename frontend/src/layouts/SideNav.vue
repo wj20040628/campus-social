@@ -76,10 +76,21 @@
         <el-menu-item index="/admin/verify">
           <el-icon><Postcard /></el-icon>
           <span>学号核验</span>
+          <span v-if="pending.summary.verifyPending" class="side__pending ys-num">
+            {{ pending.summary.verifyPending }}
+          </span>
         </el-menu-item>
         <el-menu-item index="/admin/review">
           <el-icon><DocumentChecked /></el-icon>
           <span>内容审核</span>
+          <span v-if="pending.reviewTotal()" class="side__pending ys-num">
+            {{ pending.reviewTotal() }}
+          </span>
+        </el-menu-item>
+        <!-- 用户处置(2026-10-24 新增):找人 / 直接封禁 / 手动解封 -->
+        <el-menu-item index="/admin/users">
+          <el-icon><UserFilled /></el-icon>
+          <span>用户处置</span>
         </el-menu-item>
         <el-menu-item index="/admin/announcement">
           <el-icon><EditPen /></el-icon>
@@ -97,6 +108,9 @@
         <el-menu-item index="/admin/feedback">
           <el-icon><ChatLineSquare /></el-icon>
           <span>意见反馈</span>
+          <span v-if="pending.summary.feedbackPending" class="side__pending ys-num">
+            {{ pending.summary.feedbackPending }}
+          </span>
         </el-menu-item>
       </el-sub-menu>
     </el-menu>
@@ -104,13 +118,14 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
   Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
-  ChatLineSquare,
+  ChatLineSquare, UserFilled,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useAdminPending } from '@/composables/useAdminPending'
 
 const props = defineProps({
   routePath: { type: String, required: true },
@@ -126,11 +141,16 @@ const props = defineProps({
 
 const userStore = useUserStore()
 
+/* 管理待办角标:与 AppDrawer 共用模块级缓存,挂载时拉一次(2026-10-24 新增) */
+const pending = useAdminPending()
+onMounted(() => pending.refresh())
+
 const activeMenu = computed(() => {
   const p = props.routePath
   if (p.startsWith('/admin/verify')) return '/admin/verify'
   if (p.startsWith('/admin/announcement')) return '/admin/announcement'
   if (p.startsWith('/admin/review')) return '/admin/review'
+  if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/audit')) return '/admin/audit'
   if (p.startsWith('/admin/circles')) return '/admin/circles'
   if (p.startsWith('/admin/feedback')) return '/admin/feedback'
@@ -231,5 +251,14 @@ const activeMenu = computed(() => {
 /* 菜单项本身要 relative，角标才能绝对定位 */
 .side__menu :deep(.el-menu-item) {
   position: relative;
+}
+
+/* 管理待办数(2026-10-24 新增):右对齐的小数字,与通知/消息红点同一信息位 */
+.side__pending {
+  margin-left: auto;
+  padding-right: var(--ys-space-3);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-accent-2);
+  font-weight: var(--ys-weight-semibold);
 }
 </style>

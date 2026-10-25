@@ -54,4 +54,41 @@ export function listReservedNames(lastId, size = 20) {
 export default {
   transferCircle, banCircle, unbanCircle, restoreCircle, listAllCircles,
   addReservedName, delReservedName, listReservedNames,
+  adminUsers, banUser, unbanUser, pendingSummary,
+}
+
+// ---------------- 用户处置(2026-10-24 新增) ----------------
+// 此前封人只能走举报流程、解封没有任何端点(永久封禁误判后只能改库)。
+// 这组接口补齐:找人 → 直接封禁 / 手动解封。
+
+/**
+ * 用户处置列表。
+ * @param {{keyword?: string, status?: 0|1, cursor?: number|null, size?: number}} [params]
+ *   keyword:昵称/登录名/学号模糊匹配;status: 0 正常 / 1 冻结(封禁中),不传 = 全部
+ */
+export function adminUsers(params = {}) {
+  const { keyword, status, cursor, size = 20 } = params
+  const query = { size }
+  if (keyword) query.keyword = keyword
+  if (status !== undefined && status !== null) query.status = status
+  if (cursor) query.cursor = cursor
+  return request.get('/admin/users', { params: query })
+}
+
+/** 直接封禁(不依赖举报流程)。banDays 0=永久;reason 必填,写 audit_log。 */
+export function banUser(userId, banDays, reason) {
+  return request.post(`/admin/users/${userId}/ban`, { banDays, reason })
+}
+
+/** 手动解封。此前唯一的解封路径是到期定时任务,永久封禁不可撤销——本端点是救济路径。 */
+export function unbanUser(userId) {
+  return request.post(`/admin/users/${userId}/unban`)
+}
+
+/**
+ * 四条队列待办聚合(管理入口角标数据源)。
+ * 举报 / 机审 / 学号核验 / 反馈,一次拉全,不必逐页巡检。
+ */
+export function pendingSummary() {
+  return request.get('/admin/pending-summary')
 }

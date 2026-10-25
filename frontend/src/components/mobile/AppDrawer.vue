@@ -117,12 +117,22 @@
 
     <!-- 管理后台弹层:复用 useSettings 的 adminSheetOpen(与设置页同源) -->
     <ActionSheet v-model="adminSheetOpen" title="管理后台">
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/verify')">学号核验</button>
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/review')">内容审核</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/verify')">
+        学号核验
+        <UnreadDot :count="pending.summary.verifyPending" show-count noun="条待审" class="adrawer__pending" />
+      </button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/review')">
+        内容审核
+        <UnreadDot :count="pending.reviewTotal()" show-count noun="条待办" class="adrawer__pending" />
+      </button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/users')">用户处置</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/announcement')">公告管理</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/audit')">操作日志</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/circles')">圈子处置</button>
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/feedback')">意见反馈</button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/feedback')">
+        意见反馈
+        <UnreadDot :count="pending.summary.feedbackPending" show-count noun="条待办" class="adrawer__pending" />
+      </button>
     </ActionSheet>
 
     <!--
@@ -175,6 +185,7 @@ import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import FeedbackDialog from '@/views/settings/FeedbackDialog.vue'
 import UnreadDot from '@/components/mobile/UnreadDot.vue'
 import NavIcon from '@/components/mobile/NavIcon.vue'
+import { useAdminPending } from '@/composables/useAdminPending'
 import { resolveThumb } from '@/utils/resolve'
 
 defineProps({
@@ -188,6 +199,14 @@ const router = useRouter()
 const userStore = useUserStore()
 const { mode, setMode } = useTheme()
 const { adminSheetOpen, goAdmin } = useSettings()
+
+/*
+ * 管理待办角标(2026-10-24 新增):挂「管理后台」弹层的入口上,
+ * 让管理员不逐页巡检就知道哪条队列有活。模块级缓存,与 SideNav 共享,
+ * 挂载时拉一次;处置动作后的强刷由各管理页自己 refresh(force) 触发。
+ */
+const pending = useAdminPending()
+onMounted(() => pending.refresh())
 
 /** 导航项:有 path 的走路由,没有的走组件内动作(意见反馈是弹层不是页面) */
 const NAV_ITEMS = [
