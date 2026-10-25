@@ -1,8 +1,5 @@
 <template>
-  <!--
-    消息窗(Chat.vue.md §1.2 ~ §1.4)
-    唯一负责「键盘弹起时输入框不被吞掉」的地方。
-  -->
+  <!-- 消息窗(Chat.vue.md §1.2~§1.4):唯一负责「键盘弹起时输入框不被吞掉」的地方 -->
   <div class="th">
     <!-- 行 0 + 行 2:自绘顶栏与来源上下文条(2026-10-15 拆去 ChatThreadHeader.vue) -->
     <ChatThreadHeader
@@ -35,7 +32,10 @@
     />
 
     <!-- 权限提示(AC-04/05/06)。三种各有具体文案,不弹 toast -->
-    <p v-if="blockReason" class="block" :class="`block--${blockTone}`">{{ blockReason }}</p>
+    <div v-if="blockReason" class="block" :class="`block--${blockTone}`">
+      <!-- block.to = 出口(未认证→去认证):不让用户看完提示自己找路 -->
+      <p class="block__text">{{ blockReason }}<button v-if="block?.to" type="button" class="block__go" @click="router.push(block.to)">去认证</button></p>
+    </div>
 
     <!-- 行 3:消息列表。role=log + aria-live=polite,新消息会被读屏播报 -->
     <div ref="listEl" class="th__list" role="log" aria-live="polite" aria-label="消息列表">
@@ -175,9 +175,11 @@
  * 用 pointerdown/pointerup 而非 touchstart，桌面也能触发，开发时不必切手机。
  */
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Promotion, Close } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
 import { useIsMobile } from '@/composables/useBreakpoint'
+import { useChatBlock } from '@/composables/useChatBlock'
 import { useMessageBlocks } from '@/composables/useMessageBlocks'
 import { useMessageContextMenu } from '@/composables/useMessageContextMenu'
 import { useMsgReport } from '@/composables/useMsgReport'
@@ -244,8 +246,10 @@ const draft = computed({
   set: (v) => emit('update:draft', v),
 })
 
-const blockReason = computed(() => props.block?.text || '')
-const blockTone = computed(() => props.block?.tone || 'danger')
+const { blockReason, blockTone } = useChatBlock(props)
+
+const router = useRouter()
+const blockTo = computed(() => props.block?.to || '')
 
 const isMobile = useIsMobile()
 
@@ -275,7 +279,6 @@ const inputPlaceholder = computed(() => {
   return '按 Enter 发送,Shift+Enter 换行'
 })
 
-
 /* ---------------- 消息分组(2026-10-20 群聊改版) ---------------- */
 
 /** 分组规则见 composables/useMessageBlocks.js —— 只做渲染折叠,不碰数据 */
@@ -300,8 +303,7 @@ const { reportOpen, reportTargetId, canReportOf, openReport } = useMsgReport()
 const sheetCanReport = computed(() => canReportOf(sheetTarget.value))
 
 function send() {
-  if (!draft.value.trim()) return
-  emit('send')
+  if (draft.value.trim()) emit('send')
 }
 
 /** 键盘弹起时把最新一条滚进可视区。不加平滑滚动(§4):连发时会互相打断 */
@@ -395,5 +397,4 @@ async function onCtxCopy() {
  */
 defineExpose({ scrollBottom })
 </script>
-
 <style scoped src="./ChatThread.css"></style>

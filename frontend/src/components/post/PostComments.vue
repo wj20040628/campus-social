@@ -36,6 +36,7 @@
         :my-id="myId"
         :overflow-of="overflowStateOf"
         @reply="emit('reply', $event)"
+        @delete="emit('delete', $event)"
         @go-user="emit('go-user', $event)"
         @load-children="loadChildren"
       />
@@ -82,7 +83,7 @@ const props = defineProps({
   postId: { type: [Number, String], default: null },
 })
 
-const emit = defineEmits(['ask', 'go-user', 'reply'])
+const emit = defineEmits(['ask', 'go-user', 'reply', 'delete'])
 
 /**
  * 溢出补齐(契约 childrenOverflowCount)。

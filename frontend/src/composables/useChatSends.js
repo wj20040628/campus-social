@@ -45,15 +45,20 @@ export function useChatSends(ctx) {
 
     try {
       let msgId
+      /*
+       * 气泡文本用服务端返回的 content(2026-10-24):发送路径入库前会替换
+       * 一级敏感词(MessageContentGuard),本地草稿是原文——不换的话,
+       * 发送者自己看到原文、接收方看到星号,同一句话两种内容。
+       */
       if (currentKind.value === 'group') {
         const res = await api.groupSend(currentGroup.value.id, content, replyId)
         msgId = res?.msgId || Date.now()
-        messages.value.push(baseBubble(msgId, content, replyId, replyContent, replyName, true))
+        messages.value.push(baseBubble(msgId, res?.content || content, replyId, replyContent, replyName, true))
         loadGroups().catch(() => {})
       } else {
         const res = await api.send(currentConv.value.peer?.id, content, replyId)
         msgId = res?.msgId || Date.now()
-        messages.value.push(baseBubble(msgId, content, replyId, replyContent, replyName, false))
+        messages.value.push(baseBubble(msgId, res?.content || content, replyId, replyContent, replyName, false))
         loadConvs().catch(() => {})
       }
       replyToMsg.value = null

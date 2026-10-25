@@ -9,6 +9,15 @@
   -->
   <div class="chat">
     <!--
+      搭话规则提示(2026-10-24):「不用加好友就能搭话」是产品核心差异,
+      额度规则(8 新人/日、同 15 条/日)用户不知道会误以为被限制。
+      数字与后端 campus.daily-new-peer-limit / per-peer-daily-limit 对应,改配置时同步。
+      放最外层:列表态与会话态都可见;会话页(手机)在自己栏内顶部。
+    -->
+    <InfoTip v-if="!hasActive" scene="chat-etiquette" class="chat__tip">
+      在这里不用加好友就能搭话：每天最多向 8 位新同学发起会话，给同一位同学发消息每日上限 15 条。
+    </InfoTip>
+    <!--
       ============ 会话列表 ============
       手机:仅 /chat 列表路由渲染(单栏路由切换);
       桌面:**双栏的左栏,必须渲染** —— 早前 v-if 只写了 isListRoute(手机条件),
@@ -103,6 +112,8 @@ import { ref, computed, watch, nextTick, inject, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useIsMobile } from '@/composables/useBreakpoint'
+import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
+import InfoTip from '@/components/common/InfoTip.vue'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { useChatCore } from '@/composables/useChatCore'
 import { useChatComposer } from '@/composables/useChatComposer'
@@ -190,10 +201,21 @@ const isThreadRoute = computed(() => route.name === 'chatThread')
  * 当前 openapi 的 ConversationVO 无此字段,故本轮不做前端判定(见交付 advisory)。
  * 群禁言:群聊 + 我被群主禁言(mutedMe)→ 阻断输入,后端 GROUP_MUTED(1046) 兜底。
  */
+const { code: verifyCode } = useVerifyStatus()
+
 const block = computed(() => {
   // 群禁言优先显示(更具体):群聊且我被禁言
   if (currentKind.value === 'group' && mutedMe.value) {
     return { text: '你已被群主禁言,无法发言', tone: 'danger' }
+  }
+  /*
+   * 未认证阻断(2026-10-24 补):私聊发消息后端必拒(ChatGuard AC-11,403/1029),
+   * 但此前前端不拦也不提示——实测未认证用户能打字、点发送后**静默无反应**
+   * (无 toast、无跳转),像"点了没反应"。认证状态是确定值(非 null 语义),
+   * 符合本函数"确定才阻断"的原则。to 字段给横幅一个"去认证"出口。
+   */
+  if (currentKind.value !== 'group' && verifyCode.value !== VERIFY_OK) {
+    return { text: '完成校内认证后才能发私信', tone: 'danger', to: '/onboarding' }
   }
   const q = quotaLeft.value
   if (q !== null && q <= 0) {

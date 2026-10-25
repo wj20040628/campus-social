@@ -144,48 +144,13 @@
   font-weight: var(--ys-weight-semibold);
 }
 
-/* 卡片预览：与广场 MktCard 的最小结构对齐，让用户看到真实形态 */
-.pvcard {
-  background: var(--ys-surface);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-lg);
-  padding: var(--ys-space-3);
-}
-
-.pvcard__cat {
-  display: inline-block;
-  font-size: var(--ys-text-xs);
-  line-height: 1.5;
-  padding: 1px var(--ys-space-2);
-  border-radius: var(--ys-radius-sm);
-  background: var(--ys-accent-2-soft);
-  color: var(--ys-accent-2);
-  font-weight: var(--ys-weight-semibold);
-}
-
-.pvcard__title {
-  margin: var(--ys-space-2) 0 var(--ys-space-1);
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-  overflow-wrap: anywhere;
-}
-
-.pvcard__cont {
-  margin: 0 0 var(--ys-space-2);
-  font-size: var(--ys-text-xs);
-  line-height: 1.5;
-  color: var(--ys-muted);
-  overflow-wrap: anywhere;
-}
-
-.pvcard__meta {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ys-space-2);
-  font-size: var(--ys-text-xs);
-  color: var(--ys-meta);
+/*
+ * 卡片预览容器(2026-10-24):预览复用 MktCard 组件,这里只约束展示宽度
+ * —— 广场是两列网格,单卡约 173px;侧栏比它宽,不限宽会让预览显得
+ * 比"真实会长的那样"更宽敞。给到 200px,连尺寸感都贴近真实。
+ */
+.mpub__pv {
+  max-width: 200px;
 }
 
 /*

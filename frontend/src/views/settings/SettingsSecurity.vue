@@ -1,5 +1,9 @@
 <template>
   <div class="sub-inner">
+    <!-- 发布信誉卡(2026-10-24):认证/账龄/违规清单,放最上——它是这张页的「为什么」。
+         加载中/失败由卡片内部自隐藏,这里无条件挂载。 -->
+    <TrustStatusCard />
+
     <el-card class="sgroup">
       <!-- 修改密码:登录态凭原密码改密,弹层内完成 -->
       <button type="button" class="srow" @click="pwdOpen = true">
@@ -30,6 +34,7 @@
 <script setup>
 /**
  * 账号与安全(/settings/security)。
+ * - 发布信誉:TrustStatusCard,认证/账龄/违规清单(拉取成功才渲染)
  * - 绑定邮箱:就地弹 ProfileEmailDialog(与编辑资料页同一个组件),不再跳 /profile
  * - 修改密码:弹 ChangePasswordDialog,走 PUT /user/password(原密码校验)
  * - 邮箱是否已绑定:/user/me.email 非空即视为已绑(与编辑资料页同判据)
@@ -39,6 +44,7 @@ import { ArrowRight, Lock, Message } from '@element-plus/icons-vue'
 import { me as meApi } from '@/api/auth'
 import ProfileEmailDialog from './ProfileEmailDialog.vue'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
+import TrustStatusCard from '@/components/common/TrustStatusCard.vue'
 
 const email = ref('')
 const emailOpen = ref(false)

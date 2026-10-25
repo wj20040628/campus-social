@@ -79,6 +79,11 @@ export function comment(postId, dto) {
   return request.post(`/post/${postId}/comment`, dto)
 }
 
+/** 删除自己的评论(连同其子回复)。403 删他人的;404 COMMENT_NOT_FOUND 已删。 */
+export function deleteComment(postId, commentId) {
+  return request.delete(`/post/${postId}/comment/${commentId}`)
+}
+
 export function comments(postId, lastId, size = 20) {
   const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
   return request.get(`/post/${postId}/comments?${q}`)

@@ -18,6 +18,10 @@
       <p class="cg__label">选择成员（你关注的人）</p>
 
       <div v-if="loadingMembers" class="cg__hint">正在加载…</div>
+      <!-- 空态分流(2026-10-24):加载失败≠没关注人,误报会引导用户白忙一场 -->
+      <div v-else-if="!members.length && memberLoadFailed" class="cg__hint">
+        没拉到你关注的人，关掉重开试试
+      </div>
       <div v-else-if="!members.length" class="cg__hint">你还没有关注任何人，先去关注几个同学</div>
       <ul v-else class="cg__members">
         <li
@@ -68,6 +72,8 @@ const members = ref([])
 const checked = ref(new Set())
 const loadingMembers = ref(false)
 const submitting = ref(false)
+/** 成员列表加载失败(区别于「确实没关注人」的空态) */
+const memberLoadFailed = ref(false)
 const error = ref('')
 
 /** 打开时拉一次「我关注的人」;关闭时重置选择 */
@@ -86,11 +92,25 @@ watch(
 async function loadMembers() {
   loadingMembers.value = true
   try {
+    /*
+     * uid 拿不到时显式置空并给可读提示(2026-10-24 修):
+     * 原实现 uid=undefined → 后端 400「缺少参数: uid」→ catch 静默吞 →
+     * 界面显示「先去关注几个同学」——把加载失败误报成「你没关注人」,
+     * 用户明明关注过,照提示去关注一圈回来还是空(实测复现)。
+     * 空态文案按真实原因分流:没登录信息 vs 确实没人可拉。
+     */
     const me = userStore.userInfo?.id
+    if (!me) {
+      members.value = []
+      memberLoadFailed.value = true
+      return
+    }
     const data = await following(me, null, 50)
     members.value = data?.list || []
+    memberLoadFailed.value = false
   } catch {
     members.value = []
+    memberLoadFailed.value = true
   } finally {
     loadingMembers.value = false
   }

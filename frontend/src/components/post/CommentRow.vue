@@ -57,6 +57,17 @@
           :aria-label="`回复 ${node.user ? displayName(node.user) : '匿名'}`"
           @click="emit('reply', node)"
         >回复</button>
+        <!--
+          删除自己的评论(2026-10-24 新增):此前评论无任何自救手段。
+          删除是整棵子树(自己的评论+别人给它的回复一起移除),ConfirmDialog 在父组件。
+        -->
+        <button
+          v-if="isMine"
+          type="button"
+          class="c-reply-btn c-delete-btn"
+          aria-label="删除这条评论"
+          @click="emit('delete', node)"
+        >删除</button>
       </p>
 
       <!--
@@ -143,7 +154,7 @@ const props = defineProps({
   overflowOf: { type: Function, default: null },
 })
 
-const emit = defineEmits(['reply', 'go-user', 'load-children'])
+const emit = defineEmits(['reply', 'go-user', 'load-children', 'delete'])
 
 const expanded = ref(false)
 const open = ref(true)
@@ -184,6 +195,7 @@ const overflowLeft = computed(() => {
  * 但入口藏掉比发出去再解释「不能回复自己」省事。
  */
 const canReply = computed(() => props.myId != null && props.node.userId !== props.myId)
+const isMine = computed(() => props.myId != null && props.node.userId === props.myId)
 
 function segmentsOf(c) {
   return splitComment(c)

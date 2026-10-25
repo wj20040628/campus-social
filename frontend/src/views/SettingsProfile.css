@@ -313,3 +313,10 @@
   height: 40px;
   transform: translateY(-50%);
 }
+/* 改即重审警示(2026-10-24) */
+.sp-reverify-note {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-accent-2);
+}

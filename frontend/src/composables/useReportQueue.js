@@ -11,11 +11,12 @@
  * 见 useUndoWindow.js 的取舍说明。一句话:撤销要「结果与没点过完全一致」,
  * 延迟落库时撤销不需要任何补偿逻辑,立即落库则要写反向操作且会污染审计日志。
  */
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { adminReports, handleReport } from '@/api/review'
 import { REASON_TEXT as REASON_TEXT_SRC, reasonLabel } from '@/constants/reportReason'
 import { useUndoWindow } from '@/composables/useUndoWindow'
+import { useAdminPending } from '@/composables/useAdminPending'
 
 /** 封禁时长。0 = 永久,放最后并单独标注 */
 export const BAN_DAY_OPTIONS = [
@@ -55,10 +56,31 @@ export function useReportQueue(handled) {
   /** 'idle' 一行三按钮; 'ban' 已展开封禁时长选择 */
   const stage = ref('idle')
 
+  /**
+   * 游标分页（2026-10-24 补）。
+   *
+   * 【为什么不带分页是事故】后端 /admin/reports 本来就是游标分页
+   * （pendingCount 注释明确写着「全量待审数，翻到第 3 页红点显示 0 会让
+   * 管理员以为活干完了」），而前端此前只拉一页 20 条、没有加载更多：
+   * 待审 35 条时剩下 15 条不可见，处理完可见的 20 条后页面显示
+   * 「没有待处理的举报」——后端防了半天的坑被前端原样踩回去。
+   */
+  const cursor = ref(null)
+  const hasMore = ref(false)
+
   const { undo, open, undoNow } = useUndoWindow()
 
-  /** 已处置数 = 总数 - 待处置数。进度条靠它,不能靠 list.length */
-  const doneCount = computed(() => Math.max(0, total.value - list.value.length))
+  /**
+   * 已处置数 = 总数 - 待处置数。
+   *
+   * 【口径警告（2026-10-24 修）】这个减法**只在 hasMore=false 时成立**：
+   * 列表还有下一页时，「总数 - 已加载」里混着「没拉下来的待处置」，
+   * 拿它当已处置数会把没看到的活算成干完的活。因此进度文案由
+   * ReportPane 按 hasMore 分叉显示，doneCount 只在加载完时使用。
+   */
+  const doneCount = computed(() =>
+    hasMore.value ? 0 : Math.max(0, total.value - list.value.length),
+  )
   const progressPct = computed(() => (total.value ? (doneCount.value / total.value) * 100 : 0))
 
   /**
@@ -100,35 +122,55 @@ export function useReportQueue(handled) {
     return reasonLabel(t)
   }
 
-  async function load() {
+  /**
+   * 拉列表。
+   *
+   * @param {boolean} reset true = 回第一页（换列表/处置失败重拉），
+   *                        false = 无限滚动追加下一页
+   */
+  async function load(reset = true) {
+    if (loading.value) return
+    if (reset) {
+      cursor.value = null
+    }
     loading.value = true
     failed.value = false
     actionError.value = ''
     try {
-      const data = await adminReports({ handled: handled.value })
-      list.value = data.list || []
+      const data = await adminReports({ handled: handled.value, lastId: cursor.value, size: 20 })
+      const rows = data.list || []
+      list.value = reset ? rows : [...list.value, ...rows]
       /*
-       * pendingCount 是后端给的待审总数。
+       * pendingCount 是后端给的待审总数（全量，不是本页条数）。
        * 已处理列表拿到的是「已处置总数」，不能拿来算进度 —— 那个进度条
        * （已处置 / 总数）只在待处理列表里有意义。已处理态下 total 退化为
-       * 本页条数即可，反正进度条那里会按 handled 隐藏。
+       * 已加载条数即可，反正进度条那里会按 handled 隐藏。
        */
       total.value = data.pendingCount ?? list.value.length
-      // 重拉后列表是全新的,旧下标没有意义(可能指向另一条)。
-      // 处置失败会触发 load,不清的话管理员会看到「还在处置刚才那条」——
-      // 实际上那条刚被别的管理员处置掉了。
-      currentIndex.value = 0
-      // 下标归零后必须退回列表模式:留在逐条模式会显示 list[0],
-      // 而这次可能是处置失败的重拉 —— 管理员会以为「重试后自动换到下一条」,
-      // 实际上屏幕内容根本没动,只有进度条悄悄回退。
-      listMode.value = true
-      if (!list.value.length) listMode.value = true
+      hasMore.value = data.hasMore === true
+      cursor.value = hasMore.value ? (data.nextCursor ?? null) : null
+      if (reset) {
+        // 重拉后列表是全新的,旧下标没有意义(可能指向另一条)。
+        // 处置失败会触发 load,不清的话管理员会看到「还在处置刚才那条」——
+        // 实际上那条刚被别的管理员处置掉了。
+        currentIndex.value = 0
+        // 下标归零后必须退回列表模式:留在逐条模式会显示 list[0],
+        // 而这次可能是处置失败的重拉 —— 管理员会以为「重试后自动换到下一条」,
+        // 实际上屏幕内容根本没动,只有进度条悄悄回退。
+        listMode.value = true
+      }
     } catch {
       // 失败不清 list:已经看到的 20 条比一个空白页有用,只在完全没数据时才整块报错
       failed.value = true
     } finally {
       loading.value = false
     }
+  }
+
+  /** 无限滚动加载下一页。哨兵由 ReportPane 挂载并调用本方法 */
+  function loadMore() {
+    if (!hasMore.value || loading.value) return
+    load(false)
   }
 
   /**
@@ -190,6 +232,7 @@ export function useReportQueue(handled) {
     busy.value = true
     try {
       await handleReport(id, body)
+      useAdminPending().refresh(true) // 待处置举报数变了,角标同步
     } catch (e) {
       // 409 = 已被别人处置过。这不是网络失败,不该让管理员以为可以重试
       actionError.value = e?.response?.status === 409
@@ -224,12 +267,21 @@ export function useReportQueue(handled) {
     ElMessage.info('已撤销，这条还在待处置里')
   }
 
-  watch(status, load)
+  /*
+   * 【2026-10-24 修：删掉 `watch(status, load)`】
+   * status 在本文件从未定义 —— 浏览器里它解析到遗留全局 window.status
+   * （string），Vue 对无效 watch source 只在开发态告警、运行时静默不生效，
+   * 这个 watcher 从写下那天起就没有触发过一次。
+   * 「handled 变化时重拉」的需求实际由 AdminReview 的 v-if/v-else-if 覆盖：
+   * 两个 handled 值各自创建独立的 composable 实例，实例内 handled 不会变。
+   * 与其留一个永远不触发的 watcher，不如删掉并在这里说清楚。
+   */
   load()
 
   return {
     list,
     total,
+    hasMore,
     loading,
     failed,
     busy,
@@ -247,6 +299,7 @@ export function useReportQueue(handled) {
     banLabel,
     reasonText,
     load,
+    loadMore,
     openOne,
     confirmBan,
     act,

@@ -77,8 +77,23 @@
           :aria-label="`${post.liked ? '取消点赞' : '点赞'}，${post.likeCount}`"
           @click="toggleLike"
         >
-          <el-icon :size="15"><StarFilled v-if="post.liked" /><Star v-else /></el-icon>
+          <!-- 点赞用自绘 ThumbUp(2026-10-24 对齐 PostCard):Star 已定为「收藏」图标 -->
+          <ThumbUp :size="16" :filled="!!post.liked" />
           <span class="ops__count">{{ cap(post.likeCount) }}</span>
+        </button>
+
+        <!-- 收藏(2026-10-24 补):Feed 卡有收藏、详情页却没有,不一致。
+             点赞同时换成自绘 ThumbUp(对齐 PostCard):Star 已定为「收藏」图标。 -->
+        <button
+          type="button"
+          class="ops__btn"
+          :class="{ 'ops__btn--on': post.favorited }"
+          :aria-pressed="post.favorited"
+          :aria-label="`${post.favorited ? '取消收藏' : '收藏'}，${post.favoriteCount || 0}`"
+          @click="toggleFavorite"
+        >
+          <el-icon :size="15"><StarFilled v-if="post.favorited" /><Star v-else /></el-icon>
+          <span class="ops__count">{{ cap(post.favoriteCount || 0) }}</span>
         </button>
 
         <span class="ops__btn ops__btn--static">
@@ -110,6 +125,7 @@
         @ask="askComment"
         @go-user="goUser"
         @reply="startReply"
+        @delete="onDeleteComment"
       />
 
       <!--
@@ -168,17 +184,18 @@ import SkeletonList from '@/components/common/SkeletonList.vue'
 import CommentComposer from '@/components/post/CommentComposer.vue'
 import GreetButton from '@/components/post/GreetButton.vue'
 import PostBody from '@/components/post/PostBody.vue'
+import { ElMessageBox } from '@/utils/feedback'
 import PostComments from '@/components/post/PostComments.vue'
+import ThumbUp from '@/icons/ThumbUp.vue'
 import PostSheets from '@/components/post/PostSheets.vue'
 import {
-  ArrowLeft, ChatLineSquare, Delete, EditPen, MoreFilled, Star, StarFilled, WarningFilled,
-} from '@element-plus/icons-vue'
+  ArrowLeft, ChatLineSquare, Delete, EditPen, MoreFilled, Star, StarFilled, WarningFilled } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const { post, comments, loading, loadFailed, authorId, topics, load, toggleLike, postComment, remove } =
+const { post, comments, loading, loadFailed, authorId, topics, load, toggleLike, toggleFavorite, postComment, remove, removeComment } =
   usePostDetailActions(route, router)
 
 const moreOpen = ref(false)
@@ -218,6 +235,23 @@ function startReply(node) {
 }
 
 /** 空态的「说一句」:光标送进吸底输入框,并把最后一条评论滚进视野 */
+/**
+ * 删除自己的评论(2026-10-24):确认后调接口。
+ * 文案明示子回复一起移除——树级删除的后果必须让用户在确认时就知情。
+ */
+async function onDeleteComment(node) {
+  try {
+    await ElMessageBox.confirm(
+      '这条评论和它下面的回复都会被删除,无法恢复。',
+      '删除评论',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '再想想' },
+    )
+  } catch {
+    return
+  }
+  await removeComment(node.id)
+}
+
 function askComment() {
   replyTo.value = null
   composerRef.value?.focus()

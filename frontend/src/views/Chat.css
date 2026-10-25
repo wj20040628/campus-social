@@ -129,3 +129,8 @@
     min-height: 0;
   }
 }
+
+/* 搭话规则提示条(2026-10-24):跟随页面内边距,不横贯全宽 */
+.chat__tip {
+  margin: 0 var(--ys-space-3) var(--ys-space-2);
+}

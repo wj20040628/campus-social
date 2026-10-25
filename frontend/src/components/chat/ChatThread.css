@@ -358,3 +358,28 @@
     transition: none;
   }
 }
+
+/* 阻断横幅改为容器(2026-10-24):文本 + 可选出口按钮同行 */
+.block {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+}
+
+.block__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.block__go {
+  flex: none;
+  min-height: 30px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid currentColor;
+  border-radius: var(--ys-radius-md);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: inherit;
+  cursor: pointer;
+}

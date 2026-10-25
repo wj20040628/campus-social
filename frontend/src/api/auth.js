@@ -81,6 +81,14 @@ export function me() {
   return request.get('/user/me')
 }
 
+/**
+ * 发布信誉清单(2026-10-24):认证/账龄/违规记录 + 是否受信。
+ * 设置页「账号与安全」的信誉卡用;与发帖信任闸门同一套判定。
+ */
+export function trustStatus() {
+  return request.get('/user/trust-status')
+}
+
 export function userCard(id) {
   return request.get(`/user/${id}`)
 }

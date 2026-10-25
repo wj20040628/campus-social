@@ -8,6 +8,14 @@
       <h1 class="pub__title">{{ isEdit ? '编辑动态' : '发动态' }}</h1>
     </header>
 
+    <!--
+      发布规则提示(2026-10-24):打码/审核是用户最常困惑的两件事——
+      "我的词怎么变 *** 了""为什么发了别人看不到"。可关闭,看过一次不再打扰。
+    -->
+    <InfoTip scene="publish-rules">
+      内容中的敏感词会自动打码展示；少数需要复核的内容会先进入人工审核，通过后才对他人可见。
+    </InfoTip>
+
     <!-- 编辑模式读取失败:整页替换而不是空编辑器(Publish.vue.md §3) -->
     <StateBlock
       v-if="loadFailed"
@@ -184,6 +192,7 @@ import { VIDEO_SUPPORTED_FORMATS, VIDEO_UNSUPPORTED_NOTE } from '@/utils/videoCo
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { markFeedDirty } from '@/composables/useFeedRefresh'
 import StateBlock from '@/components/common/StateBlock.vue'
+import InfoTip from '@/components/common/InfoTip.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
 import MediaGrid from '@/components/post/MediaGrid.vue'

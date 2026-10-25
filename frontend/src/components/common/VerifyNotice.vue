@@ -22,7 +22,7 @@
       verifyStatus=3 但 rejectReason 为空 -> **不渲染**(见 useVerifyStatus.showRejected)
   -->
   <aside
-    v-if="showUnverified || showRejected || showPending || showWeakVerified"
+    v-if="!dismissed && (showUnverified || showRejected || showPending || showWeakVerified)"
     class="vnotice"
     :class="showUnverified ? 'vnotice--unverified' : showRejected ? 'vnotice--reject' : showPending ? 'vnotice--pending' : 'vnotice--weak'"
     role="status"
@@ -71,6 +71,21 @@
     <button v-if="!showWeakVerified" type="button" class="vnotice__btn" @click="goSubmit">
       {{ showUnverified ? '去认证' : showRejected ? '去改学号' : '查看进度' }}
     </button>
+
+    <!--
+      不再提醒(2026-10-24 加)。**驳回态不给**:驳回理由是用户做决定的核心依据,
+      关掉就找不回;未认证/审核中/弱认证是「无需行动」态,反复出现只有打扰。
+      按「用户 id + 当前状态」记忆:状态一变(审核中被驳回/通过)提醒自动回来,
+      不是永久静音——被驳回那一刻,该看见的还是会看见。
+    -->
+    <button
+      v-if="!showRejected"
+      type="button"
+      class="vnotice__btn vnotice__btn--ghost"
+      @click="dismiss"
+    >
+      不再提醒
+    </button>
   </aside>
 </template>
 
@@ -87,13 +102,29 @@
  *   2 审核中  → 中性色 + 说明在等谁
  *   3 已驳回  → 警示色 + 驳回理由 + 去改学号
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Clock, WarningFilled, CircleCheck, Stamp } from '@element-plus/icons-vue'
 import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const { showRejected, showPending, showUnverified, rejectReason, load, code, autoApproved } = useVerifyStatus()
+
+/* ---------------- 不再提醒(2026-10-24) ---------------- */
+/** 键带用户 id + 状态码:换号/换状态都不会误吃掉上一个人的选择 */
+const dismissKey = computed(() =>
+  'verify_notice_dismissed:' + (userStore.userInfo?.id ?? 0) + ':'
+  + (showUnverified.value ? '0' : showPending.value ? '2' : 'weak'))
+const dismissed = ref(localStorage.getItem(dismissKey.value) === '1')
+// 状态切换(0→2→1/3)换键:被驳回时驳回条不受「审核中已关」影响,该出现就出现
+watch(dismissKey, (k) => { dismissed.value = localStorage.getItem(k) === '1' })
+
+function dismiss() {
+  localStorage.setItem(dismissKey.value, '1')
+  dismissed.value = true
+}
 
 /**
  * 标题不写「认证被驳回」这种系统词。
@@ -280,6 +311,14 @@ async function goSubmit() {
   opacity: 0.7;
 }
 
+/* 「不再提醒」:弱化的次级动作,不与主按钮抢视觉 */
+.vnotice__btn--ghost {
+  border-color: var(--ys-border);
+  background: transparent;
+  color: var(--ys-meta);
+  font-weight: 400;
+}
+
 /*
   375px 下三行(标题/理由/下一步)加一个按钮已经占满一屏宽度,
   按钮换到下一行 —— 拉伸到与文案同宽反而像一个巨大的空按钮。
@@ -298,8 +337,12 @@ async function goSubmit() {
     flex-wrap: wrap;
   }
 
+  /*
+   * 两个按钮并排各半,不再各自占满一行(2026-10-24):主操作与「不再提醒」
+   * 是同层级的横向选择,竖着摞两个大按钮只是浪费一屏高度。
+   */
   .vnotice__btn {
-    flex: 1 1 100%;
+    flex: 1 1 calc(50% - var(--ys-space-2));
   }
 }
 </style>

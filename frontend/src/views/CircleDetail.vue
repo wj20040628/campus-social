@@ -113,8 +113,12 @@
         <!--
           非成员:**不渲染发帖框**,改显示说明 + 加入按钮(§3 权限不足)。
           禁止「点了才弹说你没权限」。
+
+          【2026-10-24 修三态同屏】原是触发条的 v-else:空圈 0 帖时触发条
+          不渲染,已加入的成员也落进这里,与「退出圈子」「写第一条」同屏。
+          gate 语义是「非成员才看」,显式用 !canCreate 判定。
         -->
-        <div v-else class="cd__gate">
+        <div v-else-if="!canCreate" class="cd__gate">
           <span class="cd__gate-text">加入圈子后就能在圈里发帖</span>
           <button type="button" class="cd__gate-btn" @click="join">加入圈子</button>
         </div>

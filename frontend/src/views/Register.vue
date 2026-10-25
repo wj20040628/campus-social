@@ -382,8 +382,13 @@ async function onSubmit() {
   if (!agreed.value) { ElMessage.warning('请先阅读并同意《用户协议》和《隐私政策》'); return }
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
-  // 归属三项是必填(AC-18),没填满就别白发请求
-  if (identityError.value) {
+  /*
+   * 归属只在「填了学号(注册即认证)」时才必填(2026-10-24 修)。
+   * 此前无条件校验 identityError,而归属表单只在填学号后才渲染——
+   * 「学号可选」的用户看不到归属控件,却被「选一个学院」永远拦死,
+   * PRD 的主路径(先注册、引导页再认证)整个走不通。
+   */
+  if (showSchoolFields.value && identityError.value) {
     ElMessage.warning(identityError.value)
     return
   }

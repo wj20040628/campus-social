@@ -51,6 +51,13 @@
               <span class="sp-row__label">学号</span>
               <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />
             </div>
+            <!--
+              改即重审(2026-10-24):学号与归属是一套绑定凭证,已认证/审核中改任何一边
+              都会使旧认证失效重新核验。事前说清,别让用户保存完才发现被"踢出"认证。
+            -->
+            <p v-if="verifyGuarded" class="sp-reverify-note">
+              你已提交过认证:修改学号或学校归属会取消当前认证状态,需重新核验
+            </p>
             <!-- 邮箱:已绑定显示脱敏值;未绑定给「去绑定」入口,跳账号与安全 -->
             <div class="sp-row">
               <span class="sp-row__label">邮箱</span>
@@ -167,6 +174,9 @@ const identityDirty = computed(() =>
 
 /** 认证状态提示行的文案与主色(映射逻辑见 useVerifyTip) */
 const { verifyTip } = useVerifyTip()
+/* 已认证(1)/审核中(2):这两态下改学号或归属会触发"改即重审" */
+const { code: verifyCode } = useVerifyStatus()
+const verifyGuarded = computed(() => verifyCode.value === 1 || verifyCode.value === 2)
 
 async function load() {
   const me = await meApi()

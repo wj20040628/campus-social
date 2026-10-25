@@ -1,10 +1,11 @@
 import { ref, computed, nextTick } from 'vue'
 import dayjs from 'dayjs'
-import { ElMessage } from '@/utils/feedback'
+import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { buildCommentForest } from '@/composables/useCommentTree'
 import { replySpecFor } from '@/composables/useCommentReplySpec'
 import {
-  detail, like, unlike, deletePost,
+  detail, like, unlike, deletePost, deleteComment as deleteCommentApi,
+  favorite as favoriteApi, unfavorite as unfavoriteApi,
   comments as commentsApi, comment as commentApi,
 } from '@/api/feed'
 import { markFeedDirty } from '@/composables/useFeedRefresh'
@@ -130,7 +131,54 @@ export function usePostDetailActions(route, router) {
     }
   }
 
+  /**
+   * 删除自己的评论(2026-10-24 新增,配后端 DELETE /post/{id}/comment/{commentId})。
+   * 确认框在调用方(PostDetail):删除是子树级不可逆操作,评论+回复一起移除。
+   * 成功后重拉评论与计数(计数后端已按删除行数扣)。
+   */
+  /** 收藏/取消收藏(2026-10-24 补详情页入口):乐观更新+失败回滚,与 toggleLike 同款 */
+  async function toggleFavorite() {
+    if (!post.value) return
+    const wasFav = !!post.value.favorited
+    const wasCount = Number(post.value.favoriteCount) || 0
+    post.value.favorited = !wasFav
+    post.value.favoriteCount = Math.max(0, wasCount + (wasFav ? -1 : 1))
+    try {
+      if (wasFav) await unfavoriteApi(route.params.id)
+      else await favoriteApi(route.params.id)
+    } catch {
+      post.value.favorited = wasFav
+      post.value.favoriteCount = wasCount
+      // request.js 已弹错
+    }
+  }
+
+  async function removeComment(commentId) {
+    try {
+      await deleteCommentApi(route.params.id, commentId)
+      ElMessage.success('评论已删除')
+      await loadComments()
+      if (post.value.commentCount > 0) post.value.commentCount -= 1
+    } catch {
+      /* request.js 已弹错,停在原地 */
+    }
+  }
+
   async function remove() {
+    /*
+     * 删帖确认(2026-10-24 补):不可逆操作,此前点了直接删——
+     * 操作条上「删除」与「编辑」相邻,移动端误触一下整帖就没了。
+     * 用 ElMessageBox 与圈管理解散圈同款形态(低频重操作,弹窗值得)。
+     */
+    try {
+      await ElMessageBox.confirm(
+        '删除后这篇动态和它的评论、点赞都会消失，无法恢复。',
+        '删除动态',
+        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '再想想' },
+      )
+    } catch {
+      return // 取消 = 什么都不做,留在原页
+    }
     try {
       await deletePost(route.params.id)
       ElMessage.success('已删除')
@@ -156,6 +204,6 @@ export function usePostDetailActions(route, router) {
     load,
     toggleLike,
     postComment,
-    remove,
+    remove, removeComment, toggleFavorite,
   }
 }

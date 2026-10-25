@@ -41,3 +41,32 @@ export const REASON_FALLBACK = '其他'
 export function reasonLabel(code) {
   return REASON_TEXT[code] || REASON_FALLBACK
 }
+/**
+ * 举报目标类型码 → 文案（2026-10-24 加，管理端举报卡用）。
+ *
+ * 【契约来源】docs/api/openapi.yaml §ReportVO.targetType，与后端
+ * common/ReportTargetType 严格一致：1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动。
+ * 「5 搭子」表已建无端点，正常不会出现在列表里，文案仍给全——
+ * 万一出现，管理员看到的是「搭子(未上线)」而不是一个裸数字。
+ *
+ * 【规矩】同 reasonLabel：目标类型的文案只在这里出现一次，组件禁止写字面量。
+ */
+export const TARGET_TYPE_TEXT = {
+  1: '用户',
+  2: '帖子',
+  3: '评论',
+  4: '私聊消息',
+  5: '搭子(未上线)',
+  6: '集市活动',
+}
+
+/** 目标类型 → 可跳转的详情路由前缀；null = 没有可跳的详情页 */
+export const TARGET_TYPE_ROUTE = {
+  2: '/post/',
+  6: '/mkt/',
+}
+
+/** 码 → 文案，带兜底。管理端各处统一走这个函数 */
+export function targetTypeLabel(code) {
+  return TARGET_TYPE_TEXT[code] || '未知类型'
+}

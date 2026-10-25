@@ -187,3 +187,9 @@
     transition: none;
   }
 }
+
+
+/* 删除自己的评论(2026-10-24):警示色区分于「回复」 */
+.c-delete-btn:hover {
+  color: var(--ys-accent-2);
+}

@@ -42,15 +42,16 @@
 
         <section class="panel">
           <h2 class="panel__h"><span class="panel__sq" aria-hidden="true"></span>卡片会长这样</h2>
-          <div class="pvcard">
-            <span class="pvcard__cat">{{ previewCategory }}</span>
-            <p class="pvcard__title">{{ previewTitle }}</p>
-            <p class="pvcard__cont">{{ previewContent }}</p>
-            <p class="pvcard__meta">
-              <span>{{ previewLocation }}</span>
-              <span v-if="previewPrice">{{ previewPrice }}</span>
-              <span v-if="form.targetNum > 0">目标 {{ form.targetNum }} 人</span>
-            </p>
+          <!--
+            预览直接复用广场的 MktCard(2026-10-24 改):
+            此前是一套自绘 pvcard,样式与真实卡片各自漂移(排版/字段/口径都对不上)。
+            复用组件后格式天然 100% 一致,广场改版预览自动跟随。
+            点击事件忽略:预览不是真卡片,点了不该跳详情。
+            宽度收窄到广场两列网格的单卡宽度(~173px)再放开一点,
+            让"会长这样"连尺寸感都贴近真实。
+          -->
+          <div class="mpub__pv">
+            <MktCard :activity="previewActivity" variant="plaza" @open="() => {}" />
           </div>
         </section>
 
@@ -94,6 +95,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
+import MktCard from '@/components/mkt/MktCard.vue'
+import { useUserStore } from '@/stores/user'
 import { ElMessage } from '@/utils/feedback'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
@@ -114,6 +117,8 @@ function goBack() {
 }
 
 /* ---------------- 表单状态 ---------------- */
+const userStore = useUserStore()
+
 const form = reactive({
   category: '',
   subTag: '',
@@ -136,39 +141,38 @@ function clearErrors() {
   form.categoryError = form.contentError = form.durError = form.error = ''
 }
 
-/* ---------------- 右栏「卡片预览」（2026-10-21 加） ---------------- */
+/* ---------------- 右栏「卡片预览」（2026-10-24 重写为复用 MktCard） ---------------- */
 /**
- * 发布前预览。
- *
- * 集市卡片的展示结构比较特殊（分类 chip + 标题 + 内容 + 地点/价格/人数 + 倒计时），
- * 用户填的时候看不到成品长什么样，发出去才发现「分类选错」「内容写太长被截断」。
- * 这里用当前表单值实时拼一个与广场卡片同构的预览，**纯前端计算，不发请求**。
+ * 发布前预览:用当前表单值实时拼 MktCard 需要的 activity 对象。
+ * 展示规则(标题派生/价格口径/满员/倒计时)全在 MktCard 内部,
+ * 预览不再自算任何文案 —— 与广场的一致性由组件本身保证。
+ * 倒计时按「现在 + 生效时长」实时走,用户能看到真实的紧迫感样式。
  */
-const previewCategory = computed(() => form.category || '未选分类')
-
-/**
- * 标题预览。
- * 后端 derivedTitle() 的逻辑是：有 subTag 就拼成「分类 · 游戏」，否则只用分类。
- * 预览跟着这个规则走，让用户看到的就是真实结果。
- */
-const previewTitle = computed(() => {
-  if (!form.category) return '（还没选分类）'
-  return form.subTag ? `${form.category} · ${form.subTag}` : form.category
-})
-
-/** 内容预览：卡片上是单行截断的，这里截 40 字示意 */
-const previewContent = computed(() => {
-  const t = form.content.trim()
-  if (!t) return '（详情还没写）'
-  return t.length > 40 ? `${t.slice(0, 40)}…` : t
-})
-
-const previewLocation = computed(() => form.location.trim() || '地点未填')
-
-/** 价格：0 显示免费，与卡片同一口径 */
-const previewPrice = computed(() => {
-  if (!form.price) return '免费'
-  return `¥${Number(form.price)}`
+const previewActivity = computed(() => {
+  const h = effectiveHours()
+  const price = Number(form.price)
+  const target = Number(form.targetNum)
+  return {
+    id: 0,
+    // 传自己的 id:广场上自己发的卡带 mine 配色,预览也如实呈现
+    userId: userStore.userInfo?.id ?? 0,
+    category: form.category || '未选分类',
+    subTag: form.subTag || null,
+    /*
+     * title 模拟后端落库规则(MktActivityServiceImpl.create):
+     * 用户填了标题用标题,没填落 derivedTitle(「分类」或「分类 · 副标签」)。
+     * MktCard 的去重逻辑会自动处理「派生值==分类」时不渲染标题行。
+     */
+    title: form.title.trim() || (form.subTag
+      ? `${form.category} · ${form.subTag}`
+      : form.category),
+    content: form.content.trim() || '（详情还没写）',
+    location: form.location.trim() || '',
+    price: Number.isFinite(price) && price > 0 ? price : 0,
+    targetNum: Number.isFinite(target) && target > 0 ? target : null,
+    isFull: 0,
+    expireTime: h ? dayjs().add(h, 'hour').format('YYYY-MM-DDTHH:mm:ss') : null,
+  }
 })
 
 /** 自填时长覆盖快捷选项;范围 1–12 */

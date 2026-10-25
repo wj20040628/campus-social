@@ -138,7 +138,7 @@
           :list="comments"
           :loading="commentsLoading"
           :my-id="myId"
-          @submit="onCommentSubmit"
+          :submit-comment="onCommentSubmit"
           @report-comment="openCommentReport"
         />
 
