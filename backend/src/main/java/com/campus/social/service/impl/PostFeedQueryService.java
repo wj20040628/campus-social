@@ -35,6 +35,7 @@ public class PostFeedQueryService {
     private final TopicMapper topicMapper;
     private final PostTopicMapper postTopicMapper;
     private final PostVoAssembler assembler;
+    private final com.campus.social.mapper.RelationMapper relationMapper;
     /** 首页第一页的公共骨架缓存；只在 lastId 为空且无话题过滤时用 */
     private final FeedPageCacheService feedCache;
 
@@ -66,8 +67,15 @@ public class PostFeedQueryService {
         String dir = asc ? "ASC" : "DESC";
         boolean cacheable = lastId == null && !filterByTopic;
 
-        // 命中缓存：骨架可直接用，只需补上当前用户的点赞/收藏态（两次 IN 查询）
-        if (cacheable) {
+        /*
+         * 拉黑用户不走首屏缓存(2026-10-24):缓存是全员共享的骨架,
+         * 里面的帖子没按 viewer 过滤拉黑作者——拉黑者命中缓存会看到
+         * 刚拉黑的人的帖子(实测:拉黑后首页首屏仍显示 WJ 帖)。
+         * 有拉黑关系的人数量极少,让他们走实时 SQL(NOT EXISTS 过滤),
+         * 缓存命中率几乎不受影响。viewerId=0 是缓存装配用的公共视角,恒无拉黑。
+         */
+        boolean hasBlacklist = viewerId > 0 && relationMapper.existsAnyBlacklist(viewerId);
+        if (cacheable && !hasBlacklist) {
             FeedPageCacheService.Snapshot snap = feedCache.read(by, order, size);
             if (snap != null && snap.getItems() != null) {
                 assembler.fillViewerState(snap.getItems(), viewerId);
@@ -78,14 +86,15 @@ public class PostFeedQueryService {
         List<Post> rows;
         // 快速路径:仅「按时间 + 倒序 + 无话题」走 Lambda(最常见默认场景);
         // 其余都走 SQL 分支,这样 order 才真正生效
-        if (byTime && !asc && !filterByTopic) {
+        if (byTime && !asc && !filterByTopic && !hasBlacklist) {
+            // 快速路径仅限无拉黑者(见上方注释);有拉黑走 SQL 分支带 NOT EXISTS
             rows = postMapper.selectList(new LambdaQueryWrapper<Post>()
                     .eq(Post::getStatus, 1)
                     .lt(lastId != null, Post::getId, lastId)
                     .orderByDesc(Post::getId)
                     .last("LIMIT " + (size + 1)));
         } else {
-            rows = postMapper.selectFeedBySql(buildFeedSql(sortCol, dir, byTime, asc, topicId, filterByTopic, lastId, size));
+            rows = postMapper.selectFeedBySql(buildFeedSql(sortCol, dir, byTime, asc, topicId, filterByTopic, lastId, size, viewerId));
         }
 
         boolean hasMore = rows.size() > size;
@@ -194,7 +203,7 @@ public class PostFeedQueryService {
      * 彻底解决需要 (sortCol, id) 复合游标，前端也要回传复合值，放到 MVP 之后。
      */
     private String buildFeedSql(String sortCol, String dir, boolean byTime, boolean asc,
-                               Long topicId, boolean filterByTopic, Long lastId, int size) {
+                               Long topicId, boolean filterByTopic, Long lastId, int size, long viewerId) {
         StringBuilder sql = new StringBuilder("SELECT p.* FROM post p ");
         if (filterByTopic) {
             sql.append("JOIN post_topic pt ON pt.post_id = p.id AND pt.topic_id = ")
@@ -202,6 +211,17 @@ public class PostFeedQueryService {
                .append(" AND pt.is_deleted = 0 ");
         }
         sql.append("WHERE p.status = 1 AND p.is_deleted = 0 ");
+        /*
+         * 拉黑作者过滤(2026-10-24 补):前端拉黑文案承诺「之后看不到他的动态」,
+         * 但 Feed SQL 此前只过滤 status/is_deleted——实测拉黑后帖子照常出现在
+         * 「全部」流。relation.type=3 是拉黑(TYPE_BLACK),双向都算:我拉黑他/他拉黑我,
+         * 都不该把内容推给我(单向只挡"我拉黑的"会让"拉黑我的人"继续骚扰视野)。
+         * NOT EXISTS 走 relation 的索引,无黑名单时零额外成本(短路)。
+         */
+        sql.append("AND NOT EXISTS (SELECT 1 FROM relation r WHERE r.is_deleted = 0 ")
+           .append("AND r.type = 3 AND ((r.from_user_id = ").append(viewerId)
+           .append(" AND r.to_user_id = p.author_id) OR (r.from_user_id = p.author_id AND r.to_user_id = ")
+           .append(viewerId).append("))) ");
         if (lastId != null) {
             sql.append("AND p.").append(sortCol).append(' ').append(asc ? "> " : "< ").append(lastId).append(' ');
         }

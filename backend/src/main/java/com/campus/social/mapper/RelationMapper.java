@@ -37,6 +37,16 @@ public interface RelationMapper extends BaseMapper<Relation> {
     int countBlacklistEitherDirection(@Param("me") long me, @Param("peer") long peer);
 
     /**
+     * 我是否拉黑了任何人/被任何人拉黑(2026-10-24 加,Feed 缓存旁路判定)。
+     * 只判存在性:有任一拉黑关系的用户不走共享首屏缓存与快速路径,
+     * 改走带 NOT EXISTS 过滤的 SQL(见 PostFeedQueryService#feed)。
+     */
+    @Select("SELECT EXISTS(SELECT 1 FROM relation "
+            + "WHERE is_deleted = 0 AND type = 3 "
+            + "  AND (from_user_id = #{me} OR to_user_id = #{me}))")
+    boolean existsAnyBlacklist(@Param("me") long me);
+
+    /**
      * 我与 peer 之间是否存在「关注或好友」关系（任一方向）。
      *
      * <p>F3 判定 isStranger 用：不存在即视为陌生人，走配额扣减。

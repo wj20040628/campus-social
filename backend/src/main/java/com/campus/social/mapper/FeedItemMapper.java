@@ -35,6 +35,14 @@ public interface FeedItemMapper extends BaseMapper<FeedItem> {
     @Select("<script>" +
             "SELECT p.* FROM feed_item f JOIN post p ON p.id = f.post_id " +
             "WHERE f.fan_id = #{fanId} AND f.is_deleted = 0 AND p.status = 1 AND p.is_deleted = 0 " +
+            /*
+             * 拉黑作者过滤(2026-10-24 补,与全量流同口径):拉黑会双向取关,
+             * 收件箱里的旧投递不会跟着消失,读侧必须挡——否则"关注流看不到、
+             * 拉黑前的旧帖却还躺在收件箱里"。双向判定同 buildFeedSql。
+             */
+            "AND NOT EXISTS (SELECT 1 FROM relation r WHERE r.is_deleted = 0 AND r.type = 3 " +
+            "AND ((r.from_user_id = #{fanId} AND r.to_user_id = p.author_id) " +
+            "OR (r.from_user_id = p.author_id AND r.to_user_id = #{fanId}))) " +
             "<if test='lastId != null'> AND f.id &lt; #{lastId}</if> " +
             "ORDER BY f.id DESC LIMIT #{limit}" +
             "</script>")
