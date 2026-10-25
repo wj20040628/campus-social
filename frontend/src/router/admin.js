@@ -38,6 +38,13 @@ const adminRoutes = [
     meta: { requiresAuth: true, requiresAdmin: true, title: '用户处置', back: true },
   },
   {
+    /* 举报处置独立页(2026-10-25 从 AdminReview 拆出):时效优先,默认落点 */
+    path: 'admin/reports',
+    name: 'adminReports',
+    component: () => import('@/views/AdminReports.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '举报处置', back: true },
+  },
+  {
     path: 'admin/review',
     name: 'review',
     component: () => import('@/views/AdminReview.vue'),

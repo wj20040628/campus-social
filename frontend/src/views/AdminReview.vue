@@ -37,7 +37,7 @@
         <h1 class="review-admin__title">
           <button type="button" class="review-admin__back" aria-label="返回" @click="router.back()">
             <ArrowLeft class="review-admin__back-icon" aria-hidden="true" />
-            <span>审核处置</span>
+            <span>内容审核</span>
           </button>
         </h1>
         <p class="review-admin__hint">
@@ -45,39 +45,18 @@
         </p>
       </header>
 
+      <!--
+        2026-10-25 重组:举报拆独立页(AdminReports),本页只管机审域。
+        tab 从 4 个减到 2 个,页面名与 tab 名同域("内容审核"),不再三个词两个域。
+      -->
       <el-tabs v-model="tab" class="review-admin__tabs" @tab-change="onTabChange">
-        <el-tab-pane label="举报" name="report" />
-        <el-tab-pane :label="`内容审核${pendingCount ? ` (${pendingCount})` : ''}`" name="review" />
-        <!--
-          机审记录（2026-10-24 新增）：此前「已处理」tab 挂的是举报留档，
-          /review/processed 成了死接口——管理员驳回过哪些帖子、为什么驳，
-          无处回查。补第四个 tab 让机审处置历史可见。
-        -->
-        <el-tab-pane label="机审记录" name="reviewHistory" />
-        <el-tab-pane label="已处理" name="processed" />
+        <el-tab-pane :label="`待审核${pendingCount ? ` (${pendingCount})` : ''}`" name="review" />
+        <!-- 机审记录:驳回过哪些帖子、为什么驳,处置历史回查 -->
+        <el-tab-pane label="记录" name="reviewHistory" />
       </el-tabs>
 
-      <!-- 举报域：待处理。数据、动作、撤销、五态全在组件内 -->
-      <ReportPane
-        v-if="tab === 'report'"
-        :handled="false"
-        @switch-tab="onTabChange"
-      />
-
-      <!--
-        已处理：同一套举报卡片，但只读（没有处置按钮）。
-        【2026-10-24 补】此前这个 tab 落到下面的 v-else，渲染的是「机审队列」——
-        于是管理员处置完举报，点「已处理」看到的是另一批数据（而且因为机审队列
-        独立于举报，通常是空的），看起来像「处置没生效」。
-      -->
-      <ReportPane
-        v-else-if="tab === 'processed'"
-        :handled="true"
-        @switch-tab="onTabChange"
-      />
-
       <!-- 机审队列 -->
-      <div v-else class="task-list">
+      <div v-if="tab === 'review' || tab === 'reviewHistory'" class="task-list">
         <!--
           快捷键说明。设计 §2 把 J/K/A/R/U 定为「桌面管理员的刚需」,
           但没给任何发现机制 —— 管理员不知道键位,快捷键等于没做。
@@ -249,7 +228,6 @@ import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import AdminDenied from '@/components/common/AdminDenied.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
-import ReportPane from '@/components/admin/ReportPane.vue'
 import { reviewStatusLabel } from '@/constants/reviewStatus'
 
 const router = useRouter()
@@ -335,7 +313,6 @@ function onTabChange(name) {
    * 机审两个 tab（review/reviewHistory）走同一个 useReviewQueue,
    * 靠 which 参数区分打 pending 还是 processed。
    */
-  if (name === 'report' || name === 'processed') return
   load(name, true).then(() => observeSentinel(name))
 }
 
@@ -345,8 +322,6 @@ function onTabChange(name) {
  * 于是「已处理」页顶着「机审可以等」——一句话说的是另一个域的事。
  */
 const tabHint = computed(() => {
-  if (tab.value === 'report') return '举报有时效，先处理'
-  if (tab.value === 'processed') return '处置过的都能回查，谁在什么时候怎么处理的'
   if (tab.value === 'reviewHistory') return '机审处置的留档，驳过的帖子为什么驳都在这里'
   return '机审可以等'
 })

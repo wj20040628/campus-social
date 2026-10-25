@@ -33,6 +33,12 @@
               <div class="n-text">
                 <!-- 官方回复固定署名「管理员」,不暴露具体处置人;与 summary 同一行避免中间空格 -->
                 <template v-if="n.type === 11"><b>管理员</b>{{ n.summary }}</template>
+                <!--
+                  AI 机审通知(6/7/8)actorId 为空 = 系统判定,无具体操作人。
+                  原兜底「用户」毫无信息量(实测:'用户 你的内容未通过审核'),
+                  说清是系统自动判定,与人工审核区分。
+                -->
+                <template v-else-if="(n.type === 6 || n.type === 7 || n.type === 8) && !n.actor"><b>系统审核</b>{{ n.summary }}</template>
                 <template v-else>
                   <b>{{ n.actor ? displayName(n.actor) : '用户' }}</b>
                   {{ n.summary }}

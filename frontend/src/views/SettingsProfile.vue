@@ -51,13 +51,6 @@
               <span class="sp-row__label">学号</span>
               <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />
             </div>
-            <!--
-              改即重审(2026-10-24):学号与归属是一套绑定凭证,已认证/审核中改任何一边
-              都会使旧认证失效重新核验。事前说清,别让用户保存完才发现被"踢出"认证。
-            -->
-            <p v-if="verifyGuarded" class="sp-reverify-note">
-              你已提交过认证:修改学号或学校归属会取消当前认证状态,需重新核验
-            </p>
             <!-- 邮箱:已绑定显示脱敏值;未绑定给「去绑定」入口,跳账号与安全 -->
             <div class="sp-row">
               <span class="sp-row__label">邮箱</span>
@@ -76,6 +69,15 @@
         -->
         <section class="sp-group">
           <h2 class="sp-group__label">学校信息</h2>
+          <!--
+            改即重审警示(2026-10-25 从基本信息卡挪来):它警告的两个字段
+            (学号在学校卡/归属在下面的选择器)是**一套绑定凭证**,改任一边都
+            使旧认证失效重新核验。原来挂在学号输入框下,用户在下一张卡改院系时
+            根本看不到。事前说清,别让用户保存完才发现被"踢出"认证。
+          -->
+          <p v-if="verifyGuarded" class="sp-reverify-note">
+            你已提交过认证:修改学号或学校归属会取消当前认证状态，需重新核验
+          </p>
           <div class="sp-card sp-card--school">
             <SchoolFields v-model="identity" :invalid="identityInvalid" />
             <p v-if="schoolSaving" class="sp-note">正在保存学校归属…</p>

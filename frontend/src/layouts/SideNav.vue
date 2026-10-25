@@ -80,11 +80,19 @@
             {{ pending.summary.verifyPending }}
           </span>
         </el-menu-item>
+        <!-- 举报有时效,排最前(2026-10-25 举报拆独立页后与机审分开计数) -->
+        <el-menu-item index="/admin/reports">
+          <el-icon><DocumentChecked /></el-icon>
+          <span>举报处置</span>
+          <span v-if="pending.summary.reportPending" class="side__pending ys-num">
+            {{ pending.summary.reportPending }}
+          </span>
+        </el-menu-item>
         <el-menu-item index="/admin/review">
           <el-icon><DocumentChecked /></el-icon>
           <span>内容审核</span>
-          <span v-if="pending.reviewTotal()" class="side__pending ys-num">
-            {{ pending.reviewTotal() }}
+          <span v-if="pending.summary.reviewPending" class="side__pending ys-num">
+            {{ pending.summary.reviewPending }}
           </span>
         </el-menu-item>
         <!-- 用户处置(2026-10-24 新增):找人 / 直接封禁 / 手动解封 -->
@@ -150,6 +158,7 @@ const activeMenu = computed(() => {
   if (p.startsWith('/admin/verify')) return '/admin/verify'
   if (p.startsWith('/admin/announcement')) return '/admin/announcement'
   if (p.startsWith('/admin/review')) return '/admin/review'
+  if (p.startsWith('/admin/reports')) return '/admin/reports'
   if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/audit')) return '/admin/audit'
   if (p.startsWith('/admin/circles')) return '/admin/circles'

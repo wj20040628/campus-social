@@ -123,20 +123,6 @@
           却用它讲一个 99% 的用户不需要的规则（真要传视频的人才会遇到编码/体积限制）。
           现在只留一个「? 视频格式说明」，点开才展开。
         -->
-        <p v-if="videoEnabled" class="pub__hint">
-          <button
-            type="button"
-            class="pub__hint-btn"
-            :aria-expanded="showVideoHint"
-            @click="showVideoHint = !showVideoHint"
-          >
-            <span class="pub__hint-q">?</span>
-            视频格式说明
-          </button>
-          <span v-if="showVideoHint" class="pub__hint-text">
-            支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
-          </span>
-        </p>
         <el-upload
           :show-file-list="false"
           :before-upload="beforeUpload"
@@ -160,6 +146,22 @@
             <el-icon :size="20"><VideoCamera /></el-icon>
           </button>
         </el-upload>
+
+        <!-- 帮助缀尾(2026-10-25 从动作按钮上方挪来):动作排一起,说明不插队 -->
+        <p v-if="videoEnabled" class="pub__hint">
+          <button
+            type="button"
+            class="pub__hint-btn"
+            :aria-expanded="showVideoHint"
+            @click="showVideoHint = !showVideoHint"
+          >
+            <span class="pub__hint-q">?</span>
+            视频格式说明
+          </button>
+          <span v-if="showVideoHint" class="pub__hint-text">
+            支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
+          </span>
+        </p>
 
         <button
           type="button"

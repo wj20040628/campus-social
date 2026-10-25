@@ -121,9 +121,13 @@
         学号核验
         <UnreadDot :count="pending.summary.verifyPending" show-count noun="条待审" class="adrawer__pending" />
       </button>
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/reports')">
+        举报处置
+        <UnreadDot :count="pending.summary.reportPending" show-count noun="条待办" class="adrawer__pending" />
+      </button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/review')">
         内容审核
-        <UnreadDot :count="pending.reviewTotal()" show-count noun="条待办" class="adrawer__pending" />
+        <UnreadDot :count="pending.summary.reviewPending" show-count noun="条待办" class="adrawer__pending" />
       </button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/users')">用户处置</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/announcement')">公告管理</button>
