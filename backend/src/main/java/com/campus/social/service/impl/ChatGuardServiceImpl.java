@@ -97,7 +97,11 @@ public class ChatGuardServiceImpl implements ChatGuardService {
         //    或反之的半扣状态，而 ZSET 无法安全回退。
         Integer remaining = isStranger ? quotaService.consumeStrangerQuota(me, peerId) : null;
 
-        // 6. 敏感词（AC-06）。level=2 命中即拒发；level=1 走替换不在此拦。
+        // 6. 敏感词（AC-06）。level=2 命中即拒发。
+        //    level=1 由发送路径入库前打码（ChatServiceImpl.send → MessageContentGuard.sanitize），
+        //    本护栏只负责「拒」，替换是「放行前的改写」，两件事在两个环节。
+        //    【勘误史】此注释曾写「level=1 走替换不在此拦」，但替换从未实现——
+        //    一级词在私信原样收发半年，2026-10-24 才补上（同日补群聊零检查）。
         if (sensitiveFilter.containsBlock(content)) {
             List<String> hits = sensitiveFilter.matchedLevel1Words(content);
             auditService.record(me, ACTION_BLOCK_SENSITIVE, "chat_message", null,

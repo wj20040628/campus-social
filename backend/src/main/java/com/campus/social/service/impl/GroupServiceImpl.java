@@ -54,6 +54,8 @@ public class GroupServiceImpl implements GroupService {
     private final CampusProperties campus;
     /** 群头像归属校验:引用 /uploads 文件必须确属建群人上传 */
     private final UploadService uploadService;
+    /** 敏感词横切(2026-10-24 补):此前群消息发送路径无任何敏感词检查 */
+    private final MessageContentGuard contentGuard;
 
     @Override
     @Transactional
@@ -459,7 +461,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
-    public long sendGroupMessage(long me, long groupId, String content, Long replyToId) {
+    public com.campus.social.vo.GroupSendVO sendGroupMessage(long me, long groupId, String content, Long replyToId) {
         assertMember(groupId, me);
         // 禁言拦截:群主恒可发言;普通成员被群主禁言(muted=1)则拒绝
         Group g = requireGroup(groupId);
@@ -469,6 +471,12 @@ public class GroupServiceImpl implements GroupService {
         if (content == null || content.isBlank()) {
             throw new BusinessException(BAD_REQUEST, "消息不能为空");
         }
+        /*
+         * 敏感词(2026-10-24 补,此前群消息发送路径零检查——level-2 拒发词都畅通):
+         * level-2 拒发并审计,level-1 入库前打码;入库、WS 推送统一用打码后文本。
+         * 位置放在成员/禁言校验之后:先确认「有资格发言」,再花 DFA 扫描的代价。
+         */
+        String safeContent = contentGuard.sanitize(me, "group_chat", "group_message", content);
         // 引用回复:被引消息必须存在且同群
         if (replyToId != null) {
             GroupMessage ref = groupMessageMapper.selectById(replyToId);
@@ -480,7 +488,7 @@ public class GroupServiceImpl implements GroupService {
         GroupMessage m = new GroupMessage();
         m.setGroupId(groupId);
         m.setSenderId(me);
-        m.setContent(content);
+        m.setContent(safeContent);
         m.setStatus(0);
         m.setIsRecalled(0);
         m.setReplyToId(replyToId);
@@ -491,10 +499,12 @@ public class GroupServiceImpl implements GroupService {
         groupMapper.touchLastMsg(groupId, m.getId());
         List<Long> members = groupMemberMapper.memberIds(groupId);
         List<Long> receivers = members.stream().filter(id -> id != me).toList();
-        wsAfterCommit.run(() -> wsPush.pushGroupMessage(receivers, groupId, m.getId(), content, me));
+        String wsContent = safeContent;
+        wsAfterCommit.run(() -> wsPush.pushGroupMessage(receivers, groupId, m.getId(), wsContent, me));
 
         log.debug("group msg: {} -> group={} id={}", me, groupId, m.getId());
-        return m.getId();
+        // 返回打码后文本:前端乐观气泡渲染它,别让发送者看到自己的原文
+        return com.campus.social.vo.GroupSendVO.builder().msgId(m.getId()).content(safeContent).build();
     }
 
     @Override

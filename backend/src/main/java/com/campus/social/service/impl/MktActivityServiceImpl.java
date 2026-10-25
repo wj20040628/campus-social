@@ -14,7 +14,6 @@ import com.campus.social.mapper.MktCommentMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.MktActivityService;
 import com.campus.social.util.MktRateLimiter;
-import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.MktActivityVO;
 import com.campus.social.vo.MktCommentVO;
 import com.campus.social.vo.MktStatus;
@@ -57,7 +56,7 @@ public class MktActivityServiceImpl implements MktActivityService {
     private final MktActivityMapper mktActivityMapper;
     private final MktCommentMapper mktCommentMapper;
     private final UserMapper userMapper;
-    private final SensitiveWordFilter sensitiveWordFilter;
+    private final MessageContentGuard contentGuard;
     private final MktRateLimiter rateLimiter;
     private final PostNotifySupport postNotifySupport;
 
@@ -74,16 +73,24 @@ public class MktActivityServiceImpl implements MktActivityService {
         String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
         LocalDateTime expire = validateExpire(dto.getExpireTime());
 
-        blockIfSensitive((title == null ? "" : title + "\n") + content);
+        /*
+         * 敏感词(2026-10-24 改走统一横切):level-2 拒发,level-1 打码后入库。
+         * 此前只拦拒发词,一级引流词(加微信/vx)在集市原样展示——
+         * 集市是公开广场内容,与帖子同口径。标题与正文分开打码:
+         * 拼接检查防不住跨字段的词,而 DFA 词内不含换行,跨字段拼接成词的场景可忽略。
+         */
+        String safeTitle = title == null ? null
+                : contentGuard.sanitize(userId, "mkt", "mkt_activity", title);
+        String safeContent = contentGuard.sanitize(userId, "mkt", "mkt_activity", content);
 
         MktActivity a = new MktActivity();
         a.setUserId(userId);
         a.setCategory(dto.getCategory().trim());
         a.setSubTag(blankToNull(dto.getSubTag()));
         // 数据库 title 列 NOT NULL:未传标题时落「分类 · 游戏」派生主文案,兼容旧读法。
-        String storedTitle = blankToNull(title);
+        String storedTitle = blankToNull(safeTitle);
         a.setTitle(storedTitle != null ? storedTitle : derivedTitle(dto.getCategory(), dto.getSubTag()));
-        a.setContent(content);
+        a.setContent(safeContent);
         a.setTargetNum(dto.getTargetNum());
         a.setPrice(dto.getPrice());
         a.setLocation(blankToNull(dto.getLocation()));
@@ -151,13 +158,16 @@ public class MktActivityServiceImpl implements MktActivityService {
         // 标题可选:留空则置 null(前端不再采集,主文案走「分类 · 游戏」)。
         String title = optionalTitle(dto.getTitle());
         String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
-        blockIfSensitive((title == null ? "" : title + "\n") + content);
+        // 2026-10-24 与 create 同口径:level-2 拒发,level-1 打码后入库
+        String safeTitle = title == null ? null
+                : contentGuard.sanitize(me, "mkt", "mkt_activity", title);
+        String safeContent = contentGuard.sanitize(me, "mkt", "mkt_activity", content);
 
         a.setCategory(dto.getCategory().trim());
         a.setSubTag(blankToNull(dto.getSubTag()));
-        String storedTitle = blankToNull(title);
+        String storedTitle = blankToNull(safeTitle);
         a.setTitle(storedTitle != null ? storedTitle : derivedTitle(dto.getCategory(), dto.getSubTag()));
-        a.setContent(content);
+        a.setContent(safeContent);
         a.setTargetNum(dto.getTargetNum());
         a.setPrice(dto.getPrice());
         a.setLocation(blankToNull(dto.getLocation()));
@@ -214,13 +224,14 @@ public class MktActivityServiceImpl implements MktActivityService {
             throw new BusinessException(ResultCode.MKT_NOT_FOUND);
         }
         rateLimiter.guardComment(userId);
+        // 2026-10-24 与发布同口径:level-2 拒发,level-1 打码后入库
         String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
-        blockIfSensitive(content);
+        String safeContent = contentGuard.sanitize(userId, "mkt", "mkt_activity", content);
 
         MktComment c = new MktComment();
         c.setActivityId(activityId);
         c.setUserId(userId);
-        c.setContent(content);
+        c.setContent(safeContent);
         mktCommentMapper.insert(c);
 
         // 站内通知（增量①）：有人在我的活动下留言 → 通知发布者。
@@ -346,14 +357,6 @@ public class MktActivityServiceImpl implements MktActivityService {
             throw new BusinessException(ResultCode.MKT_EXPIRE_INVALID);
         }
         return expire;
-    }
-
-    /** 敏感词 level=2 命中 → 拒收。 */
-    private void blockIfSensitive(String text) {
-        if (sensitiveWordFilter.containsBlock(text)) {
-            throw new BusinessException(ResultCode.SENSITIVE_WORD_BLOCKED,
-                    "内容包含违规词，已拒绝提交");
-        }
     }
 
     /** 软删由 MyBatis-Plus 的 {@code selectById}（@TableLogic）自动过滤；返回 null 即 404。 */

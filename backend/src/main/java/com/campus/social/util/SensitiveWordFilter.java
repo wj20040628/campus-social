@@ -93,13 +93,35 @@ public class SensitiveWordFilter {
         }
     }
 
-    /** 命中即返 true(level=2) */
+    /**
+     * 命中即返 true(level=2)。
+     *
+     * <p>2026-10-24 起检测前先做 {@link TextNormalizer} 归一化：
+     * 拆字空格/全角/零宽字符变体（「微 信」「ｗｅｉｘｉｎ」「微\u200b信」）
+     * 与词表原形同等对待。所有调用方（帖/评/集市/圈名/反馈）零改动受益。
+     */
     public boolean containsBlock(String text) {
-        return scan(text, 2);
+        return scan(TextNormalizer.normalize(text), 2);
     }
 
-    /** 是否命中了 level=1 的词(需替换并送人工审核) */
+    /**
+     * 是否命中了 level=1 的词(需替换并送人工审核)。同 {@link #containsBlock}，检测侧归一化。
+     */
     public boolean containsReplace(String text) {
+        return scan(TextNormalizer.normalize(text), 1);
+    }
+
+    /**
+     * 不做归一化的原始命中检测（2026-10-24 加）。
+     *
+     * <p>与 {@link #containsReplace} 配合区分两种命中：
+     * <ul>
+     *   <li>直接命中（本方法 true）：词表原形就在文里，可信用户可豁免人审</li>
+     *   <li>变体命中（归一化 true 且本方法 false）：作者刻意做过变形——
+     *       变形本身就是意图信号，恒送人审，不走信任豁免</li>
+     * </ul>
+     */
+    public boolean containsReplaceDirect(String text) {
         return scan(text, 1);
     }
 

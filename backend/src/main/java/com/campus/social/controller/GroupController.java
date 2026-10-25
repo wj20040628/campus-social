@@ -64,7 +64,7 @@ public class GroupController {
 
     /** 发群消息:body { content, replyToId } */
     @PostMapping("/{groupId}/message")
-    public Result<Map<String, Long>> sendMessage(
+    public Result<com.campus.social.vo.GroupSendVO> sendMessage(
             @PathVariable("groupId") long groupId,
             @RequestBody Map<String, Object> body,
             HttpServletRequest req) {
@@ -75,8 +75,8 @@ public class GroupController {
         if (rti != null && !String.valueOf(rti).isBlank()) {
             replyToId = Long.parseLong(String.valueOf(rti));
         }
-        long msgId = groupService.sendGroupMessage(me, groupId, content, replyToId);
-        return Result.ok(Map.of("msgId", msgId));
+        // 返回打码后文本(GroupSendVO.content):前端乐观气泡用它渲染
+        return Result.ok(groupService.sendGroupMessage(me, groupId, content, replyToId));
     }
 
     /** 撤回群消息:仅发送方、120s 窗口 */

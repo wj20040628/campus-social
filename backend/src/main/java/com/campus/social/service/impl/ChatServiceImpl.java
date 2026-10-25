@@ -42,6 +42,8 @@ public class ChatServiceImpl implements ChatService {
     private final WsPushService wsPush;
     private final WsAfterCommit wsAfterCommit;
     private final ChatGuardService chatGuardService;
+    /** level-1 打码横切(2026-10-24):此前一级词在私信原样收发,ChatGuard 注释声称的「替换」从未实现 */
+    private final MessageContentGuard contentGuard;
     /*
      * 2026-10-21：postNotifySupport 已移除。
      * 它是为「私信发通知」注入的，而私信通知已按用户要求去掉。
@@ -147,6 +149,14 @@ public class ChatServiceImpl implements ChatService {
         // 不该在会话表和消息表留下任何痕迹。
         ChatSendVO guard = chatGuardService.check(me, toUserId, content);
 
+        /*
+         * level-1 打码(2026-10-24 补,修复"ChatGuard 注释声称替换但从未实现"):
+         * 入库、WS 推送、会话摘要统一用打码后文本。消息没有审核队列可去
+         * (review_task 是帖子专用),打码入库与评论同口径。
+         * level-2 在 guard 已拦,sanitize 里再查一次是幂等冗余,换口径单点。
+         */
+        String safeContent = contentGuard.sanitize(me, "chat", "chat_message", content);
+
         // 引用回复:被引消息必须存在且同会话(防跨会话引用)
         if (replyToId != null) {
             Long convIdCheck = findConvId(me, toUserId);
@@ -169,7 +179,7 @@ public class ChatServiceImpl implements ChatService {
         m.setConvId(convId);
         m.setSenderId(me);
         m.setReceiverId(toUserId);
-        m.setContent(content);
+        m.setContent(safeContent);
         m.setStatus(0);
         m.setIsRecalled(0);
         m.setReplyToId(replyToId);
@@ -204,8 +214,9 @@ public class ChatServiceImpl implements ChatService {
             convMapper.touchUnreadB(convId, 1, finalMsgId);
         }
 
-// WS 推给接收方(延迟到事务提交后,防回滚幽灵消息)
-        wsAfterCommit.run(() -> wsPush.pushChat(toUserId, finalConvId, finalMsgId, content, me));
+// WS 推给接收方(延迟到事务提交后,防回滚幽灵消息;推打码后的文本)
+        String wsContent = safeContent;
+        wsAfterCommit.run(() -> wsPush.pushChat(toUserId, finalConvId, finalMsgId, wsContent, me));
         log.debug("chat send: {} -> {} conv={} replyTo={} stranger={}",
                 me, toUserId, convId, replyToId, guard.getIsStranger());
 
@@ -213,6 +224,7 @@ public class ChatServiceImpl implements ChatService {
                 .msgId(m.getId())
                 .isStranger(guard.getIsStranger())
                 .remainingNewPeerQuota(guard.getRemainingNewPeerQuota())
+                .content(safeContent) // 打码后文本:前端乐观气泡用它渲染
                 .build();
     }
 

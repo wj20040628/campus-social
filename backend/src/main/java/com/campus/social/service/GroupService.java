@@ -31,7 +31,7 @@ public interface GroupService {
      * 幂等:非成员/空内容抛业务异常。
      * @return 新消息 id
      */
-    long sendGroupMessage(long me, long groupId, String content, Long replyToId);
+    com.campus.social.vo.GroupSendVO sendGroupMessage(long me, long groupId, String content, Long replyToId);
 
     /** 撤回群消息:仅发送方、120s 窗口、幂等(镜像单聊 recall)。已撤回直接返。 */
     void recallGroupMessage(long me, long msgId);
