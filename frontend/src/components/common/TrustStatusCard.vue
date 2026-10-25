@@ -20,26 +20,24 @@
     <ul class="tcard__list">
       <li class="tcard__item" data-state="ok">
         <span class="tcard__text">内容产出 +{{ bonus }} 分</span>
-        <Tip content="近 30 天每条过审动态 / 集市活动 +1 分，封顶 +40；被下架或删除的不计" />
+        <Tip content="近 30 天内，自己发的每条动态（审核通过后）、每条集市活动 +1 分，最多加 40 分；被下架或删除的不计" />
       </li>
       <li class="tcard__item" :data-state="badRecord ? 'bad' : 'ok'">
         <span class="tcard__text">{{ badRecord ? '违规记录已扣分' : '无违规记录' }}</span>
-        <Tip content="成立举报 −20/条，封禁 −40/次；持续产出可补回，记录满 30 天不再计" />
+        <Tip content="被举报且管理员判定成立，每次 −20 分；被封禁一次 −40 分。多发优质内容可以把分赚回来，30 天后记录不再计" />
       </li>
       <li v-if="!verified" class="tcard__item" data-state="bad">
         <span class="tcard__text">未完成学号认证</span>
-        <Tip content="认证后解锁建圈与集市发布，发帖额度 3 → 30 条/天" />
+        <Tip content="认证后才能建圈子和发集市活动，每天发动态的上限也从 3 条提高到 30 条" />
       </li>
     </ul>
 
-    <!-- 配额一行式:分数换来的实际待遇 -->
+    <!-- 配额:数字配全称量词,让人不用猜 -->
     <div class="tcard__quota">
-      <span class="tcard__quota-item">建圈 {{ circleQuota }}</span>
-      <span class="tcard__quota-sep">·</span>
-      <span class="tcard__quota-item">集市在投 {{ mktQuota }}</span>
-      <span class="tcard__quota-sep">·</span>
-      <span class="tcard__quota-item">发帖 {{ postDaily }}/天</span>
-      <Tip content="配额随分数升档：75 分 → 2 个/条，90 分 → 3 个/条；集市过期或暂停即释放名额，圈子解散释放名额" />
+      <div class="tcard__quota-row"><span class="tcard__quota-k">同时可建圈子</span><span class="tcard__quota-v">{{ circleQuota }} 个</span></div>
+      <div class="tcard__quota-row"><span class="tcard__quota-k">同时在投集市</span><span class="tcard__quota-v">{{ mktQuota }} 条</span></div>
+      <div class="tcard__quota-row"><span class="tcard__quota-k">每天可发动态</span><span class="tcard__quota-v">{{ postDaily }} 条</span></div>
+      <Tip content="这些上限随信誉分升档：到 75 分时圈子和集市各 2，到 90 分时各 3。集市到期或暂停、圈子解散后，名额立即腾出来" />
     </div>
   </el-card>
 </template>
@@ -168,26 +166,47 @@ trustStatus()
   color: var(--ys-accent-2);
 }
 
-/* 配额一行式:浅底横条,数字 tabular */
+/*
+ * 配额区:三行键值对(标签写全称,值带量词)。
+ * 上一版「建圈 1 · 集市在投 1 · 发帖 30/天」用户看不懂——
+ * 省字省到语义消失,还造出「2 个/条」这种混合简写。这里标签用完整短语,
+ * 值永远带「个/条」,键值分列对齐。
+ */
 .tcard__quota {
+  position: relative;
   margin-top: var(--ys-space-3);
   padding: var(--ys-space-2) var(--ys-space-3);
+  padding-right: 44px;
   border-radius: var(--ys-radius-lg);
   background: var(--ys-surface-2);
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-2);
+  display: grid;
+  gap: var(--ys-space-1);
   font-size: var(--ys-text-sm);
   color: var(--ys-fg);
   font-variant-numeric: tabular-nums;
 }
 
-.tcard__quota-item {
-  font-weight: var(--ys-weight-medium);
+/* 块级说明:ⓘ 固定在配额区右上角,不与三行内容抢行。
+   span 在 ElTooltip 的 slot 里,不是子组件根节点,必须 :deep() 穿透 */
+.tcard__quota :deep(.tcard__tip) {
+  position: absolute;
+  top: 12px;
+  right: 14px;
 }
 
-.tcard__quota-sep {
+.tcard__quota-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ys-space-3);
+}
+
+.tcard__quota-k {
+  flex: none;
   color: var(--ys-muted);
+}
+
+.tcard__quota-v {
+  font-weight: var(--ys-weight-medium);
 }
 </style>
 
