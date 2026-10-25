@@ -91,6 +91,26 @@ public interface ReportMapper extends BaseMapper<Report> {
     int countPending();
 
     /**
+     * 同一目标的独立待处置举报人数（2026-10-24 加，ReportFoldService 阈值折叠用）。
+     *
+     * <p>DISTINCT reporter_id：同一人重复举报被 uk_report 唯一键天然挡住，
+     * 这里再显式去重是双保险（防历史脏数据）；只数 status=0 且无人处理过的 ——
+     * 管理员驳回/忽略后计数即清零，集中刷举报想再触发阈值需要新的独立举报人。
+     */
+    @Select("SELECT COUNT(DISTINCT reporter_id) FROM report "
+            + "WHERE target_type = #{targetType} AND target_id = #{targetId} "
+            + "AND status = 0 AND handler_id IS NULL AND is_deleted = 0")
+    int countPendingReporters(@Param("targetType") int targetType, @Param("targetId") Long targetId);
+
+    /**
+     * 「举报用户且成立」的次数（2026-10-24 加，ReviewTrustService 前科判定用）。
+     * target_type=1 时 target_id 就是被举报的 userId，走 idx_target 索引。
+     */
+    @Select("SELECT COUNT(*) FROM report "
+            + "WHERE target_type = 1 AND target_id = #{userId} AND status = 1 AND is_deleted = 0")
+    int countUpheldUserReports(@Param("userId") long userId);
+
+    /**
      * 管理端列表（游标分页，按 id 倒序）。
      *
      * <p>游标用 id 而不是 create_time：create_time 可能撞同一秒，

@@ -61,6 +61,8 @@ public class PostWriteService {
     private final PostTopicBinder topicBinder;
     /** 圈内封禁拦截:发帖时查 ban_status */
     private final com.campus.social.service.CircleAdminService circleAdminService;
+    /** 审核信任闸门(2026-10-24):level-1 直接命中的受信用户豁免送审 */
+    private final ReviewTrustService trustService;
 
     @Transactional
     public long create(long authorId, CreatePostDTO dto) {
@@ -81,8 +83,7 @@ public class PostWriteService {
         if (sensitive.containsBlock(content)) {
             throw new BusinessException(SENSITIVE_WORD_BLOCKED);
         }
-        // level1 命中:送人工审核(status=0,不入 Feed)
-        boolean needsReview = sensitive.containsReplace(content);
+        boolean needsReview = needsHumanReview(content, authorId);
         List<String> hitWords = needsReview ? sensitive.matchedLevel1Words(content) : List.of();
 
         // 解析校验 media JSON
@@ -118,9 +119,43 @@ public class PostWriteService {
         }
 
         log.info("post created: id={}, author={}, review={}", post.getId(), authorId, needsReview);
-        auditService.record(authorId, "create_post", "post", post.getId(),
-                needsReview ? "含敏感词,送审" : "直接通过", null);
+        auditService.record(authorId, "create_post", "post", post.getId(), auditDetail(content, authorId, needsReview), null);
         return post.getId();
+    }
+
+    /**
+     * level-1 命中是否需要人工审（2026-10-24 信任闸门）。
+     *
+     * <p>三条路径：
+     * <ul>
+     *   <li>未命中 → 直接发布（原行为）</li>
+     *   <li><b>直接命中</b>（词表原形就在文里）且作者受信（已认证+账龄+无前科，
+     *       见 {@link ReviewTrustService}）→ 替换后直接发布，留痕不进队列</li>
+     *   <li>直接命中但作者不受信，或<b>仅变体命中</b>（归一化后才命中——
+     *       拆字/全角/零宽，说明作者刻意变形过）→ 一律人工审。
+     *       变体不走信任豁免：变形本身就是意图信号</li>
+     * </ul>
+     */
+    private boolean needsHumanReview(String content, long authorId) {
+        boolean level1 = sensitive.containsReplace(content);
+        if (!level1) {
+            return false;
+        }
+        if (sensitive.containsReplaceDirect(content) && trustService.isTrusted(authorId)) {
+            return false;
+        }
+        return true;
+    }
+
+    /** 发帖审计明细:受信直发时把命中词写进 audit_log(队列里看不到了,留痕是唯一追诉线索) */
+    private String auditDetail(String content, long authorId, boolean needsReview) {
+        if (needsReview) {
+            return "含敏感词,送审";
+        }
+        if (sensitive.containsReplace(content)) {
+            return "受信用户直发(命中一级词:" + sensitive.matchedLevel1Words(content) + ")";
+        }
+        return "直接通过";
     }
 
     /**
@@ -182,8 +217,9 @@ public class PostWriteService {
         if (sensitive.containsBlock(newContent)) {
             throw new BusinessException(SENSITIVE_WORD_BLOCKED, "编辑内容含拒发敏感词");
         }
-        // 只在文案真的变了才重审:仅改话题不该把已过审的帖子打回审核队列
-        boolean needsReview = contentChanged && sensitive.containsReplace(newContent);
+        // 只在文案真的变了才重审:仅改话题不该把已过审的帖子打回审核队列。
+        // 命中后的去留走同一道信任闸门(needsHumanReview):受信用户的直接命中直发,变体恒送审
+        boolean needsReview = contentChanged && needsHumanReview(newContent, authorId);
         List<String> hitWords = needsReview ? sensitive.matchedLevel1Words(newContent) : List.of();
 
         /*
@@ -219,8 +255,11 @@ public class PostWriteService {
 
         log.info("post edited: id={}, author={}, content={}, media={}, topics={}, review={}",
                 postId, authorId, contentChanged, mediaChanged, topicsChanged, needsReview);
-        auditService.record(authorId, "edit_post", "post", postId,
-                "编辑帖子" + (needsReview ? "(命中敏感词,重回审核)" : ""), null);
+        String editDetail = "编辑帖子" + (needsReview ? "(命中敏感词,重回审核)" : "");
+        if (!needsReview && contentChanged && sensitive.containsReplace(newContent)) {
+            editDetail += "(受信直发,命中一级词:" + sensitive.matchedLevel1Words(newContent) + ")";
+        }
+        auditService.record(authorId, "edit_post", "post", postId, editDetail, null);
         // null = 已落库,不是「编辑失败」。调用方按 postId 回读详情
         return null;
     }

@@ -62,6 +62,8 @@ public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
     private final BanService banService;
     private final AuditService auditService;
+    /** 举报阈值折叠(2026-10-24):同一帖子独立举报人达到阈值即折叠进人审 */
+    private final ReportFoldService foldService;
     /*
      * 下架不再需要各表的 Mapper：
      * 统一走 reportMapper 的 takedownXxx（显式 UPDATE），
@@ -99,6 +101,14 @@ public class ReportServiceImpl implements ReportService {
         var created = reportMapper.selectByTarget(reporterId, dto.getTargetType(), dto.getTargetId());
         log.info("report submitted: reporter={}, type={}, target={}, reason={}",
                 reporterId, dto.getTargetType(), dto.getTargetId(), dto.getReasonType());
+
+        /*
+         * 阈值折叠检查(2026-10-24):与举报同一事务——计数包含本条未提交的行,
+         * 回滚时折叠/任务/通知一并回滚。幂等重复(duplicated)不触发:
+         * 同一人重复举报既不增加独立举报人数,也不该反复进入折叠分支。
+         */
+        foldService.maybeFoldPost(dto.getTargetType(), dto.getTargetId());
+
         return ReportSubmitVO.builder()
                 .reportId(created == null ? null : created.getId())
                 .duplicated(false)
