@@ -6,6 +6,10 @@
          缺了它,TabBar 会被 Home Indicator 压住,AC-15 的 44px 热区实际不可点。 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- PNG 兜底:Safari 对 SVG favicon 支持不完整;apple-touch-icon 供 iOS
+         加书签/加主屏,须全出血方章(iOS 自己切圆角),不能用带圆角的 SVG 版 -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <title>友声 · 校园生活</title>
     <meta name="description" content="友声 —— 嘤其鸣矣，求其友声。让校园里的每一次发声，都能得到回应。" />
     <!-- theme-color 原为 #2f5d50,与设计 Token 主色不一致(SPEC §11 坑 7)。
