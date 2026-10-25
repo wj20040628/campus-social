@@ -368,6 +368,15 @@ public interface UserMapper extends BaseMapper<User> {
     int updateNotifyPref(@Param("id") Long id, @Param("pref") String pref);
 
     /**
+     * 邮件摘要候选(2026-10-25,DigestEmailJob 用):偏好里带 emailDigest 字样的
+     * 正常用户。LIKE 粗筛 + Java 精解析(NotifyPrefSupport)——校园量级几百行,
+     * 不值得为筛选加生成列。
+     */
+    @Select("SELECT * FROM user WHERE notify_pref LIKE '%emailDigest%' "
+            + "AND status = 0 AND is_deleted = 0")
+    java.util.List<User> selectDigestCandidates();
+
+    /**
      * 整列覆盖写主页封面（2026-10-20）。{@code coverUrl} 传 null 即清空回默认封面。
      *
      * <p><b>为什么不用 {@code updateById}</b>：MyBatis-Plus 默认的字段策略是

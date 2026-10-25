@@ -24,6 +24,32 @@
           />
         </div>
       </el-card>
+
+      <!-- 邮件摘要(2026-10-25):回访触达。默认关,用户 opt-in -->
+      <h2 class="sn-sec">邮件摘要</h2>
+      <p class="sn-tip">每天最多一封(傍晚),昨天有新动态才发;没动静不打扰</p>
+      <el-card class="sn-group">
+        <div class="sn-row">
+          <span class="sn-text">
+            <span class="sn-label">每日摘要邮件</span>
+            <span class="sn-desc">把昨天的新互动汇总成一封邮件发给你</span>
+          </span>
+          <el-switch
+            v-model="digest.enabled"
+            aria-label="邮件摘要开关"
+            style="--el-switch-on-color: var(--ys-accent)"
+            @change="saveDigest"
+          />
+        </div>
+      </el-card>
+      <el-card v-if="digest.enabled" class="sn-group sn-group--types">
+        <p class="sn-types-label">想收哪些动态</p>
+        <el-checkbox-group v-model="digest.types" class="sn-types" @change="saveDigest">
+          <el-checkbox v-for="t in digestTypes" :key="t.key" :value="t.key">
+            {{ t.label }} <span class="sn-types-desc">{{ t.desc }}</span>
+          </el-checkbox>
+        </el-checkbox-group>
+      </el-card>
     </div>
   </div>
 </template>
@@ -35,11 +61,11 @@
  * 这里只暴露「社交动态类」六个可关闭分组(审核/私信/反馈回复属事务型,不给关),
  * 每个分组映射到一到两个类型 id;disabled 集合是所有「关掉的组」的并集。
  */
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { getNotifyPref, setNotifyPref } from '@/api/auth'
+import { getNotifyPref, setNotifyPref, getEmailDigest, setEmailDigest } from '@/api/auth'
 
 const router = useRouter()
 
@@ -92,7 +118,37 @@ onMounted(async () => {
   } catch {
     /* 偏好解析失败不阻塞页面,默认全开 */
   }
+  try {
+    const d = await getEmailDigest()
+    digest.enabled = d?.enabled === true
+    digest.types = Array.isArray(d?.types) ? d.types : []
+  } catch {
+    /* 邮件摘要拉取失败不阻塞站内通知设置 */
+  }
 })
+
+/** 邮件摘要订阅(后端合并写,不会碰上面的站内通知开关) */
+const digest = reactive({ enabled: false, types: [] })
+const digestTypes = [
+  { key: 'chat', label: '搭话与私信', desc: '新同学找你搭话' },
+  { key: 'comment', label: '评论与@你', desc: '评论、回复、集市留言' },
+  { key: 'like', label: '被赞', desc: '有人赞了你的内容' },
+  { key: 'follow', label: '新粉丝', desc: '有人关注了你' },
+  { key: 'system', label: '活动与审核', desc: '报名变更、审核结果' },
+]
+let digestSaving = false
+
+async function saveDigest() {
+  if (digestSaving) return
+  digestSaving = true
+  try {
+    await setEmailDigest({ enabled: digest.enabled, types: digest.types })
+  } catch {
+    ElMessage.error('保存失败,请重试')
+  } finally {
+    digestSaving = false
+  }
+}
 </script>
 
 <style scoped>
@@ -142,6 +198,30 @@ onMounted(async () => {
 .sn-group {
   border-radius: var(--ys-radius-xl);
   margin-bottom: 12px;
+}
+/* 邮件摘要分区标题(2026-10-25) */
+.sn-sec {
+  margin: 24px 0 8px;
+  font-size: 15px;
+  color: var(--ys-text);
+}
+.sn-group--types {
+  padding: 4px 16px;
+}
+.sn-types-label {
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: var(--ys-meta);
+}
+.sn-types {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 10px;
+}
+.sn-types-desc {
+  font-size: 12px;
+  color: var(--ys-meta);
 }
 .sn-row {
   display: flex;

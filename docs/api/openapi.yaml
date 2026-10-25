@@ -1791,6 +1791,51 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /user/email-digest:
+    get:
+      operationId: getUserEmailDigest
+      tags: [user]
+      summary: 邮件摘要订阅（2026-10-25）
+      description: |
+        每日互动摘要邮件的订阅状态。每天最多一封（18 点），仅当订阅类型
+        有新动态时发；默认关闭。存于 user.notify_pref 的 emailDigest 段，
+        与站内通知的 disabled 段互不干扰（两写入口均为合并写）。
+      responses:
+        '200':
+          description: 订阅状态
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResultMeta'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/EmailDigestVO' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      operationId: setUserEmailDigest
+      tags: [user]
+      summary: 写邮件摘要订阅（合并写）
+      description: |
+        body 为 JSON 字符串，如 `{"enabled":true,"types":["chat","like"]}`。
+        只更新 emailDigest 段，保留站内通知的 disabled 段。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              description: JSON 字符串（同 /user/notify-pref 的传参形态）
+      responses:
+        '200':
+          description: 已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultMeta'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /user/trust-status:
     get:
       operationId: getUserTrustStatus
@@ -5006,6 +5051,19 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/TrustBadgeVO' }
+
+    EmailDigestVO:
+      type: object
+      description: 邮件摘要订阅（vo/EmailDigestVO.java）。每天最多一封（18 点），仅当订阅类型有新动态时发
+      required: [enabled, types]
+      properties:
+        enabled:
+          type: boolean
+          description: 是否开启每日摘要邮件（默认关闭，邮件是 opt-in 的打扰）
+        types:
+          type: array
+          description: 订阅的类型组；chat（新搭话/私信）/ comment（评论、@你、集市留言）/ like（被赞）/ follow（新粉丝）/ system（活动与审核）
+          items: { type: string }
 
     # ---------------- admin-users（2026-10-24 新增） ----------------
     # schema 名与 Java VO 类名严格一致：verify-contract 门禁按同名比对字段，

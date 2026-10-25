@@ -284,6 +284,13 @@ campus:
   # 学校 ID,与 user.school_id / announcement.school_id 对齐。
   # 做成配置而非各处硬编码 1:多校字段已在库里,真要开第二所学校时只改这一处
   school-id: ${CAMPUS_SCHOOL_ID:1}
+  # 每日互动摘要邮件(DigestEmailJob,每天 18 点):
+  # - site-base:邮件里「去友声看看」的链接前缀,生产指正式域名
+  # - digest-enabled:邮件通道出问题(限流/封号)时拨 false 整体停发
+  # 通道切换:阿里云 DirectMail 同样走 SMTP,换 spring.mail.host/username/password 即切
+  mail:
+    site-base: ${CAMPUS_MAIL_SITE_BASE:http://127.0.0.1:5173}
+    digest-enabled: ${CAMPUS_MAIL_DIGEST_ENABLED:true}
   # 校园邮箱域名白名单,逗号分隔。生产用 CAMPUS_EMAIL_DOMAIN_WHITELIST 注入。
   # 为空时所有域名都会被拒(1032),这是刻意设计:宁可不认证,不可错认证。
   email-domain-whitelist: ${CAMPUS_EMAIL_DOMAIN_WHITELIST:}

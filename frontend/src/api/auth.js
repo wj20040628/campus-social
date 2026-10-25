@@ -103,6 +103,18 @@ export function trustBadge(id) {
 }
 
 /**
+ * 邮件摘要订阅(2026-10-25):每天最多一封(18 点),仅当订阅类型有新动态时发。
+ * types: chat/comment/like/follow/system。默认关闭。
+ */
+export function getEmailDigest() {
+  return request.get('/user/email-digest')
+}
+
+export function setEmailDigest(pref) {
+  return request.put('/user/email-digest', JSON.stringify(pref))
+}
+
+/**
  * 设置 / 清除个人主页封面(2026-10-20)。
  *
  * <p>传 null 或 '' = 恢复默认渐变封面。**与 updateMe 的 null 语义相反**:

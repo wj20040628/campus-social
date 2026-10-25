@@ -5,6 +5,7 @@ import com.campus.social.entity.Notify;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
@@ -30,4 +31,15 @@ public interface NotifyMapper extends BaseMapper<Notify> {
      */
     @Delete("DELETE FROM notify WHERE post_id = #{postId}")
     int hardDeleteByPostId(@Param("postId") long postId);
+
+    /**
+     * 某用户自某时刻起各类型通知数(2026-10-25,邮件摘要统计用)。
+     * 返回行 {type, cnt};走 idx_user_read 前缀(user_id)。
+     */
+    @Select("SELECT type, COUNT(*) AS cnt FROM notify "
+            + "WHERE user_id = #{userId} AND create_time >= #{since} AND is_deleted = 0 "
+            + "GROUP BY type")
+    java.util.List<java.util.Map<String, Object>> countByTypeSince(
+            @Param("userId") long userId,
+            @Param("since") java.time.LocalDateTime since);
 }

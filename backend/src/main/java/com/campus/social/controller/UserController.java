@@ -33,11 +33,16 @@ public class UserController {
     private final PostFavoriteMapper favoriteMapper;
     private final PostService postService;
     private final com.campus.social.service.impl.ReviewTrustService trustService;
+    /** 通知偏好解析/合并单点(2026-10-25,邮件摘要) */
+    private final com.campus.social.service.impl.NotifyPrefSupport prefSupport;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public UserController(AuthService authService, UserMapper userMapper,
                           PostMapper postMapper, LikeMapper likeMapper,
                           PostFavoriteMapper favoriteMapper, PostService postService,
-                          com.campus.social.service.impl.ReviewTrustService trustService) {
+                          com.campus.social.service.impl.ReviewTrustService trustService,
+                          com.campus.social.service.impl.NotifyPrefSupport prefSupport,
+                          com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.authService = authService;
         this.userMapper = userMapper;
         this.postMapper = postMapper;
@@ -45,6 +50,8 @@ public class UserController {
         this.favoriteMapper = favoriteMapper;
         this.postService = postService;
         this.trustService = trustService;
+        this.prefSupport = prefSupport;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/me")
@@ -132,14 +139,73 @@ public class UserController {
      * 写入通知偏好(免打扰)。
      *
      * <p>body 为 JSON 字符串(如 {@code {"disabled":[2,3]}});传 null 或空串视为恢复全开。
-     * 仅整列覆盖写,不读旧值——前端每次提交完整偏好。坏 JSON 由
-     * {@code PostNotifySupport.parseDisabled} 在投递时兜底(当作全开),这里不阻塞写入。
+     * 2026-10-25 改为**合并写**:只更新 disabled 段,保留 emailDigest 段——
+     * 此前整列覆盖会把用户刚保存的邮件订阅抹掉(两个设置页各写各的段)。
+     * 坏 JSON 由 {@code PostNotifySupport.parseDisabled} 在投递时兜底(当作全开)。
      */
     @PutMapping("/notify-pref")
     public Result<Void> setNotifyPref(@RequestBody(required = false) String pref,
                                      HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        userMapper.updateNotifyPref(me, pref);
+        String old = userMapper.selectNotifyPrefById(me);
+        java.util.List<Integer> disabled = parseDisabled(pref);
+        userMapper.updateNotifyPref(me, prefSupport.mergeDisabled(old, disabled));
+        return Result.ok();
+    }
+
+    /** body JSON 里的 disabled 数组;null/空/坏 JSON = 恢复全开 */
+    private java.util.List<Integer> parseDisabled(String pref) {
+        if (pref == null || pref.isBlank()) {
+            return java.util.List.of();
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(pref);
+            java.util.List<Integer> out = new java.util.ArrayList<>();
+            if (node.has("disabled")) {
+                for (var n : node.get("disabled")) {
+                    out.add(n.asInt());
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            return java.util.List.of();
+        }
+    }
+
+    /**
+     * 邮件摘要订阅(2026-10-25):每天最多一封(18 点),仅当订阅类型有新动态时发。
+     * 默认关闭;types: chat/comment/like/follow/system。
+     */
+    @GetMapping("/email-digest")
+    public Result<com.campus.social.vo.EmailDigestVO> getEmailDigest(HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        var d = prefSupport.emailDigest(userMapper.selectNotifyPrefById(me));
+        var vo = new com.campus.social.vo.EmailDigestVO();
+        vo.setEnabled(d.enabled());
+        vo.setTypes(java.util.List.copyOf(d.types()));
+        return Result.ok(vo);
+    }
+
+    /**
+     * 写邮件摘要订阅。body 为 JSON 字符串(如 {@code {"enabled":true,"types":["chat"]}}),
+     * 合并写(保留站内通知的 disabled 段)。
+     */
+    @PutMapping("/email-digest")
+    public Result<Void> setEmailDigest(@RequestBody String body, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        boolean enabled = false;
+        java.util.Set<String> types = new java.util.LinkedHashSet<>();
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(body);
+            enabled = node.path("enabled").asBoolean(false);
+            for (var n : node.path("types")) {
+                types.add(n.asText());
+            }
+        } catch (Exception e) {
+            return Result.fail(com.campus.social.common.ResultCode.BAD_REQUEST, "请求体格式错误");
+        }
+        String old = userMapper.selectNotifyPrefById(me);
+        userMapper.updateNotifyPref(me, prefSupport.mergeEmailDigest(old, enabled, types));
         return Result.ok();
     }
 
