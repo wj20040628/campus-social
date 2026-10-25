@@ -1,7 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="友声">
-  <rect width="64" height="64" rx="14" fill="#2f5d50"/>
-  <circle cx="23" cy="32" r="4" fill="#ffffff"/>
-  <path d="M31 24a9 9 0 0 1 0 16" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M37.5 18.5a15 15 0 0 1 0 27" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" opacity="0.85"/>
-  <path d="M44 13a22 22 0 0 1 0 38" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" opacity="0.55"/>
+  <!--
+    品牌「友」章 favicon(2026-10-25 与登录页对齐)。
+    样式同 views/Auth.css .auth-brand__seal:accent→accent-hover 的 145° 渐变底
+    (旧值 #2f5d50 是换主色前的遗留,本次一并修正)、白色半粗「友」、圆角 lg。
+    半径按 42px 章 → 64px 画布等比放大(8/42*64≈12)。
+  -->
+  <defs>
+    <linearGradient id="seal" x1="0" y1="0" x2="0.6" y2="0.85">
+      <stop offset="0" stop-color="#0E7490"/>
+      <stop offset="1" stop-color="#0a5e75"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="url(#seal)"/>
+  <text x="32" y="33" fill="#ffffff" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+        font-size="34" font-weight="600" text-anchor="middle" dominant-baseline="central">友</text>
 </svg>
