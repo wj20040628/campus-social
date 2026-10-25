@@ -65,9 +65,10 @@ public class PostController {
             @RequestParam(value = "by", defaultValue = "time") String by,
             @RequestParam(value = "order", defaultValue = "desc") String order,
             @RequestParam(value = "topic", required = false) String topic,
+            @RequestParam(value = "anonymous", required = false) Boolean anonymous,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.feed(me, lastId, PageSize.clamp(size), by, order, topic));
+        return Result.ok(postService.feed(me, lastId, PageSize.clamp(size), by, order, topic, anonymous));
     }
 
     /** 探索页(热门) */

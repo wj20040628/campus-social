@@ -17,12 +17,13 @@ export function deletePost(id) {
 }
 
 export function feed(lastId, size = 20, opts = {}) {
-  // opts: { by, order, topic } 排序/筛选
+  // opts: { by, order, topic, anonymous } 排序/筛选;anonymous=true 只看树洞
   const params = [`size=${size}`]
   if (lastId) params.push(`lastId=${lastId}`)
   if (opts.by) params.push(`by=${opts.by}`)
   if (opts.order) params.push(`order=${opts.order}`)
   if (opts.topic) params.push(`topic=${encodeURIComponent(opts.topic)}`)
+  if (opts.anonymous) params.push('anonymous=true')
   return request.get(`/post/feed?${params.join('&')}`)
 }
 

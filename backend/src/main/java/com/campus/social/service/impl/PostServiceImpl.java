@@ -165,8 +165,9 @@ public class PostServiceImpl implements PostService {
     // ---------------------------------------------------------------- Feed 列表
 
     @Override
-    public CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order, String topic) {
-        return feedQuery.feed(viewerId, lastId, size, by, order, topic);
+    public CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order, String topic,
+                                    Boolean anonymous) {
+        return feedQuery.feed(viewerId, lastId, size, by, order, topic, anonymous);
     }
 
     @Override

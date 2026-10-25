@@ -42,16 +42,21 @@ public class PostFeedQueryService {
     /**
      * 综合 Feed。
      *
-     * <p>by: time(默认) | like | comment | view；order: desc(默认) | asc；topic 可选。
+     * <p>by: time(默认) | like | comment | view；order: desc(默认) | asc；topic 可选；
+     * anonymous 可选(true = 只看树洞匿名帖)。
      * 游标用「排序列 + id」做 tie-break，保证同值时翻页稳定不重不漏。
      *
      * <p><b>首屏走缓存（2026-10-22）</b>：只有「第一页 + 无话题过滤」进缓存，
      * 因为首屏是唯一被所有人反复请求的页；翻页各有各的进度，缓存命中率极低。
      * 缓存的只是与「谁在看」无关的公共骨架，用户态每次实时回填。
+     * 匿名过滤(2026-10-25,树洞 tab)不进缓存:过滤维度要进缓存 key,
+     * 共享骨架的命中收益cover不了复杂度,树洞流量远小于全部流,实时查即可。
      */
-    public CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order, String topic) {
+    public CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order,
+                                   String topic, Boolean anonymous) {
         boolean asc = "asc".equalsIgnoreCase(order);
         boolean byTime = by == null || "time".equalsIgnoreCase(by);
+        boolean anonymousOnly = Boolean.TRUE.equals(anonymous);
 
         // 话题过滤:先查出该话题 id(有就限定,无话题参数则全量)
         Long topicId = null;
@@ -65,7 +70,7 @@ public class PostFeedQueryService {
         // 排序列走白名单,不接受前端直接传列名(拼接进 SQL 的东西必须是服务端定的)
         String sortCol = resolveSortCol(by, byTime);
         String dir = asc ? "ASC" : "DESC";
-        boolean cacheable = lastId == null && !filterByTopic;
+        boolean cacheable = lastId == null && !filterByTopic && !anonymousOnly;
 
         /*
          * 拉黑用户不走首屏缓存(2026-10-24):缓存是全员共享的骨架,
@@ -84,9 +89,9 @@ public class PostFeedQueryService {
         }
 
         List<Post> rows;
-        // 快速路径:仅「按时间 + 倒序 + 无话题」走 Lambda(最常见默认场景);
+        // 快速路径:仅「按时间 + 倒序 + 无话题 + 无匿名过滤」走 Lambda(最常见默认场景);
         // 其余都走 SQL 分支,这样 order 才真正生效
-        if (byTime && !asc && !filterByTopic && !hasBlacklist) {
+        if (byTime && !asc && !filterByTopic && !hasBlacklist && !anonymousOnly) {
             // 快速路径仅限无拉黑者(见上方注释);有拉黑走 SQL 分支带 NOT EXISTS
             rows = postMapper.selectList(new LambdaQueryWrapper<Post>()
                     .eq(Post::getStatus, 1)
@@ -94,7 +99,8 @@ public class PostFeedQueryService {
                     .orderByDesc(Post::getId)
                     .last("LIMIT " + (size + 1)));
         } else {
-            rows = postMapper.selectFeedBySql(buildFeedSql(sortCol, dir, byTime, asc, topicId, filterByTopic, lastId, size, viewerId));
+            rows = postMapper.selectFeedBySql(buildFeedSql(sortCol, dir, byTime, asc, topicId,
+                    filterByTopic, lastId, size, viewerId, anonymousOnly));
         }
 
         boolean hasMore = rows.size() > size;
@@ -206,7 +212,8 @@ public class PostFeedQueryService {
      * 彻底解决需要 (sortCol, id) 复合游标，前端也要回传复合值，放到 MVP 之后。
      */
     private String buildFeedSql(String sortCol, String dir, boolean byTime, boolean asc,
-                               Long topicId, boolean filterByTopic, Long lastId, int size, long viewerId) {
+                               Long topicId, boolean filterByTopic, Long lastId, int size, long viewerId,
+                               boolean anonymousOnly) {
         StringBuilder sql = new StringBuilder("SELECT p.* FROM post p ");
         if (filterByTopic) {
             sql.append("JOIN post_topic pt ON pt.post_id = p.id AND pt.topic_id = ")
@@ -214,6 +221,10 @@ public class PostFeedQueryService {
                .append(" AND pt.is_deleted = 0 ");
         }
         sql.append("WHERE p.status = 1 AND p.is_deleted = 0 ");
+        // 树洞 tab(2026-10-25):只看匿名帖
+        if (anonymousOnly) {
+            sql.append("AND p.is_anonymous = 1 ");
+        }
         /*
          * 拉黑作者过滤(2026-10-24 补):前端拉黑文案承诺「之后看不到他的动态」,
          * 但 Feed SQL 此前只过滤 status/is_deleted——实测拉黑后帖子照常出现在

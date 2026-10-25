@@ -37,8 +37,10 @@ public interface PostService {
     /** 软删除(作者) */
     void delete(long postId, long authorId);
 
-    /** 写扩散 Feed:我关注的。支持按 by(time/like/comment/view)排序 + order(asc/desc)+ 按话题名筛选 */
-    CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order, String topic);
+    /** 写扩散 Feed:我关注的。支持按 by(time/like/comment/view)排序 + order(asc/desc)+ 按话题名筛选
+     *  + anonymous=true 只看树洞匿名帖(2026-10-25,首页树洞 tab) */
+    CursorPage<PostVO> feed(long viewerId, Long lastId, int size, String by, String order, String topic,
+                            Boolean anonymous);
 
     /** 话题落地页:某话题下所有已通过帖子,按时间倒序 + 游标 */
     CursorPage<PostVO> feedByTopic(String topicName, Long lastId, int size, long viewerId);

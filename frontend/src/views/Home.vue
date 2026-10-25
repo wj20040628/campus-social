@@ -33,10 +33,13 @@
         桌面端 feedBarHidden 恒 false,普通流。
       -->
       <div class="feed-bar" :class="{ 'feed-bar--hidden': feedBarHidden }">
-        <!-- 关注 / 全部 tab(A1:读 feed_item 的写扩散收件箱) -->
+        <!-- 关注 / 全部 / 树洞 tab(A1:读 feed_item 的写扩散收件箱)。
+             树洞(2026-10-25):匿名帖聚合流,微博超话式的频道入口——
+             匿名发帖是内容冷启动的主力,埋在「全部」流里没有存在感 -->
         <el-tabs v-model="tab" class="feed-tabs">
           <el-tab-pane label="关注" name="following" />
           <el-tab-pane label="全部" name="all" />
+          <el-tab-pane label="树洞" name="hole" />
         </el-tabs>
 
         <!-- 搜索 + 筛选/排序 工具条(仅"全部"tab 有筛选;关注 tab 只看关注的人) -->
@@ -102,19 +105,20 @@
           />
 
           <!--
-            空态按 tab 分两种出口(AC-19):
-            - 「关注」tab 空 → 去关注人(有 goFollow)
-            - 「发现」tab 空 → 去发一条或逛圈子
-            原 el-empty 只有描述没有出口,已替换。
+            空态按 tab 分出口(AC-19):
+            - 「关注」空 → 去关注人;「树洞」空 → 引导发第一条匿名
+            - 「全部」空 → 去发一条或逛圈子
           -->
           <StateBlock
             v-else-if="!loading && posts.length === 0"
             variant="empty"
-            :title="tab === 'following' ? '你关注的人还没发东西' : '这里还很空'"
+            :title="tab === 'following' ? '你关注的人还没发东西' : tab === 'hole' ? '树洞还静悄悄的' : '这里还很空'"
             :description="
               tab === 'following'
                 ? '关注几个同学,他们的动态就会出现在这儿'
-                : '现在没人发东西,你可以先发一条'
+                : tab === 'hole'
+                  ? '来发第一条树洞,大家看到的是「匿名」,只有你知道是谁'
+                  : '现在没人发东西,你可以先发一条'
             "
             :action-label="tab === 'following' ? '去圈子广场逛逛' : '发一条'"
             :icon="ChatLineSquare"

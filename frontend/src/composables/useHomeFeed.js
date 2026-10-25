@@ -150,6 +150,13 @@ export function useHomeFeed(isMobile) {
         else await appendCapped(normalize(data.list))
         cursor.value = data.hasMore ? data.nextCursor : null
         hasMore.value = data.hasMore
+      } else if (tab.value === 'hole') {
+        // 树洞 tab(2026-10-25):匿名帖聚合流,时间序可无限刷(口径同「全部」默认)
+        const data = await feedApi(cursor.value, 20, { anonymous: true, by: 'time', order: 'desc' })
+        if (cursor.value && !reset) await appendCapped(normalize(data.list))
+        else posts.value = normalize(data.list)
+        cursor.value = data.hasMore ? data.nextCursor : null
+        hasMore.value = data.hasMore
       } else {
         // 全部 tab:「最热」是非默认筛选,只看第一页,不叠加无限刷(同旧逻辑)
         const filtered = sortMode.value !== 'new'
