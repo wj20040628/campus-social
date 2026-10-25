@@ -167,6 +167,16 @@ public interface PostMapper extends BaseMapper<Post> {
     int countPublicByAuthor(@Param("authorId") Long authorId);
 
     /**
+     * 近 N 天某用户的**过审**帖数(2026-10-25,信誉分产出加分用)。
+     * 只数 status=1 且未删:被下架/删除的内容不产出分数——刷垃圾帖要么被
+     * 举报下架(不加分),要么留着(污染自己主页),两头都不划算。
+     */
+    @Select("SELECT COUNT(*) FROM post WHERE author_id = #{authorId} AND status = 1 AND is_deleted = 0 "
+            + "AND create_time >= #{since}")
+    int countApprovedByAuthorSince(@Param("authorId") Long authorId,
+            @Param("since") java.time.LocalDateTime since);
+
+    /**
      * 某人所有帖子的获赞总数(个人主页「获赞」指标)。
      *
      * <p><b>为什么实时 SUM 而不给 user 表加冗余列</b>:

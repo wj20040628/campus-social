@@ -63,6 +63,8 @@ public class PostWriteService {
     private final com.campus.social.service.CircleAdminService circleAdminService;
     /** 审核信任闸门(2026-10-24):level-1 直接命中的受信用户豁免送审 */
     private final ReviewTrustService trustService;
+    /** 发帖日配额(2026-10-25):未认证 3/日,认证 30/日,Redis 自然日分桶 */
+    private final org.springframework.data.redis.core.StringRedisTemplate redis;
 
     @Transactional
     public long create(long authorId, CreatePostDTO dto) {
@@ -83,6 +85,8 @@ public class PostWriteService {
         if (sensitive.containsBlock(content)) {
             throw new BusinessException(SENSITIVE_WORD_BLOCKED);
         }
+        // 日配额:内容已合法才计数——被拒发的尝试不该占用当天的额度
+        guardDailyQuota(authorId);
         boolean needsReview = needsHumanReview(content, authorId);
         List<String> hitWords = needsReview ? sensitive.matchedLevel1Words(content) : List.of();
 
@@ -123,6 +127,25 @@ public class PostWriteService {
         log.info("post created: id={}, author={}, review={}", post.getId(), authorId, needsReview);
         auditService.record(authorId, "create_post", "post", post.getId(), auditDetail(content, authorId, needsReview), null);
         return post.getId();
+    }
+
+    /**
+     * 发帖日配额(2026-10-25):Redis 自然日分桶(与 StrangerQuota 的日桶同构),
+     * key post:daily:{uid}:{yyyyMMdd},TTL 48h 兜底过期(桶按日期隔离,长 TTL 只是防漏删)。
+     * INCR 先行再判超:计数只增不减,超限的失败尝试也占额度——防脚本试探性绕过。
+     */
+    private void guardDailyQuota(long authorId) {
+        int limit = trustService.postDailyLimit(authorId);
+        String day = java.time.LocalDate.now().toString().replace("-", "");
+        String key = "post:daily:" + authorId + ":" + day;
+        Long n = redis.opsForValue().increment(key);
+        if (n != null && n == 1) {
+            redis.expire(key, java.time.Duration.ofHours(48));
+        }
+        if (n != null && n > limit) {
+            throw new BusinessException(POST_DAILY_LIMIT_REACHED,
+                    "今天的发帖额度(" + limit + " 条)用完了,完成认证或提升信誉分可增加额度");
+        }
     }
 
     /**

@@ -15,10 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 信誉分制回归(2026-10-25,配 ReviewTrustService 分数化)。
+ * 信誉分 v2 回归(2026-10-25,基准 60 + 产出加分 + 配额分档)。
  *
- * <p>分数 = 100 − 成立举报×20 − 封禁×40(近180天审计),受信要求 ≥60。
- * 播种五档用户,断言分数与受信联动;他人徽章(trust-badge)与清单同源,不重复断言。
+ * <p>分数 = 60 + min(过审帖+集市, 40) − 成立举报×20 − 封禁×40,受信线 60=基准。
+ * 配额:认证后按分数 60/75/90 → 圈子与集市 1/2/3,帖子 3/30。
  * 自清理自播种(CI 只加载 schema)。
  */
 @SpringBootTest
@@ -34,32 +34,30 @@ class TrustBadgeTest {
 
     private Long cleanUserId;
     private Long oneUpheldUserId;
-    private Long threeUpheldUserId;
     private Long bannedUserId;
     private Long unverifiedUserId;
+    private Long producerUserId;
 
     @BeforeEach
     void seed() {
         cleanUserId = insertUser("trust-clean-" + SUFFIX, 1);
         oneUpheldUserId = insertUser("trust-one-" + SUFFIX, 1);
-        threeUpheldUserId = insertUser("trust-three-" + SUFFIX, 1);
         bannedUserId = insertUser("trust-banned-" + SUFFIX, 1);
         unverifiedUserId = insertUser("trust-unver-" + SUFFIX, 0);
-        for (Long id : new Long[]{cleanUserId, oneUpheldUserId, threeUpheldUserId,
-                bannedUserId, unverifiedUserId}) {
+        producerUserId = insertUser("trust-prod-" + SUFFIX, 1);
+        for (Long id : new Long[]{cleanUserId, oneUpheldUserId, bannedUserId,
+                unverifiedUserId, producerUserId}) {
             jdbc.update("UPDATE user SET create_time = DATE_SUB(NOW(), INTERVAL 30 DAY) WHERE id = ?", id);
         }
-        insertUpheld(oneUpheldUserId, "T1");
-        insertUpheld(threeUpheldUserId, "T2a");
-        insertUpheld(threeUpheldUserId, "T2b");
-        insertUpheld(threeUpheldUserId, "T2c");
+        jdbc.update("INSERT INTO audit_log (user_id, action, target_type, target_id, detail) "
+                + "VALUES (1, 'report_upheld', 'user', ?, ?)", oneUpheldUserId, "T1" + SUFFIX);
         jdbc.update("INSERT INTO audit_log (user_id, action, target_type, target_id, detail) "
                 + "VALUES (1, 'account_ban', 'user', ?, ?)", bannedUserId, "T3" + SUFFIX);
-    }
-
-    private void insertUpheld(Long target, String tag) {
-        jdbc.update("INSERT INTO audit_log (user_id, action, target_type, target_id, detail) "
-                + "VALUES (1, 'report_upheld', 'user', ?, ?)", target, tag + SUFFIX);
+        // 产出型用户:20 条过审帖 → +20 分 → 80 分(75 档,配额 2)
+        for (int i = 0; i < 20; i++) {
+            jdbc.update("INSERT INTO post (author_id, content, status, is_deleted) VALUES (?, 'prod', 1, 0)",
+                    producerUserId);
+        }
     }
 
     private Long insertUser(String username, int verified) {
@@ -71,41 +69,49 @@ class TrustBadgeTest {
 
     @AfterEach
     void cleanup() {
-        for (Long id : new Long[]{cleanUserId, oneUpheldUserId, threeUpheldUserId,
-                bannedUserId, unverifiedUserId}) {
+        for (Long id : new Long[]{cleanUserId, oneUpheldUserId, bannedUserId,
+                unverifiedUserId, producerUserId}) {
             if (id != null) {
                 jdbc.update("DELETE FROM audit_log WHERE target_type = 'user' AND target_id = ?", id);
+                jdbc.update("DELETE FROM post WHERE author_id = ?", id);
                 jdbc.update("DELETE FROM user WHERE id = ?", id);
             }
         }
     }
 
     @Test
-    void creditScoreDeductsAndGatesTrust() {
-        // 干净老号:满分受信
+    void creditScoreV2BaseBonusDeductionAndQuotas() {
+        // 干净认证老号:基准 60,即受信(线=基准),配额一档
         UserTrustStatusVO clean = trustService.status(cleanUserId);
-        assertTrue(clean.getTrusted());
-        assertEquals(100, clean.getCreditScore());
+        assertTrue(clean.getTrusted(), "基准 60=受信线,干净认证老号应受信");
+        assertEquals(60, clean.getCreditScore());
+        assertEquals(1, clean.getCircleQuota());
+        assertEquals(1, clean.getMktQuota());
+        assertEquals(30, clean.getPostDailyQuota());
 
-        // 单条成立:100-20=80 ≥60,仍受信(从「一票永否」改为扣分制)
+        // 单条成立举报:60-20=40,掉线;产出可补回
         UserTrustStatusVO one = trustService.status(oneUpheldUserId);
-        assertEquals(80, one.getCreditScore());
-        assertTrue(one.getTrusted(), "80 分仍应受信");
-        assertTrue(one.getHasBadRecord());
+        assertEquals(40, one.getCreditScore());
+        assertFalse(one.getTrusted());
 
-        // 三条成立:100-60=40 <60,不受信
-        UserTrustStatusVO three = trustService.status(threeUpheldUserId);
-        assertEquals(40, three.getCreditScore());
-        assertFalse(three.getTrusted(), "40 分不应受信");
-
-        // 封禁史:100-40=60,踩线仍受信(≥60)
+        // 封禁史:60-40=20,掉线
         UserTrustStatusVO banned = trustService.status(bannedUserId);
-        assertEquals(60, banned.getCreditScore());
-        assertTrue(banned.getTrusted(), "60 分踩线应受信");
+        assertEquals(20, banned.getCreditScore());
+        assertFalse(banned.getTrusted());
 
-        // 未认证:分数再高也不受信
+        // 产出加分:20 条过审帖 +20 → 80,75 档配额 2
+        UserTrustStatusVO producer = trustService.status(producerUserId);
+        assertEquals(80, producer.getCreditScore());
+        assertEquals(20, producer.getCreditBonus());
+        assertEquals(2, producer.getCircleQuota());
+        assertEquals(2, producer.getMktQuota());
+
+        // 未认证:分数与配额无关地锁死——建圈/集市 0,帖子 3/日
         UserTrustStatusVO unverified = trustService.status(unverifiedUserId);
-        assertEquals(100, unverified.getCreditScore());
+        assertEquals(60, unverified.getCreditScore());
         assertFalse(unverified.getTrusted());
+        assertEquals(0, unverified.getCircleQuota());
+        assertEquals(0, unverified.getMktQuota());
+        assertEquals(3, unverified.getPostDailyQuota());
     }
 }

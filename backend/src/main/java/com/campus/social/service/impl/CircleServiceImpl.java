@@ -39,10 +39,18 @@ public class CircleServiceImpl implements CircleService {
     private final SensitiveWordFilter sensitive;
     /** 展示层打码规则的唯一出处(2026-10-24:圈子帖列表此前裸拼原文,一级词泄露) */
     private final PostVoAssembler postVoAssembler;
+    /** 建圈配额(2026-10-25):信誉分档 1/2/3,解散释放名额 */
+    private final ReviewTrustService trustService;
 
     @Override
     @Transactional
     public long createCircle(long owner, CircleDTO dto) {
+        // 配额在名字校验之前:额度不够时用户改名字也没用,先把结论给出来
+        int quota = trustService.creationQuota(owner);
+        if (quota <= 0 || circleMapper.countActiveOwnedBy(owner) >= quota) {
+            throw new BusinessException(CIRCLE_LIMIT_REACHED,
+                    "已达当前信誉可建的圈子数上限(" + quota + " 个),提升信誉分后自动扩容");
+        }
         // 归一化:trim + 全角转半角(「考研１」与「考研1」不应被视为两个名字)
         String name = normalizeName(dto.getName());
         // 长度 3-7 + 必须含至少 1 个汉字(纯数字/纯字母/纯符号都拒)。

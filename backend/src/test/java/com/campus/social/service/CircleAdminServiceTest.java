@@ -45,6 +45,13 @@ class CircleAdminServiceTest {
 
     @Autowired private CircleAdminService service;
     @Autowired private CircleService circleService;
+    /**
+     * 配额依赖隔离(2026-10-25):本类关注圈管理权限,建圈配额已有
+     * CreditQuotaGuardTest 专门覆盖。真实 trustService 会按测试用户
+     * (未认证/无产出)给出配额 0,把所有建圈用例全部拦下。
+     */
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private com.campus.social.service.impl.ReviewTrustService trustService;
     @Autowired private CircleMapper circleMapper;
     @Autowired private CircleMemberMapper memberMapper;
     @Autowired private PostMapper postMapper;
@@ -81,6 +88,9 @@ class CircleAdminServiceTest {
         member  = SEQ.incrementAndGet();
         outsider= SEQ.incrementAndGet();
         adminUser = ADMIN_UID;
+        // 配额放行:圈管理与发帖用例不关心配额(见类头注释)
+        org.mockito.Mockito.when(trustService.creationQuota(org.mockito.ArgumentMatchers.anyLong())).thenReturn(3);
+        org.mockito.Mockito.when(trustService.postDailyLimit(org.mockito.ArgumentMatchers.anyLong())).thenReturn(999);
         /*
          * 平台管理员必须**真实存在**：RoleServiceImpl.isAdmin 是查库判 role==1，
          * 不是拿 id 猜的。

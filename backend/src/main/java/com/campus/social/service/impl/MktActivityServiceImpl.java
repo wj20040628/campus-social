@@ -59,6 +59,8 @@ public class MktActivityServiceImpl implements MktActivityService {
     private final MessageContentGuard contentGuard;
     private final MktRateLimiter rateLimiter;
     private final PostNotifySupport postNotifySupport;
+    /** 在投配额(2026-10-25):信誉分档 1/2/3,过期/暂停/删除释放名额 */
+    private final ReviewTrustService trustService;
 
     // ---------------------------------------------------------------- create
 
@@ -66,6 +68,12 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Transactional
     public Long create(long userId, MktActivityDTO dto) {
         rateLimiter.guardPublish(userId);
+        // 在投配额:与频率限流互补(429 管太快,这里管太多)。认证门槛由 @RequireVerified 拦
+        int quota = trustService.creationQuota(userId);
+        if (quota <= 0 || mktActivityMapper.countActiveByUser(userId) >= quota) {
+            throw new BusinessException(ResultCode.MKT_ACTIVE_LIMIT_REACHED,
+                    "在投的集市活动已达上限(" + quota + " 条),等待到期或提升信誉分后可再发");
+        }
 
         validateCategory(dto.getCategory());
         // 标题不再必填:主文案由「分类 · 游戏(游戏组队时)」派生,未传则留 null(前端不再采集)。

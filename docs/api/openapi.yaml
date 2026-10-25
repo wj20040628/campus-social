@@ -4962,13 +4962,25 @@ components:
         creditScore:
           type: integer
           description: |
-            信誉分（2026-10-25）：`100 − 成立举报×20 − 封禁×40`，下限 0。
-            动态计算不落库，窗口（默认 180 天）外的扣分记录不计。
-            受信要求 ≥ 60。待审举报**不扣分**（防集中举报刷分），
-            它们走集中举报自动封禁通道（`campus.review.auto-ban-*`）。
+            信誉分（2026-10-25 v2）：`60（基准）+ 产出加分 − 成立举报×20 − 封禁×40`，
+            clamp 0..100。产出加分 = 近窗口过审帖与集市活动 ×1 分/条，封顶 +40
+            （被下架/删除的内容不计）。受信线 60 = 基准：扣分掉线、产出补回。
+            待审举报**不扣分**（防集中举报刷分），集中举报走自动封禁通道。
+        creditBonus:
+          type: integer
+          description: 当前实际计入的产出加分（已按封顶截断）
         creditDecayDays:
           type: integer
-          description: 信誉扣分记录的计算窗口（天），与 campus.review.credit-decay-days 同值
+          description: 信誉记录的计算窗口（天），与 campus.review.credit-decay-days 同值
+        circleQuota:
+          type: integer
+          description: 可建圈子数上限（在世口径，解散/被封释放）。未认证 0；认证后随分数 1/2/3（75/90 分档）
+        mktQuota:
+          type: integer
+          description: 集市同时在投上限（过期/暂停/删除释放）。未认证 0；认证后随分数 1/2/3（75/90 分档）
+        postDailyQuota:
+          type: integer
+          description: 每日发帖上限。未认证 3，认证 30
 
     UserTrustStatusResponse:
       allOf:

@@ -58,4 +58,12 @@ public interface CircleMapper extends BaseMapper<Circle> {
             + "ORDER BY c.member_count DESC, c.create_time DESC, c.id DESC "
             + "LIMIT #{limit}")
     List<RecommendCircleRow> selectRecommendCircles(@Param("me") Long me, @Param("limit") int limit);
+
+    /**
+     * 某用户名下**在世**圈子数(2026-10-25,建圈配额用)。
+     * 在世 = status=0 且未删:解散/被封禁的释放名额——被封圈的圈主
+     * 已承受圈被下架的处罚,配额不放行等于二次永久惩罚。
+     */
+    @Select("SELECT COUNT(*) FROM circle WHERE owner_id = #{ownerId} AND status = 0 AND is_deleted = 0")
+    int countActiveOwnedBy(@Param("ownerId") Long ownerId);
 }

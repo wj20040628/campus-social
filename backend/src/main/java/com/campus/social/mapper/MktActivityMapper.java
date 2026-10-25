@@ -82,4 +82,23 @@ public interface MktActivityMapper extends BaseMapper<MktActivity> {
     /** 软删：属主校验。 */
     @Update("UPDATE mkt_activity SET soft_delete = 1 WHERE id = #{id} AND user_id = #{userId} AND soft_delete = 0")
     int softDelete(@Param("id") Long id, @Param("userId") Long userId);
+
+    /**
+     * 某用户**在投**的集市活动数(2026-10-25,发布配额用)。
+     * 在投 = 投放中(is_enable=1) 且未过期 且未删——过期/暂停/删除即释放名额,
+     * 用户可通过关停或等到期腾出配额,不需要管理员介入。
+     */
+    @Select("SELECT COUNT(*) FROM mkt_activity WHERE user_id = #{userId} "
+            + "AND is_enable = 1 AND expire_time > NOW() AND soft_delete = 0")
+    int countActiveByUser(@Param("userId") Long userId);
+
+    /**
+     * 近 N 天某用户的集市活动产出数(2026-10-25,信誉分加分用)。
+     * 只排除已删(soft_delete):被下架的已计入再扣不现实,但删除即失分,
+     * 与帖子的「过审才计」口径取交集——集市发布本身已要求认证。
+     */
+    @Select("SELECT COUNT(*) FROM mkt_activity WHERE user_id = #{userId} "
+            + "AND soft_delete = 0 AND create_time >= #{since}")
+    int countByUserSince(@Param("userId") Long userId,
+            @Param("since") java.time.LocalDateTime since);
 }

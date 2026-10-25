@@ -148,6 +148,12 @@ public enum ResultCode {
     FEEDBACK_NOT_FOUND(1061, "反馈记录不存在"),
     FEEDBACK_ALREADY_HANDLED(1062, "该反馈已被处理,请勿重复操作"),
 
+    // 1063 起:信誉配额(2026-10-25,发布配额随信誉分分档)。与 429 的区别:
+    // 429 是「频率」(太快),这里是「额度」(太多),提示语要能引导去养信誉分。
+    POST_DAILY_LIMIT_REACHED(1063, "今天的发帖额度用完了,完成认证或提升信誉分可增加额度"),
+    CIRCLE_LIMIT_REACHED(1064, "已达当前信誉可建的圈子数上限,信誉分提升后自动扩容"),
+    MKT_ACTIVE_LIMIT_REACHED(1065, "在投的集市活动已达上限,等待到期或提升信誉分后可再发"),
+
     // 频率类:复用 HTTP 429 段(枚举内本就混排 4xx 与 1xxx)
     TOO_MANY_REQUESTS(429, "操作过于频繁,请稍后再试");
 

@@ -47,6 +47,20 @@ class MktActivityServiceTest {
     /** 清理用：绕过 @TableLogic 做物理删除 */
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
+    /**
+     * 配额依赖隔离(2026-10-25):本类关注集市业务规则,在投配额已有
+     * CreditQuotaGuardTest 专门覆盖。测试用户 9900001 不存在于 user 表,
+     * 真实 trustService 会按"未认证"给配额 0,把全部 create 用例拦下。
+     */
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private com.campus.social.service.impl.ReviewTrustService trustService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubQuota() {
+        org.mockito.Mockito.when(trustService.creationQuota(org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(3);
+    }
+
     /** 造数用的固定 user_id(清理时一起删,避免污染真实数据) */
     private final long OWNER = 9_900_001L;
     private final long OTHER = 9_900_002L;
