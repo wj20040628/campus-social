@@ -460,4 +460,67 @@ curl -s localhost:8080/actuator/health   # 应为 {"status":"UP"}
 
 ## 12. 当前待带上线的本地修复
 
-`frontend/src/composables/useMediaUpload.js` 已修「发帖媒体预览一直转圈」的 Vue 响应式 bug（格子须用 `reactive` 包裹，否则 `cell.state='done'` 不触发重渲染）。该修复目前只在本地文件、尚未部署——**首次部署或下次迭代请务必把它一起 build 上去**，否则线上用户也会遇到「图其实传成功了、但预览一直转圈」。
+`frontend/src/composables/useMediaUpload.js` 已修「发帖媒体预览一直转圈」的 Vue 响应式 bug（格子须用 `reactive` 包裹，否则 `cell.state='done'` 不触发重渲染）。该修复**已提交进仓库**（commit 04cfd89），只是尚未部署到 ECS——首次部署时按第 4 节完整构建自然带上，无需单独处理。
+
+---
+
+## 13. 备案前 checklist：备份 / 监控 / CDN 预备（2026-10-25 补）
+
+> 背景：这台 2核2G 单机扛着 MySQL 全部用户数据，当前**没有数据库定期备份、没有监控告警**。
+> 单机 + 本机盘，磁盘一坏数据全没；OOM/带宽打满只能等用户来报。三件事都很便宜，备案过审开放注册前务必做完。
+
+### 13.1 数据库每日备份到 OSS（最优先）
+
+利用后端已有的 OSS AK（第 5 节 systemd env 里的同一对，权限已限定为该桶读写——不要为备份新开 root AK）。
+
+```bash
+# 一次性：安装 ossutil 并用后端那对 AK 配置（AK 从 systemd unit 的 env 里抄）
+# 下载 ossutil：https://help.aliyun.com/document_detail/120075.html
+ossutil config -e oss-cn-hangzhou.aliyuncs.com -i <OSS_ACCESS_KEY_ID> -k <OSS_ACCESS_KEY_SECRET>
+
+# 备份脚本 /opt/app/backup.sh
+cat > /opt/app/backup.sh <<'EOF'
+#!/bin/bash
+set -e
+STAMP=$(date +%F)
+DUMP=/tmp/campus_social_v2-$STAMP.sql.gz
+# 单库全量;--single-transaction 对 InnoDB 不锁表;密码避免进 ps,用 defaults-extra-file 更佳
+mysqldump --single-transaction --routines campus_social_v2 | gzip > "$DUMP"
+# 桶名与第 5 节 OSS_BUCKET 一致;backup/ 前缀单独配生命周期(见下)
+ossutil cp "$DUMP" oss://<OSS_BUCKET>/backup/db-$STAMP.sql.gz
+rm -f "$DUMP"
+echo "backup done: db-$STAMP.sql.gz"
+EOF
+chmod 700 /opt/app/backup.sh
+
+# MySQL 密码放独立文件(600 权限),不硬编码在脚本里:
+# /root/.my.cnf  →  [mysqldump] user=campus password=...
+
+# 每日 04:30 跑(避开凌晨 3 点的 ReconcileJob 全量对账,别抢 CPU/IO)
+crontab -e
+# 30 4 * * * /opt/app/backup.sh >> /var/log/campus-backup.log 2>&1
+```
+
+**OSS 侧一次性设置**：控制台给桶的 `backup/` 前缀配生命周期规则「30 天后删除」——否则备份会无限堆积把桶撑爆（30 天 × 每天 1 份，单份几 MB～几十 MB，成本可忽略）。
+
+**每月做一次恢复演练**：随便挑一份下载、`gunzip` 后导进本地库确认能还原。「有备份」和「备份能恢复」是两件事，前者廉价后者才是保险。
+
+### 13.2 阿里云云监控告警（免费，控制台点一遍）
+
+云监控控制台 → 主机监控（装云监控插件，免费）→ 创建告警规则，阈值与理由：
+
+| 指标 | 阈值 | 为什么 |
+|---|---|---|
+| CPU 使用率 | > 80% 持续 5 分钟 | 2 核被占满即请求排队 |
+| 内存使用率 | > 85% 持续 5 分钟 | 2G 无余量，这是 OOM 前兆（10.6 的调优就是为它兜底） |
+| 磁盘使用率 | > 80% | 数据库盘满 = 整站写挂 |
+| 公网流出带宽 | > 2.5Mbps 持续 5 分钟 | 3Mbps 是首屏瓶颈，提前知道传播高峰来了 |
+| 进程/宕机 | ping 不可达 | Nginx/后端挂了立刻知道，而不是等用户 |
+
+通知方式：绑钉钉机器人（免费且即时）；短信也开一条给宕机告警。
+
+### 13.3 CDN 预备（备案过审后做，现在只需知道）
+
+第 10.7 节已把「前端静态资源挂 CDN」列为扩容第 3 步。具体动作：前端 `dist/` 构建后不再只放 ECS Nginx，同时上传 OSS 的 `static/` 前缀 → 开 CDN 加速域名回源该桶 → `yousheng8.cn` 的静态路径 CNAME 到 CDN 域名。生效后 ECS 只出 API JSON，3Mbps 瓶颈解除（成本：几百 DAU 每月几块钱）。
+
+**备案前不要做**——CDN 加速域名同样要求已备案。这里只留位置，过审后按 10.7 的顺序接入。
