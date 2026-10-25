@@ -111,6 +111,15 @@ public interface ReportMapper extends BaseMapper<Report> {
     int countUpheldUserReports(@Param("userId") long userId);
 
     /**
+     * 近 N 小时的全部举报（2026-10-25 加，自动封禁计数用）。
+     * 量级假设：校园单日举报是十级；拉回 Java 侧做「目标归因到同一人」的
+     * 分组——这个归因要查四种内容表，放 SQL 里是四路 JOIN 的维护灾难。
+     * 调用方自行过滤状态（未被处置的待审 + 成立才计入，驳回/忽略不算）。
+     */
+    @Select("SELECT * FROM report WHERE is_deleted = 0 AND create_time > DATE_SUB(NOW(), INTERVAL #{hours} HOUR)")
+    java.util.List<com.campus.social.entity.Report> selectRecent(@Param("hours") int hours);
+
+    /**
      * 管理端列表（游标分页，按 id 倒序）。
      *
      * <p>游标用 id 而不是 create_time：create_time 可能撞同一秒，

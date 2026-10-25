@@ -14,6 +14,10 @@
   <el-card v-if="loaded" class="tcard">
     <div class="tcard__head">
       <h3 class="tcard__title">发布信誉</h3>
+      <!-- 信誉分(2026-10-25):100−成立举报×20−封禁×40,180 天窗口,受信≥60 -->
+      <span v-if="score !== null" class="tcard__score" :data-good="score >= 60">
+        信誉 {{ score }} 分
+      </span>
       <span class="tcard__badge" :data-trusted="trusted ? 'good' : 'building'">
         {{ trusted ? '良好' : '建设中' }}
       </span>
@@ -46,8 +50,8 @@
           <CircleCloseFilled v-else />
         </el-icon>
         <span class="tcard__text">
-          {{ badRecord ? '有违规记录' : '无违规记录' }}
-          <span v-if="badRecord" class="tcard__hint">违规记录不影响正常发言,仅影响命中敏感词内容的直发</span>
+          {{ badRecord ? '近 180 天有成立举报或封禁记录' : '近 180 天无成立举报与封禁记录' }}
+          <span v-if="badRecord" class="tcard__hint">记录满 180 天后自动不再计分</span>
         </span>
       </li>
     </ul>
@@ -78,6 +82,11 @@ const badRecord = computed(() => status.value?.hasBadRecord === true)
 const ageDays = computed(() => Number(status.value?.accountAgeDays ?? 0))
 const minDays = computed(() => Number(status.value?.trustMinDays ?? 14))
 const ageOk = computed(() => ageDays.value >= minDays.value)
+/** 信誉分;接口旧版本无此字段时为 null,分数行不渲染 */
+const score = computed(() => {
+  const s = status.value?.creditScore
+  return s == null ? null : Number(s)
+})
 
 trustStatus()
   .then((d) => { status.value = d; loaded.value = true })
@@ -118,6 +127,19 @@ trustStatus()
 .tcard__badge[data-trusted='building'] {
   background: var(--ys-surface-2);
   color: var(--ys-muted);
+}
+
+/* 信誉分:≥60 用主色,低于 60 用警示色(它正在挡住「直发」待遇) */
+.tcard__score {
+  margin-left: auto;
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ys-accent);
+}
+
+.tcard__score[data-good='false'] {
+  color: var(--ys-warning);
 }
 
 .tcard__list {

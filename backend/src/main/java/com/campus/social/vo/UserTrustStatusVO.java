@@ -24,6 +24,15 @@ public class UserTrustStatusVO {
     /** 受信要求的账龄下限（天），与 campus.review.trust-min-days 同值 */
     private Integer trustMinDays;
 
-    /** 是否有违规记录（成立的用户举报或直接封禁史） */
+    /** 是否有违规记录（近 credit-decay-days 天内存在成立举报或封禁史） */
     private Boolean hasBadRecord;
+
+    /**
+     * 信誉分(2026-10-25):100 − 成立举报×20 − 封禁×40,下限 0。
+     * 动态计算不落库,窗口外记录不计。受信要求 ≥ 60。
+     */
+    private Integer creditScore;
+
+    /** 信誉扣分记录的计算窗口(天),与 campus.review.credit-decay-days 同值 */
+    private Integer creditDecayDays;
 }

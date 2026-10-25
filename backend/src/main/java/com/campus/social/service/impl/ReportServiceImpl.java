@@ -64,6 +64,10 @@ public class ReportServiceImpl implements ReportService {
     private final AuditService auditService;
     /** 举报阈值折叠(2026-10-24):同一帖子独立举报人达到阈值即折叠进人审 */
     private final ReportFoldService foldService;
+    /** 举报集中自动封禁(2026-10-25):24h 内多名认证举报人 → 限期封禁止血 */
+    private final ReportAutoBanService autoBanService;
+    /** 举报目标 → 作者的归因(2026-10-25 抽出,与自动封禁共用一份 switch) */
+    private final ReportTargetResolver targetResolver;
     /*
      * 下架不再需要各表的 Mapper：
      * 统一走 reportMapper 的 takedownXxx（显式 UPDATE），
@@ -108,6 +112,15 @@ public class ReportServiceImpl implements ReportService {
          * 同一人重复举报既不增加独立举报人数,也不该反复进入折叠分支。
          */
         foldService.maybeFoldPost(dto.getTargetType(), dto.getTargetId());
+
+        /*
+         * 集中举报自动封禁检查(2026-10-25):注册到事务提交后执行——
+         * 封禁含不可回滚的 Redis 写,举报若回滚不能留下"人被封了"的幽灵。
+         * 幂等重复不触发,理由同上。
+         */
+        if (created != null) {
+            autoBanService.scheduleCheckAfterCommit(created);
+        }
 
         return ReportSubmitVO.builder()
                 .reportId(created == null ? null : created.getId())
@@ -175,6 +188,14 @@ public class ReportServiceImpl implements ReportService {
                 "封禁用户 " + targetUserId + "，天数 " + banDays
                         + (takedown == null ? "" : "，下架内容(" + takedown + ")")
                         + "，备注 " + dto.getHandleNote(), "");
+        /*
+         * user 级成立审计(2026-10-25,信誉分计分源):举报对象无论是用户本人
+         * 还是其帖子/评论/消息/集市活动,成立即给作者记一次 report_upheld,
+         * 信誉分 -20(180 天窗口)。此前只有 target_type=1 会进前科判定,
+         * 内容举报成立却查无记录——信誉分制把这条盲区修掉。
+         */
+        auditService.record(adminId, "report_upheld", "user", targetUserId,
+                "举报#" + report.getId() + "成立,信誉-20", "");
         log.info("report ban: report={}, targetUser={}, days={}, takedown={}, admin={}",
                 report.getId(), targetUserId, banDays, takedown, adminId);
         return ReportHandleVO.builder()
@@ -299,20 +320,7 @@ public class ReportServiceImpl implements ReportService {
      * （误封无辜用户）远大于让管理员多点一次重新定位。
      */
     private long resolveTargetUserId(Report report) {
-        Long authorId = switch (report.getTargetType()) {
-            case ReportTargetType.USER -> report.getTargetId();
-            case ReportTargetType.POST -> reportMapper.selectPostAuthorId(report.getTargetId());
-            case ReportTargetType.COMMENT -> reportMapper.selectCommentAuthorId(report.getTargetId());
-            case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageSenderId(report.getTargetId());
-            /*
-             * 集市活动（6）：封禁对象是发布者 mkt_activity.user_id。
-             * 注意用的是 user_id 而不是 id —— 后者是活动主键，封错就是把举报人封了。
-             * 2026-10-21 新增，与前端 MktDetail 的 targetType 同步（原为 5，会撞搭子语义）。
-             */
-            case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivityOwnerId(report.getTargetId());
-            default -> throw new BusinessException(UNPROCESSABLE,
-                    "搭子内容的封禁需在搭子模块上线后处理，请改为驳回或忽略");
-        };
+        Long authorId = targetResolver.resolveUserId(report);
         if (authorId == null) {
             throw new BusinessException(NOT_FOUND, "被举报内容已不存在或已被删除，无法定位作者");
         }

@@ -1,7 +1,7 @@
 package com.campus.social.integration;
 
-import com.campus.social.controller.UserController;
-import com.campus.social.vo.TrustBadgeVO;
+import com.campus.social.service.impl.ReviewTrustService;
+import com.campus.social.vo.UserTrustStatusVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,14 +10,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 公开信誉徽章回归(2026-10-25,GET /user/{id}/trust-badge)。
+ * 信誉分制回归(2026-10-25,配 ReviewTrustService 分数化)。
  *
- * <p>判定与信任闸门同源(ReviewTrustService.status),本测试沿它的四条件播种:
- * 已认证+老号+无记录 → true;有「成立」的用户举报 → false;未认证 → false。
+ * <p>分数 = 100 − 成立举报×20 − 封禁×40(近180天审计),受信要求 ≥60。
+ * 播种五档用户,断言分数与受信联动;他人徽章(trust-badge)与清单同源,不重复断言。
  * 自清理自播种(CI 只加载 schema)。
  */
 @SpringBootTest
@@ -27,28 +28,38 @@ class TrustBadgeTest {
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);
 
     @Autowired
-    private UserController userController;
+    private ReviewTrustService trustService;
     @Autowired
     private JdbcTemplate jdbc;
 
     private Long cleanUserId;
-    private Long reportedUserId;
+    private Long oneUpheldUserId;
+    private Long threeUpheldUserId;
+    private Long bannedUserId;
     private Long unverifiedUserId;
-    private Long reporterId;
 
     @BeforeEach
     void seed() {
-        // 三个老号(注册 30 天):干净受信 / 有成立举报 / 未认证
         cleanUserId = insertUser("trust-clean-" + SUFFIX, 1);
-        reportedUserId = insertUser("trust-reported-" + SUFFIX, 1);
+        oneUpheldUserId = insertUser("trust-one-" + SUFFIX, 1);
+        threeUpheldUserId = insertUser("trust-three-" + SUFFIX, 1);
+        bannedUserId = insertUser("trust-banned-" + SUFFIX, 1);
         unverifiedUserId = insertUser("trust-unver-" + SUFFIX, 0);
-        reporterId = insertUser("trust-reporter-" + SUFFIX, 1);
-        for (Long id : new Long[]{cleanUserId, reportedUserId, unverifiedUserId, reporterId}) {
+        for (Long id : new Long[]{cleanUserId, oneUpheldUserId, threeUpheldUserId,
+                bannedUserId, unverifiedUserId}) {
             jdbc.update("UPDATE user SET create_time = DATE_SUB(NOW(), INTERVAL 30 DAY) WHERE id = ?", id);
         }
-        // 举报成立:target_type=1(用户),target_id=被举报人,status=1
-        jdbc.update("INSERT INTO report (reporter_id, target_type, target_id, reason_type, status, handler_id) "
-                + "VALUES (?, 1, ?, 1, 1, 1)", reporterId, reportedUserId);
+        insertUpheld(oneUpheldUserId, "T1");
+        insertUpheld(threeUpheldUserId, "T2a");
+        insertUpheld(threeUpheldUserId, "T2b");
+        insertUpheld(threeUpheldUserId, "T2c");
+        jdbc.update("INSERT INTO audit_log (user_id, action, target_type, target_id, detail) "
+                + "VALUES (1, 'account_ban', 'user', ?, ?)", bannedUserId, "T3" + SUFFIX);
+    }
+
+    private void insertUpheld(Long target, String tag) {
+        jdbc.update("INSERT INTO audit_log (user_id, action, target_type, target_id, detail) "
+                + "VALUES (1, 'report_upheld', 'user', ?, ?)", target, tag + SUFFIX);
     }
 
     private Long insertUser(String username, int verified) {
@@ -60,24 +71,41 @@ class TrustBadgeTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("DELETE FROM report WHERE reporter_id = ?", reporterId);
-        for (Long id : new Long[]{cleanUserId, reportedUserId, unverifiedUserId, reporterId}) {
+        for (Long id : new Long[]{cleanUserId, oneUpheldUserId, threeUpheldUserId,
+                bannedUserId, unverifiedUserId}) {
             if (id != null) {
+                jdbc.update("DELETE FROM audit_log WHERE target_type = 'user' AND target_id = ?", id);
                 jdbc.update("DELETE FROM user WHERE id = ?", id);
             }
         }
     }
 
     @Test
-    void badgeReflectsTrustConditions() {
-        assertTrue(userController.trustBadge(cleanUserId).getData().getTrusted(),
-                "已认证+注册满+无记录应受信");
-        assertFalse(userController.trustBadge(reportedUserId).getData().getTrusted(),
-                "有成立的用户举报不应受信");
-        assertFalse(userController.trustBadge(unverifiedUserId).getData().getTrusted(),
-                "未认证不应受信");
-        // 不存在的用户:判定降级为 false 而不是 404(徽章只是个布尔,页面已由用户卡兜 404)
-        assertFalse(userController.trustBadge(-1L).getData().getTrusted(),
-                "不存在的用户按不受信处理");
+    void creditScoreDeductsAndGatesTrust() {
+        // 干净老号:满分受信
+        UserTrustStatusVO clean = trustService.status(cleanUserId);
+        assertTrue(clean.getTrusted());
+        assertEquals(100, clean.getCreditScore());
+
+        // 单条成立:100-20=80 ≥60,仍受信(从「一票永否」改为扣分制)
+        UserTrustStatusVO one = trustService.status(oneUpheldUserId);
+        assertEquals(80, one.getCreditScore());
+        assertTrue(one.getTrusted(), "80 分仍应受信");
+        assertTrue(one.getHasBadRecord());
+
+        // 三条成立:100-60=40 <60,不受信
+        UserTrustStatusVO three = trustService.status(threeUpheldUserId);
+        assertEquals(40, three.getCreditScore());
+        assertFalse(three.getTrusted(), "40 分不应受信");
+
+        // 封禁史:100-40=60,踩线仍受信(≥60)
+        UserTrustStatusVO banned = trustService.status(bannedUserId);
+        assertEquals(60, banned.getCreditScore());
+        assertTrue(banned.getTrusted(), "60 分踩线应受信");
+
+        // 未认证:分数再高也不受信
+        UserTrustStatusVO unverified = trustService.status(unverifiedUserId);
+        assertEquals(100, unverified.getCreditScore());
+        assertFalse(unverified.getTrusted());
     }
 }

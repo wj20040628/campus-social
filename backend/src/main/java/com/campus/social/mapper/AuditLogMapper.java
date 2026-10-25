@@ -26,4 +26,14 @@ public interface AuditLogMapper extends BaseMapper<AuditLog> {
             + "ORDER BY id DESC LIMIT 1")
     AuditLog selectLatest(@Param("action") String action, @Param("targetType") String targetType,
             @Param("targetId") Long targetId);
+
+    /**
+     * 某用户在时间窗内的指定动作次数（2026-10-25 加，信誉分计分用）。
+     * target_type 固定 user：report_upheld / account_ban 都以人为目标落审计。
+     */
+    @Select("SELECT COUNT(*) FROM audit_log "
+            + "WHERE action = #{action} AND target_type = 'user' AND target_id = #{targetId} "
+            + "AND create_time >= #{since}")
+    int countUserActionsSince(@Param("action") String action, @Param("targetId") Long targetId,
+            @Param("since") java.time.LocalDateTime since);
 }

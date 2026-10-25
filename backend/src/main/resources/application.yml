@@ -301,9 +301,16 @@ campus:
   # 无 AI 机审模式下的队列瘦身与快速发现,详见 ReviewTrustService / ReportFoldService。
   # ----------------------------------------------------------
   review:
-    # 受信用户账龄下限(天):已认证 + 注册满 N 天 + 无成立举报/直接封禁记录
-    # 的用户,level-1 敏感词直接命中可豁免送审(替换后直发,audit_log 留痕)
+    # 受信用户账龄下限(天):已认证 + 注册满 N 天 + 信誉分≥60 的用户,
+    # level-1 敏感词直接命中可豁免送审(替换后直发,audit_log 留痕)
     trust-min-days: ${CAMPUS_REVIEW_TRUST_MIN_DAYS:14}
+    # 信誉扣分记录的计算窗口(天):窗口外的成立举报/封禁不再计分。
+    # 信誉分 = 100 - 成立举报×20 - 封禁×40,受信要求 ≥60,动态查询不落库
+    credit-decay-days: ${CAMPUS_REVIEW_CREDIT_DECAY_DAYS:180}
+    # 集中举报自动封禁:24h 内 ≥N 个已认证的独立举报人举报同一用户(含其内容)
+    # → 自动封禁 auto-ban-days 天,到期自动解封,管理员可提前手动解封;<=0 关闭
+    auto-ban-reporters: ${CAMPUS_REVIEW_AUTO_BAN_REPORTERS:3}
+    auto-ban-days: ${CAMPUS_REVIEW_AUTO_BAN_DAYS:3}
     # 同一帖子的独立待处置举报人数达到阈值 → 自动折叠(出 Feed)并进人审队列。
     # 管理员在审核台 approve 即恢复、reject 维持下架;<=0 关闭本机制
     report-fold-threshold: ${CAMPUS_REVIEW_FOLD_THRESHOLD:3}
