@@ -28,7 +28,12 @@ const C = {
 const W = 750
 const PAD = 44
 const CARD_Y = 150 // 顶部品牌行高度,白卡从这开始
-const QR_SECTION = 300 // 底部二维码区固定高
+/**
+ * 底部二维码区固定高。构成:白卡下间距 34 + 二维码 240(白框 ±14)
+ * + 引导文案两行(基线 +64/+106)+ 底边距约 26。
+ * 此前是 300,文案基线落在画布外(H+16),「扫码查看完整内容」被裁得只剩字顶。
+ */
+const QR_SECTION = 420
 const CARD_TOP_PAD = 56
 const CARD_BOTTOM_PAD = 44
 /** 白卡最矮高度:再短的内容也保证留白不局促(低于此值卡片显得瘪) */
@@ -178,8 +183,9 @@ export async function drawShareCard(opt) {
     color: { dark: C.fg, light: '#ffffff' },
   })
   const qrImg = await loadImageSafe(qrDataUrl)
+  // 以白卡底为基准往下排:34 间距 + 白框 14
   const qrX = (W - qrSize) / 2
-  const qrY = H - 288
+  const qrY = CARD_Y + cardH + 34 + 14
   roundRect(ctx, qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 18)
   ctx.fillStyle = C.surface
   ctx.fill()
