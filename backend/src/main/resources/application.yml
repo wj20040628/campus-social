@@ -84,6 +84,20 @@ spring:
           starttls:
             enable: true
 
+  # ----------------------------------------------------------
+  # 定时任务线程池(2026-10-25):默认单线程是隐患——
+  # 凌晨 3 点 ReconcileJob 全量对账跑几分钟,期间 BanExpireJob(每 5 分钟
+  # 解封到期用户)全部排队,封禁到期不能按时解除;DigestEmailJob(18:00)同理。
+  # 3 条线程:对账 / 高频短任务 / 每日任务各占其一,互不阻塞。
+  # ----------------------------------------------------------
+  task:
+    scheduling:
+      pool:
+        size: 3
+    # 优雅停机时给在飞任务留的收尾时间,与 server.shutdown=graceful 配套
+    lifecycle:
+      timeout-per-shutdown-phase: 25s
+
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
   configuration:
@@ -130,6 +144,10 @@ upload:
 
 server:
   port: 8080
+  # 优雅停机(2026-10-25):迭代部署重启时,先停止收新请求、把进行中的
+  # 请求处理完(上限 25s)再退出——否则 systemd restart 瞬间掐断在途请求,
+  # 用户正打字发评论就收到失败。systemd 侧需配 TimeoutStopSec=30 配合。
+  shutdown: graceful
   tomcat:
     max-http-form-post-size: 200MB
     # ----------------------------------------------------------
@@ -351,3 +369,4 @@ logging:
     # 本地调试用 application-local.yml 打开 DEBUG;生产保持 INFO
     com.campus.social: INFO
     org.springframework.web: INFO
+
