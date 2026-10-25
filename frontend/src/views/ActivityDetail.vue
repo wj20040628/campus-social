@@ -206,8 +206,8 @@ const shareSpec = computed(() => {
 
 const canCancel = computed(() => {
   if (!act.value) return false
-  // 报名中/已满 可取消;进行中/已结束不可
-  return [0, 1].includes(act.value.status)
+  // 报名中/已满/进行中 可取消(进行中报名同步放开);已结束/已取消不可
+  return [0, 1, 2].includes(act.value.status)
 })
 
 function actStatusText(s) {
@@ -217,13 +217,12 @@ function actStatusTag(s) {
   return ['primary', 'warning', 'success', 'info', 'danger'][s] || 'info'
 }
 
-/** 不可报名时的原因,按 status 细分,不笼统一句「不可报名」 */
+/** 不可报名时的原因,按 status 细分。进行中(2)已可报名(2026-10-25),
+ *  只剩 已满/已结束/已取消 三种不可报——与后端 canSignup 口径一致 */
 function signupBlockedReason(a) {
   switch (Number(a?.status)) {
     case 1:
       return '名额已报满,关注下一场'
-    case 2:
-      return '活动已开打,报名通道关闭'
     case 3:
       return '活动已结束'
     case 4:

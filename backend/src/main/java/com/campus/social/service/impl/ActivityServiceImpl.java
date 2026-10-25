@@ -245,7 +245,13 @@ public class ActivityServiceImpl implements ActivityService {
                     .eq(ActivitySignup::getUserId, viewerId);
             signedUp = signupMapper.selectCount(qw) > 0;
         }
-        boolean canSignup = a.getStatus() == 0 || a.getStatus() == 1;
+        /*
+         * 报名通道随**结束/取消**关闭,进行中(status 2)仍可报名——
+         * 「开始时间=现在」的捡人局创建即开打,若开始即关门,谁也报不了。
+         * 这不是产品放宽:signup() 只拦 3/4,trySignin 的乐观锁 SQL 本就允许
+         * status IN (0,1,2)——此前读侧标志与写路径语义脱节(2026-10-25 修)。
+         */
+        boolean canSignup = a.getStatus() != 3 && a.getStatus() != 4;
         return ActivityVO.builder()
                 .id(a.getId())
                 .title(a.getTitle())
