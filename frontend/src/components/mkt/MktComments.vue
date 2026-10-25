@@ -141,7 +141,6 @@
  */
 import { ref, nextTick } from 'vue'
 import dayjs from 'dayjs'
-import { ElMessage } from '@/utils/feedback'
 import { Close } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import { resolveThumb } from '@/utils/resolve'
@@ -153,9 +152,15 @@ const props = defineProps({
   list: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   myId: { type: [Number, String], default: null },
+  /**
+   * 异步提交回调(2026-10-24 由 emit 改为 prop):
+   * await 父组件的真接口 Promise,错误抛回本组件展示;
+   * 成功 toast 与列表刷新由父组件负责,本组件只管输入态。
+   */
+  submitComment: { type: Function, required: true },
 })
 
-const emit = defineEmits(['submit', 'report-comment'])
+const emit = defineEmits(['report-comment'])
 
 /** 手机端走抽屉；桌面保留常驻输入框（断点与全站一致，来自 design-tokens） */
 const isMobile = useIsMobile()
@@ -190,11 +195,14 @@ function fmtTime(t) {
 }
 
 /**
- * 发留言：提交给页面，页面走 mkt.mktComment(限流+敏感词)。失败保留草稿。
+ * 发留言:走父组件传入的 submitComment(页面里的 mkt.mktComment,限流+敏感词)。
  *
- * emit 本身不返回 Promise，所以这里 await 的其实是 undefined ——
- * 真正的错误由父组件的 submit 同步抛出（父组件 onCommentSubmit 里 await 接口，
- * 出错会冒泡到这里）。保留 await 是为了兼容将来 emit 变成异步的写法。
+ * 【2026-10-24 由 emit 改为 prop 回调,修双 toast + 假成功】
+ * emit 同步调用父组件的 async handler 但**不等待**,await emit 是 await
+ * undefined —— 本组件随即弹成功 toast(接口还没完成),父组件成功后
+ * 又弹一次(双 toast);接口失败更糟:错误传不回 catch,用户看着
+ * 「留言发出去了」但留言没发出去,submitting 提前复位、防重入失效。
+ * 现在 await 真接口 Promise:错误抛到这里展示,成功 toast 与刷新归父组件。
  */
 async function submit() {
   const text = draft.value.trim()
@@ -202,10 +210,9 @@ async function submit() {
   submitting.value = true
   submitError.value = ''
   try {
-    await emit('submit', text)
+    await props.submitComment(text)
     draft.value = ''
     sheetOpen.value = false
-    ElMessage.success('留言发出去了')
   } catch (e) {
     // 敏感词命中等后端业务错误:e.message 是后端文案
     submitError.value = e?.message || '没发出去,再点一次留言'
