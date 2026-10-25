@@ -230,6 +230,11 @@ journalctl -u campus -f    # 看启动日志，确认无 IllegalStateException�
 
 ```nginx
 # 备案前
+# ---- API 限速(2026-10-25,防爬):游客可读详情接口放行后,未认证 GET
+# 无限流可被拖库。按 IP 20r/s + burst 40,正常页面加载(并发 10-20 请求)
+# 不误伤,持续超速收 429。conf.d 被 include 进 http,zone 声明写在 server 外即 http 级。
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=20r/s;
+
 server {
     listen 8088;
     server_name 120.26.4.66;
@@ -244,6 +249,8 @@ server {
 
     # 后端 API 反代（只暴露这几个前缀，8080 不对公网）
     location /api/ {
+        limit_req zone=api_limit burst=40 nodelay;
+        limit_req_status 429;
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
