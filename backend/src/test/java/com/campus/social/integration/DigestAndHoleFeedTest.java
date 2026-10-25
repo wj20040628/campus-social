@@ -34,6 +34,8 @@ class DigestAndHoleFeedTest {
     @Autowired
     private PostFeedQueryService feedQuery;
     @Autowired
+    private com.campus.social.service.PostService postService;
+    @Autowired
     private UserController userController;
     @Autowired
     private JdbcTemplate jdbc;
@@ -108,5 +110,31 @@ class DigestAndHoleFeedTest {
         String pref = jdbc.queryForObject(
                 "SELECT notify_pref FROM user WHERE id = ?", String.class, digestUserId);
         assertTrue(pref.contains("\"disabled\":[3]"), "站内免打扰应保留(合并写)");
+    }
+
+    @Test
+    void pendingPostHiddenFromGuestAndOthers() {
+        // 2026-10-25 审计修回归(外部审查抓出):「审核中」帖子对游客/无关用户必须 404
+        jdbc.update("INSERT INTO post (author_id, content, status, is_deleted) "
+                + "VALUES (?, 'pending-hide', 0, 0)", AUTHOR);
+        Long pendingId = jdbc.queryForObject(
+                "SELECT id FROM post WHERE author_id = ? AND content = 'pending-hide' ORDER BY id DESC LIMIT 1",
+                Long.class, AUTHOR);
+
+        try {
+            postService.detail(pendingId, 0L); // 游客
+            org.junit.jupiter.api.Assertions.fail("游客不应读到审核中的帖子");
+        } catch (com.campus.social.exception.BusinessException e) {
+            assertEquals(com.campus.social.common.ResultCode.POST_NOT_FOUND.getCode(), e.getCode());
+        }
+        try {
+            postService.detail(pendingId, 999L); // 无关登录用户
+            org.junit.jupiter.api.Assertions.fail("无关用户不应读到审核中的帖子");
+        } catch (com.campus.social.exception.BusinessException e) {
+            assertEquals(com.campus.social.common.ResultCode.POST_NOT_FOUND.getCode(), e.getCode());
+        }
+        // 作者本人可见(通知跳详情的路径必须仍通)
+        var self = postService.detail(pendingId, AUTHOR);
+        assertEquals("pending-hide", self.getContent());
     }
 }

@@ -211,9 +211,36 @@ public class AuthServiceImpl implements AuthService {
         return issueTokens(user, false);
     }
 
+    /** 登录失败锁定:账号维度 5 次 / IP 维度 30 次,均 15 分钟窗口 */
+    private static final int FAIL_LIMIT_ACCOUNT = 5;
+    private static final int FAIL_LIMIT_IP = 30;
+    private static final java.time.Duration FAIL_TTL = java.time.Duration.ofMinutes(15);
+
+    /** 达到阈值即抛 429 */
+    private void throwIfLocked(String key, int limit, String message) {
+        String v = redis.opsForValue().get(key);
+        if (v != null && Long.parseLong(v) >= limit) {
+            throw new BusinessException(TOO_MANY_REQUESTS, message);
+        }
+    }
+
+    /** 记一次失败;first 时是本次窗口第一条,顺手设 TTL */
+    private void recordFailure(String key, boolean first) {
+        Long n = redis.opsForValue().increment(key);
+        if (n != null && n == 1) {
+            redis.expire(key, FAIL_TTL);
+        }
+    }
+
     @Override
-    public TokenPairVO login(LoginDTO dto) {
+    public TokenPairVO login(LoginDTO dto, String ip) {
         /*
+         * 失败锁定(2026-10-25,撞库防护——外部审查抓出的缺口):
+         *   账号维度 5 次失败锁 15 分钟;IP 维度 30 次失败锁 15 分钟。
+         * 账号键只在「账号存在且密码错误」时递增——账号不存在的失败只记 IP 键,
+         * 避免不存在的账号名被滥用去误锁真实用户。经典权衡:知道账号名的人
+         * 仍可故意锁别人 15 分钟,换取撞库成本从「无限制」到「5 次/15 分钟」。
+         *
          * 登录标识三路 OR 匹配（2026-10-21 扩展为三列）：
          *   1) user.username  —— 老账号的旧主标识（邮箱/手机），新账号存邮箱
          *   2) user.email     —— 新用户主路径
@@ -229,6 +256,10 @@ public class AuthServiceImpl implements AuthService {
          * 统一回 WRONG_PASSWORD，不区分「账号不存在」与「密码错误」—— 防账号枚举。
          */
         String id = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase();
+        String accountKey = "login:fail:u:" + id;
+        String ipKey = "login:fail:ip:" + (ip == null || ip.isBlank() ? "unknown" : ip);
+        throwIfLocked(accountKey, FAIL_LIMIT_ACCOUNT, "该账号失败次数过多,请 15 分钟后再试");
+        throwIfLocked(ipKey, FAIL_LIMIT_IP, "当前网络登录失败过多,请 15 分钟后再试");
         User user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
                         .eq(User::getUsername, id)
@@ -240,8 +271,9 @@ public class AuthServiceImpl implements AuthService {
                         // 手写 Wrapper 需要显式排除，否则注销账号仍可登入
                         .eq(User::getIsDeleted, 0));
         if (user == null) {
-            // 审计:登录失败(账号不存在,记为系统操作)
+            // 审计:登录失败(账号不存在,记为系统操作)。只计 IP 维度(见方法头注释)
             auditService.record(0L, "login_fail", null, null, "identifier=" + id + ", 账号不存在", null);
+            recordFailure(ipKey, false);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 冻结/注销账号拒登录
@@ -255,8 +287,12 @@ public class AuthServiceImpl implements AuthService {
         }
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
             auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 密码错误", null);
+            recordFailure(accountKey, true);
+            recordFailure(ipKey, false);
             throw new BusinessException(WRONG_PASSWORD);
         }
+        // 登录成功:清掉该账号的失败计数(成功本身就是最可信的解锁)
+        redis.delete(accountKey);
         // 记住我:勾选 → refresh 7d,不勾 → 3d(见 refreshTtl)
         boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
         // 审计:登录

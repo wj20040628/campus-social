@@ -17,8 +17,8 @@ public interface AuthService {
     /** 注册:邮箱或手机号 + 密码 + 验证码,返回双 token */
     TokenPairVO register(RegisterDTO dto);
 
-    /** 密码登录 */
-    TokenPairVO login(LoginDTO dto);
+    /** 密码登录。ip 供失败锁定(撞库防护)做维度,controller 从代理头取 */
+    TokenPairVO login(LoginDTO dto, String ip);
 
     /** 邮箱验证码登录(免密码) */
     TokenPairVO loginByCode(LoginByCodeDTO dto);

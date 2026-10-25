@@ -49,8 +49,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Result<TokenPairVO> login(@Valid @RequestBody LoginDTO dto) {
-        return Result.ok(authService.login(dto));
+    public Result<TokenPairVO> login(@Valid @RequestBody LoginDTO dto, HttpServletRequest req) {
+        return Result.ok(authService.login(dto, clientIp(req)));
+    }
+
+    /** 失败锁定的维度:优先代理头(部署在 Nginx 后),无则回源地址 */
+    private String clientIp(HttpServletRequest req) {
+        String xff = req.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
+        }
+        String real = req.getHeader("X-Real-IP");
+        return real != null && !real.isBlank() ? real : req.getRemoteAddr();
     }
 
     /** 邮箱验证码登录(免密码) */

@@ -108,8 +108,13 @@ public class PostServiceImpl implements PostService {
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
         }
-        // 下架/删除对非作者不可见
-        if ((post.getStatus() == 2 || post.getStatus() == 3) && !post.getAuthorId().equals(viewerId)) {
+        /*
+         * 非「已发布」状态对非作者一律不可见(2026-10-25 审计修,外部审查抓出):
+         * 此前只拦 2/3,审核中(0)的帖子对游客/其他用户可见——游客可读放行后
+         * 未过审 UGC 可公网枚举(id 顺序可猜),对带人工审核承诺的产品是隐私事故。
+         * 审核员不经此路径(走审核队列);通知里的详情链接只有作者会点(作者放行)。
+         */
+        if (post.getStatus() != 1 && !post.getAuthorId().equals(viewerId)) {
             throw new BusinessException(POST_NOT_FOUND);
         }
         // 浏览量原子 +1(每次进详情算一次)
