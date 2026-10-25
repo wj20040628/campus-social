@@ -46,6 +46,27 @@ public class AuthInterceptor implements HandlerInterceptor {
             "/dict/majors"
     );
 
+    /**
+     * 游客可读的 GET 端点(2026-10-25 分享卡片落地页)。
+     *
+     * <p>背景:分享卡片二维码扫码进来的多半是未登录用户,落地页若直接 401,
+     * 分享等于白发。这里放行**纯只读详情**——帖子详情/评论、集市活动详情/留言、
+     * 圈子活动详情/报名名单。Controller 侧对这些端点早已写好 {@code me != null ? me : 0}
+     * 的游客视角兜底(点赞/收藏/搭话等用户态对游客恒 false)。
+     *
+     * <p>只放 GET 且 id 段限定数字:同 path 的 PUT/DELETE(编辑/删帖)与
+     * POST(点赞/评论)不在放行之列,写操作必须登录。
+     */
+    private static final java.util.regex.Pattern[] GUEST_GET_PATTERNS = {
+            java.util.regex.Pattern.compile("^/post/\\d+$"),
+            java.util.regex.Pattern.compile("^/post/\\d+/comments$"),
+            java.util.regex.Pattern.compile("^/post/\\d+/comment/\\d+/children$"),
+            java.util.regex.Pattern.compile("^/mkt/\\d+$"),
+            java.util.regex.Pattern.compile("^/mkt/\\d+/comments$"),
+            java.util.regex.Pattern.compile("^/activity/\\d+$"),
+            java.util.regex.Pattern.compile("^/activity/\\d+/signups$"),
+    };
+
     public static final String ATTR_USER_ID = "userId";
     public static final String ATTR_USERNAME = "username";
 
@@ -72,15 +93,29 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (WHITE_LIST.contains(path)) {
             return true;
         }
+        /*
+         * 游客可读(分享落地页)是**降级**而不是**旁路**:带有效 token 的请求
+         * 必须照常走完整鉴权并塞 userId —— 否则登录用户 GET 帖子详情会被
+         * 当成游客,liked/mine 等用户态全部丢失(2026-10-25 冒烟抓到的回归:
+         * 匿名帖作者看自己详情 mine=false)。只有「没带凭证/凭证无效」时
+         * 才按游客放行 —— 扫码进来的人不该被 401 挡在落地页外。
+         */
+        boolean guestReadable = "GET".equalsIgnoreCase(request.getMethod()) && isGuestReadable(path);
 
         String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (auth == null || !auth.startsWith("Bearer ")) {
+            if (guestReadable) {
+                return true;
+            }
             writeUnauth(response, "缺少 Authorization header");
             return false;
         }
         String token = auth.substring(7).trim();
         Claims claims = com.campus.social.util.JwtUtil.parseAccess(token);
         if (claims == null) {
+            if (guestReadable) {
+                return true; // 过期 token 扫码进来 → 降级游客,落地页不该 401
+            }
             writeUnauth(response, "token 无效或已过期");
             return false;
         }
@@ -128,6 +163,15 @@ public class AuthInterceptor implements HandlerInterceptor {
         request.setAttribute(ATTR_USER_ID, userId);
         request.setAttribute(ATTR_USERNAME, claims.get("username"));
         return true;
+    }
+
+    private static boolean isGuestReadable(String path) {
+        for (java.util.regex.Pattern p : GUEST_GET_PATTERNS) {
+            if (p.matcher(path).matches()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void writeUnauth(HttpServletResponse response, String msg) throws java.io.IOException {

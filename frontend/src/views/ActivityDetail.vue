@@ -121,10 +121,15 @@
           >
             取消活动
           </el-button>
+          <!-- 分享卡片(2026-10-25):和报名同一操作区,报名前的犹豫期正是转发时机 -->
+          <el-button plain @click="shareOpen = true">分享</el-button>
         </div>
       </el-card>
       <StateBlock v-else variant="error" title="这个活动不存在" description="可能已经结束或被发起人撤掉了" action-label="回圈子广场" :icon="WarningFilled" @action="router.push('/circles')" />
     </div>
+
+    <!-- 分享卡片:扫码进来的人免登录可读活动详情与报名名单(后端已放游客 GET) -->
+    <ShareCardSheet v-model:open="shareOpen" :spec="shareSpec" />
   </div>
 </template>
 
@@ -135,6 +140,8 @@ import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { Calendar, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
+import ShareCardSheet from '@/components/share/ShareCardSheet.vue'
+import { shareUrl } from '@/utils/shareCard'
 import { resolveThumb } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
 import {
@@ -178,6 +185,24 @@ const quotaPct = computed(() => {
 const isCreator = computed(
   () => !!act.value && !!act.value.creatorId && act.value.creatorId === myId.value
 )
+
+/* ---------------- 分享卡片(2026-10-25) ---------------- */
+const shareOpen = ref(false)
+const shareSpec = computed(() => {
+  const a = act.value
+  if (!a) return null
+  return {
+    kind: 'activity',
+    title: a.title || '圈子活动',
+    excerpt: a.startTime
+      ? `开始时间 ${dayjs(a.startTime).format('MM-DD HH:mm')}`
+      : '',
+    authorName: '', // ActivityVO 不带圈名,卡片作者行留空不渲染
+    topics: [actStatusText(a.status)],
+    qrText: shareUrl(`/activity/${a.id}`),
+    fileName: `yousheng-activity-${a.id}.png`,
+  }
+})
 
 const canCancel = computed(() => {
   if (!act.value) return false

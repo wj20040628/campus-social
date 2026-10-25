@@ -64,10 +64,11 @@ public class MktActivityController {
         return Result.ok(service.myList(currentUserId(req), lastId, size));
     }
 
-    /** 详情：软删 404；过期/暂停/满员仍可看可留言。 */
+    /** 详情：软删 404；过期/暂停/满员仍可看可留言。游客可读(分享落地页,2026-10-25)。 */
     @GetMapping("/{id}")
     public Result<MktActivityVO> detail(@PathVariable("id") long id, HttpServletRequest req) {
-        return Result.ok(service.detail(id, currentUserId(req)));
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(service.detail(id, me != null ? me : 0L));
     }
 
     /** 编辑：仅改文案字段；不改 expire_time。 */

@@ -73,6 +73,14 @@
           <button
             type="button"
             class="md__report-inline"
+            aria-label="生成分享卡片"
+            @click="shareOpen = true"
+          >
+            分享
+          </button>
+          <button
+            type="button"
+            class="md__report-inline"
             aria-label="举报这条活动"
             @click="openActivityReport"
           >
@@ -194,6 +202,9 @@
     <!-- 安全须知弹窗（2026-10-21）：首次进入弹一次，勾选后本次登录内不再弹 -->
     <MktRiskNotice v-model="riskOpen" @ack="onRiskAck" />
   </div>
+
+  <!-- 分享卡片(2026-10-25):扫码进来的人不用登录就能看这条活动(后端已放游客读) -->
+  <ShareCardSheet v-model:open="shareOpen" :spec="shareSpec" />
 </template>
 
 <script setup>
@@ -221,7 +232,10 @@ import MktComments from '@/components/mkt/MktComments.vue'
 import MktDetailAside from '@/components/mkt/MktDetailAside.vue'
 import MktRiskNotice from '@/components/mkt/MktRiskNotice.vue'
 import { useMktRiskNotice } from '@/composables/useMktRiskNotice'
+import { useMktAside } from '@/composables/useMktAside'
 import ReportSheet from '@/components/post/ReportSheet.vue'
+import ShareCardSheet from '@/components/share/ShareCardSheet.vue'
+import { shareUrl } from '@/utils/shareCard'
 import { useRemainingCountdown } from '@/composables/useRemainingCountdown'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import { submitReport } from '@/api/review'
@@ -296,39 +310,8 @@ const publishedText = computed(() => {
   return rel ? `${rel}发布` : '发布者'
 })
 
-/* ---------------- 右栏数据（2026-10-21，仅桌面显示） ----------------
- * 状态文案与颜色：后端下发 status（LAUNCHING/FULL/PAUSED/EXPIRED），
- * 详情页此前没用它 —— 用户看不出这条是「还能加入」还是「已满」。
- * 同分类条数复用 GET /mkt/plaza 按分类查一次，不新增端点；
- * 失败静默置 null（模板 v-if 隐藏整块，它是增强信息）。
- */
-const STATUS_TEXT = {
-  LAUNCHING: '投放中',
-  FULL: '已满员',
-  PAUSED: '已暂停',
-  EXPIRED: '已过期',
-}
-
-const statusText = computed(() => STATUS_TEXT[act.value?.status] || '投放中')
-
-const statusClass = computed(() => {
-  const s = act.value?.status
-  if (s === 'EXPIRED') return 'panel__v--danger'
-  if (s === 'PAUSED' || s === 'FULL') return 'panel__v--warn'
-  return 'panel__v--live'
-})
-
-const sameCatCount = ref(null)
-
-async function loadSameCat() {
-  try {
-    const data = await mkt.mktPlaza(act.value?.category || null, null, 20)
-    const list = (data?.list || []).filter((a) => String(a.id) !== String(route.params.id))
-    sameCatCount.value = list.length
-  } catch {
-    sameCatCount.value = null
-  }
-}
+/* ---------------- 右栏数据（2026-10-25 抽出到 useMktAside,本文件贴行数门禁） ---------------- */
+const { statusText, statusClass, sameCatCount, loadSameCat } = useMktAside(act, route)
 
 async function load() {
   loading.value = true
@@ -383,6 +366,22 @@ function openCommentReport(c) {
   reportCommentId.value = c.id
   cmtReportOpen.value = true
 }
+
+/* ---------------- 分享卡片（2026-10-25） ---------------- */
+const shareOpen = ref(false)
+const shareSpec = computed(() => {
+  const a = act.value
+  if (!a) return null
+  return {
+    kind: 'mkt',
+    title: titleText.value || String(a.category || '集市活动'),
+    excerpt: String(a.content || '').slice(0, 200),
+    authorName: a.nickname || '',
+    topics: [a.category, a.subTag].filter(Boolean),
+    qrText: shareUrl(`/mkt/${a.id}`),
+    fileName: `yousheng-mkt-${a.id}.png`,
+  }
+})
 
 /* ---------------- 安全须知弹窗（2026-10-21） ---------------- */
 /*

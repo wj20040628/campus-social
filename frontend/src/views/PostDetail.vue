@@ -6,6 +6,16 @@
         <el-icon :size="20"><ArrowLeft /></el-icon>
       </button>
       <h1 class="detail__title">帖子详情</h1>
+      <!-- 分享卡片(2026-10-25):扫码进来的人免登录可读(后端已放游客 GET) -->
+      <button
+        v-if="post"
+        type="button"
+        class="detail__more"
+        aria-label="生成分享卡片"
+        @click="shareOpen = true"
+      >
+        <el-icon :size="20"><Share /></el-icon>
+      </button>
       <button
         v-if="post"
         type="button"
@@ -101,7 +111,8 @@
           <span class="ops__count">{{ cap(post.commentCount) }}</span>
         </span>
 
-        <!-- 作者本人:编辑/删除。他人不渲染(不是置灰,是根本不出现) -->
+        <!-- 作者本人:编辑/删除。他人不渲染(不是置灰,是根本不出现)。
+             树洞匿名帖 author 被后端抹掉,本人判定靠 PostVO.mine -->
         <template v-if="isAuthor">
           <button v-if="post.status === 1" type="button" class="ops__btn" @click="goEdit">
             <el-icon :size="15"><EditPen /></el-icon>
@@ -112,8 +123,9 @@
             <span>删除</span>
           </button>
         </template>
-        <!-- 他人:搭句话主按钮。内部自己判未认证/额度用尽(设计 §3 四态) -->
-        <GreetButton v-else :peer-id="authorId" @need-verify="verifyOpen = true" />
+        <!-- 他人:搭句话主按钮。内部自己判未认证/额度用尽(设计 §3 四态)。
+             匿名帖没有可搭话的对象(authorId 为空),不渲染 -->
+        <GreetButton v-else-if="authorId" :peer-id="authorId" @need-verify="verifyOpen = true" />
       </div>
 
       <!-- 行 8:评论区。树在 PostComments 内部建,页面只传扁平列表 -->
@@ -159,6 +171,9 @@
       @go-verify="router.push('/profile')"
       @author-hidden="router.push('/')"
     />
+
+    <!-- 分享卡片:卡片内容由已加载的帖子数据拼装,匿名帖作者行显示「匿名」 -->
+    <ShareCardSheet v-model:open="shareOpen" :spec="shareSpec" />
   </div>
 </template>
 
@@ -179,6 +194,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { capCount as cap, usePostMedia } from '@/composables/usePostDetail'
 import { usePostDetailActions } from '@/composables/usePostDetailActions'
+import { displayName } from '@/utils/mask'
+import { resolveUrl } from '@/utils/resolve'
+import { shareUrl } from '@/utils/shareCard'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import CommentComposer from '@/components/post/CommentComposer.vue'
@@ -188,8 +206,9 @@ import { ElMessageBox } from '@/utils/feedback'
 import PostComments from '@/components/post/PostComments.vue'
 import ThumbUp from '@/icons/ThumbUp.vue'
 import PostSheets from '@/components/post/PostSheets.vue'
+import ShareCardSheet from '@/components/share/ShareCardSheet.vue'
 import {
-  ArrowLeft, ChatLineSquare, Delete, EditPen, MoreFilled, Star, StarFilled, WarningFilled } from '@element-plus/icons-vue'
+  ArrowLeft, ChatLineSquare, Delete, EditPen, MoreFilled, Share, Star, StarFilled, WarningFilled } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -206,11 +225,34 @@ const composerRef = ref(null)
 const replyTo = ref(null)
 
 const myId = computed(() => userStore.userInfo?.id)
-const isAuthor = computed(() => !!post.value && post.value.author?.id === myId.value)
+/*
+ * 本人判定:常规帖比 author.id;树洞匿名帖的 author 被后端整体抹掉,
+ * 靠服务端下发的 mine 维持编辑/删除入口(mine 只有作者本人为 true)。
+ */
+const isAuthor = computed(
+  () => !!post.value && (post.value.author?.id === myId.value || post.value.mine === true),
+)
 
 // 媒体解析仍在本页:PostBody 只收已解析好的 mediaList/cols/imgList,
 // 不再自己调 usePostMedia —— 解析规则(几个图排几列)是数据问题不是展示问题。
 const { mediaList, imgList, cols: gridCols, imgIndex } = usePostMedia(post)
+
+/* 分享卡片:从已加载的帖子拼 spec;匿名帖作者行写「匿名」,卡片上同样不露身份 */
+const shareOpen = ref(false)
+const shareSpec = computed(() => {
+  const p = post.value
+  if (!p) return null
+  const firstImg = mediaList.value.find((m) => m.type === 'img')
+  return {
+    kind: 'post',
+    title: String(p.content || '').slice(0, 120),
+    authorName: p.anonymous ? '匿名' : (p.author ? displayName(p.author) : ''),
+    topics: p.topics || [],
+    image: firstImg ? resolveUrl(firstImg.url) : null,
+    qrText: shareUrl(`/post/${p.id}`),
+    fileName: `yousheng-post-${p.id}.png`,
+  }
+})
 
 function goEdit() {
   router.push(`/post/${route.params.id}/edit`)

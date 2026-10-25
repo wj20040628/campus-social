@@ -72,7 +72,9 @@ const routes = [
         name: 'postDetail',
         component: () => import('@/views/PostDetail.vue'),
         // ownTop:PostDetail 自带「< 帖子详情 + 更多(...)」顶栏,理由同上。
-        meta: { requiresAuth: true, title: '帖子详情', back: true, hideTabBar: true, ownTop: true },
+        // 免登录(2026-10-25 分享卡片):二维码扫码进来的游客必须能看内容,
+        // 否则分享等于白发;后端已对 GET 详情/评论放游客视角。
+        meta: { title: '帖子详情', back: true, hideTabBar: true, ownTop: true },
       },
       {
         path: 'post/:id/edit',
@@ -171,7 +173,8 @@ const routes = [
         path: 'activity/:id',
         name: 'activityDetail',
         component: () => import('@/views/ActivityDetail.vue'),
-        meta: { requiresAuth: true, title: '活动详情', back: true },
+        // 免登录(2026-10-25 分享卡片):活动详情与报名名单后端已放游客 GET
+        meta: { title: '活动详情', back: true },
       },
 
       /* ---- 校园限时活动集市（mkt）：广场+我的发布 / 发布页 / 详情 ---- */
@@ -192,7 +195,8 @@ const routes = [
         path: 'mkt/:id',
         name: 'mktDetail',
         component: () => import('@/views/MktDetail.vue'),
-        meta: { requiresAuth: true, title: '活动详情', back: true, hideTabBar: true },
+        // 免登录(2026-10-25 分享卡片):详情与留言后端已放游客 GET
+        meta: { title: '活动详情', back: true, hideTabBar: true },
       },
       {
         path: 'search',

@@ -113,6 +113,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SafeArea: typeof import('./src/components/mobile/SafeArea.vue')['default']
     SchoolFields: typeof import('./src/components/common/SchoolFields.vue')['default']
+    ShareCardSheet: typeof import('./src/components/share/ShareCardSheet.vue')['default']
     SkeletonList: typeof import('./src/components/common/SkeletonList.vue')['default']
     StateBlock: typeof import('./src/components/common/StateBlock.vue')['default']
     StepFollow: typeof import('./src/components/onboarding/StepFollow.vue')['default']
