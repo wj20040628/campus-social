@@ -85,8 +85,6 @@ public class PostWriteService {
         if (sensitive.containsBlock(content)) {
             throw new BusinessException(SENSITIVE_WORD_BLOCKED);
         }
-        // 日配额:内容已合法才计数——被拒发的尝试不该占用当天的额度
-        guardDailyQuota(authorId);
         boolean needsReview = needsHumanReview(content, authorId);
         List<String> hitWords = needsReview ? sensitive.matchedLevel1Words(content) : List.of();
 
@@ -94,6 +92,14 @@ public class PostWriteService {
         topicBinder.parseMedia(dto.getMedia());
 
         requireCircleMemberIfNeeded(dto.getCircleId(), authorId);
+
+        /*
+         * 日配额(2026-10-25 审计修):挪到**全部**可失败校验(parseMedia/
+         * 圈成员)之后——此前放在它们前面,选错圈子(403)或 media 格式错(400)
+         * 的失败请求也会烧掉当日额度,未认证用户 3 条/日失败两次就没得发。
+         * INCR 仍在插入前:原子自增保证并发下也不会超发。
+         */
+        guardDailyQuota(authorId);
 
         Post post = new Post();
         post.setAuthorId(authorId);

@@ -5,8 +5,10 @@ import com.campus.social.common.ResultCode;
 import com.campus.social.dto.ReportHandleDTO;
 import com.campus.social.dto.ReportSubmitDTO;
 import com.campus.social.entity.Report;
+import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ReportMapper;
+import com.campus.social.mapper.UserMapper;
 
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
@@ -60,6 +62,7 @@ public class ReportServiceImpl implements ReportService {
     private static final String AUDIT_REJECT = "report_reject";
 
     private final ReportMapper reportMapper;
+    private final UserMapper userMapper;
     private final BanService banService;
     private final AuditService auditService;
     /** 举报阈值折叠(2026-10-24):同一帖子独立举报人达到阈值即折叠进人审 */
@@ -174,6 +177,15 @@ public class ReportServiceImpl implements ReportService {
         }
         // 被封禁的是内容的作者，不是内容本身（targetType 五种取值分别解析）
         long targetUserId = resolveTargetUserId(report);
+        /*
+         * 管理员护栏(2026-10-25 审计补):手动封禁(AdminUserServiceImpl.ban)对
+         * 管理员 422,举报处置封禁此前漏了同款护栏——成立一条针对管理员的举报
+         * 就能把唯一管理员冻结,后台锁死。与手动封禁同一规则、同一文案。
+         */
+        User banTarget = userMapper.selectById(targetUserId);
+        if (banTarget != null && Integer.valueOf(1).equals(banTarget.getRole())) {
+            throw new BusinessException(UNPROCESSABLE, "不能封禁管理员账号");
+        }
 
         int affected = reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, dto.getHandleNote());
         if (affected == 0) {

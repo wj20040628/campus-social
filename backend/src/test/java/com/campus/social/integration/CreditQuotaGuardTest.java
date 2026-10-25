@@ -116,6 +116,27 @@ class CreditQuotaGuardTest {
     }
 
     @Test
+    void failedCreateDoesNotBurnDailyQuota() {
+        // 2026-10-25 审计修回归:media 非法(400)与发进非成员圈子(403)的失败请求
+        // 不烧当日额度——否则未认证用户失败两次就没得发,与「被拒发不占额」承诺矛盾。
+        CreatePostDTO badMedia = samplePost("media 非法");
+        badMedia.setMedia("[{broken");
+        assertThrows(BusinessException.class, () -> postService.create(unverifiedUserId, badMedia));
+
+        CreatePostDTO notMember = samplePost("圈外人发帖");
+        notMember.setCircleId(53L); // 羽毛球圈,该用户未加入
+        assertThrows(BusinessException.class, () -> postService.create(unverifiedUserId, notMember));
+
+        // 两次失败之后,3 条正常发帖仍应全部成功
+        for (int i = 1; i <= 3; i++) {
+            assertTrue(postService.create(unverifiedUserId, samplePost("失败不计额" + i)) > 0);
+        }
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> postService.create(unverifiedUserId, samplePost("第四条")));
+        assertEquals(ResultCode.POST_DAILY_LIMIT_REACHED.getCode(), e.getCode());
+    }
+
+    @Test
     void reactivationAndReEnableCannotBypassActiveQuota() {
         // 配额 1:发 A → 1/1
         Long a = mktService.create(verifiedUserId, sampleMkt("配额集市A"));

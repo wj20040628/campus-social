@@ -133,4 +133,34 @@ class ReportAutoBanTest {
                 Integer.class, targetId);
         assertTrue(audits2 != null && audits2 == 1, "已封禁后重复检查不应再落审计");
     }
+
+    @Test
+    void adminTargetIsExemptFromAutoBan() {
+        // 2026-10-25 审计修回归:3 名认证举报人举报管理员 → 不得自动封禁
+        // (单管理员运营期,冻结管理员=锁死后台;管理员违规走人工处置)
+        Long adminId = insertUser("ab-admin-" + SUFFIX, 1);
+        jdbc.update("UPDATE user SET role = 1 WHERE id = ?", adminId);
+        jdbc.update("INSERT INTO post (author_id, content, status, is_deleted) VALUES (?, 'adm', 1, 0)", adminId);
+        Long adminPost = jdbc.queryForObject(
+                "SELECT id FROM post WHERE author_id = ? AND content = 'adm' ORDER BY id DESC LIMIT 1",
+                Long.class, adminId);
+
+        insertReport(r1, 1, adminId);
+        insertReport(r2, 2, adminPost);
+        insertReport(r3, 3, adminPost);
+
+        Report onAdmin = new Report();
+        onAdmin.setReporterId(r1);
+        onAdmin.setTargetType(1);
+        onAdmin.setTargetId(adminId);
+        autoBanService.check(onAdmin);
+
+        assertEquals(0, reload(adminId).getStatus(), "管理员不得被自动封禁");
+        Integer audits = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE action = 'auto_ban_reports' AND target_id = ?",
+                Integer.class, adminId);
+        assertTrue(audits == null || audits == 0, "豁免时不应落自动封禁审计");
+        jdbc.update("DELETE FROM post WHERE id = ?", adminPost);
+        jdbc.update("DELETE FROM user WHERE id = ?", adminId);
+    }
 }

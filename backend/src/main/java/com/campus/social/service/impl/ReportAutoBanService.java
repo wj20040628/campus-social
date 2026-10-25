@@ -112,6 +112,15 @@ public class ReportAutoBanService {
         if (target == null || Integer.valueOf(1).equals(target.getStatus())) {
             return; // 已冻结(含已被自动封过)/已注销:幂等跳过
         }
+        if (Integer.valueOf(1).equals(target.getRole())) {
+            /*
+             * 管理员不参与自动封禁(2026-10-25 审计修):单管理员运营期,
+             * 3 个认证账号集中举报管理员的帖子就能冻结后台唯一账号=锁死平台。
+             * 自动封禁是无人复核的止血动作,对管理员必须整体豁免;
+             * 管理员违规走人工处置(手动封禁对管理员本就 422,举报处置同理)。
+             */
+            return;
+        }
 
         Set<Long> reporters = collectCountableReporters(targetUser);
         int verifiedCount = countVerified(reporters);
