@@ -195,9 +195,13 @@ export async function drawShareCard(opt) {
   ctx.fillStyle = C.fg
   ctx.font = '500 30px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
   ctx.fillText(opt.meta || '扫码查看完整内容', W / 2, qrY + qrSize + 64)
-  ctx.fillStyle = C.muted
-  ctx.font = '400 24px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
-  ctx.fillText(hostOf(opt.qrText), W / 2, qrY + qrSize + 106)
+  // 备案期(IP/localhost 访问)host 为空,此行不渲染,只留引导文案
+  const host = hostOf(opt.qrText)
+  if (host) {
+    ctx.fillStyle = C.muted
+    ctx.font = '400 24px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+    ctx.fillText(host, W / 2, qrY + qrSize + 106)
+  }
   ctx.textAlign = 'left'
 
   return canvas
@@ -277,7 +281,16 @@ function roundRect(ctx, x, y, w, h, r) {
 
 function hostOf(url) {
   try {
-    return new URL(url).host
+    const host = new URL(url).host
+    /*
+     * 备案期不外示主机名(2026-10-25):走 IP/localhost 访问时,
+     * 裸地址打在分享卡上既难看又没有信任价值,扫码的人也不靠它判断
+     * (微信/QQ 扫码会先弹链接预览)。正式域名部署后此行自动恢复显示。
+     */
+    if (/^(\d{1,3}(?:\.\d{1,3}){3}|localhost)(:\d+)?$/i.test(host)) {
+      return ''
+    }
+    return host
   } catch {
     return ''
   }
