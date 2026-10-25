@@ -130,7 +130,4 @@
   }
 }
 
-/* 搭话规则提示条(2026-10-24):跟随页面内边距,不横贯全宽 */
-.chat__tip {
-  margin: 0 var(--ys-space-3) var(--ys-space-2);
-}
+/* 搭话规则横幅已废(2026-10-25):收进气泡,见 ChatConvList.vue .cl__rulebtn */

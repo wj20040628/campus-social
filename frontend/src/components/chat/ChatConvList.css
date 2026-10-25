@@ -1,7 +1,31 @@
 /* ChatConvList.vue 的样式,抽离到外部文件以控制单文件行数。 */
 
 .cl {
+  position: relative; /* 搭话规则 ⓘ 的定位基准(2026-10-25) */
   background: var(--ys-surface);
+}
+
+/* 搭话规则 ⓘ:容器右上角常驻,空态与有会话都在。
+   顶部对齐搜索框中线(有搜索框时);空态时悬于 StateBlock 右上,同样不突兀 */
+.cl__rulebtn {
+  position: absolute;
+  top: 26px;
+  right: 22px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ys-radius-full);
+  background: transparent;
+  color: var(--ys-muted);
+  cursor: help;
+  transition: color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cl__rulebtn:hover {
+  color: var(--ys-accent);
 }
 
 /*

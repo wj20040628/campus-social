@@ -9,14 +9,12 @@
   -->
   <div class="chat">
     <!--
-      搭话规则提示(2026-10-24):「不用加好友就能搭话」是产品核心差异,
-      额度规则(8 新人/日、同 15 条/日)用户不知道会误以为被限制。
-      数字与后端 campus.daily-new-peer-limit / per-peer-daily-limit 对应,改配置时同步。
-      放最外层:列表态与会话态都可见;会话页(手机)在自己栏内顶部。
+      搭话规则说明(2026-10-25 改版):原先是这里的一条常驻横幅(带「知道了」),
+      被用户评「难看」——横幅为一句静态规则占用整行视觉权重不划算。
+      现收进气泡:ⓘ 挂在会话列表搜索框右缘(ChatConvList.vue .cl__rulebtn),
+      悬停/聚焦即看,零打扰。额度数字与 campus.daily-new-peer-limit /
+      per-peer-daily-limit 对应,改配置时同步那边。
     -->
-    <InfoTip v-if="!hasActive" scene="chat-etiquette" class="chat__tip">
-      在这里不用加好友就能搭话：每天最多向 8 位新同学发起会话，给同一位同学发消息每日上限 15 条。
-    </InfoTip>
     <!--
       ============ 会话列表 ============
       手机:仅 /chat 列表路由渲染(单栏路由切换);
@@ -113,7 +111,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
-import InfoTip from '@/components/common/InfoTip.vue'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { useChatCore } from '@/composables/useChatCore'
 import { useChatComposer } from '@/composables/useChatComposer'

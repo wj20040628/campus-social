@@ -1,6 +1,18 @@
 <template>
   <div class="cl">
     <!--
+      搭话规则 ⓘ(2026-10-25):原先是页顶常驻横幅,被用户评「难看」。
+      收进气泡挂列表容器右上角——空态(还没有会话,最需要知道规则的人)
+      与有会话时都常驻,想看的人悬停即得,不想看的人零打扰。
+      文案与 campus.daily-new-peer-limit / per-peer-daily-limit 对应。
+    -->
+    <el-tooltip placement="bottom-end" :show-after="150" content="不用加好友就能搭话：每天最多向 8 位新同学发起会话，给同一位同学每天最多发 15 条">
+      <button type="button" class="cl__rulebtn" aria-label="搭话规则说明">
+        <el-icon :size="14"><QuestionFilled /></el-icon>
+      </button>
+    </el-tooltip>
+
+    <!--
       破冰额度条(方案 A:平时不显示,只剩 ≤2 次才出现)。
       quota 为 null(拉取失败)时整条不渲染 —— 撒谎说「还能 4 次」比不显示更糟。
     -->
@@ -237,7 +249,7 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from '@/utils/feedback'
-import { ChatDotRound, CaretBottom } from '@element-plus/icons-vue'
+import { ChatDotRound, CaretBottom, QuestionFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import ChatRowSwipe from './ChatRowSwipe.vue'
