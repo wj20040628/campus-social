@@ -147,20 +147,24 @@ export function useOnboardingFlow(deps) {
     }
   }
 
-  /** 「先逛逛」:跳过关注/圈子,直接完成并进首页,不是退出引导(§1.4) */
+  /**
+   * 跳过（2026-10-26 重写）。
+   *
+   * 语义：不提交、不推进，直接完成引导进首页（§1.4 的「先逛逛」）。
+   * 第 1/2 步都有这个出口；第 3 步不显示。
+   *
+   * 为什么不再调 persist()：/onboarding/complete 的 deptId/gradeId/majorId
+   * 是 @NotNull，第 1 步归属没填完就跳过必然 400——跳过恰恰是"不想填"的场景，
+   * 被一个 400 拦死等于没有出口。改为直接 enter()：
+   *   - 后端 onboarding_step 不会被推到 3，用户之后从「我的」补资料时仍走原流程；
+   *   - 第 2/3 步已选的内容留在内存里，回引导页时从头开始（可接受：跳过=放弃本步）。
+   */
   async function onSkip() {
     deps.clearFollows()
-    submitting.value = true
+    deps.clearTags?.()
+    submitting.value = false
     submitError.value = ''
-    try {
-      await persist()
-      await enter()
-    } catch (e) {
-      if (await handleDictInvalid(e)) return
-      failSubmit(e)
-    } finally {
-      submitting.value = false
-    }
+    await enter()
   }
 
   return {

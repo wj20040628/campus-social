@@ -40,9 +40,11 @@ export function tags(size = 60) {
  *          tagIds:number[], followUserIds?:number[], circleIds?:number[]}} payload
  */
 export function complete(payload, opts = {}) {
-  const { schoolId = 1, deptId, gradeId, majorId, tagIds, followUserIds = [], circleIds = [] } = payload
+  const { schoolId = 1, campus = null, deptId, gradeId, majorId, tagIds, followUserIds = [], circleIds = [] } = payload
   return request.post('/onboarding/complete', {
     [SCHOOL_PROFILE_PAYLOAD.schoolId]: schoolId,
+    // 校区与院系解耦（2026-10-26）：之前这里把它丢了，用户在引导页选的校区存不进库
+    campus,
     [SCHOOL_PROFILE_PAYLOAD.deptId]: deptId,
     [SCHOOL_PROFILE_PAYLOAD.gradeId]: gradeId,
     [SCHOOL_PROFILE_PAYLOAD.majorId]: majorId,

@@ -125,6 +125,24 @@
   text-overflow: ellipsis;
 }
 
+/* 底部跳过引导：与主按钮同高，弱化但不隐藏，手机上必须一眼可见 */
+.ob__skip-btn {
+  flex: none;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-strong, var(--ys-border));
+  border-radius: var(--ys-radius-full);
+  background: transparent;
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+}
+
+.ob__skip-btn:active {
+  opacity: 0.7;
+}
+
 .ob__primary {
   flex: 1;
   min-height: var(--ys-touch-min);

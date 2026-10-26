@@ -27,13 +27,13 @@
     <div class="ob__steps">
       <span class="ob__steps-text" aria-live="polite">第 {{ step }} 步 / 共 {{ TOTAL_STEPS }} 步</span>
       <button
-        v-if="step > 1"
+        v-if="step < TOTAL_STEPS"
         type="button"
         class="ob__skip"
         :aria-label="skipAria"
         @click="onSkip"
       >
-        {{ skipLabel }}
+        跳过引导
       </button>
     </div>
 
@@ -54,6 +54,8 @@
         所以不加 key,只去 mode。
       -->
       <Transition :name="dir > 0 ? 'slide-left' : 'slide-right'">
+        <!-- :key 随步切换（2026-10-26 修）：跳过走 enter() 后立即 router.replace('/')，
+             Transition 不含 key 时 Vue 复用旧子树，新 step 的组件可能不挂载，点击落空。 -->
         <!--
           2026-10-21 新增第 1 步：学校归属 + 学号认证。
           放在最前面，因为它决定后续功能可用范围（未认证不能发私信/建圈子/
@@ -61,6 +63,7 @@
         -->
         <StepVerify
           v-if="step === 1"
+          v-model="identity"
           @verified="onVerified"
         />
 
@@ -99,33 +102,26 @@
       <p class="ob__foot-hint">跳过后仍可补充资料，在「我的」里随时修改</p>
 
       <div class="ob__foot-row">
-        <span v-if="step === 1" class="ob__foot-meta">
-          学号可不填，稍后也能认证
-        </span>
-        <span v-else-if="step === 2" class="ob__foot-meta">
-          已选 {{ tagIds.length }} 个（至少 {{ minSelect }} 个）
+        <span v-if="step === 2" class="ob__foot-meta">
+          已选 {{ tagIds.length }} 个（至少 {{ minSelect }} 个，可不选）
         </span>
         <span v-else-if="step === 3" class="ob__foot-meta">
           已关注 {{ userIds.length }} 人 · 已加入 {{ circleIds.length }} 个圈子
         </span>
 
         <!--
-          第 1 步（认证）没有「跳过」：跳过就等于保持未认证，
-          用户照样能用（能浏览、能发帖），只是四类动作被限制。
-          与其给一个「跳过」按钮，不如让「保存归属但不填学号」自然成为跳过。
+          跳过引导（2026-10-26 补）：顶部那行「跳过引导」在手机上太像
+          普通说明文字，用户找不到出口。这里放一个与主按钮同高的次按钮，
+          不填任何归属/学号也能直接进首页（onSkip 不调需 @NotNull 的 complete）。
         -->
         <button
-          v-if="step === 2"
+          v-if="step < TOTAL_STEPS"
           type="button"
-          class="ob__skip"
-          @click="finish"
-        >跳过</button>
-        <button
-          v-if="step === 2"
-          type="button"
-          class="ob__skip ob__skip--all"
+          class="ob__skip-btn"
           @click="onSkip"
-        >一键跳过</button>
+        >
+          跳过引导
+        </button>
 
         <!--
           第 3 步的按钮文案是「进友声」不是「完成」(§1.3):
@@ -181,8 +177,10 @@ const dir = ref(1) // 1=前进 -1=后退,决定过渡方向
 // schoolId 在 userInfo 里不下发(MVP 单校恒为 1),用 SCHOOLS 兜底。
 const identity = ref({
   schoolId: userStore.userInfo?.schoolId ?? SCHOOLS[0].id,
+  // 校区(2026-10-25):与院系解耦,已保存过就回填
+  campus: userStore.userInfo?.campus ?? null,
   deptId: userStore.userInfo?.deptId ?? null,
-  // 本专科(level)由专业派生,user 表不冗余存;这里只为级联下拉过滤维度,预填为空。
+  // 本专科(level)由专业派生,user 表不冗余存;StepVerify 会在专业字典加载后反查补上。
   level: null,
   gradeId: userStore.userInfo?.gradeId ?? null,
   majorId: userStore.userInfo?.majorId ?? null,
@@ -205,8 +203,19 @@ const {
  *   第 2 步：兴趣标签需选满最少数量
  *   第 3 步：恒为 true（openapi 说 followUserIds 可为空）
  */
+const identityComplete = computed(() => {
+  const i = identity.value
+  return !!(i.deptId && i.level && i.majorId && i.gradeId)
+})
+
 const canAdvance = computed(() => {
-  if (step.value === 1) return true
+  /*
+   * 第 1 步（认证）的「下一步」不能再恒为 true（2026-10-26 修）：
+   * 后端 /onboarding/complete 的 deptId / gradeId / majorId 都是 @NotNull，
+   * 学校归属没选完就点下一步，必然收到 400「请选择学院/年级/专业」。
+   * 学号仍然可以不填（那是「先浏览、后认证」的路径），但归属必须先齐。
+   */
+  if (step.value === 1) return identityComplete.value
   if (step.value === 2) return tagIds.value.length >= minSelect.value
   return true
 })
@@ -229,9 +238,8 @@ const {
   clearFollows,
 })
 
-// 跳过只出现在第 2 步(关注/圈子),语义是「先逛逛」(§1.4):直接完成并进首页
-const skipLabel = computed(() => '先逛逛')
-const skipAria = computed(() => '跳过关注,直接进友声')
+// 「跳过」第 1/2 步都出现，语义是「先逛逛」(§1.4)：直接完成并进首页
+const skipAria = computed(() => '跳过当前步骤，直接进友声')
 
 function pickUser(id) {
   toggleIn(userIds.value, id)
@@ -258,6 +266,18 @@ function finish() {
 async function onVerified() {
   try {
     await userStore.fetchMe()
+    // 认证成功后后端可能补写归属/校区，回填父页面这份对象，避免下一步提交旧值
+    const info = userStore.userInfo
+    if (info) {
+      identity.value = {
+        ...identity.value,
+        schoolId: info.schoolId ?? identity.value.schoolId,
+        campus: info.campus ?? identity.value.campus,
+        deptId: info.deptId ?? identity.value.deptId,
+        gradeId: info.gradeId ?? identity.value.gradeId,
+        majorId: info.majorId ?? identity.value.majorId,
+      }
+    }
   } catch {
     /* 静默：本地旧值只让提示条多显示一次，不影响功能 */
   }
@@ -271,13 +291,11 @@ async function onVerified() {
  * 第 2/3 步允许正常返回上一步。
  */
 function onPopState() {
+  // 第 2/3 步允许正常返回上一步；第 1 步已提供「跳过」出口，
+  // 不再拦返回手势（2026-10-26 修）——跳过能走通，就不必把人按在认证页。
   if (step.value > 1) {
-    // 第 2/3 步允许正常返回上一步
     goto(step.value - 1)
-    return
   }
-  history.pushState(null, '', location.href)
-  ElMessage({ message: '先完成校内认证，或点「下一步」跳过', type: 'info' })
 }
 
 onMounted(() => {

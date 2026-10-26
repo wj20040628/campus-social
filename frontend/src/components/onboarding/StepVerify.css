@@ -119,3 +119,23 @@
   line-height: 1.6;
   color: var(--ys-danger);
 }
+
+/* 申诉出口（2026-10-26 补）：比错误行低一档，热区仍要够 44px */
+.sv__appeal {
+  margin: var(--ys-space-1) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-meta);
+}
+
+.sv__appeal-btn {
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-1);
+  border: 0;
+  background: none;
+  font-family: var(--ys-font-body);
+  font-size: inherit;
+  color: var(--ys-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
