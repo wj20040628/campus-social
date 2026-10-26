@@ -61,6 +61,8 @@ public class UserVO {
     private Long gradeId;
     /** 专业字典 id（学院→专业级联落库，层次由 major.level 派生，不冗余存专业名） */
     private Long majorId;
+    /** 校区 1东 2西 null未填(2026-10-25,与院系解耦独立自选,改不触发重审) */
+    private Integer campus;
     private Integer followerCount;
     private Integer followingCount;
     /** 该用户发的动态数(按 author_id 现查 post 表,他人主页「动态」数字用) */

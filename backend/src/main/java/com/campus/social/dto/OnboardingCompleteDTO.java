@@ -42,6 +42,9 @@ public class OnboardingCompleteDTO {
     @Positive(message = "专业取值不合法")
     private Long majorId;
 
+    /** 校区 1东 2西(2026-10-25,与院系解耦;可选) */
+    private Integer campus;
+
     /**
      * 选中的兴趣标签。
      *
@@ -94,6 +97,14 @@ public class OnboardingCompleteDTO {
 
     public void setMajorId(Long majorId) {
         this.majorId = majorId;
+    }
+
+    public Integer getCampus() {
+        return campus;
+    }
+
+    public void setCampus(Integer campus) {
+        this.campus = campus;
     }
 
     public List<Long> getTagIds() {

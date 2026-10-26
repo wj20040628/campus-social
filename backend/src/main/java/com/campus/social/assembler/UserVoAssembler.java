@@ -123,6 +123,7 @@ public final class UserVoAssembler {
                 .deptId(user.getDeptId())
                 .gradeId(user.getGradeId())
                 .majorId(user.getMajorId())
+                .campus(user.getCampus())
                 // AC-12 徽章判据。必须由服务端给——前端从「是否填了院系」反推
                 // 是在伪造身份声明，用户可以在填完院系后从未提交过邮箱验证码。
                 .verified(Integer.valueOf(1).equals(user.getVerifyStatus()))

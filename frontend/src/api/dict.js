@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 import { DICT_ENDPOINT, DICT_FIELDS, SCHOOL_PROFILE_PAYLOAD } from '@/constants/schoolDict'
+import { gradeStage } from '@/utils/gradeStage'
 
 /**
  * 学校字典 API(学院 / 年级)
@@ -71,6 +72,7 @@ export function allMajors(schoolId) {
 export function saveSchoolProfile(payload) {
   return request.post('/user/school-profile', {
     [SCHOOL_PROFILE_PAYLOAD.schoolId]: payload.schoolId,
+    campus: payload.campus ?? null,
     [SCHOOL_PROFILE_PAYLOAD.deptId]: payload.deptId,
     [SCHOOL_PROFILE_PAYLOAD.gradeId]: payload.gradeId,
     [SCHOOL_PROFILE_PAYLOAD.majorId]: payload.majorId,
@@ -98,20 +100,33 @@ export function readIdentity(user, dict = { depts: [], grades: [] }) {
   const deptId = user?.[DICT_FIELDS.deptId] ?? null
   const gradeId = user?.[DICT_FIELDS.gradeId] ?? null
   const majorId = user?.[DICT_FIELDS.majorId] ?? null
+  const gradeName =
+    user?.[DICT_FIELDS.gradeName] ||
+    dict.grades?.find((g) => Number(g.id) === Number(gradeId))?.name ||
+    user?.[DICT_FIELDS.legacyGrade] ||
+    ''
+  // 大几换算输入:入学年份一律取年级字典的 enrollYear(openapi 禁止从 name 截取)
+  const enrollYear = Number(
+    dict.grades?.find((g) => Number(g.id) === Number(gradeId))?.enrollYear,
+  ) || null
+  /*
+   * 大几口径:本科 4 年(gradeStage 默认)。专科 3 年在读第 4 年会显示「大四」
+   * 而非「已毕业」——level 在 user 表不存、profile 页拿它要多一次专业字典
+   * 反查,为一个 3 年制毕业生的角标不值得;等有大几的准确度投诉再补 level。
+   */
   return {
     deptId,
     gradeId,
     majorId,
+    enrollYear,
+    /** 「大一'..'大四」/「已毕业」;信息不足(未填年级/字典缺)为空串 */
+    stage: gradeStage(enrollYear, user?.level),
     deptName:
       user?.[DICT_FIELDS.deptName] ||
       dict.depts?.find((d) => Number(d.id) === Number(deptId))?.name ||
       user?.[DICT_FIELDS.legacyDept] ||
       '',
-    gradeName:
-      user?.[DICT_FIELDS.gradeName] ||
-      dict.grades?.find((g) => Number(g.id) === Number(gradeId))?.name ||
-      user?.[DICT_FIELDS.legacyGrade] ||
-      '',
+    gradeName,
   }
 }
 

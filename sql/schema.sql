@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `dept_id`               BIGINT       NULL                    COMMENT '院系字典id → school_dept.id',
     `major_id`              BIGINT       NULL                    COMMENT '专业字典id → school_major.id;学号专业码校验的权威归属',
     `school_id`             BIGINT       NOT NULL DEFAULT 1      COMMENT '学校ID,默认1,预留多校',
+    `campus`                TINYINT      NULL                    COMMENT '校区 1东 2西 NULL未填;与院系解耦独立自选,改不触发重审',
     `email`                 VARCHAR(64)  NULL                    COMMENT '安全凭证邮箱,有值时唯一(找回密码/绑定/邮箱验证码登录)',
     `verify_status`         TINYINT      NOT NULL DEFAULT 0      COMMENT '0未认证 1已认证 2审核中 3驳回',
     `stranger_msg_enabled`  TINYINT      NOT NULL DEFAULT 1      COMMENT '是否接收陌生人消息 0否 1是(F3 护栏)',

@@ -112,11 +112,12 @@ public interface UserMapper extends BaseMapper<User> {
      * 早期数据只有 dept 名称没有 id，若继续按名称判空，
      * 字典化之后这些老用户会被误判为「没填归属」而被拦在引导页。
      */
-    @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
+    @Update("UPDATE user SET school_id = #{schoolId}, campus = #{campus}, dept_id = #{deptId}, dept = #{dept}, "
             + "grade_id = #{gradeId}, grade = #{grade}, "
             + "major_id = #{majorId}, update_time = NOW() "
             + "WHERE id = #{userId}")
     int updateSchoolProfile(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
+            @Param("campus") Integer campus,
             @Param("deptId") Long deptId, @Param("dept") String dept,
             @Param("gradeId") Long gradeId, @Param("grade") String grade,
             @Param("majorId") Long majorId);
@@ -227,12 +228,13 @@ public interface UserMapper extends BaseMapper<User> {
      *
      * <p>与 {@link #updateSchoolProfile} 同口径：id 与名称快照在同一条 UPDATE 内写入。
      */
-    @Update("UPDATE user SET school_id = #{schoolId}, dept_id = #{deptId}, dept = #{dept}, "
+    @Update("UPDATE user SET school_id = #{schoolId}, campus = #{campus}, dept_id = #{deptId}, dept = #{dept}, "
             + "grade_id = #{gradeId}, grade = #{grade}, "
             + "major_id = #{majorId}, "
             + "onboarding_step = 3, update_time = NOW() "
             + "WHERE id = #{userId}")
     int completeOnboarding(@Param("userId") Long userId, @Param("schoolId") Long schoolId,
+            @Param("campus") Integer campus,
             @Param("deptId") Long deptId, @Param("dept") String dept,
             @Param("gradeId") Long gradeId, @Param("grade") String grade,
             @Param("majorId") Long majorId);

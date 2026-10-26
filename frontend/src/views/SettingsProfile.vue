@@ -168,6 +168,7 @@ const tagDialog = ref(null)
 /** 五字段都比。只比 school/dept/grade 会漏掉「只改专业」——那时 dirty=false,saveAll 直接跳过提交 */
 const identityDirty = computed(() =>
   identity.value.schoolId !== identityOriginal.value.schoolId
+  || identity.value.campus !== identityOriginal.value.campus
   || identity.value.deptId !== identityOriginal.value.deptId
   || identity.value.level !== identityOriginal.value.level
   || identity.value.gradeId !== identityOriginal.value.gradeId
@@ -202,6 +203,7 @@ async function load() {
   if (read.majorId) await dict.ensureMajorsLoaded()
   identity.value = {
     schoolId: me.schoolId || SCHOOLS[0].id,
+    campus: me.campus ?? null,
     deptId: read.deptId,
     level: dict.levelOfMajor(read.majorId),
     gradeId: read.gradeId,

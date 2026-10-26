@@ -24,6 +24,9 @@ public class SchoolProfileVO implements Serializable {
 
     private String schoolName;
 
+    /** 校区 1东 2西 null未填(2026-10-25,与院系解耦) */
+    private Integer campus;
+
     /** 院系字典 id */
     private Long deptId;
 

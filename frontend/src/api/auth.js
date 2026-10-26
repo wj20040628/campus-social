@@ -27,6 +27,7 @@ export function register(payload) {
   // 注册即认证：填了学号才把学校归属一并提交；否则只注册不认证
   if (identity && identity.schoolId !== undefined) {
     body.schoolId = identity.schoolId
+    body.campus = identity.campus ?? null
     body.deptId = identity.deptId
     body.gradeId = identity.gradeId
     body.majorId = identity.majorId

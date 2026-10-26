@@ -63,6 +63,7 @@ export function useOnboardingFlow(deps) {
   async function persist() {
     await api.complete({
       [SCHOOL_PROFILE_PAYLOAD.schoolId]: deps.identity.value.schoolId,
+      campus: deps.identity.value.campus ?? null,
       [SCHOOL_PROFILE_PAYLOAD.deptId]: deps.identity.value.deptId,
       [SCHOOL_PROFILE_PAYLOAD.gradeId]: deps.identity.value.gradeId,
       [SCHOOL_PROFILE_PAYLOAD.majorId]: deps.identity.value.majorId,

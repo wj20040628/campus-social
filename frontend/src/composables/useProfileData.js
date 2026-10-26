@@ -3,6 +3,7 @@ import { me as meApi, userCard } from '@/api/auth'
 import { myPosts as myPostsApi, userPosts as userPostsApi } from '@/api/feed'
 import { mine as myReviewsApi } from '@/api/review'
 import { readIdentity } from '@/api/dict'
+import { campusName } from '@/constants/schoolDict'
 
 /**
  * 个人主页的资料加载(Profile.vue.md §3)
@@ -101,10 +102,19 @@ export function useProfileData(targetId, myId, dict) {
     readIdentity(user.value, { depts: dict.depts, grades: dict.grades }),
   )
 
-  /** 「计算机学院 · 2024 级」。缺哪项省哪项,不留下多余的「· 」 */
-  const identityLine = computed(() =>
-    [identity.value.deptName, identity.value.gradeName].filter(Boolean).join(' · '),
-  )
+  /**
+   * 身份行(2026-10-25 扩):校区 · 学院 · 年级 · 大几。
+   * 四段各缺省,不留下多余的「·」;大几来自 gradeStage(纯学年算术)。
+   */
+  const identityLine = computed(() => {
+    const it = identity.value
+    return [
+      campusName(user.value?.campus),
+      it.deptName,
+      it.gradeName,
+      it.stage,
+    ].filter(Boolean).join(' · ')
+  })
 
   /**
    * AC-12 徽章判据。**直接用后端下发的 user.verified**(按 verify_status 计算,

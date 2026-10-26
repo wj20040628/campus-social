@@ -98,8 +98,13 @@ public class OnboardingServiceImpl implements OnboardingService {
 
         // 幂等第 2 道防线：把 onboarding_step 推到 3，靠行锁串行化并发提交。
         // affected=0 说明已被并发请求抢先完成，后面的写库必须全部跳过。
+        // campus 与院系解耦,可空;值域校验与 saveSchoolProfile 同口径
+        Integer campusVal = dto.getCampus();
+        if (campusVal != null && campusVal != 1 && campusVal != 2) {
+            throw new BusinessException(ResultCode.UNPROCESSABLE, "校区取值不合法(1=东校区 2=西校区)");
+        }
         int affected = userMapper.completeOnboarding(
-                userId, schoolId, dept.getId(), dept.getName(), grade.getId(), grade.getName(),
+                userId, schoolId, campusVal, dept.getId(), dept.getName(), grade.getId(), grade.getName(),
                 major.getId());
         if (affected == 0) {
             log.info("onboarding complete raced: user={}", userId);

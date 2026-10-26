@@ -22,6 +22,22 @@
       </el-select>
     </el-form-item>
 
+    <!--
+      校区(2026-10-25):与院系完全解耦(东西校区都有全部院系),独立自选、
+      无级联无联动。两值枚举走前端常量,不进字典表。
+    -->
+    <el-form-item label="校区">
+      <el-select
+        :model-value="model.campus"
+        class="school-fields__ctl"
+        placeholder="选校区"
+        clearable
+        @update:model-value="set('campus', $event)"
+      >
+        <el-option v-for="c in CAMPUS_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
+      </el-select>
+    </el-form-item>
+
     <el-form-item label="学院" required :error="fieldError.dept">
       <el-select
         :model-value="model.deptId"
@@ -114,7 +130,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { WarningFilled, Loading } from '@element-plus/icons-vue'
-import { SCHOOLS, IDENTITY_MODEL, LEVEL_OPTIONS, DICT_FIELDS } from '@/constants/schoolDict'
+import { SCHOOLS, IDENTITY_MODEL, LEVEL_OPTIONS, DICT_FIELDS, CAMPUS_OPTIONS } from '@/constants/schoolDict'
 import { useDictStore } from '@/stores/dict'
 
 const props = defineProps({

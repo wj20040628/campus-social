@@ -90,6 +90,9 @@ export const SCHOOL_PROFILE_PAYLOAD = {
  */
 export const IDENTITY_MODEL = {
   schoolId: null,
+  /** 校区 1东 2西(2026-10-25):与院系完全解耦——东西校区都有全部院系,
+   *  不做任何级联/绑定校验,是学校归属下的独立自选字段 */
+  campus: null,
   deptId: null,
   /** 本专科：1=本科 2=专科。注册「本专科」下拉的取值，
    *  同时是专业级联下拉的过滤维度之一(与 deptId 共同决定可选专业) */
@@ -97,6 +100,21 @@ export const IDENTITY_MODEL = {
   gradeId: null,
   /** 专业字典 id，指向 school_major.id；级联下拉在「学院 + 本专科」选定后出现 */
   majorId: null,
+}
+
+/**
+ * 校区下拉选项(2026-10-25)。两值枚举不进 school_dept 字典表:
+ * 校区与院系无绑定关系(用户拍板:东西校区都有),值域恒定无需运营维护。
+ */
+export const CAMPUS_OPTIONS = [
+  { value: 1, label: '东校区' },
+  { value: 2, label: '西校区' },
+]
+
+/** user.campus 值 → 展示名;未知值(含 null)返回空串 */
+export function campusName(campus) {
+  const hit = CAMPUS_OPTIONS.find((c) => c.value === Number(campus))
+  return hit ? hit.label : ''
 }
 
 /**

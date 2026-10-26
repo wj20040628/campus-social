@@ -151,15 +151,25 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
                     "已认证/审核中用户修改学校归属,认证状态重置为未认证(改即重审)", "");
             log.info("verify reset by school-profile change: user={}", userId);
         }
-        userMapper.updateSchoolProfile(userId, schoolId, dept.getId(), dept.getName(),
+        /*
+         * 校区(2026-10-25):1=东 2=西,可选。与院系完全解耦(东西校区都有全部院系),
+         * **刻意不进 identityChanged 判定**——校区不是学号六层校验的绑定凭证,
+         * 换校区不改变「这所学校这个专业这个人」的核验链,不该把认证踢掉。
+         */
+        Integer campusVal = dto.getCampus();
+        if (campusVal != null && campusVal != 1 && campusVal != 2) {
+            throw new BusinessException(UNPROCESSABLE, "校区取值不合法(1=东校区 2=西校区)");
+        }
+        userMapper.updateSchoolProfile(userId, schoolId, campusVal, dept.getId(), dept.getName(),
                 grade.getId(), grade.getName(), major.getId());
         // 填了归属即推进引导进度：onboarding_step 单调递增，WHERE 已挡住回退
         userMapper.advanceOnboardingStep(userId, 1);
-        log.info("school profile saved: user={}, school={}, deptId={}, gradeId={}, majorId={}",
-                userId, schoolId, dept.getId(), grade.getId(), major.getId());
+        log.info("school profile saved: user={}, school={}, campus={}, deptId={}, gradeId={}, majorId={}",
+                userId, schoolId, campusVal, dept.getId(), grade.getId(), major.getId());
         return SchoolProfileVO.builder()
                 .schoolId(schoolId)
                 .schoolName(campus.getSchoolName())
+                .campus(campusVal)
                 .deptId(dept.getId())
                 .deptName(dept.getName())
                 .gradeId(grade.getId())

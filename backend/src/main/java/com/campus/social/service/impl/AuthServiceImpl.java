@@ -191,6 +191,7 @@ public class AuthServiceImpl implements AuthService {
             profileDto.setDeptId(dto.getDeptId());
             profileDto.setGradeId(dto.getGradeId());
             profileDto.setMajorId(dto.getMajorId());
+            profileDto.setCampus(dto.getCampus());
             campusVerifyService.saveSchoolProfile(user.getId(), profileDto);
 
             StudentNoVerifyDTO verifyDto = new StudentNoVerifyDTO();

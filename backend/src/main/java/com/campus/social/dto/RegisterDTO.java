@@ -94,4 +94,7 @@ public class RegisterDTO {
 
     /** 专业字典 id（按学院 + 本专科过滤后的下拉） */
     private Long majorId;
+
+    /** 校区 1东 2西(2026-10-25,与院系解耦;可选,不填不阻塞注册) */
+    private Integer campus;
 }

@@ -33,8 +33,15 @@ public class SchoolProfileDTO {
     @Positive(message = "年级取值不合法")
     private Long gradeId;
 
-    /** 专业字典 id，取自 {@code GET /dict/majors}（按学院 + 本专科过滤后的下拉） */
+    /** 专业字典 id，取自 {@code GET /dict/majors}`（按学院 + 本专科过滤后的下拉） */
     @NotNull(message = "请选择专业")
     @Positive(message = "专业取值不合法")
     private Long majorId;
+
+    /**
+     * 校区:1=东 2=西(2026-10-25)。可选——与院系完全解耦(东西校区都有全部院系,
+     * 无级联校验),存量用户未填不阻塞保存;也不参与「改即重审」(不是学号核验
+     * 的绑定凭证)。传其它值由 service 拒(422),这层不管业务值域。
+     */
+    private Integer campus;
 }

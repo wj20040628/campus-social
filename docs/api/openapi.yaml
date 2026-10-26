@@ -4020,6 +4020,12 @@ components:
           format: int64
           nullable: true
           description: 专业字典 id（层次由 major.level 派生，不冗余存专业名）
+        campus:
+          type: integer
+          nullable: true
+          description: |
+            校区 1东 2西 null未填（2026-10-25）。与院系完全解耦（东西校区都有
+            全部院系），独立自选；不参与「改即重审」（不是学号核验的绑定凭证）
         followerCount: { type: integer, nullable: true }
         followingCount: { type: integer, nullable: true }
         postCount:
