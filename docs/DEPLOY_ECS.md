@@ -75,6 +75,38 @@ mysql -ucampus -p campus_social_v2 < sql/schema.sql
 # 若有增量 migration（见第 7 节），一并执行
 ```
 
+敏感词库与预留圈名是**两张必须灌数据的表**，`schema.sql` 只建表不插数据，跳过这两步等于功能空转：
+
+```bash
+# 1) 敏感词库 154 条 —— DFA 是 LLM 关闭状态下唯一的自动审核闸门，
+#    词库为空时发布/改名全部直接放过，审核台只剩人工队列。
+mysql -ucampus -p campus_social_v2 < sql/migration_sensitive_words.sql
+
+# 2) 预留官方圈名 38 条 —— CircleServiceImpl 的官方名保护读这张表，
+#    空表意味着任何人都能建「黄河交通学院教务处」冒充校方。
+#    幂等（uk_rname + INSERT IGNORE），可重复执行；后续增删走后台「预留圈名」页。
+mysql -ucampus -p campus_social_v2 < sql/migration_reserved_circle_names.sql
+
+# 导入后自检，两条都应 > 0：
+#   SELECT COUNT(*) FROM sensitive_word;
+#   SELECT COUNT(*) FROM reserved_circle_name;
+```
+
+**生产库不要执行 `sql/seed_data.sql`**：那是答辩演示数据，会灌进 `admin@campus.test / admin123`（口令与哈希都在仓库里，等于公开后门）和 bob/carol/dave/erin 四个演示号。
+
+管理员不要靠种子数据造，按下面两步产生第一个管理员账号（本表 `role=1` 即可进审核后台，全仓没有管理员引导接口，只能这样起）：
+
+```bash
+# 1) 用真实邮箱在页面上正常注册一个账号（自己设强口令，走验证码通道）
+# 2) 把这个账号提成管理员。先确认 id 没错再执行：
+mysql -ucampus -p campus_social_v2 -e \
+  "SELECT id,username,nickname,role FROM user ORDER BY id DESC LIMIT 5"
+mysql -ucampus -p campus_social_v2 -e \
+  "UPDATE user SET role = 1 WHERE id = <上一步确认的 id> AND username = '<你的注册邮箱>'"
+```
+
+`AND username = ...` 是防手滑：只按 id 更新，万一 id 记错就把别人的号提成管理员了。两个条件同时命中才生效，影响行数应为 1。
+
 ---
 
 ## 3. 目录规划（ECS 上）

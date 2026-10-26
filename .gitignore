@@ -111,3 +111,10 @@ scripts/__pycache__/
 
 # 一次性排查脚本（下划线前缀，勿入库）
 scripts/_*.mjs
+
+# Deploy build artifacts and local deliverables (2026-10-26, do not commit)
+dist_*.zip
+*.rar
+gui-test-screenshots/
+/docs/report-figures/
+实践考核报告*.docx
