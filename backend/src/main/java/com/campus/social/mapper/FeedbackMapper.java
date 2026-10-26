@@ -83,8 +83,10 @@ public interface FeedbackMapper extends BaseMapper<Feedback> {
             + "WHERE f.is_deleted = 0 "
             + "<if test='status != null'>AND f.status = #{status} </if>"
             + "<if test='category != null'>AND f.category = #{category} </if>"
-            + "<if test='kind != null and kind == 1'>AND f.content LIKE '【认证申诉】%' </if>"
-            + "<if test='kind != null and kind == 0'>AND f.content NOT LIKE '【认证申诉】%' </if>"
+            // 申诉包含认证申诉与封禁申诉(2026-10-26)。kind=1 只看两类申诉,
+            // kind=0 排除两类 —— 新增申诉类型时这里必须同步,否则管理端筛不出来。
+            + "<if test='kind != null and kind == 1'>AND (f.content LIKE '【认证申诉】%' OR f.content LIKE '【封禁申诉】%') </if>"
+            + "<if test='kind != null and kind == 0'>AND f.content NOT LIKE '【认证申诉】%' AND f.content NOT LIKE '【封禁申诉】%' </if>"
             + "<if test='cursor != null'>AND f.id &lt; #{cursor} </if>"
             + "ORDER BY f.id DESC LIMIT #{limit}"
             + "</script>")

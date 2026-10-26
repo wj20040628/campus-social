@@ -246,10 +246,10 @@ const handleAction = ref('adopt')
 /** 正在处置的那条;处置成功后用它就地更新,不整列表重拉 */
 const pending = ref(null)
 
-/** 申诉前缀，与后端 FeedbackServiceImpl.APPEAL_PREFIX / AdminFeedbackItem 保持一致 */
-const APPEAL_PREFIX = '【认证申诉】'
-/** 当前处置的是否为学号认证申诉。申诉人无账号，处置说明走邮件而非站内通知 */
-const pendingIsAppeal = computed(() => String(pending.value?.content || '').startsWith(APPEAL_PREFIX))
+/** 申诉前缀，与后端 FeedbackServiceImpl / AdminFeedbackItem 保持一致 */
+const APPEAL_PREFIXES = ['【认证申诉】', '【封禁申诉】']
+/** 申诉人无登录态，处置说明走邮件而非站内通知 */
+const pendingIsAppeal = computed(() => APPEAL_PREFIXES.some((p) => String(pending.value?.content || '').startsWith(p)))
 
 const handleTitle = computed(() => {
   if (pendingIsAppeal.value) return handleAction.value === 'adopt' ? '通过这条申诉' : '驳回这条申诉'

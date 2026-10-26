@@ -11,11 +11,11 @@
   <li class="item">
     <div class="item__chips">
       <!--
-        认证申诉角标（2026-10-19）：申诉与普通意见反馈共用一张表，
-        用 content 前缀「【认证申诉】」标记。前缀去掉后再显示正文，
-        否则管理员会同时看到前缀和正文里的「学号 xxx 认证未通过」。
+        申诉角标（2026-10-19 认证申诉，2026-10-26 增加封禁申诉）：
+        申诉与普通意见反馈共用一张表，用 content 前缀区分类型。
+        前缀去掉后再显示正文，否则管理员会同时看到前缀和正文里的说明。
       -->
-      <span v-if="isAppeal" class="chip chip--appeal">认证申诉</span>
+      <span v-if="isAppeal" class="chip chip--appeal">{{ appealLabel }}</span>
       <span class="chip" :class="`chip--${STATUS_TONE[item.status ?? 0]}`">
         {{ FEEDBACK_STATUS_TEXT[item.status ?? 0] }}
       </span>
@@ -106,8 +106,9 @@ import { resolveThumb, resolveUrl } from '@/utils/resolve'
 /** status -> chip 色调类名。与 AdminAnnItem 的 chip--live 等同一套命名 */
 const STATUS_TONE = { 0: 'live', 1: 'done', 2: 'off' }
 
-/** 申诉前缀，与后端 FeedbackServiceImpl.APPEAL_PREFIX 保持一致 */
+/** 申诉前缀，与后端 FeedbackServiceImpl 的两个常量保持一致 */
 const APPEAL_PREFIX = '【认证申诉】'
+const BAN_APPEAL_PREFIX = '【封禁申诉】'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -116,10 +117,22 @@ const props = defineProps({
 
 defineEmits(['adopt', 'ignore'])
 
-const isAppeal = computed(() => String(props.item?.content || '').startsWith(APPEAL_PREFIX))
+/** 命中的申诉前缀；普通反馈为空串 */
+const appealPrefix = computed(() => {
+  const c = String(props.item?.content || '')
+  if (c.startsWith(BAN_APPEAL_PREFIX)) return BAN_APPEAL_PREFIX
+  if (c.startsWith(APPEAL_PREFIX)) return APPEAL_PREFIX
+  return ''
+})
+const isAppeal = computed(() => !!appealPrefix.value)
+const appealLabel = computed(() =>
+  appealPrefix.value === BAN_APPEAL_PREFIX ? '封禁申诉' : '认证申诉',
+)
 /** 去掉前缀的正文：前缀已经由角章承担，正文里再出现一次是重复 */
 const bodyText = computed(() =>
-  isAppeal.value ? String(props.item?.content || '').slice(APPEAL_PREFIX.length) : props.item?.content,
+  isAppeal.value
+    ? String(props.item?.content || '').slice(appealPrefix.value.length)
+    : props.item?.content,
 )
 
 /**
@@ -135,11 +148,12 @@ const appealMail = computed(() => {
 
 /**
  * 提交人显示名。
- * 申诉人 user_id 为 NULL（注册没成功、还没有账号），后端联表取不到昵称。
- * 直接显示「已注销用户」会误导（人家是从未注册），申诉行改标「未注册（申诉人）」。
+ * 申诉人 user_id 为 NULL（认证申诉是从未注册，封禁申诉是无登录态），
+ * 后端联表取不到昵称。标成「已注销用户」会误导，按申诉类型分开写。
  */
 const submitterText = computed(() => {
   if (props.item?.userNickname) return props.item.userNickname
+  if (appealPrefix.value === BAN_APPEAL_PREFIX) return '被封禁用户（申诉）'
   return isAppeal.value ? '未注册（申诉人）' : '已注销用户'
 })
 

@@ -1,5 +1,6 @@
 package com.campus.social.service;
 
+import com.campus.social.dto.BanAppealDTO;
 import com.campus.social.dto.FeedbackHandleDTO;
 import com.campus.social.dto.FeedbackSubmitDTO;
 import com.campus.social.dto.StudentNoAppealDTO;
@@ -30,7 +31,7 @@ public interface FeedbackService {
      *
      * @param status   0待处理 1已采纳 2已忽略；null=全部
      * @param category 1功能建议 2使用问题 3内容问题 4界面体验 5其他；null=全部类型
-     * @param kind     认证申诉标记：1=只看申诉(前缀匹配)、0=只看非申诉、null=不限
+     * @param kind     申诉标记：1=只看申诉(认证/封禁前缀匹配)、0=只看非申诉、null=不限
      */
     FeedbackAdminPageVO list(Integer status, Integer category, Integer kind, Long cursor, int size);
 
@@ -52,4 +53,12 @@ public interface FeedbackService {
      * 调用方：普通反馈一定有登录态 user，此通道没有。
      */
     FeedbackSubmitVO submitStudentNoAppeal(StudentNoAppealDTO dto);
+
+    /**
+     * 封禁申诉（2026-10-26）。
+     *
+     * <p>提交方账号处于冻结状态、登录不进站，没有有效 token；走公开端点，
+     * {@code user_id} 置 NULL。邮箱必填（唯一触达渠道），学号选填。
+     */
+    FeedbackSubmitVO submitBanAppeal(BanAppealDTO dto);
 }

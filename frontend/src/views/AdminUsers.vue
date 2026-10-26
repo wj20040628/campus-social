@@ -213,20 +213,24 @@ function statusText(u) {
 }
 
 /* ---------------- 解封确认框 ---------------- */
+/*
+ * 开关与目标必须分开（2026-10-26 修）。
+ * 原实现把 unbanOpen 算成「unbanTarget 是否有值」，而 ConfirmDialog 点确认时
+ * 先 emit update:modelValue(false) 再 emit confirm —— 父级 setter 已把
+ * unbanTarget 清空，confirm 里读到的永远是 null，解封请求根本没发出去。
+ */
 const unbanTarget = ref(null)
-const unbanOpen = computed({
-  get: () => !!unbanTarget.value,
-  set: (v) => {
-    if (!v) unbanTarget.value = null
-  },
-})
+const unbanOpen = ref(false)
 
 function openUnban(u) {
   unbanTarget.value = u
+  unbanOpen.value = true
 }
 
 async function onUnbanConfirm() {
+  // 先取目标再关框：关框只把 unbanOpen 置 false，不会动这里的局部变量
   const t = unbanTarget.value
+  unbanOpen.value = false
   unbanTarget.value = null
   if (t) await submitUnban(t)
 }

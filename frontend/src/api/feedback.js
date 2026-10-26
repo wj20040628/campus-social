@@ -44,8 +44,8 @@ export const FEEDBACK_STATUS_TEXT = {
  *
  * @param {{category:1|2|3|4|5, kind?:0|1, content:string, media?:Array<{type:'img'|'video',url:string}>}} body
  *        media 由 useMediaUpload 的 readyMedia 直接给(字符串 type),转换在本层做;
- *        kind=1 表示学号认证申诉(2026-10-19),服务层会加「【认证申诉】」前缀
- *        让管理员端一眼分辨,不与普通意见反馈混在一起
+ *        kind=1 表示申诉(2026-10-19 认证申诉 / 2026-10-26 封禁申诉),
+ *        服务层会加对应前缀让管理员端一眼分辨,不与普通意见反馈混在一起
  * @returns {Promise<{feedbackId:number, status:0}>}
  */
 export function submitFeedback(body) {
@@ -83,7 +83,7 @@ function toWireMedia(media) {
  * `pendingCount` 是 status=0 的全量总数,红点用。
  *
  * @param {{status?:0|1|2, category?:1|2|3|4|5, kind?:0|1, cursor?:number|null, size?:number}} [params]
- *        kind: 1=只看认证申诉(前缀匹配) 0=只看非申诉 null=不限
+ *        kind: 1=只看申诉(认证/封禁前缀匹配) 0=只看非申诉 null=不限
  * @returns {Promise<{list:Array, nextCursor:number|null, hasMore:boolean, pendingCount:number}>}
  */
 export function adminFeedback(params = {}) {
@@ -92,7 +92,7 @@ export function adminFeedback(params = {}) {
   if (status !== undefined && status !== null) query.status = status
   // 类型筛选:1功能建议 2使用问题 3内容问题 4界面体验 5其他;null 表示全部类型
   if (category !== undefined && category !== null) query.category = category
-  // 认证申诉标记:1=只看申诉 0=只看非申诉;非申诉的内容分类(1~5)都带 kind=0,
+  // 申诉标记:1=只看申诉(认证/封禁) 0=只看非申诉;非申诉的内容分类(1~5)都带 kind=0,
   // 这样「使用问题」等筛选不再把申诉混进来。null 表示不限。
   if (kind !== undefined && kind !== null) query.kind = kind
   if (cursor !== undefined && cursor !== null) query.cursor = cursor

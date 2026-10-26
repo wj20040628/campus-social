@@ -2,6 +2,7 @@ package com.campus.social.service.impl;
 
 import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.common.ResultCode;
+import com.campus.social.dto.BanAppealDTO;
 import com.campus.social.dto.FeedbackHandleDTO;
 import com.campus.social.dto.FeedbackSubmitDTO;
 import com.campus.social.dto.StudentNoAppealDTO;
@@ -70,9 +71,18 @@ public class FeedbackServiceImpl implements FeedbackService {
      */
     static final String APPEAL_PREFIX = "【认证申诉】";
 
-    /** 判定一条反馈是否为认证申诉（管理端列表用） */
+    /** 封禁申诉前缀（2026-10-26）：与认证申诉同表同通道，靠前缀区分 */
+    static final String BAN_APPEAL_PREFIX = "【封禁申诉】";
+
+    /** 判定一条反馈是否为任一申诉（管理端列表用） */
     public static boolean isAppeal(String content) {
-        return content != null && content.startsWith(APPEAL_PREFIX);
+        return content != null
+                && (content.startsWith(APPEAL_PREFIX) || content.startsWith(BAN_APPEAL_PREFIX));
+    }
+
+    /** 判定一条反馈是否为封禁申诉 */
+    public static boolean isBanAppeal(String content) {
+        return content != null && content.startsWith(BAN_APPEAL_PREFIX);
     }
 
     private final FeedbackMapper feedbackMapper;
@@ -138,6 +148,35 @@ public class FeedbackServiceImpl implements FeedbackService {
         Long id = feedbackMapper.selectLastInsertId();
         log.info("student-no appeal submitted: studentNo={}, email={}, feedbackId={}",
                 UserVoAssembler.maskUsername(dto.getStudentNo()),
+                UserVoAssembler.maskUsername(dto.getEmail()), id);
+        return FeedbackSubmitVO.builder()
+                .feedbackId(id)
+                .status(STATUS_PENDING)
+                .build();
+    }
+
+    /**
+     * 封禁申诉（2026-10-26）：公开端点，提交方登不进来、没有有效 token。
+     *
+     * <p>与认证申诉共用 feedback 队列与邮件回信链路，只靠前缀区分类型。
+     * 邮箱必填，学号选填 —— 封禁用户可能注册时就没填学号。
+     */
+    @Override
+    @Transactional
+    public FeedbackSubmitVO submitBanAppeal(BanAppealDTO dto) {
+        String note = dto.getNote() == null ? "" : dto.getNote().trim();
+        StringBuilder sb = new StringBuilder(BAN_APPEAL_PREFIX)
+                .append("账号被封禁，申请复核。联系邮箱 ").append(dto.getEmail());
+        if (dto.getStudentNo() != null && !dto.getStudentNo().isBlank()) {
+            sb.append("；学号 ").append(dto.getStudentNo().trim());
+        }
+        if (!note.isEmpty()) {
+            sb.append("；说明：").append(note);
+        }
+
+        feedbackMapper.insertFeedback(null, 2, sb.toString(), null);
+        Long id = feedbackMapper.selectLastInsertId();
+        log.info("ban appeal submitted: email={}, feedbackId={}",
                 UserVoAssembler.maskUsername(dto.getEmail()), id);
         return FeedbackSubmitVO.builder()
                 .feedbackId(id)
@@ -217,11 +256,14 @@ public class FeedbackServiceImpl implements FeedbackService {
             log.warn("appeal content has no contact email, skip mail: feedbackId={}", fb.getId());
             return;
         }
-        String text = (note == null || note.isBlank()) ? "你的学号认证申诉已处理。" : note.trim();
-        String subject = "你的学号认证申诉处理结果 - 友声";
+        boolean banAppeal = isBanAppeal(fb.getContent());
+        String text = (note == null || note.isBlank())
+                ? (banAppeal ? "你的封禁申诉已处理。" : "你的学号认证申诉已处理。")
+                : note.trim();
+        String subject = (banAppeal ? "你的封禁申诉处理结果" : "你的学号认证申诉处理结果") + " - 友声";
         String body = "<div style='font-family:sans-serif;padding:20px;line-height:1.7'>"
                 + "<h2 style='color:#2b6cb0'>友声</h2>"
-                + "<p>你的学号认证申诉已处理，管理员说明如下：</p>"
+                + "<p>" + (banAppeal ? "你的封禁申诉已处理" : "你的学号认证申诉已处理") + "，管理员说明如下：</p>"
                 + "<blockquote style='margin:12px 0;padding:8px 12px;border-left:3px solid #2b6cb0;"
                 + "background:#f5f7fa;color:#333'>" + escapeHtml(text) + "</blockquote>"
                 + "<p style='color:#999;font-size:13px'>如果仍有疑问，可直接回复本邮件。</p>"
