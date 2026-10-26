@@ -257,6 +257,11 @@ app:
     # 后端生成读签名 URL 用的 AK(只 GetObject)
     read-access-key-id: ${OSS_READ_ACCESS_KEY_ID:}
     read-access-key-secret: ${OSS_READ_ACCESS_KEY_SECRET:}
+    # 凭据类型:ak=固定 AK(本地/非 ECS);ecs_ram_role=ECS 实例 RAM 角色(零 AK,自动轮换)
+    # 生产 ECS 建议 ecs_ram_role:此时上面两对 AK 留空,给实例绑定的角色授 OSS 读写权限即可
+    credential-type: ${OSS_CREDENTIAL_TYPE:ak}
+    # 实例 RAM 角色名(可空:空则从实例元数据自动发现;一台 ECS 只能绑一个角色)
+    ecs-role-name: ${OSS_ECS_ROLE_NAME:}
     # 签名读 URL 有效期(秒)
     presign-ttl-seconds: 3600
     # STS 临时令牌有效期(秒),需 <= 角色最大会话时长

@@ -29,7 +29,8 @@ import java.util.Date;
  *       scope 锁 uploads/{userId}/*（P2 接管 UploadServiceImpl 时用）</li>
  * </ul>
  *
- * <p>读客户端用外网域名 + 只读 AK 构建一次复用；上传走 STS 临时令牌，每次新建用完即关。
+ * <p>凭据两种模式：固定 AK（读客户端用只读 AK，上传用 AK 换 STS 临时令牌）；
+ * ecs_ram_role（ECS 实例 RAM 角色，读写都用实例元数据自动发放、自动轮换的临时凭证，服务器无 AK）。
  */
 @Service
 @Slf4j
@@ -40,14 +41,24 @@ public class OssService {
     private final OSS readClient;
     /** 内网域名读客户端:ECS 后端拉文件头/回调魔数校验走它,免公网流量费 */
     private final OSS internalReadClient;
+    /** 走 ECS 实例 RAM 角色凭据:读写都不需要固定 AK,由实例元数据自动发放并轮换 */
+    private final boolean ecsRoleMode;
 
     public OssService(OssProperties props, OssStsService stsService) {
         this.props = props;
         this.stsService = stsService;
-        // 读客户端仅在 read AK 配齐时构建:本地 dev 清空 AK(isConfigured=false)时,
-        // 不能用空 AK 实例化 OSS 客户端(否则启动报 InvalidCredentialsException 拖垮整棵 bean 树)。
-        // 读客户端只在 isConfigured()=true 时被使用,届时必已构建。
-        if (!props.getReadAccessKeyId().isBlank() && !props.getReadAccessKeySecret().isBlank()) {
+        this.ecsRoleMode = "ecs_ram_role".equalsIgnoreCase(props.getCredentialType());
+        if (ecsRoleMode) {
+            // 同一个凭据提供者给两个客户端:凭据在 credentials-java 内部缓存/提前刷新,
+            // 不需要每次请求都打实例元数据。
+            EcsRamRoleCredentialsProvider creds = new EcsRamRoleCredentialsProvider(props.getEcsRoleName());
+            this.readClient = new OSSClientBuilder().build("https://" + props.getEndpoint(), creds);
+            this.internalReadClient = new OSSClientBuilder().build("https://" + props.getInternalEndpoint(), creds);
+            log.info("OSS 使用 ECS 实例 RAM 角色凭据, roleName={}", props.getEcsRoleName().isBlank() ? "(自动发现)" : props.getEcsRoleName());
+            if (props.isDirectUploadEnabled()) {
+                log.warn("前端直传需要固定 AK 换 STS, ecs_ram_role 模式下已自动关闭");
+            }
+        } else if (!props.getReadAccessKeyId().isBlank() && !props.getReadAccessKeySecret().isBlank()) {
             this.readClient = new OSSClientBuilder().build(
                     "https://" + props.getEndpoint(),
                     props.getReadAccessKeyId(),
@@ -88,16 +99,12 @@ public class OssService {
                 new GeneratePresignedUrlRequest(props.getBucket(), objectKey, HttpMethod.GET);
         req.setExpiration(expiration);
         /*
-         * 读链路强制 Content-Type(2026-10-23 加,审查 P0-13 后半):
-         * 之前 302 后的响应类型取自对象元数据 = 客户端 PUT 时自报的 Content-Type,
-         * 配合 GIF 魔数可让 OSS 域以 text/html 渲染上传内容 = 存储型 XSS。
-         * 这里按对象后缀服务端推导并覆盖响应头,客户端上报的类型不再生效。
+         * 不设置 response-content-type(2026-10-26 移除)。
+         * 阿里云 OSS 对 GET 签名 URL 明确禁止覆盖 Content-Type:带上会直接 400
+         * InvalidRequest(0017-00000902),线上表现为所有图片 302 后加载失败。
+         * 内容类型改由写入时保证:服务端上传在 putObject 里按后缀设置 ObjectMetadata;
+         * 前端直传(当前关闭)由回调做魔数校验,不依赖 URL 覆盖响应头。
          */
-        String ext = extOf(objectKey);
-        com.aliyun.oss.model.ResponseHeaderOverrides overrides =
-                new com.aliyun.oss.model.ResponseHeaderOverrides();
-        overrides.setContentType(com.campus.social.util.OssSignUtil.mimeOf(ext));
-        req.setResponseHeaders(overrides);
         if (process != null && !process.isBlank()) {
             req.setProcess(process);
         }
@@ -105,39 +112,43 @@ public class OssService {
         return url.toString();
     }
 
-    /** 取对象 key 的后缀(小写,无点);无后缀返回空串 */
-    private String extOf(String objectKey) {
-        int dot = objectKey.lastIndexOf('.');
-        int slash = objectKey.lastIndexOf('/');
-        if (dot <= slash || dot == objectKey.length() - 1) {
-            return "";
-        }
-        return objectKey.substring(dot + 1).toLowerCase();
-    }
-
-    /** OSS 是否可用：AK 均已配置。本地未填 AK 时为 false，upload 自动回落本地磁盘。 */
+    /** OSS 是否可用：实例角色模式直接可用；固定 AK 模式要求两对 AK 均非空。 */
     public boolean isConfigured() {
+        if (ecsRoleMode) {
+            return true;
+        }
         return !props.getStsAccessKeyId().isBlank() && !props.getStsAccessKeySecret().isBlank()
                 && !props.getReadAccessKeyId().isBlank() && !props.getReadAccessKeySecret().isBlank();
     }
 
-    /** 是否开启前端直传（STS）。关时前端走 POST /upload 服务端兜底。
-     *  备案过审前为 false：直传依赖 OSS 回调到已备案域名，备案中不可达会传失败。 */
-    public boolean isDirectUploadEnabled() {
-        return props.isDirectUploadEnabled();
+    /** 是否走 ECS 实例 RAM 角色（无固定 AK）；读链路的 302 不能长时间缓存签名 URL */
+    public boolean isEcsRoleMode() {
+        return ecsRoleMode;
     }
 
-    /** 服务端兜底上传：用 STS 临时令牌，scope 限 uploads/{userId}/* */
+    /** 是否开启前端直传（STS）。关时前端走 POST /upload 服务端兜底。
+     *  备案过审前为 false：直传依赖 OSS 回调到已备案域名，备案中不可达会传失败。
+     *  实例角色模式没有固定 AK 可换 STS，直传自动关闭。 */
+    public boolean isDirectUploadEnabled() {
+        return props.isDirectUploadEnabled() && !ecsRoleMode;
+    }
+
+    /** 服务端兜底上传：固定 AK 模式用 STS 临时令牌（scope 限 uploads/{userId}/*）；
+     *  实例角色模式直接用角色的临时凭据，权限由 RAM 策略约束在桶的 uploads/ 前缀内。 */
     public void putObject(Long userId, String objectKey, InputStream in, String contentType) {
+        ObjectMetadata meta = new ObjectMetadata();
+        if (contentType != null && !contentType.isBlank()) {
+            meta.setContentType(contentType);
+        }
+        if (ecsRoleMode) {
+            readClient.putObject(props.getBucket(), objectKey, in, meta);
+            return;
+        }
         OssStsService.StsToken sts = stsService.getStsToken(userId);
         OSS client = new OSSClientBuilder().build(
                 "https://" + props.getEndpoint(),
                 sts.accessKeyId(), sts.accessKeySecret(), sts.securityToken());
         try {
-            ObjectMetadata meta = new ObjectMetadata();
-            if (contentType != null && !contentType.isBlank()) {
-                meta.setContentType(contentType);
-            }
             client.putObject(props.getBucket(), objectKey, in, meta);
         } finally {
             client.shutdown();

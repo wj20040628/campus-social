@@ -43,6 +43,12 @@ public class OssProperties {
      *  备案中该回调不通，直传会被 OSS 判失败。服务端兜底直传 OSS 不依赖回调域名，备案中可用。 */
     private boolean directUploadEnabled = false;
 
+    /** 凭据类型：ak=固定 AccessKey；ecs_ram_role=ECS 实例 RAM 角色（无 AK，SDK 自动轮换） */
+    private String credentialType = "ak";
+
+    /** 实例 RAM 角色名（可空：空则从实例元数据自动发现；一台 ECS 只绑一个角色） */
+    private String ecsRoleName = "";
+
     /** 上传 STS 临时令牌用的固定 AK（仅后端，不下发前端） */
     private String stsAccessKeyId = "";
 
@@ -137,6 +143,22 @@ public class OssProperties {
 
     public void setDirectUploadEnabled(boolean directUploadEnabled) {
         this.directUploadEnabled = directUploadEnabled;
+    }
+
+    public String getCredentialType() {
+        return credentialType;
+    }
+
+    public void setCredentialType(String credentialType) {
+        this.credentialType = credentialType;
+    }
+
+    public String getEcsRoleName() {
+        return ecsRoleName;
+    }
+
+    public void setEcsRoleName(String ecsRoleName) {
+        this.ecsRoleName = ecsRoleName;
     }
 
     public String getStsAccessKeyId() {

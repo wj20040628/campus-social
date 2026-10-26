@@ -37,6 +37,9 @@ public class MediaController {
 
     private static final List<String> THUMB_FMT = List.of("webp", "jpeg", "jpg", "png");
     private static final String CACHE_CONTROL = "public, max-age=3600";
+    /** 实例角色模式的签名 URL 嵌的是 1 小时内的 STS 临时令牌，
+     *  302 一旦被浏览器缓存，过期后复用同一条 URL 会 403 —— 读链路必须不缓存重定向 */
+    private static final String CACHE_CONTROL_STS = "no-store";
 
     public MediaController(OssService ossService, UploadServiceImpl uploadService) {
         this.ossService = ossService;
@@ -138,7 +141,7 @@ public class MediaController {
     private ResponseEntity<?> redirect(String url) {
         return ResponseEntity.status(302)
                 .header(HttpHeaders.LOCATION, url)
-                .header(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL)
+                .header(HttpHeaders.CACHE_CONTROL, ossService.isEcsRoleMode() ? CACHE_CONTROL_STS : CACHE_CONTROL)
                 .build();
     }
 
