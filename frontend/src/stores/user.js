@@ -88,13 +88,13 @@ export const useUserStore = defineStore('user', {
     },
 
     async login(username, password, rememberMe = false) {
-      const data = await request.post('/auth/login', { username, password, rememberMe })
+      const data = await request.post('/auth/login', { username, password, rememberMe }, { silent: true })
       this.setTokens(data)
       return data
     },
 
     async loginByCode(email, code) {
-      const data = await request.post('/auth/login-code', { email, code })
+      const data = await request.post('/auth/login-code', { email, code }, { silent: true })
       this.setTokens(data)
       return data
     },
@@ -119,7 +119,7 @@ export const useUserStore = defineStore('user', {
         body.gradeId = identity.gradeId
         body.majorId = identity.majorId
       }
-      const data = await request.post('/auth/register', body)
+      const data = await request.post('/auth/register', body, { silent: true })
       this.setTokens(data)
       return data
     },

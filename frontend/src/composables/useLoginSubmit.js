@@ -52,7 +52,7 @@ export function useLoginSubmit({ pwdForm, codeForm, userStore, onSuccess }) {
     lastKind = kind
     const b = accountBlocked(e)
     if (b) {
-      blocked.value = b
+      blocked.value = { ...b, appealable: b.code === AUTH_ERR.USER_FROZEN }
       formError.value = ''
       retryable.value = false
       return

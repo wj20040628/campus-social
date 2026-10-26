@@ -60,3 +60,11 @@
     border-radius: var(--ys-radius-lg);
   }
 }
+
+/* 封禁申诉次按钮（2026-10-26 补）：弱于「返回登录」，但热区同为 44px */
+.auth-submit--ghost {
+  margin-top: var(--ys-space-2);
+  border: 1px solid var(--ys-border-control);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+}

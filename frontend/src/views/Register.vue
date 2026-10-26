@@ -333,7 +333,7 @@ async function sendCode() {
      * type 传 "register"：与后端 sendCode 的默认值、以及注册时的 verify 调用一致，
      * 三处必须用同一个字符串，否则「发的码验不过」。
      */
-    await sendVerifyCode(form.email.trim().toLowerCase(), 'register')
+    await sendVerifyCode(form.email.trim().toLowerCase(), 'register', { silent: true })
     ElMessage.success('验证码已发到邮箱')
     codeCountdown.value = 60
     countdownTimer = setInterval(() => {

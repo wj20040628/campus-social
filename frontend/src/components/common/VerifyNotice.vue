@@ -68,24 +68,33 @@
       </p>
     </div>
 
-    <button v-if="!showWeakVerified" type="button" class="vnotice__btn" @click="goSubmit">
-      {{ showUnverified ? '去认证' : showRejected ? '去改学号' : '查看进度' }}
-    </button>
-
     <!--
-      不再提醒(2026-10-24 加)。**驳回态不给**:驳回理由是用户做决定的核心依据,
-      关掉就找不回;未认证/审核中/弱认证是「无需行动」态,反复出现只有打扰。
-      按「用户 id + 当前状态」记忆:状态一变(审核中被驳回/通过)提醒自动回来,
-      不是永久静音——被驳回那一刻,该看见的还是会看见。
+      操作区包一层（2026-10-26 修手机端塌陷）：
+      原来是两个按钮直接做 flex item，各自 flex-basis 50%，
+      flex 算法先把「查看进度」拉到 241px，正文只剩 71px，
+      中文逐字竖排成一列（实机截图确认）。包成一组后：
+      桌面端是一组横排按钮；手机端整组换到第二行，两个按钮各占一半。
     -->
-    <button
-      v-if="!showRejected"
-      type="button"
-      class="vnotice__btn vnotice__btn--ghost"
-      @click="dismiss"
-    >
-      不再提醒
-    </button>
+    <div class="vnotice__actions">
+      <button v-if="!showWeakVerified" type="button" class="vnotice__btn" @click="goSubmit">
+        {{ showUnverified ? '去认证' : showRejected ? '去改学号' : '查看进度' }}
+      </button>
+
+      <!--
+        不再提醒(2026-10-24 加)。**驳回态不给**:驳回理由是用户做决定的核心依据,
+        关掉就找不回;未认证/审核中/弱认证是「无需行动」态,反复出现只有打扰。
+        按「用户 id + 当前状态」记忆:状态一变(审核中被驳回/通过)提醒自动回来,
+        不是永久静音——被驳回那一刻,该看见的还是会看见。
+      -->
+      <button
+        v-if="!showRejected"
+        type="button"
+        class="vnotice__btn vnotice__btn--ghost"
+        @click="dismiss"
+      >
+        不再提醒
+      </button>
+    </div>
   </aside>
 </template>
 
@@ -291,6 +300,14 @@ async function goSubmit() {
   color: var(--ys-fg);
 }
 
+/* 桌面端：操作区是图标/正文之后的第三组，不参与正文的伸缩 */
+.vnotice__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-self: center;
+  gap: var(--ys-space-2);
+}
+
 .vnotice__btn {
   flex-shrink: 0;
   align-self: center;
@@ -338,11 +355,22 @@ async function goSubmit() {
   }
 
   /*
-   * 两个按钮并排各半,不再各自占满一行(2026-10-24):主操作与「不再提醒」
-   * 是同层级的横向选择,竖着摞两个大按钮只是浪费一屏高度。
+   * 手机端两行结构（2026-10-26 修）：
+   *   第 1 行：图标 + 正文（正文 flex:1 吃掉剩余宽度）
+   *   第 2 行：操作区整组换行，两个按钮各占一半
+   *
+   * 之前把两个按钮直接放在 .vnotice 里并给 flex-basis 50%，
+   * flex 会先满足按钮的 basis，正文被压到 71px，中文逐字竖排。
+   * 操作区包成一组后，组本身 flex-basis 100% 强制换行，正文不再被挤。
    */
+  .vnotice__actions {
+    flex: 1 1 100%;
+    align-self: stretch;
+  }
+
   .vnotice__btn {
-    flex: 1 1 calc(50% - var(--ys-space-2));
+    flex: 1 1 0;
+    min-width: 0;
   }
 }
 </style>

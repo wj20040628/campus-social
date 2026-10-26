@@ -35,8 +35,8 @@ export function register(payload) {
   return request.post('/auth/register', body)
 }
 
-export function sendCode(target, type = 'register') {
-  return request.post('/auth/send-code', { target, type })
+export function sendCode(target, type = 'register', opts = {}) {
+  return request.post('/auth/send-code', { target, type }, opts)
 }
 
 /** 找回密码(第一步):提交学号,后端向绑定的安全凭证邮箱发重置验证码 */
@@ -58,6 +58,15 @@ export function resetPassword(account, code, newPassword) {
  */
 export function appealStudentNo({ studentNo, email, note }) {
   return request.post('/auth/appeal-student-no', { studentNo, email, note }, { silent: true })
+}
+
+/**
+ * 封禁申诉（2026-10-26）：账号被冻结、登录不进来，只能走公开端点。
+ * 邮箱必填、学号选填（封禁用户可能没填过学号）。
+ * 与认证申诉共用 feedback 队列，服务端用「【封禁申诉】」前缀区分类型。
+ */
+export function appealBan({ email, studentNo, note }, opts = {}) {
+  return request.post('/auth/appeal-ban', { email, studentNo, note }, { silent: true, ...opts })
 }
 
 /** 绑定 / 修改安全凭证邮箱(需登录):邮箱 + 绑定验证码 */

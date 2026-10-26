@@ -36,6 +36,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             // 学号认证申诉(2026-10-19):提交方是「注册失败、还没账号」的人,
             // 没有 token,必须放行;联系邮箱随申诉落库,管理员据此联系。
             "/auth/appeal-student-no",
+            // 封禁申诉(2026-10-26):账号被冻结,登录不进来,同样没有有效 token。
+            "/auth/appeal-ban",
             // 上传能力探测:前端进发帖页前拉一次,判断视频功能开没开 + 单文件上限。
             // 只读、无副作用,不绑登录态(未登录也能知道「视频被关了」)。
             "/upload/config",

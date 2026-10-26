@@ -1,6 +1,7 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.Result;
+import com.campus.social.dto.BanAppealDTO;
 import com.campus.social.dto.LoginByCodeDTO;
 import com.campus.social.dto.LoginDTO;
 import com.campus.social.dto.RefreshDTO;
@@ -46,6 +47,18 @@ public class AuthController {
     @PostMapping("/appeal-student-no")
     public Result<FeedbackSubmitVO> appealStudentNo(@Valid @RequestBody StudentNoAppealDTO dto) {
         return Result.ok(feedbackService.submitStudentNoAppeal(dto));
+    }
+
+    /**
+     * 被封禁用户的申诉（2026-10-26）。
+     *
+     * <p>封禁账号登录不进来、没有可用 token，必须走公开端点。邮箱必填
+     * （唯一触达渠道），学号选填；与认证申诉共用 feedback 队列，管理员
+     * 处置后按邮箱回信。
+     */
+    @PostMapping("/appeal-ban")
+    public Result<FeedbackSubmitVO> appealBan(@Valid @RequestBody BanAppealDTO dto) {
+        return Result.ok(feedbackService.submitBanAppeal(dto));
     }
 
     @PostMapping("/login")

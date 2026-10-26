@@ -22,6 +22,12 @@
       -->
       <div class="blocked__actions">
         <el-button class="auth-submit" @click="$emit('back')">返回登录</el-button>
+        <!--
+          申诉出口（2026-10-26 补）：设计 §3 副句承诺「联系管理员申诉」，
+          但此前没有任何可点的东西——承诺了出口而出口是死的。
+          仅在冻结(封禁)态出现；注销是用户自己的选择，没有申诉语义。
+        -->
+        <el-button v-if="appealable" class="auth-submit auth-submit--ghost" @click="$emit('appeal')">提交封禁申诉</el-button>
       </div>
     </div>
   </div>
@@ -39,14 +45,17 @@
  */
 import { Lock } from '@element-plus/icons-vue'
 
-defineProps({
+const props = defineProps({
   /** 主句,如「这个账号被暂停使用了」 */
   title: { type: String, required: true },
   /** 副句:说清能做什么 */
   reason: { type: String, required: true },
+  /** 是否提供申诉出口（封禁=true，注销=false） */
+  appealable: { type: Boolean, default: false },
 })
 
-defineEmits(['back'])
+defineEmits(['back', 'appeal'])
+void props
 </script>
 
 <style scoped src="./AuthBlocked.css"></style>

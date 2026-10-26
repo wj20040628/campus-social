@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from '@/utils/feedback'
+import { AUTH_ERR } from '@/utils/authError'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
@@ -50,8 +51,42 @@ request.interceptors.response.use(
     const status = error.response?.status
     const original = error.config
 
-    // 401:尝试刷新
-    if (status === 401 && !original._retried) {
+    /*
+     * 登录/注册类端点的 401 不是「登录过期」，而是「这次凭据不对」。
+     *
+     * 2026-10-26 修：此前 /auth/login 密码错误也走刷新队列分支，
+     * 未登录时没有 refreshToken → handleLogout 清 token + 弹 toast + 跳 /login，
+     * 页面被重挂载，用户看不到字段旁的内联错误，只看到一闪而过的
+     * 「用户名或密码错误」和一个「网络好像断了」的重试条——两句话互相矛盾。
+     *
+     * 这些端点必须把 401 原样交给调用方（useLoginSubmit / useRegisterSubmit），
+     * 由它们做字段级提示。refresh 端点也排除，避免刷新失败时递归刷新。
+     */
+    const authEndpoint = /\/auth\/(login|login-code|register|send-code|forgot-password|reset-password|refresh)(\?|$)/.test(original?.url || '')
+
+    /*
+     * 登录态中途被封（2026-10-26）：
+     * AuthInterceptor 对冻结/注销账号统一回 403 + code 1001/1002。
+     * 此前只弹一句 toast，用户留在原页面反复点、却没有任何申诉出口。
+     * 这里清掉本地登录态并带 code 跳登录页，由 Login.vue 渲染封禁整页态
+     * + 申诉按钮（登录端点本身除外，它由 useLoginSubmit 自己分类）。
+     */
+    const bizCode = error.response?.data?.code
+    if (
+      !authEndpoint &&
+      status === 403 &&
+      (bizCode === AUTH_ERR.USER_FROZEN || bizCode === AUTH_ERR.USER_CANCELLED)
+    ) {
+      const user = useUserStore()
+      user.clear()
+      if (router.currentRoute.value.name !== 'login') {
+        router.push({ path: '/login', query: { blocked: bizCode } })
+      }
+      return Promise.reject(error)
+    }
+
+    // 401:尝试刷新（仅受保护资源）
+    if (status === 401 && !original._retried && !authEndpoint) {
       original._retried = true
       const user = useUserStore()
       if (!user.refreshToken) {

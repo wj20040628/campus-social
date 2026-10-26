@@ -4,7 +4,9 @@
     v-if="blocked"
     :title="blocked.title"
     :reason="blocked.reason"
-    @back="backFromBlocked"
+    :appealable="blocked.appealable === true"
+    @back="onBackFromBlocked"
+    @appeal="appealOpen = true"
   />
 
   <div v-else class="auth-page">
@@ -82,6 +84,15 @@
         <span class="auth-legal__sep">·</span>
         <button type="button" class="legal-link" @click="openLegal('privacy')">《隐私政策》</button>
       </div>
+
+      <!--
+        常驻申诉入口（2026-10-26）：被冻结的用户登录失败后虽然会看到
+        AuthBlocked 里的申诉按钮，但如果只是听说自己被封、还没尝试登录，
+        这里必须有入口；已登录态中途被封也会被 request.js 引导回本页。
+      -->
+      <div class="auth-appeal">
+        <button type="button" class="link-btn" @click="appealOpen = true">账号被误封？提交申诉</button>
+      </div>
     </div>
 
     <!-- 找回密码:独立态,整页替换登录卡片内容 -->
@@ -100,6 +111,14 @@
     <!-- 协议弹窗:由登录页底部《用户协议》/《隐私政策》链接调起 -->
     <LegalAgreementDialog ref="legalRef" />
   </div>
+
+  <!--
+    封禁申诉弹层（2026-10-26 新增）：账号被封禁者无有效登录态，邮箱是唯一触达路径。
+    必须挂在模板根部（AuthBlocked 的兄弟节点）：封禁整页态会 v-else 卸掉 auth-page，
+    弹层若在 auth-page 内部，blocked=true 时整棵子树被卸载，弹层永远挂不上 ——
+    表现为「点申诉没反应」。放在根层级则始终在 DOM，v-model 才能生效。
+  -->
+  <BanAppealDialog v-model="appealOpen" />
 </template>
 
 <script setup>
@@ -112,9 +131,10 @@
  * 副作用(发请求 + 错误分类)在 useLoginSubmit,倒计时在 useCodeCountdown,
  * 三个状态各自独立成块 —— 因为原本 297 行已顶到 300 行门禁。
  */
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
+import { AUTH_ERR, blockedByCode } from '@/utils/authError'
 import { sendCode as sendCodeApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useLoginSubmit, sendCodeFailMessage } from '@/composables/useLoginSubmit'
@@ -125,6 +145,7 @@ import PasswordForm from '@/components/auth/PasswordForm.vue'
 import CodeForm from '@/components/auth/CodeForm.vue'
 import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm.vue'
 import LegalAgreementDialog from '@/components/auth/LegalAgreementDialog.vue'
+import BanAppealDialog from '@/components/auth/BanAppealDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -133,6 +154,8 @@ const userStore = useUserStore()
 // 协议弹窗 ref（2026-10-20）：登录页底部《用户协议》/《隐私政策》链接调起，不强制勾选
 const legalRef = ref(null)
 function openLegal(doc) { legalRef.value?.open(doc) }
+
+const appealOpen = ref(false)
 
 const TABS = [
   { v: 'password', l: '学号/邮箱登录' },
@@ -166,6 +189,28 @@ const {
   backFromBlocked,
 } = useLoginSubmit({ pwdForm, codeForm, userStore, onSuccess: goHome })
 
+/**
+ * 登录态中途被封（2026-10-26）：request.js 清掉 token 后带 blocked=业务码
+ * 跳回登录页，这里直接切到封禁整页态，不让用户再对着一张没用的登录表单。
+ */
+function applyBlockedQuery() {
+  const code = Number(route.query.blocked)
+  const b = blockedByCode(code)
+  if (b) blocked.value = { ...b, appealable: code === AUTH_ERR.USER_FROZEN }
+}
+
+function onBackFromBlocked() {
+  backFromBlocked()
+  if (route.query.blocked) {
+    const q = { ...route.query }
+    delete q.blocked
+    router.replace({ path: route.path, query: q })
+  }
+}
+
+onMounted(applyBlockedQuery)
+watch(() => route.query.blocked, applyBlockedQuery)
+
 const { cd, sending, start: startCd } = useCodeCountdown()
 
 function switchTab(v) {
@@ -195,8 +240,8 @@ async function sendCode() {
   clearError()
   sending.value = true
   try {
-    await sendCodeApi(codeForm.email, 'login')
-    ElMessage.success('验证码已发送（开发模式见后端控制台）')
+    await sendCodeApi(codeForm.email, 'login', { silent: true })
+    ElMessage.success('验证码已发送，请查收邮箱（含垃圾箱）')
     startCd()
   } catch (e) {
     formError.value = sendCodeFailMessage(e)
@@ -209,6 +254,13 @@ async function sendCode() {
 <style scoped src="./Login.css"></style>
 
 <style scoped>
+/* 常驻申诉入口：弱于表单动作，但必须一直可点 */
+.auth-appeal {
+  margin-top: var(--ys-space-3);
+  text-align: center;
+  font-size: var(--ys-text-xs);
+}
+
 /* 分段控件。指示条用 transform 过渡,不动 width(设计 §4) */
 .auth-seg {
   display: flex;

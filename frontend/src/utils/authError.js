@@ -57,6 +57,19 @@ export function authErrCode(e) {
 }
 
 /**
+ * 拦截器直写的 HTTP 错误（如封禁横切 403）走 axios error 分支，
+ * 拦截器自己写 Response JSON：`{code, message}`，没有业务码包一层 `data`。
+ * 业务异常（BusinessException）走统一 Result 结构：`{code, message, data}`。
+ * 两条路径都要能读到业务码，否则封禁态在前端被当成「未知错误」。
+ */
+export function authErrCodeLoose(e) {
+  const strict = authErrCode(e)
+  if (strict !== null) return strict
+  const c = e?.response?.data?.code
+  return typeof c === 'number' && Number.isFinite(c) && c > 0 ? c : null
+}
+
+/**
  * 这个账号是不是处于「登录不了」的状态。
  *
  * 冻结(1001)与注销(1002)都意味着:再输多少次密码都没用,
@@ -66,7 +79,14 @@ export function authErrCode(e) {
  *   title 是主句,reason 是副句(含用户下一步能做的事)
  */
 export function accountBlocked(e) {
-  const code = authErrCode(e)
+  return blockedByCode(authErrCodeLoose(e))
+}
+
+/**
+ * 按业务码拿账号不可用状态。
+ * 登录失败（error 对象）与「登录态中途被封、路由带 code 跳回登录页」共用同一套文案。
+ */
+export function blockedByCode(code) {
   if (code === AUTH_ERR.USER_FROZEN) {
     return {
       code,
@@ -97,6 +117,13 @@ export function accountBlocked(e) {
  */
 export function isNetworkFail(e) {
   if (!e) return false
+  /*
+   * 业务错（HTTP 200 + code!=200，request.js 里包成 isBusiness）没有 response 字段，
+   * 但它不是网络失败。2026-10-26 修：此前登录密码错误（1005）会命中下面
+   * 「没有 response 就当断网」的判据，页面显示「网络好像断了，点这里重试」，
+   * 与真正的「学号或密码不对」互相矛盾。
+   */
+  if (e.isBusiness) return false
   if (e.response) return false
   // 有 message 的无 response 错误才是网络层;编程错误(如 TypeError)也会没 response,
   // 但那种错误 message 里是 JS 术语,让它走通用兜底比谎称「网络断了」好。
