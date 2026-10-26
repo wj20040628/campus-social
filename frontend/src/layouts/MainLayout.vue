@@ -44,8 +44,12 @@
           【2026-10-25 例外:/chat 页不渲染】聊天页对未认证用户有自己的
           阻断横幅(逐会话、带去认证出口、还有额度规则条),布局层这条再叠上去
           是三层横幅说两件事(实测:手机一屏几乎被横幅占掉)。
+
+          【2026-10-26 例外:/onboarding 页不渲染】引导第 1 步本身就在做认证,
+          页面已有标题 + 说明 + 表单;再把全站认证横幅叠在最上面,等于同一件事
+          说两遍,还把手机首屏占掉 140px(实机截图确认)。
         -->
-        <VerifyNotice v-if="route.name !== 'chat'" />
+        <VerifyNotice v-if="route.name !== 'chat' && route.name !== 'onboarding'" />
 
         <main
           id="main-content"

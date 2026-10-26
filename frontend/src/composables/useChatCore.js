@@ -125,7 +125,7 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     // 先等列表就绪(最多 1.2s):直接进 /chat?to=X 时列表请求可能还在飞。
     // 现成会话在列表里的话,优先走 openConv —— 它带真 convId、会 markRead 清未读。
     const deadline = Date.now() + 1200
-    while (!convs.value.length && !groups.value.length && Date.now() < deadline) {
+    while (initialLoading.value && !convs.value.length && !groups.value.length && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 60))
     }
     const exist = convs.value.find((c) => c.peer?.id === peerId)

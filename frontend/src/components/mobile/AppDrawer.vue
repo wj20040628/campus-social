@@ -48,14 +48,17 @@
               class="adrawer__item"
               @click="onNav(item)"
             >
-              <span class="adrawer__ic"><NavIcon :name="item.icon" /></span>
+              <span class="adrawer__ic">
+                <NavIcon :name="item.icon" />
+                <!-- UnreadDot 是 absolute：必须挂在有定位的图标容器里，
+                     否则会以抽屉面板为基准跑到角落里（通知角标“消失”）。 -->
+                <UnreadDot
+                  v-if="item.unread"
+                  :count="notifyUnread"
+                  noun="条通知未读"
+                />
+              </span>
               {{ item.label }}
-              <UnreadDot
-                v-if="item.unread"
-                :count="notifyUnread"
-                noun="条通知未读"
-                class="adrawer__dot"
-              />
             </button>
 
             <!--

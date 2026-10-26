@@ -229,32 +229,13 @@ public class CircleServiceImpl implements CircleService {
         boolean hasMore = rows.size() > size;
         List<Post> page = rows.stream().limit(size).toList();
 
-        List<PostVO> vos = page.stream().map(p -> {
-            // 树洞:匿名帖不下发作者(authorId 一起抹掉,防止 /user/{id} 反查)
-            boolean anon = p.getIsAnonymous() != null && p.getIsAnonymous() == 1;
-            UserVO avo = anon ? null
-                    : UserVoAssembler.of(userMapper.selectById(p.getAuthorId()));
-            return PostVO.builder()
-                    .id(p.getId())
-                    .authorId(anon ? null : p.getAuthorId())
-                    .author(avo)
-                    .anonymous(anon)
-                    /*
-                     * 展示层打码(2026-10-24 修):此前裸拼 p.getContent(),
-                     * 一级敏感词在圈子帖列表原样显示——首页/详情都打码,
-                     * 唯独圈子页漏。规则唯一出处 PostVoAssembler.displayContent。
-                     */
-                    .content(postVoAssembler.displayContent(p))
-                    .media(null)
-                    .status(p.getStatus())
-                    .likeCount(p.getLikeCount())
-                    .commentCount(p.getCommentCount())
-                    .hotScore(p.getHotScore())
-                    .circleId(p.getCircleId())
-                    .createTime(p.getCreateTime())
-                    .isTop(p.getIsTop() != null && p.getIsTop() == 1)
-                    .build();
-        }).toList();
+        /*
+         * 统一走 PostVoAssembler.toVoList(2026-10-26 修):
+         * 此前这里手搓 VO 且写死 media(null) —— 圈子帖列表永远没有图片,
+         * 点进详情才正常。toVoList 同时补齐话题、圈名、点赞/收藏态,
+         * 作者脱敏与内容打码也走同一套规则,不再各写一份。
+         */
+        List<PostVO> vos = postVoAssembler.toVoList(page, viewerId);
 
         Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
         return new CursorPage<>(vos, nextCursor, hasMore);

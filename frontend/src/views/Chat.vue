@@ -234,7 +234,7 @@ watch(
     if (!kind || !id) return
     routeLoading.value = true
     const deadline = Date.now() + 1200
-    while (!convs.value.length && !groups.value.length && Date.now() < deadline) {
+    while (core.initialLoading.value && !convs.value.length && !groups.value.length && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 60))
     }
     if (kind === 'group') {
@@ -259,6 +259,16 @@ watch(
   () => route.query.to,
   async (to) => {
     if (!to || route.name === 'chatThread') return
+    /*
+     * 手机端 /chat 只有列表路由,会话窗模板 `v-if="isThreadRoute || isDesktop"`
+     * 不渲染。此前这里只把会话放进内存状态,页面仍停在列表 ——
+     * 用户从主页点「发私信」进来只能看到空列表/骨架。
+     * 直接换成会话路由,交给上面的 chatThread watcher 走正常打开链路。
+     */
+    if (isMobile.value) {
+      router.replace(`/chat/t/dm/${to}`)
+      return
+    }
     routeLoading.value = true
     await core.openConvByPeerId(Number(to))
     routeLoading.value = false

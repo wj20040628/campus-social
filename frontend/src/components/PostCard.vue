@@ -15,8 +15,8 @@
       <span class="pc__ava" :class="{ 'pc__anon': isAnon }" @click.stop="goAuthor">
         <InitialAvatar :size="40" :src="isAnon ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="isAnon ? '匿' : (post.author ? displayName(post.author) : '')" />
       </span>
-      <span class="pc__who" :class="{ 'pc__anon': isAnon }" @click.stop="goAuthor">
-        <span class="pc__name">{{ isAnon ? '匿名' : (post.author ? displayName(post.author) : '匿名') }}</span>
+      <span class="pc__who" :class="{ 'pc__anon': isAnon }">
+        <span class="pc__name" @click.stop="goAuthor">{{ isAnon ? '匿名' : (post.author ? displayName(post.author) : '匿名') }}</span>
         <span class="pc__time ys-num">{{ timeText }}</span>
       </span>
       <span v-if="isAnon" class="pc__tag pc__tag--anon">树洞</span>
@@ -243,8 +243,14 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 
 .pc__head { display: flex; align-items: center; gap: var(--ys-space-2); }
 .pc__ava { flex: none; cursor: pointer; display: inline-flex; }
-.pc__who { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; }
-.pc__name { font-size: 15px; font-weight: var(--ys-weight-semibold); line-height: 1.3; color: var(--ys-fg); }
+/* 作者跳转只挂在头像与昵称上：昵称列 flex:1 占满整行，整块可点会让
+   用户点卡片中上部（时间/空白处）误进作者主页。 */
+.pc__who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pc__name {
+  align-self: flex-start; /* 点击热区收缩到昵称文字本身，不占满整行 */
+  font-size: 15px; font-weight: var(--ys-weight-semibold); line-height: 1.3;
+  color: var(--ys-fg); cursor: pointer;
+}
 .pc__name:hover { color: var(--ys-accent); }
 .pc__time { font-size: var(--ys-text-xs); color: var(--ys-meta); margin-top: 1px; }
 
@@ -384,13 +390,7 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 }
 .pc__act:hover { background: var(--ys-surface-2); }
 .pc__act--on { color: var(--ys-accent); }
-/*
- * 浏览数推到行尾：赞/藏/评 在左、浏览在右，形成两端对齐。
- *
- * 撤掉「搭句话」后这一行只剩四项。若全部左对齐，右侧会空出一大截，
- * 看起来像「缺了个按钮」而不是「本来就只有这些」。
- * 浏览量是四项里唯一的纯只读指标，放右端正好把「可操作」和「只读」分开。
- */
+/* 浏览数推到行尾：四项里唯一的纯只读指标，右对齐把「可操作」与「只读」分开。 */
 .pc__view {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-height: var(--ys-touch-min); min-width: 44px; padding: 0 8px;

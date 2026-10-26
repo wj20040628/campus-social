@@ -168,18 +168,16 @@
   background: var(--ys-surface-2);
 }
 
-/* 图标统一单色描边 —— 颜色继承这里的 currentColor */
+/* 图标统一单色描边 —— 颜色继承这里的 currentColor。
+   position:relative 给未读小红点做定位锚点（UnreadDot 是 absolute）。 */
 .adrawer__ic {
   flex: none;
+  position: relative;
   display: grid;
   place-items: center;
   width: 20px;
   height: 20px;
   color: var(--ys-fg-2);
-}
-
-.adrawer__dot {
-  margin-left: auto;
 }
 
 /* ---------- 管理区:唯一保留分组标题与色块的地方 ---------- */

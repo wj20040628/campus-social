@@ -164,10 +164,8 @@
  * 浏览器静默丢弃。值 1024 = design-tokens.json 的 breakpoint.lg。
  */
 @media (max-width: 1023px) {
-  /* 「找人」只留桌面:移动端 feed 已有搜索框、/search 是主入口 */
-  .topbar__search {
-    display: none;
-  }
+  /* 搜索入口手机端也保留（2026-10-26）：feed 内搜索框只在首页，
+     圈子/集市/消息等页面找不到入口；顶栏图标是全局可达的唯一位置。 */
 
   /* 手机端发动态只留图标：横向空间紧，且顶栏「+」是唯一发帖入口 */
   .topbar__pub-text {
