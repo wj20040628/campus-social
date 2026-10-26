@@ -161,6 +161,73 @@ button.srow:hover .schev {
   color: var(--ys-muted);
 }
 
+/* 关于我们:更新日志 */
+.log {
+  padding: var(--ys-space-4);
+}
+.log__caption {
+  margin: 0 0 var(--ys-space-3);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+.log__rel + .log__rel {
+  margin-top: var(--ys-space-4);
+  padding-top: var(--ys-space-4);
+  border-top: 1px solid var(--ys-border-soft);
+}
+.log__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ys-space-2);
+}
+.log__ver {
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+.log__date {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-meta);
+}
+.log__list {
+  list-style: none;
+  margin: var(--ys-space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.log__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--ys-text-sm);
+  line-height: 1.6;
+  color: var(--ys-fg-2);
+}
+.log__tag {
+  flex: none;
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: var(--ys-radius-full);
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: var(--ys-weight-medium);
+}
+.log__tag--add {
+  color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+}
+.log__tag--fix {
+  color: var(--ys-warning);
+  background: var(--ys-warning-soft);
+}
+.log__tag--opt {
+  color: var(--ys-accent-2);
+  background: var(--ys-accent-2-soft);
+}
+
 /* ---- 隐私设置:黑名单行(2026-10-18 从 Privacy 内联块并入,消除混合 style) ---- */
 .bempty {
   margin: 0;
