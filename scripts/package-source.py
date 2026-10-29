@@ -13,7 +13,7 @@ ROOT = r'F:\校园社交'
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, '源代码-友声校园社交平台.zip')
 
 INCLUDE_DIRS = ['backend/src', 'backend/scripts', 'backend/sql', 'frontend/src', 'frontend/public',
-                'frontend/scripts', 'frontend/docs', 'sql', 'scripts', 'docs/decisions', 'docs/api',
+                'frontend/scripts', 'frontend/docs', 'sql', 'scripts', 'docs',
                 '.github/workflows']
 INCLUDE_FILES = ['backend/pom.xml', 'backend/Dockerfile', 'frontend/index.html', 'frontend/package.json',
                  'frontend/package-lock.json', 'frontend/vite.config.js', 'frontend/nginx.conf',
