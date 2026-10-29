@@ -134,7 +134,11 @@ docker compose up -d --build  # 首次构建含 Maven 编译与 Vite 构建，�
 演示账号（由 `sql/seed_data.sql` 预置）：`admin@campus.test / admin123`（管理员）、`alice@campus.test / user123`（普通用户）。
 新注册需要验证码时，默认 `APP_MESSAGE_GATEWAY=dev`，验证码打印在日志里：`docker compose logs backend`。
 
-> Docker 编排已按容器语义准备好（初始化顺序：结构 → 学院/年级 → 专业 → 兴趣标签 → 演示数据），但尚未在 CI 中跑过，属于「可复现的参考路径」；生产环境实际采用下面的单机直装方式。
+> **验证范围**：应用侧链路已按同一套环境变量与初始化顺序实跑通过——用 Dockerfile 同款命令
+> `mvn -DskipTests package` 打包的 jar，对着按 01→05 顺序导入的库启动 6.3 秒，`/upload/config`、
+> `/dict/school` 均返回 200，种子账号 `admin@campus.test` 登录成功并拿到令牌。
+> **Docker 引擎本身（镜像拉取、多阶段构建、容器网络与卷）未在本机验证**，开发机没有安装 Docker。
+> 生产环境实际采用下面的单机直装方式。
 
 ### 方式三：本地起（生产同构）
 
