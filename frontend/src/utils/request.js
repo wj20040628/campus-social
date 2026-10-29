@@ -2,6 +2,7 @@ import axios from 'axios'
 import { ElMessage } from '@/utils/feedback'
 import { AUTH_ERR } from '@/utils/authError'
 import { useUserStore } from '@/stores/user'
+import { openAuthGate } from '@/composables/useAuthGate'
 import router from '@/router'
 
 /**
@@ -17,6 +18,15 @@ const request = axios.create({
 
 let isRefreshing = false
 let pendingQueue = []
+/**
+ * 「登录过期」是否已经提示过（2026-10-28）。
+ *
+ * 为什么要这个开关：放一天再打开，首屏十几条并发请求会同时 401。
+ * 原来每条都走一次 handleLogout，用户会被「token 无效或已过期」刷满屏，
+ * 还夹着未登录请求的「缺少 Authorization header」。现在整段登录态失效
+ * 只提示一次、只跳一次登录页；拿到新 token 后自动复位。
+ */
+let authExpiredNotified = false
 
 function flushQueue(newAccessToken, failed = false) {
   pendingQueue.forEach((cb) => cb(newAccessToken, failed))
@@ -28,6 +38,8 @@ request.interceptors.request.use((config) => {
   const user = useUserStore()
   if (user.accessToken) {
     config.headers.Authorization = `Bearer ${user.accessToken}`
+    // 重新登录/刷新拿到 token 后，允许下一次过期再提示一次
+    authExpiredNotified = false
   }
   return config
 })
@@ -39,6 +51,18 @@ request.interceptors.response.use(
     const { code, message, data } = resp.data
     if (code === 200) {
       return data
+    }
+    /*
+     * 1029(未认证)不是普通业务错误:全局横幅已移除,改在动作发生时
+     * 弹认证闸门。这里不再弹 red toast —— 弹层本身已经说明了原因与出路,
+     * 再叠一条 toast 是同一件事说两遍。
+     */
+    if (code === 1029) {
+      openAuthGate()
+      const err = new Error(message || '请先完成校内认证')
+      err.isBusiness = true
+      err.businessCode = code
+      return Promise.reject(err)
     }
     // 业务错误:默认弹 toast;调用方传 silent 时由调用方自行兜底(如引导页吸底栏)
     const err = new Error(message || '操作失败')
@@ -72,6 +96,14 @@ request.interceptors.response.use(
      * + 申诉按钮（登录端点本身除外，它由 useLoginSubmit 自己分类）。
      */
     const bizCode = error.response?.data?.code
+    /*
+     * 1029 走认证闸门。VerifiedInterceptor 回的是 HTTP 403 + body.code=1029,
+     * 必须放在冻结/注销判断之前:它不是账号不可用,只是还没认证。
+     */
+    if (bizCode === 1029) {
+      openAuthGate()
+      return Promise.reject(error)
+    }
     if (
       !authEndpoint &&
       status === 403 &&
@@ -80,17 +112,31 @@ request.interceptors.response.use(
       const user = useUserStore()
       user.clear()
       if (router.currentRoute.value.name !== 'login') {
-        router.push({ path: '/login', query: { blocked: bizCode } })
+        // msg 带上后端说明（封禁截止时间等），封禁整页态不必只剩一句「账号已冻结」
+        const msg = error.response?.data?.message
+        router.push({ path: '/login', query: msg ? { blocked: bizCode, msg } : { blocked: bizCode } })
       }
       return Promise.reject(error)
     }
 
-    // 401:尝试刷新（仅受保护资源）
-    if (status === 401 && !original._retried && !authEndpoint) {
-      original._retried = true
+    /*
+     * 401（2026-10-28 收敛）。
+     *
+     * 原来只在「首次 401」时进刷新分支，重放后仍 401 的请求会落到下面的
+     * 通用错误 toast —— 于是过期后一次开机就弹出多条「token 无效或已过期」；
+     * 没有 token 的游客请求（首屏未读/会话等）也会弹「缺少 Authorization header」。
+     * 现在 401 一律不逐条弹：
+     *   - 已经重放过、或本地本来就没有 token → 静默失败，交给页面自身兜底
+     *   - 有 session 但没 refreshToken / 刷新失败 → handleLogout 只提示一次
+     */
+    if (status === 401 && !authEndpoint) {
       const user = useUserStore()
+      if (original._retried || !user.hasToken) {
+        return Promise.reject(error)
+      }
+      original._retried = true
       if (!user.refreshToken) {
-        handleLogout(error.response?.data?.message || '登录已过期')
+        handleLogout('登录已过期,请重新登录')
         return Promise.reject(error)
       }
       if (isRefreshing) {
@@ -148,25 +194,27 @@ request.interceptors.response.use(
 
 function handleLogout(msg) {
   const user = useUserStore()
+  const hadSession = !!user.accessToken || !!user.refreshToken
   user.clear()
   /*
-   * 必须清空挂起队列（2026-10-21 修）。
-   *
-   * 原来只有 flushQueue 会清这个数组，而 flushQueue 只被「刷新成功/失败」
-   * 两条路径调用。登出走的是 handleLogout，完全不碰队列，于是：
-   *   - 队列里残留的回调仍持有**上一个账号**的原始请求；
-   *   - 用户切号登录后，新一轮刷新会把这些旧回调一起唤醒，
-   *     用**新账号的 token** 重放**上一个账号的请求**（串号）。
-   * 另外几十个回调在页面已跳走之后仍执行 request(original) → 又一批 401
-   * → 又一轮 toast，表现为「刚登录就一连串报错」。
-   *
-   * 这里用 failed=true 唤醒它们（调用方会 reject 而不是重放），然后清空。
+   * 必须用 failed=true 唤醒并清空挂起队列（2026-10-21 修）：
+   * 残留回调会在换号登录后带着**新账号的 token** 重放**上个账号的请求**（串号），
+   * 或在页面跳走后继续 request() → 又一批 401。
    */
   flushQueue(null, true)
   isRefreshing = false
+  /*
+   * 幂等（2026-10-28）：并发 401 只有第一条会产生提示与跳转。
+   * 本地本来就没有 session（游客请求 401、或已经被前面那条清掉）
+   * 也不再提示——用户这次打开就是未登录状态，没什么可提醒的。
+   */
+  if (authExpiredNotified || !hadSession) return
+  authExpiredNotified = true
   if (msg) ElMessage.warning(msg)
   const returnUrl = window.location.pathname + window.location.search
-  router.push({ path: '/login', query: { returnUrl } })
+  if (router.currentRoute.value.name !== 'login') {
+    router.push({ path: '/login', query: { returnUrl } })
+  }
 }
 
 export default request

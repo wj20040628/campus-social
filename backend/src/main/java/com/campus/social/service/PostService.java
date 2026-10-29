@@ -6,6 +6,7 @@ import com.campus.social.dto.CreatePostDTO;
 import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
 import com.campus.social.vo.PostVO;
+import com.campus.social.vo.RecommendFeedVO;
 
 /**
  * 帖子 + 评论 + 点赞 + Feed(写扩散)
@@ -45,6 +46,12 @@ public interface PostService {
     /** 话题落地页:某话题下所有已通过帖子,按时间倒序 + 游标 */
     CursorPage<PostVO> feedByTopic(String topicName, Long lastId, int size, long viewerId);
 
+    /**
+     * 推荐流:按「作者与登录人的共同兴趣标签数」等权排序,同分按帖子 id 倒序;
+     * 登录人没有标签时退化成最新流。排除自己/匿名/拉黑/未过审/已删除。
+     */
+    RecommendFeedVO recommendFeed(long viewerId, Integer lastScore, Long lastId, int size);
+
     /** 关注的人的帖子(读 feed_item 收件箱,写扩散闭环) */
     CursorPage<PostVO> feedFollowing(long viewerId, Long lastId, int size);
 
@@ -65,6 +72,14 @@ public interface PostService {
      */
     void favorite(long postId, long userId);
     void unfavorite(long postId, long userId);
+
+    /**
+     * 分享计数：每次成功分享 +1。
+     *
+     * <p>不做人/天去重——产品口径是「每分享一次加一」，自己分享也计。
+     * 仅已发布(status=1)的帖子可分享；待审/下架/删除一律按不存在处理。
+     */
+    void share(long postId);
 
     /**
      * 我收藏的帖子(按收藏时间倒序)。

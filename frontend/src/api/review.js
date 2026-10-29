@@ -46,7 +46,7 @@ export function mine(lastId, size = 20) {
  * 提交举报。
  *
  * 契约 openapi §ReportSubmitRequest:
- *   targetType 1用户 2帖子 3评论 4聊天消息 5搭子
+ *   targetType 1用户 2帖子 3评论 4私聊消息 5搭子 6集市活动 7文件 8群消息 9圈子
  *   reasonType 1骚扰 2广告 3色情 4诈骗 5其他
  *
  * 幂等(openapi §6):重复举报同一 targetType+targetId 返回 200 +
@@ -57,7 +57,7 @@ export function mine(lastId, size = 20) {
  * `reasonText` 请求侧上限 200(openapi §ReportSubmitRequest),
  * 展示侧后端截到 60 并回 reasonTextTruncated —— 前端不必自己截到 60。
  *
- * @param {{targetType:1|2|3|4|5, targetId:number, reasonType:1|2|3|4|5, reasonText?:string}} body
+ * @param {{targetType:1|2|3|4|5|6|7, targetId:number, reasonType:1|2|3|4|5, reasonText?:string}} body
  * @returns {Promise<{reportId:number, duplicated:boolean, status:0|1|2}>}
  */
 export function submitReport(body) {
@@ -108,16 +108,17 @@ export function adminReports(params = {}) {
 /**
  * 处置举报。
  *
- * action 三选一:
- *   ban    成立并封禁目标用户,banDays 必填(1/7/30,0 表示永久)
- *   reject 举报不成立,记录置 status=2
- *   ignore 忽略,不改 status,仅记录处置人与备注
+ * action 四选一:
+ *   ban      成立并封禁目标用户（同时下架被举报内容）,banDays 必填(1/7/30,0 表示永久)
+ *   takedown 成立、仅下架内容，不封人（2026-10-28 新增）
+ *   reject   举报不成立,记录置 status=2
+ *   ignore   忽略,不改 status,仅记录处置人与备注
  *
  * 同一举报重复处置返 409 CONFLICT —— 调用方需要能区分「已经被人处置了」
  * 和「网络失败」,前者不该让管理员重试。
  *
  * @param {number} id
- * @param {{action:'ban'|'reject'|'ignore', banDays?:0|1|7|30, handleNote?:string}} body
+ * @param {{action:'ban'|'takedown'|'reject'|'ignore', banDays?:0|1|7|30, handleNote?:string}} body
  */
 export function handleReport(id, body) {
   return request.post(`/admin/reports/${id}/handle`, body)

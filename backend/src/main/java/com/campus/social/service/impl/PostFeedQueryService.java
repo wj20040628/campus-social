@@ -8,12 +8,15 @@ import com.campus.social.mapper.FeedItemMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.PostTopicMapper;
 import com.campus.social.mapper.TopicMapper;
+import com.campus.social.mapper.UserTagMapper;
 import com.campus.social.vo.PostVO;
+import com.campus.social.vo.RecommendFeedVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 帖子 Feed 查询域（从 PostServiceImpl 拆出）。
@@ -36,6 +39,7 @@ public class PostFeedQueryService {
     private final PostTopicMapper postTopicMapper;
     private final PostVoAssembler assembler;
     private final com.campus.social.mapper.RelationMapper relationMapper;
+    private final UserTagMapper userTagMapper;
     /** 首页第一页的公共骨架缓存；只在 lastId 为空且无话题过滤时用 */
     private final FeedPageCacheService feedCache;
 
@@ -117,6 +121,63 @@ public class PostFeedQueryService {
         }
         assembler.fillViewerState(vos, viewerId);
         return new CursorPage<>(vos, nextCursor, hasMore);
+    }
+
+    /**
+     * 推荐流(2026-10-27)。
+     *
+     * <p>排序规则:
+     * 1. 作者与当前登录人的共同兴趣标签数(COUNT DISTINCT,每个标签等权)降序;
+     * 2. 同分按帖子 id 降序(即新帖优先);
+     * 3. 当前登录人没有任何标签时,所有人得分都是 0,自然退化成最新流。
+     *
+     * <p>排除:自己、匿名帖、拉黑关系(双向)、未过审、已删除。
+     * 不做「按内容猜兴趣」的算法——PRD §9 明确排除 AI 匹配,这里只是把
+     * 用户自己选过的标签做集合交集。
+     *
+     * <p>游标 {@code (lastScore,lastId)} 必须成对使用:只传 id 会在同分处
+     * 跳页或重复。变量全部来自服务端查库的 Long / 数值,前端字符串不拼进 SQL。
+     */
+    public RecommendFeedVO recommend(long viewerId, Integer lastScore, Long lastId, int size) {
+        List<Long> tagIds = userTagMapper.selectTagIdsByUser(viewerId);
+        String scoreExpr = "0";
+        if (tagIds != null && !tagIds.isEmpty()) {
+            String in = tagIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+            scoreExpr = "(SELECT COUNT(DISTINCT ut.tag_id) FROM user_tag ut "
+                    + "WHERE ut.user_id = p.author_id AND ut.is_deleted = 0 "
+                    + "AND ut.tag_id IN (" + in + "))";
+        }
+
+        StringBuilder sql = new StringBuilder("SELECT * FROM (")
+                .append("SELECT p.*, ").append(scoreExpr).append(" AS shared_tag_count FROM post p ")
+                .append("WHERE p.status = 1 AND p.is_deleted = 0 AND COALESCE(p.is_anonymous, 0) = 0 ")
+                .append("AND p.author_id <> ").append(viewerId).append(' ')
+                .append("AND NOT EXISTS (SELECT 1 FROM relation r WHERE r.is_deleted = 0 ")
+                .append("AND r.type = 3 AND ((r.from_user_id = ").append(viewerId)
+                .append(" AND r.to_user_id = p.author_id) OR (r.from_user_id = p.author_id AND r.to_user_id = ")
+                .append(viewerId).append("))) ");
+        if (lastScore != null && lastId != null) {
+            sql.append(") t WHERE (t.shared_tag_count < ").append(lastScore)
+                    .append(" OR (t.shared_tag_count = ").append(lastScore)
+                    .append(" AND t.id < ").append(lastId).append(")) ");
+        } else {
+            sql.append(") t ");
+        }
+        sql.append("ORDER BY t.shared_tag_count DESC, t.id DESC LIMIT ").append(size + 1);
+
+        List<Post> rows = postMapper.selectRecommendBySql(sql.toString());
+        boolean hasMore = rows.size() > size;
+        List<Post> page = rows.stream().limit(size).toList();
+        if (page.isEmpty()) {
+            return RecommendFeedVO.builder().list(List.of()).hasMore(false).build();
+        }
+        Post last = page.get(page.size() - 1);
+        return RecommendFeedVO.builder()
+                .list(assembler.toVoList(page, viewerId))
+                .hasMore(hasMore)
+                .nextScore(hasMore ? last.getSharedTagCount() : null)
+                .nextId(hasMore ? last.getId() : null)
+                .build();
     }
 
     /** 话题落地页:该话题下所有已通过帖子,按时间倒序 + id 游标 */

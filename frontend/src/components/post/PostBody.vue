@@ -12,14 +12,14 @@
   -->
   <div class="post-body">
     <!-- 行 2:作者行。头像走统一的 InitialAvatar(没图时彩色首字母圆)。
-         树洞匿名帖(2026-10-25):后端不下发 author,统一渲染「匿名」+ 树洞标签 -->
+         历史匿名帖:后端不下发 author,统一渲染「匿名」标签;匿名发布已下线 -->
     <div class="author">
       <InitialAvatar :size="44" :src="post.anonymous ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="post.anonymous ? '匿' : (post.author ? displayName(post.author) : '')" />
       <div class="author__main">
         <p class="author__nick">{{ post.anonymous ? '匿名' : (post.author ? displayName(post.author) : '') }}</p>
         <p class="author__time">{{ post.createTime }}</p>
       </div>
-      <span v-if="post.anonymous" class="author__status author__status--anon">树洞</span>
+      <span v-if="post.anonymous" class="author__status author__status--anon">匿名</span>
       <span v-if="post.status === 0" class="author__status author__status--pending">审核中</span>
       <span v-else-if="post.status === 2" class="author__status author__status--rejected">已驳回</span>
     </div>
@@ -53,7 +53,7 @@
           :alt="`帖子附图 ${imgIndex(m)}，共 ${imgList.length} 张`"
           @error="onMediaError(i)"
         />
-        <video v-else :src="resolveUrl(m.url)" controls class="media-video"></video>
+        <PostVideo v-else :src="m.url" :poster="m.poster" class="media-video" />
       </template>
     </div>
   </div>
@@ -67,7 +67,8 @@
  */
 import { ref } from 'vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
+import PostVideo from '@/components/post/PostVideo.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import TopicChips from '@/components/post/TopicChips.vue'
 

@@ -8,14 +8,6 @@
       <h1 class="pub__title">{{ isEdit ? '编辑动态' : '发动态' }}</h1>
     </header>
 
-    <!--
-      发布规则提示(2026-10-24):打码/审核是用户最常困惑的两件事——
-      "我的词怎么变 *** 了""为什么发了别人看不到"。可关闭,看过一次不再打扰。
-    -->
-    <InfoTip scene="publish-rules">
-      内容中的敏感词会自动打码展示；少数需要复核的内容会先进入人工审核，通过后才对他人可见。
-    </InfoTip>
-
     <!-- 编辑模式读取失败:整页替换而不是空编辑器(Publish.vue.md §3) -->
     <StateBlock
       v-if="loadFailed"
@@ -32,10 +24,9 @@
       未登录:不跳转、不隐藏,把正文区换成说明块。
       直接跳走会让用户以为产品坏了;给「为什么 + 怎么做」才是转化(设计 §3)。
 
-      判据是**登录**不是认证:发帖不要求校内认证(AC-11 只约束搭话与发布公告),
-      所以这里拦住的是「没登录」的人,不是「没认证」的人。
-      路由层 requiresAuth 已经挡了绝大多数未登录访问,这个块是兜底 ——
-      比如 token 在进页面后过期,userStore 被 clear 掉。
+      判据是**登录**不是认证:未认证由后端 @RequireVerified 与全站认证闸门(1029)承接,
+      这里拦住的是「没登录」的人。路由层 requiresAuth 已经挡了绝大多数未登录访问,
+      这个块是兜底 —— 比如 token 在进页面后过期,userStore 被 clear 掉。
     -->
     <StateBlock
       v-else-if="!canPublish"
@@ -110,19 +101,6 @@
           {{ tooLongTopics.length }} 个话题超过 {{ TOPIC_NAME_MAX }} 字，已忽略：
           <span class="pub__topic-tip-name">{{ tooLongTopics.join('、') }}</span>
         </p>
-
-        <!--
-          树洞匿名开关(2026-10-25):仅新建可选——匿名身份一次定终身,
-          后端对编辑请求里的 anonymous 也是忽略的,这里干脆不渲染,
-          避免「编辑时关掉开关却没生效」的假动作。
-        -->
-        <div v-if="!isEdit" class="pub__anon">
-          <label class="pub__anon-label" for="pub-anon">
-            <span class="pub__anon-name">匿名发布（树洞）</span>
-            <span class="pub__anon-desc">以「匿名」身份出现在广场，别人看不到你是谁</span>
-          </label>
-          <el-switch id="pub-anon" v-model="anonymous" />
-        </div>
       </main>
 
       <!-- 错误提示贴操作栏上方。**正文与图片全部保留**(Publish.vue.md §3) -->
@@ -176,6 +154,10 @@
           </span>
         </p>
 
+        <p v-if="uploadingCount > 0" class="pub__upload-tip" role="status">
+          还有 {{ uploadingCount }} 个媒体在上传{{ uploadEtaText }}，完成后才能发布
+        </p>
+
         <button
           type="button"
           class="pub__submit"
@@ -207,7 +189,6 @@ import { VIDEO_SUPPORTED_FORMATS, VIDEO_UNSUPPORTED_NOTE } from '@/utils/videoCo
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { markFeedDirty } from '@/composables/useFeedRefresh'
 import StateBlock from '@/components/common/StateBlock.vue'
-import InfoTip from '@/components/common/InfoTip.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
 import MediaGrid from '@/components/post/MediaGrid.vue'
@@ -224,8 +205,6 @@ const userStore = useUserStore()
 
 const content = ref('')
 const topicText = ref('')
-/** 树洞匿名:仅新建生效,编辑模式不渲染开关(后端同样忽略) */
-const anonymous = ref(false)
 const posting = ref(false)
 const submitError = ref('')
 const loading = ref(false)
@@ -233,7 +212,7 @@ const loadFailed = ref(false)
 const editingId = ref(null)
 
 const {
-  cells, failedCount, readyMedia,
+  cells, failedCount, uploadingCount, readyMedia,
   beforeUpload, uploadFile, retry: retryMedia, remove: removeMedia, seed, reset,
   videoEnabled, maxVideoBytes,
 } = useMediaUpload()
@@ -253,20 +232,17 @@ useKeyboardViewport()
 const isEdit = computed(() => route.name === 'postEdit')
 
 /**
- * 发帖只要求**登录**,不要求**已认证**。
+ * 发帖要求**登录 + 校内认证**（2026-10-29 起）。
  *
- * [为什么不按 isIdentityVerified 判]
- * AC-11 只约束「发起搭话」与「发布公告」两项,**不含用户发帖**;
- * 后端 PostController.create 也没有挂 @RequireVerified —— 两边本来就该一致。
- * 用 isIdentityVerified 会拦下未认证用户,造成「前端不让发但后端让发」,
- * 而且用户看不到任何错误码,只会觉得莫名其妙。
+ * [为什么这里只判登录]
+ * 认证态由后端 PostController 的 @RequireVerified 兜底。未认证用户点发布时，
+ * request.js 会收到 1029 并弹出全站认证闸门（AuthGateSheet），
+ * 用户在弹层里就能直接去认证 —— 比页面提前把发布按钮置灰更有指引。
  *
  * [为什么不写 verified]
- * 后端 UserVO **没有** verified 字段(只有 RecommendUserVO 有)。
+ * 后端 UserVO **没有** verified 字段（只有 RecommendUserVO 有）。
  * 写 `userInfo?.verified !== false` 会得到第二个恒真判据 ——
- * 上一版就是这个问题:判据看着有、实际永远放行,AC-11 拦截形同虚设。
- * 后端若日后真给 UserVO 加了 verified,应改的是判据取值,
- * 不是把「已登录」退回成「已认证」。
+ * 判据看着有、实际永远放行。认证判断只保留后端一处。
  */
 const canPublish = computed(() => !!userStore.hasToken)
 
@@ -287,8 +263,20 @@ const nearLimit = computed(() => content.value.length > WARN_AT)
 const atLimit = computed(() => content.value.length >= MAX_LEN)
 
 const canSubmit = computed(
-  () => !posting.value && content.value.trim().length > 0 && failedCount.value === 0,
+  () =>
+    !posting.value &&
+    uploadingCount.value === 0 &&
+    content.value.trim().length > 0 &&
+    failedCount.value === 0,
 )
+
+/** 吸底栏的上传提示后缀:有速度时给剩余时间,还没测出来就只提醒别退出页面 */
+const uploadEtaText = computed(() => {
+  const etas = cells.value.filter((c) => c.state === 'uploading' && c.etaSec).map((c) => c.etaSec)
+  if (!etas.length) return '，请保持页面在前台'
+  const max = Math.max(...etas)
+  return max < 60 ? `（约剩 ${Math.ceil(max)} 秒）` : `（约剩 ${Math.ceil(max / 60)} 分钟）`
+})
 
 /** 新建/编辑都从 ?topic= 预填话题;编辑模式预填该帖的话题名 */
 async function loadPreload() {
@@ -326,7 +314,6 @@ watch(
   () => {
     content.value = ''
     topicText.value = ''
-    anonymous.value = false
     editingId.value = null
     submitError.value = ''
     reset()
@@ -352,10 +339,9 @@ async function submit() {
         content: content.value,
         media,
         topics,
-        anonymous: anonymous.value || undefined,
       })
       // AC-06:命中敏感词时后端给 status=0(审核中),要明确告诉用户「发出去了但还在审」
-      ElMessage.success(anonymous.value ? '已匿名发出，去广场看看' : '发出去了，等别人来搭话吧')
+      ElMessage.success('发出去了，等别人来搭话吧')
       markFeedDirty() // 新帖必须出现在首页,keep-alive 缓存不能拦着
       router.push('/')
     }

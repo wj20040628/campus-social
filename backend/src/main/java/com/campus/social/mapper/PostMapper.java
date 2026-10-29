@@ -34,6 +34,16 @@ public interface PostMapper extends BaseMapper<Post> {
     @Update("UPDATE post SET view_count = view_count + 1, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
     int adjustViewCount(@Param("postId") Long postId);
 
+    /**
+     * 分享次数 +1。
+     *
+     * <p>刻意不带 {@code status = 1} 条件：是否允许分享由 service 先校验并回 404，
+     * 这里只做原子自增。写成 {@code status = 1} 会让「刚被下架」与「分享成功」
+     * 在并发下都返回 0，调用方无法区分是帖子没了还是本身不允许。
+     */
+    @Update("UPDATE post SET share_count = share_count + 1, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
+    int incrementShareCount(@Param("postId") Long postId);
+
     @Update("UPDATE post SET hot_score = #{hotScore}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
     int updateHotScore(@Param("postId") Long postId, @Param("hotScore") double hotScore);
 
@@ -210,4 +220,12 @@ public interface PostMapper extends BaseMapper<Post> {
      */
     @Select("${sql}")
     List<Post> selectFeedBySql(@Param("sql") String sql);
+
+    /**
+     * 推荐流查询。与 {@link #selectFeedBySql} 共用一个入口,SQL 由
+     * {@code PostFeedQueryService#recommend} 拼接:标签 id 全部来自登录人自己的
+     * user_tag 行(服务端查库得到的 Long),游标是数值,前端字符串不进 SQL。
+     */
+    @Select("${sql}")
+    List<Post> selectRecommendBySql(@Param("sql") String sql);
 }

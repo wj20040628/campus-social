@@ -9,6 +9,7 @@ import com.campus.social.dto.ForgotPasswordDTO;
 import com.campus.social.dto.ResetPasswordDTO;
 import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
+import com.campus.social.dto.SetPasswordDTO;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
 
@@ -87,6 +88,12 @@ public interface AuthService {
      * 本方法是登录态、凭原密码主动改密。
      */
     void changePassword(long userId, ChangePasswordDTO dto);
+
+    /** 无密码账号(邮箱验证码自动建号)发设置密码验证码,发到绑定邮箱 */
+    String sendSetPasswordCode(long userId);
+
+    /** 无密码账号凭邮箱验证码首次设置密码 */
+    void setPassword(long userId, SetPasswordDTO dto);
 
     /**
      * 绑定 / 修改安全凭证邮箱(需登录):校验绑定验证码后写入 user.email(转小写,全局唯一)。

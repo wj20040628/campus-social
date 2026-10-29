@@ -202,6 +202,7 @@ public class PostVoAssembler {
                 .likeCount(p.getLikeCount())
                 .commentCount(p.getCommentCount())
                 .favoriteCount(p.getFavoriteCount() == null ? 0 : p.getFavoriteCount())
+                .shareCount(p.getShareCount() == null ? 0 : p.getShareCount())
                 .viewCount(p.getViewCount())
                 .hotScore(p.getHotScore())
                 .circleId(p.getCircleId())

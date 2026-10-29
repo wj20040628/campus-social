@@ -42,6 +42,15 @@
   overflow-wrap: anywhere;
 }
 
+/* 服务端补充说明（封禁截止时间等）：与副句同层，稍弱一档，不抢主文案 */
+.blocked__detail {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+  overflow-wrap: anywhere;
+}
+
 .blocked__actions {
   margin-top: var(--ys-space-4);
 }

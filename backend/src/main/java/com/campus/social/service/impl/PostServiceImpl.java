@@ -103,8 +103,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public PostVO detail(long postId, long viewerId) {
-        Post post = postMapper.selectById(postId);
+    public PostVO detail(long postId, long viewerId) {        Post post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
         }
@@ -178,6 +177,12 @@ public class PostServiceImpl implements PostService {
     @Override
     public CursorPage<PostVO> feedByTopic(String topicName, Long lastId, int size, long viewerId) {
         return feedQuery.feedByTopic(topicName, lastId, size, viewerId);
+    }
+
+    @Override
+    public com.campus.social.vo.RecommendFeedVO recommendFeed(long viewerId, Integer lastScore,
+                                                              Long lastId, int size) {
+        return feedQuery.recommend(viewerId, lastScore, lastId, size);
     }
 
     @Override
@@ -319,6 +324,19 @@ public class PostServiceImpl implements PostService {
             return; // 没收藏过,幂等
         }
         postMapper.adjustFavoriteCount(postId, -1);
+    }
+
+    @Override
+    public void share(long postId) {
+        Post post = postMapper.selectById(postId);
+        /*
+         * 只有已发布的帖子可分享。待审/下架/删除一律按不存在处理 ——
+         * 与 detail 的可见性口径一致，避免分享计数成为探测未过审帖子的旁路。
+         */
+        if (post == null || post.getStatus() == null || post.getStatus() != 1) {
+            throw new BusinessException(POST_NOT_FOUND);
+        }
+        postMapper.incrementShareCount(postId);
     }
 
     @Override

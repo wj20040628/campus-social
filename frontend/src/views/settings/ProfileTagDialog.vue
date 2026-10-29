@@ -105,7 +105,7 @@ async function save() {
   saving.value = true
   try {
     await replaceMine([...picked.value])
-    open_ = false
+    open_.value = false
     emit('saved')
     ElMessage.success('兴趣已更新')
   } catch {

@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS `post` (
     `like_count`      INT          NOT NULL DEFAULT 0,
     `comment_count`   INT          NOT NULL DEFAULT 0,
     `favorite_count`  INT          NOT NULL DEFAULT 0 COMMENT '收藏数(冗余,与like_count同构)',
+    `share_count`     INT          NOT NULL DEFAULT 0 COMMENT '分享次数,每次成功保存/分享卡片 +1',
     `view_count`      INT          NOT NULL DEFAULT 0 COMMENT '浏览量,进详情 +1',
     `circle_id`       BIGINT       NULL,
     `hot_score`       DOUBLE       NOT NULL DEFAULT 0,
@@ -179,7 +180,7 @@ CREATE TABLE IF NOT EXISTS `comment` (
 
 -- ------------------------------------------------------------
 -- 点赞
--- target_type: 1帖 2评
+-- target_type: 1帖 2评 3文件
 -- 独立表 + 冗余 count，事务内 ±1 post.like_count
 -- 唯一键保证幂等(重复点赞不报错)
 -- idx_like_target: 支撑「按对象反查点赞」与删帖/删评论时清理
@@ -187,7 +188,7 @@ CREATE TABLE IF NOT EXISTS `comment` (
 CREATE TABLE IF NOT EXISTS `like` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
     `user_id`         BIGINT   NOT NULL,
-    `target_type`     TINYINT  NOT NULL COMMENT '1帖 2评',
+    `target_type`     TINYINT  NOT NULL COMMENT '1帖 2评 3文件',
     `target_id`       BIGINT   NOT NULL,
     `create_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -273,7 +274,7 @@ CREATE TABLE IF NOT EXISTS `chat_conv_pref` (
 CREATE TABLE IF NOT EXISTS `notify` (
     `id`              BIGINT   NOT NULL AUTO_INCREMENT,
     `user_id`         BIGINT   NOT NULL,
-    `type`            TINYINT  NOT NULL COMMENT '1被关注 2被赞 3被评 4私信 5活动 6送审 7审核通过 8审核驳回 9被@ 11反馈回复',
+    `type`            TINYINT  NOT NULL COMMENT '1被关注 2被赞 3被评 4私信 5活动 6送审 7审核通过 8审核驳回 9被@ 11反馈回复 13文件过审 14文件驳回 15文件下架',
     `target_id`       BIGINT   NOT NULL COMMENT '关联实体 id (帖子/评论/会话/活动)',
     `post_id`         BIGINT   NULL COMMENT '被指向的帖子 id(点赞/评论/审核跳帖子详情用),其他类型可空',
     `actor_id`        BIGINT   NULL COMMENT '触发者 userId;NULL=系统(AI 机审/定时任务)',
@@ -652,6 +653,7 @@ CREATE TABLE IF NOT EXISTS `report` (
     `target_id`    BIGINT      NOT NULL                COMMENT '被举报对象ID',
     `reason_type`  TINYINT     NOT NULL                COMMENT '1骚扰 2广告 3色情 4诈骗 5其他',
     `reason_text`  VARCHAR(500) NULL                   COMMENT '补充说明',
+    `target_snapshot` TEXT     NULL                    COMMENT '举报时目标快照(JSON: 标题/正文/作者/媒体/时间)',
     `status`       TINYINT     NOT NULL DEFAULT 0      COMMENT '0待审 1成立 2驳回',
     `handler_id`   BIGINT      NULL                    COMMENT '处置管理员ID',
     `handle_time`  DATETIME    NULL                    COMMENT '处置时间',
@@ -819,6 +821,54 @@ CREATE TABLE IF NOT EXISTS `post_favorite` (
     KEY `idx_fav_user_id` (`user_id`, `id`) COMMENT '按收藏时间倒序翻页',
     KEY `idx_fav_post` (`post_id`) COMMENT '删帖时清理收藏'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='帖子收藏';
+
+-- ------------------------------------------------------------
+-- 文件库(原 sql/migration_n1_file_library.sql)
+-- 文件对象存 OSS 私有前缀 files/,不入 /uploads/ 公共读链路
+-- status 自带审核队列:0待审 1通过 2驳回 3下架
+-- 容量口径 = status IN (0,1);驳回/下架/删除不占
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `file_asset` (
+    `id`              BIGINT       NOT NULL AUTO_INCREMENT,
+    `user_id`         BIGINT       NOT NULL COMMENT '上传者',
+    `title`           VARCHAR(80)  NOT NULL,
+    `description`     VARCHAR(200) NULL,
+    `category`        VARCHAR(24)  NOT NULL COMMENT '模板/课件讲义/指导书/实验报告/考试真题/其他',
+    `file_name`       VARCHAR(160) NOT NULL COMMENT '原文件名，仅展示与下载响应头用',
+    `object_key`      VARCHAR(255) NOT NULL COMMENT 'OSS/本地对象 key：files/{userId}/{day}/{uuid}.{ext}',
+    `ext`             VARCHAR(16)  NOT NULL,
+    `mime_type`       VARCHAR(64)  NOT NULL,
+    `size_bytes`      BIGINT       NOT NULL,
+    `status`          TINYINT      NOT NULL DEFAULT 0 COMMENT '0待审 1通过 2驳回 3下架',
+    `reject_reason`   VARCHAR(200) NULL,
+    `reviewer_id`     BIGINT       NULL,
+    `review_time`     DATETIME     NULL,
+    `view_count`      INT          NOT NULL DEFAULT 0,
+    `download_count`  INT          NOT NULL DEFAULT 0,
+    `like_count`      INT          NOT NULL DEFAULT 0,
+    `favorite_count`  INT          NOT NULL DEFAULT 0,
+    `create_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`      TINYINT      NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_status_id` (`status`, `id`),
+    KEY `idx_user_id` (`user_id`, `id`),
+    KEY `idx_category_status` (`category`, `status`, `id`),
+    KEY `idx_user_review` (`user_id`, `status`, `review_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='文件库';
+
+CREATE TABLE IF NOT EXISTS `file_favorite` (
+    `id`          BIGINT   NOT NULL AUTO_INCREMENT,
+    `user_id`     BIGINT   NOT NULL,
+    `file_id`     BIGINT   NOT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`  TINYINT  NOT NULL DEFAULT 0 COMMENT '保留列，实际取消收藏走物理删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_fav_user_file` (`user_id`, `file_id`),
+    KEY `idx_fav_user_id` (`user_id`, `id`),
+    KEY `idx_fav_file` (`file_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='文件收藏';
 
 -- ============================================================
 -- 内置种子:敏感词(level 1 替换 / level 2 拒发)

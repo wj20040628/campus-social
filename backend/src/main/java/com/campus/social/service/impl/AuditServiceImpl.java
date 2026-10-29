@@ -7,6 +7,7 @@ import com.campus.social.entity.User;
 import com.campus.social.mapper.AuditLogMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
+import com.campus.social.util.RequestIp;
 import com.campus.social.vo.AuditLogVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,13 +46,25 @@ public class AuditServiceImpl implements AuditService {
 
     private void write(Long userId, String action, String targetType, Long targetId, String detail, String ip) {
         try {
+            /*
+             * 调用方没传 IP 时从当前请求补齐（2026-10-29）。
+             *
+             * 此前登录、举报处置、封禁等调用一律传 null/""，audit_log.ip 整列为空；
+             * 自评估报告写的是「audit_log（操作人、动作、对象、详情、IP、时间）」，
+             * 抽查打开表就能看到对不上。补在这里而不是逐个改调用点：
+             * 新增审计动作的人不必记得传 IP，也不会再出现「一半有一半没有」。
+             */
+            String effectiveIp = ip;
+            if (effectiveIp == null || effectiveIp.isBlank()) {
+                effectiveIp = RequestIp.current();
+            }
             AuditLog log = new AuditLog();
             log.setUserId(userId == null || userId == 0 ? null : userId);
             log.setAction(action);
             log.setTargetType(targetType);
             log.setTargetId(targetId);
             log.setDetail(detail);
-            log.setIp(ip);
+            log.setIp(effectiveIp);
             log.setCreateTime(LocalDateTime.now());
             auditLogMapper.insert(log);
         } catch (Exception e) {

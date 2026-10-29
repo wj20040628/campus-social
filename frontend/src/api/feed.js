@@ -32,6 +32,18 @@ export function feedFollowing(lastId, size = 20) {
   return request.get(`/post/feed/following?${q}`)
 }
 
+/**
+ * 推荐流。游标是 (lastScore,lastId) 复合值:
+ * lastScore 是上一页末条的共同标签数,lastId 是帖子 id,两个必须一起回传。
+ * 首屏不传,响应里 hasMore=true 时用 nextScore/nextId 取下一页。
+ */
+export function feedRecommend(lastScore, lastId, size = 20) {
+  const params = [`size=${size}`]
+  if (lastScore != null) params.push(`lastScore=${lastScore}`)
+  if (lastId != null) params.push(`lastId=${lastId}`)
+  return request.get(`/post/feed/recommend?${params.join('&')}`)
+}
+
 export function topicFeed(name, lastId, size = 20) {
   const q = `topic=${encodeURIComponent(name)}&size=${size}${lastId ? `&lastId=${lastId}` : ''}`
   return request.get(`/post/topic?${q}`)
@@ -57,6 +69,11 @@ export function favorite(id) {
 /** 取消收藏(幂等)。后端走物理删除,不会留下占唯一键的残留行 */
 export function unfavorite(id) {
   return request.delete(`/post/${id}/favorite`)
+}
+
+/** 分享计数 +1。调用时机是保存/分享卡片成功之后，不是打开分享面板 */
+export function sharePost(id) {
+  return request.post(`/post/${id}/share`)
 }
 
 /**
@@ -116,19 +133,25 @@ export function userPosts(userId, lastId, size = 20) {
   return request.get(`/user/${userId}/posts?${q}`)
 }
 
-export function upload(file, kind = 'image') {
+export function upload(file, kind = 'image', onProgress) {
   const fd = new FormData()
   fd.append('file', file)
   fd.append('kind', kind)
   return request.post('/upload', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
     /*
-     * per-request 超时(2026-10-23 加,审查 P1-35):
-     * 全局默认 30s 对 25MB 视频必然超时(4G 上传通常要 1-2 分钟),
-     * 兜底上传链路会莫名失败且提示"timeout of 30000ms exceeded"。
-     * OSS 直传早就放宽到 120s,服务端兜底不能停留在 30s。
+     * per-request 超时(2026-10-23 加,审查 P1-35;2026-10-29 放宽到 5 分钟):
+     * 全局默认 30s 对 25MB 视频必然超时。按实测 18.85MB≈1 分钟的弱网上传速度,
+     * 25MB 接近 2 分钟;120s 恰好卡在边缘,超时后用户只看到「上传失败」。
+     * 上限 25MB 时 5 分钟足够覆盖 1Mbps 以下的极慢网络。
      */
-    timeout: 120000,
+    timeout: 300000,
+    // 上传进度(2026-10-29):页面要显示百分比/剩余时间,否则慢网下只有转圈
+    onUploadProgress: (e) => {
+      if (typeof onProgress === 'function' && e.total) {
+        onProgress({ loaded: e.loaded, total: e.total })
+      }
+    },
   })
 }
 
@@ -142,7 +165,7 @@ export function uploadConfig() {
 }
 
 export default {
-  createPost, detail, deletePost, feed, feedFollowing, topicFeed, hot,
+  createPost, detail, deletePost, feed, feedFollowing, feedRecommend, topicFeed, hot,
   like, unlike, comment, comments, commentChildren, myPosts, userPosts, upload,
   uploadConfig,
 }

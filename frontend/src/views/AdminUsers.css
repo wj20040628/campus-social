@@ -173,6 +173,30 @@
   color: var(--ys-muted);
 }
 
+/* 右列：账号状态在上、认证状态在下，两行右对齐 */
+.uadmin__right {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.uadmin__verify {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+/* 审核中要提醒管理员「别重复催」；已驳回要让他一眼看出这人卡在哪 */
+.uadmin__verify[data-v='2'] {
+  color: var(--ys-accent);
+}
+
+.uadmin__verify[data-v='3'] {
+  color: var(--ys-accent-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
 .uadmin__status[data-status='1'] {
   color: var(--ys-accent-2);
   font-weight: var(--ys-weight-semibold);

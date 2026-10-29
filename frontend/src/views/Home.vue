@@ -8,15 +8,8 @@
     <div class="home-inner" :class="{ 'home-inner--wide': isWide }">
      <div class="home-main">
       <!--
-        认证状态提示条(驳回 / 审核中)。
-        放在**筛选条之上、Tab 之上**:被驳回是「你的账号有问题」级别的信息,
-        夹在 feed 中间会被用户的下滑手势立刻扫掉,而且它描述的是账号不是内容 ——
-        与下面「关注/全部」这个内容维度不是一回事,不该被 Tab 框住。
-      -->
-      <!--
-        2026-10-21：VerifyNotice 已上移到 MainLayout（全站可见），此处不再渲染。
-        原因：未认证会成为常见状态，而它限制的四个动作分散在圈子/集市/私信页，
-        只在首页提示的话，用户在这些页面被拒时根本没见过规则。
+        2026-10-27:全站认证横幅已移除,受限动作处改弹 AuthGateSheet;
+        首页不再渲染任何认证提示条。
       -->
 
       <!--
@@ -28,46 +21,17 @@
       -->
 
       <!--
-        ③ 首页「关注/全部 tab + 搜索/筛选条」包成粘性工具条 .feed-bar。
-        手机端:下滑收起(transform: translateY(-100%)),上滑拉回;VerifyNotice 留在上方不动。
+        ③ 首页「关注/全部/推荐」tab 包成粘性工具条 .feed-bar。
+        手机端:下滑收起(transform: translateY(-100%)),上滑拉回。
         桌面端 feedBarHidden 恒 false,普通流。
       -->
       <div class="feed-bar" :class="{ 'feed-bar--hidden': feedBarHidden }">
-        <!-- 关注 / 全部 / 树洞 tab(A1:读 feed_item 的写扩散收件箱)。
-             树洞(2026-10-25):匿名帖聚合流,微博超话式的频道入口——
-             匿名发帖是内容冷启动的主力,埋在「全部」流里没有存在感 -->
+        <!-- 关注 / 全部 / 推荐。树洞频道已下线,历史匿名帖仍在「全部」里只读展示 -->
         <el-tabs v-model="tab" class="feed-tabs">
           <el-tab-pane label="关注" name="following" />
           <el-tab-pane label="全部" name="all" />
-          <el-tab-pane label="树洞" name="hole" />
+          <el-tab-pane label="推荐" name="recommend" />
         </el-tabs>
-
-        <!-- 搜索 + 筛选/排序 工具条(仅"全部"tab 有筛选;关注 tab 只看关注的人) -->
-        <div class="feed-tools">
-          <el-input
-            v-model="searchQ"
-            placeholder="搜索帖子 / 用户 / 圈子"
-            class="feed-search"
-            clearable
-            @keyup.enter="doSearch"
-          >
-            <template #append>
-              <el-button @click="doSearch">搜索</el-button>
-            </template>
-          </el-input>
-
-          <template v-if="tab === 'all'">
-            <!--
-              排序:「最新 / 最热」分段控件,替掉旧的两个下拉(按时间 + 倒序)。
-              两个下拉表达一个语义,用户要逐字读完才知道怎么选;分段一眼可见。
-              最热 = 按点赞量倒序,沿用旧 feed 接口的 by=like&order=desc。
-            -->
-            <div class="seg" role="group" aria-label="排序方式">
-              <button type="button" class="seg__btn" :class="{ 'seg__btn--on': sortMode === 'new' }" :aria-pressed="sortMode === 'new' ? 'true' : 'false'" @click="setSort('new')">最新</button>
-              <button type="button" class="seg__btn" :class="{ 'seg__btn--on': sortMode === 'hot' }" :aria-pressed="sortMode === 'hot' ? 'true' : 'false'" @click="setSort('hot')">最热</button>
-            </div>
-          </template>
-        </div>
       </div>
 
       <div ref="listEl" class="feed-list">
@@ -105,19 +69,19 @@
           />
 
           <!--
-            空态按 tab 分出口(AC-19):
-            - 「关注」空 → 去关注人;「树洞」空 → 引导发第一条匿名
-            - 「全部」空 → 去发一条或逛圈子
+            空态按 tab 分出口:
+            - 「关注」空 → 去关注人;「推荐」空 → 去发一条
+            - 「全部」空 → 去发一条
           -->
           <StateBlock
             v-else-if="!loading && posts.length === 0"
             variant="empty"
-            :title="tab === 'following' ? '你关注的人还没发东西' : tab === 'hole' ? '树洞还静悄悄的' : '这里还很空'"
+            :title="tab === 'following' ? '你关注的人还没发东西' : tab === 'recommend' ? '还没有可推荐的动态' : '这里还很空'"
             :description="
               tab === 'following'
                 ? '关注几个同学,他们的动态就会出现在这儿'
-                : tab === 'hole'
-                  ? '来发第一条树洞,大家看到的是「匿名」,只有你知道是谁'
+                : tab === 'recommend'
+                  ? '去关注几个同学,或者先发一条'
                   : '现在没人发东西,你可以先发一条'
             "
             :action-label="tab === 'following' ? '去圈子广场逛逛' : '发一条'"
@@ -180,8 +144,8 @@ const isMobile = computed(() => width.value < BREAKPOINTS.lg)
 const isWide = computed(() => width.value >= BREAKPOINTS.xl)
 
 const {
-  tab, posts, loading, hasMore, loadError, searchQ, sortMode, sentinelEl, listEl, feedBarHidden,
-  setSort, doSearch, goFollow, retryFeed,
+  tab, posts, loading, hasMore, loadError, sentinelEl, listEl, feedBarHidden,
+  goFollow, retryFeed,
 } = useHomeFeed(isMobile)
 
 // 移动端浮动发帖按钮:可拖拽 + 边缘吸附 + 位置持久化(见 useDraggableFab)

@@ -55,6 +55,8 @@ public class ReportAutoBanService {
     private final BanService banService;
     private final AuditService auditService;
     private final ReportTargetResolver targetResolver;
+    /** 自动封禁也要告知本人（2026-10-28）：封完不吭声，用户只会以为账号坏了 */
+    private final PostNotifySupport notifySupport;
 
     /** 24h 内独立已认证举报人阈值；<=0 视为关闭本机制 */
     @Value("${campus.review.auto-ban-reporters:3}")
@@ -132,6 +134,9 @@ public class ReportAutoBanService {
         auditService.recordSystem(AUDIT_AUTO_BAN, "user", targetUser,
                 "24h 内 " + verifiedCount + " 名已认证用户举报(阈值 " + threshold
                         + "),自动封禁 " + banDays + " 天,到期自动解封,请复核");
+        notifySupport.pushSystemNotify(targetUser, 19, 0L, null,
+                "因 24 小时内多名已认证同学举报，你的账号被临时封禁 " + banDays + " 天，到期后自动解封。"
+                        + "如属误判，可在登录页提交封禁申诉，管理员会尽快复核。");
         log.info("user auto-banned by concentrated reports: user={}, verifiedReporters={}, threshold={}, days={}",
                 targetUser, verifiedCount, threshold, banDays);
     }

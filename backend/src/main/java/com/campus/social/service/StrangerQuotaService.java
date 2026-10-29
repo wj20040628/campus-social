@@ -14,28 +14,16 @@ import com.campus.social.vo.StrangerQuotaVO;
 public interface StrangerQuotaService {
 
     /**
-     * 向新对象发起首条前的配额扣减。
+     * 对同一陌生人发消息前的配额扣减。
      *
-     * @return true=还有额度已记账；false=今日额度用尽
-     */
-    boolean tryConsumeNewPeer(long userId, long peerId);
-
-    /** 对同一陌生人发消息前的配额扣减 */
-    boolean tryConsumePerPeer(long userId, long peerId);
-
-    /** 额度快照（不消耗额度，供前端展示「今日还能搭话 N 人」） */
-    StrangerQuotaVO snapshot(long userId, Long peerId);
-
-    /**
-     * 陌生人发信的配额判定与记账，两个计数器一并处理。
+     * <p>只限制「对同一个人」的频率，不限制对象数量：对象数量不是风险，
+     * 对单个对象的骚扰频率才是。对方关注/回复后由调用方跳过本方法。
      *
-     * <p>之所以不让调用方自己连着调两次：本 service 的两个计数器必须
-     * 「要么都扣成功，要么都不扣」。调用方分开调时，中间任何一步失败都会留下
-     * 半扣的状态，而 ZSET 无法回退——member 可能是本次新加的，也可能是
-     * 之前就在的，{@code ZREM} 区分不了这两种情况，盲目回退会误删历史记账。
-     *
-     * @return 剩余新对象额度（供前端刷新「还能搭话 N 人」）
+     * @return 本次发送后的剩余条数（供前端刷新会话内提示）
      * @throws com.campus.social.exception.BusinessException 配额用尽时抛 429
      */
-    int consumeStrangerQuota(long userId, long peerId);
+    int consumePerPeer(long userId, long peerId);
+
+    /** 额度快照（不消耗额度，供前端展示会话内规则与剩余条数） */
+    StrangerQuotaVO snapshot(long userId, Long peerId);
 }

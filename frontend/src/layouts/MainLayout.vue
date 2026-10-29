@@ -34,22 +34,11 @@
         />
 
         <!--
-          认证状态提示条（2026-10-21 提到布局层，全站可见）。
-          【为什么从页面级挪到这里】改版后未认证是个常见的真实状态（注册只要求邮箱），
-          而它带来四个限制：发私信 / 建圈子 / 加圈子 / 发集市。
-          原来它只在首页和个人主页出现，用户在圈子页点「加入」被拒时
-          根本没见过这条提示 —— 只在失败那一刻才知道规则，是最差的信息架构。
-          放布局层后，任何页面都能提前看到「还差一步」。
-
-          【2026-10-25 例外:/chat 页不渲染】聊天页对未认证用户有自己的
-          阻断横幅(逐会话、带去认证出口、还有额度规则条),布局层这条再叠上去
-          是三层横幅说两件事(实测:手机一屏几乎被横幅占掉)。
-
-          【2026-10-26 例外:/onboarding 页不渲染】引导第 1 步本身就在做认证,
-          页面已有标题 + 说明 + 表单;再把全站认证横幅叠在最上面,等于同一件事
-          说两遍,还把手机首屏占掉 140px(实机截图确认)。
+          2026-10-27:全站认证横幅移除。
+          未认证是常见起点,但不该在每个页面顶部常驻一条提示;
+          改成在真正受限的动作处弹「认证闸门」(见 AuthGateSheet),
+          由 request.js 的 1029 与页面主动拦截共同触发。
         -->
-        <VerifyNotice v-if="route.name !== 'chat' && route.name !== 'onboarding'" />
 
         <main
           id="main-content"
@@ -113,6 +102,9 @@
       (notifyUnread)在这里,与顶栏铃铛同源不重复请求;退出登录走 logout()。
     -->
     <AppDrawer v-model="drawerOpen" :notify-unread="notifyUnread" @logout="logout" />
+
+    <!-- 全站认证闸门:1029 或页面主动拦截时打开 -->
+    <AuthGateSheet />
   </div>
 </template>
 
@@ -139,7 +131,7 @@ import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 import TabBar from '@/components/mobile/TabBar.vue'
 import AppDrawer from '@/components/mobile/AppDrawer.vue'
-import VerifyNotice from '@/components/common/VerifyNotice.vue'
+import AuthGateSheet from '@/components/auth/AuthGateSheet.vue'
 import { useUserStore } from '@/stores/user'
 import { getWsClient } from '@/utils/ws'
 import * as notifyApi from '@/api/notify'

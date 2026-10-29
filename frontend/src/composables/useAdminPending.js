@@ -18,10 +18,29 @@ const summary = reactive({
   reviewPending: 0,
   verifyPending: 0,
   feedbackPending: 0,
+  filePending: 0,
 })
 const loaded = ref(false)
 /** 在途请求去重:抽屉和侧栏同帧各调一次 refresh 只发一个请求 */
 let inflight = null
+/** 轮询间隔:管理员挂在页面上不刷新时,新待办也要能自己冒出来 */
+const POLL_MS = 60_000
+let pollTimer = null
+
+/**
+ * 轮询 + 回到前台强刷。
+ * 只在本端点是 5 条 count 查询、开销可忽略的前提下才这么做;
+ * 页面切到后台时跳过,避免手机端后台白耗流量。
+ */
+function startPolling(refresh) {
+  if (pollTimer || typeof window === 'undefined') return
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') refresh(true)
+  }, POLL_MS)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refresh(true)
+  })
+}
 
 export function useAdminPending() {
   const userStore = useUserStore()
@@ -29,10 +48,10 @@ export function useAdminPending() {
   /** 内容审核入口的角标 = 举报 + 机审两条队列(AdminReview 的两个 tab) */
   const reviewTotal = () => summary.reportPending + summary.reviewPending
 
-  /** 四条队列合计。0 时管理入口整个不显示角标 */
+  /** 五条队列合计。0 时管理入口整个不显示角标 */
   const total = () =>
     summary.reportPending + summary.reviewPending +
-    summary.verifyPending + summary.feedbackPending
+    summary.verifyPending + summary.feedbackPending + summary.filePending
 
   /**
    * 拉取待办聚合。
@@ -40,6 +59,7 @@ export function useAdminPending() {
    */
   function refresh(force = false) {
     if (!userStore.isAdmin) return
+    startPolling(refresh)
     if (loaded.value && !force) return
     if (inflight) return inflight
     inflight = pendingSummary()
@@ -48,6 +68,7 @@ export function useAdminPending() {
         summary.reviewPending = d?.reviewPending ?? 0
         summary.verifyPending = d?.verifyPending ?? 0
         summary.feedbackPending = d?.feedbackPending ?? 0
+        summary.filePending = d?.filePending ?? 0
         loaded.value = true
       })
       .catch(() => {

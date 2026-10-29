@@ -69,6 +69,11 @@ public class AuthInterceptor implements HandlerInterceptor {
             java.util.regex.Pattern.compile("^/mkt/plaza$"),
             java.util.regex.Pattern.compile("^/activity/\\d+$"),
             java.util.regex.Pattern.compile("^/activity/\\d+/signups$"),
+            // 文件分享(2026-10-27):未注册同学扫码/点链接也要能看落地页和下载
+            java.util.regex.Pattern.compile("^/public/files/\\d+$"),
+            java.util.regex.Pattern.compile("^/files/\\d+/download$"),
+            // 在线预览与下载同口径：已过审公开，未过审靠 Authorization 头识别上传者
+            java.util.regex.Pattern.compile("^/files/\\d+/preview$"),
     };
 
     public static final String ATTR_USER_ID = "userId";
@@ -155,7 +160,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         if ("1".equals(cached)) {
             writeJson(response, HttpServletResponse.SC_FORBIDDEN,
-                    ResultCode.USER_FROZEN.getCode(), "账号已被冻结,请联系管理员");
+                    ResultCode.USER_FROZEN.getCode(), "账号已被封禁，如有异议可在登录页提交封禁申诉");
             return false;
         }
         if ("2".equals(cached)) {

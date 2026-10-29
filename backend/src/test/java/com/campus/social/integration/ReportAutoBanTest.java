@@ -71,6 +71,8 @@ class ReportAutoBanTest {
             if (id != null) {
                 jdbc.update("DELETE FROM report WHERE reporter_id = ? OR (target_type = 1 AND target_id = ?)", id, id);
                 jdbc.update("DELETE FROM audit_log WHERE target_type = 'user' AND target_id = ?", id);
+                // 自动封禁现在会给本人发 type=19，不删就是孤儿通知
+                jdbc.update("DELETE FROM notify WHERE user_id = ? OR actor_id = ?", id, id);
                 jdbc.update("DELETE FROM user WHERE id = ?", id);
             }
         }

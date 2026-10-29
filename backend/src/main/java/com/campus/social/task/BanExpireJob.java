@@ -27,6 +27,8 @@ import java.util.Set;
 public class BanExpireJob {
 
     private final BanService banService;
+    /** 到期解封也回执（2026-10-28）：用户回来时至少知道「为什么被封过、现在好了」 */
+    private final com.campus.social.service.impl.PostNotifySupport notifySupport;
 
     /** 每 5 分钟扫一次到期的封禁计划 */
     @Scheduled(cron = "0 */5 * * * ?")
@@ -41,11 +43,22 @@ public class BanExpireJob {
                 // 统一走 banService.unban:清 ZSET 计划 + 恢复 status + 写审计(account_unban)
                 banService.unban(Long.parseLong(userId));
                 ok++;
+                notifyQuietly(Long.parseLong(userId));
             } catch (Exception e) {
                 // 不清计划：留到下一轮重试，避免一次网络抖动就让人永久封禁
                 log.error("释放封禁失败,保留计划待重试: user={}", userId, e);
             }
         }
         log.info("[封禁] 到期释放完成: 成功={}, 待重试={}", ok, expired.size() - ok);
+    }
+
+    /** 通知失败不回滚解封,也不触发外层「保留计划」——人已经放出来了 */
+    private void notifyQuietly(long userId) {
+        try {
+            notifySupport.pushSystemNotify(userId, 21, 0L, null,
+                    "封禁期限已到，你的账号已恢复正常，可以继续发帖和搭话。");
+        } catch (Exception e) {
+            log.warn("ban-expire notify fail: user={}, err={}", userId, e.getMessage());
+        }
     }
 }

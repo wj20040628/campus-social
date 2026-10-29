@@ -36,6 +36,8 @@ public class ReportAdminServiceImpl implements ReportAdminService {
 
     private final ReportMapper reportMapper;
     private final com.campus.social.mapper.UserMapper userMapper;
+    /** 原内容已删除时，用举报时快照补作者/正文(2026-10-29) */
+    private final ReportSnapshotService snapshotService;
 
     @Override
     public ReportAdminPageVO list(Integer status, Boolean handled, Long cursor, int size) {
@@ -97,8 +99,11 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             case ReportTargetType.POST -> reportMapper.selectPostAuthorId(id);
             case ReportTargetType.COMMENT -> reportMapper.selectCommentAuthorId(id);
             case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageSenderId(id);
+            case ReportTargetType.GROUP_MESSAGE -> reportMapper.selectGroupMessageSenderId(id);
             case ReportTargetType.USER -> id;
             case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivityOwnerId(id);
+            case ReportTargetType.FILE -> reportMapper.selectFileOwnerId(id);
+            case ReportTargetType.CIRCLE -> reportMapper.selectCircleOwnerId(id);
             default -> null;
         };
     }
@@ -110,6 +115,17 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             truncated = true;
         }
         Long authorId = authorIdOf(row);
+        String authorNickname = authorId == null ? null : nickByAuthor.get(authorId);
+        /*
+         * 原内容已被作者删除时，authorIdOf 查不到人；用举报时快照补上，
+         * 否则管理员只能看到「内容已删除」，连谁发过都不知道。
+         */
+        if (authorId == null) {
+            authorId = snapshotService.authorId(row.getTargetSnapshot());
+        }
+        if (authorNickname == null) {
+            authorNickname = snapshotService.authorName(row.getTargetSnapshot());
+        }
         return ReportVO.builder()
                 .id(row.getId())
                 .reporterId(row.getReporterId())
@@ -118,12 +134,14 @@ public class ReportAdminServiceImpl implements ReportAdminService {
                 .targetId(row.getTargetId())
                 .targetSummary(truncate(summaryOf(row), TARGET_SUMMARY_LIMIT, true))
                 .targetAuthorId(authorId)
-                .targetAuthorNickname(authorId == null ? null : nickByAuthor.get(authorId))
+                .targetAuthorNickname(authorNickname)
+                .targetSnapshotText(blankToNull(snapshotService.render(row.getTargetSnapshot())))
                 .reasonType(row.getReasonType())
                 .reasonText(reasonText)
                 .reasonTextTruncated(truncated)
                 .status(row.getStatus())
                 .handlerId(row.getHandlerId())
+                .handleNote(row.getHandleNote())
                 .handleTime(row.getHandleTime())
                 .createTime(row.getCreateTime())
                 .build();
@@ -151,8 +169,11 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             case ReportTargetType.POST -> reportMapper.selectPostContent(id);
             case ReportTargetType.COMMENT -> reportMapper.selectCommentContent(id);
             case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageContent(id);
+            case ReportTargetType.GROUP_MESSAGE -> reportMapper.selectGroupMessageContent(id);
             case ReportTargetType.USER -> reportMapper.selectUserNickname(id);
             case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivitySummary(id);
+            case ReportTargetType.FILE -> reportMapper.selectFileSummary(id);
+            case ReportTargetType.CIRCLE -> reportMapper.selectCircleSummary(id);
             /*
              * 5 搭子：buddy_post 表已建但无端点（MVP+ 第二批），
              * 没有可查的内容 —— 保持「已删除」这个诚实的结果，
@@ -161,11 +182,23 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             default -> null;
         };
         if (text == null || text.isBlank()) {
+            /*
+             * 原内容已删除：退回举报时快照。快照是提交举报那一刻抓的，
+             * 作者删帖/删评论不会影响它；历史举报没有快照，仍显示「已删除」。
+             */
+            String snap = snapshotService.summary(row.getTargetSnapshot());
+            if (snap != null && !snap.isBlank()) {
+                return "举报时快照：" + snap;
+            }
             // 内容已被删除或不存在：明说「已删除」而不是留空，
             // 管理员看到空白会以为是自己页面没加载出来
             return "内容已删除或不存在";
         }
         return text;
+    }
+
+    private String blankToNull(String text) {
+        return text == null || text.isBlank() ? null : text;
     }
 
     /**

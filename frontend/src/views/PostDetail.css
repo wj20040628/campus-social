@@ -39,6 +39,28 @@
   cursor: pointer;
 }
 
+/*
+ * 顶栏分享按钮带次数：图标 + 数字，宽度按内容撑开。
+ * .detail__more 是 grid + 固定 44px，直接把文字塞进去会与图标叠在同一格；
+ * 所以这里改成 inline-flex 并只覆盖宽度，48px 最小热区仍保留。
+ */
+.detail__share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  min-width: var(--ys-touch-min);
+  padding: 0 var(--ys-space-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+}
+
+.detail__share-n {
+  line-height: 1;
+}
+
 .detail__title {
   flex: 1;
   margin: 0;

@@ -35,6 +35,16 @@ public final class JwtUtil {
     public static final String HEADER = "Authorization";
     public static final String BEARER_PREFIX = "Bearer ";
 
+    /**
+     * 未设置密码的占位哈希。
+     *
+     * <p>邮箱验证码自动建号不要求用户先设密码，但 {@code user.password_hash}
+     * 是 NOT NULL。存一个不可能成为 BCrypt 哈希的哨兵值，比存随机哈希更明确：
+     * {@link #isPasswordSet} 一眼能判出来，且 {@link #verifyPassword} 会直接返回 false，
+     * 不会把哨兵值喂给 BCrypt 触发 {@code Invalid salt version}。
+     */
+    public static final String PASSWORD_UNSET = "__NO_PASSWORD__";
+
     private static SecretKey accessKey;
     private static SecretKey refreshKey;
 
@@ -151,7 +161,15 @@ public final class JwtUtil {
         return BCrypt.hashpw(raw, BCrypt.gensalt(10));
     }
 
+    /** 账号是否已经真正设过密码（哨兵值 / null 都算未设置） */
+    public static boolean isPasswordSet(String hashed) {
+        return hashed != null && !hashed.isBlank() && !PASSWORD_UNSET.equals(hashed);
+    }
+
     public static boolean verifyPassword(String raw, String hashed) {
+        if (!isPasswordSet(hashed)) {
+            return false;
+        }
         return BCrypt.checkpw(raw, hashed);
     }
 

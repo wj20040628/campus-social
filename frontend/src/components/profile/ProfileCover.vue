@@ -24,6 +24,19 @@
     </button>
 
     <!--
+      访客看封面（2026-10-28）：有自定义封面时可点开大图。
+      不显示提示文案——访客的主线是看这个人的资料，不是编辑封面；
+      挂一句「点击查看大图」会把封面变成公告栏。
+    -->
+    <button
+      v-else-if="hasCover"
+      type="button"
+      class="p-cover__hit"
+      aria-label="查看封面大图"
+      @click="$emit('preview')"
+    />
+
+    <!--
       右上角「更多」(打开全局导航抽屉)。做成本组件内的按钮而不是父级塞进来的插槽:
       scoped 样式下的插槽内容带的是**父级**的 scope id，.p-more 的定位规则
       留在本文件里会匹配不到，表现为按钮跑到左上角、失去玻璃拟态。
@@ -41,6 +54,7 @@
       这时给出两个明确选项，比在封面上钉一个按钮干净。
     -->
     <ActionSheet v-model="sheetOpen" title="主页封面">
+      <button type="button" class="p-sheet__item" @click="preview">查看大图</button>
       <button type="button" class="p-sheet__item" @click="choose">更换封面</button>
       <button type="button" class="p-sheet__item" @click="reset">恢复默认封面</button>
     </ActionSheet>
@@ -62,7 +76,7 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['pick', 'reset', 'more'])
+const emit = defineEmits(['pick', 'reset', 'more', 'preview'])
 
 const sheetOpen = ref(false)
 
@@ -90,6 +104,12 @@ function choose() {
 function reset() {
   sheetOpen.value = false
   emit('reset')
+}
+
+/** 先关面板再抛事件：面板不关会盖住全屏看图 */
+function preview() {
+  sheetOpen.value = false
+  emit('preview')
 }
 </script>
 

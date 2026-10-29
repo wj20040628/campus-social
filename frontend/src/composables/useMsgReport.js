@@ -7,9 +7,9 @@ import { computed, ref } from 'vue'
  * 抽出的另一个好处是判定口径只写一处 —— 原来 `canQuote` 和 `canReport`
  * 的条件完全一样（对方发的 + 未撤回），两处重复写迟早会漂移。
  *
- * 后端能力：POST /report 支持 targetType=4（聊天消息），
- * 举报成立时 ReportServiceImpl 会软删该消息（is_deleted=1），
- * 于是它从双方会话里消失 —— 这正是「举报骚扰私信」应有的效果。
+ * 后端能力：POST /report 支持 targetType=4（私聊消息）与 8（群消息）。
+ * 两者是两张表、两套自增 id，群消息必须传 8，否则管理员会按同一个 id
+ * 去 chat_message 里取到另一条私信。举报成立时对应消息 is_deleted=1。
  */
 export function useMsgReport() {
   /** 举报表开合 */
@@ -36,7 +36,4 @@ export function useMsgReport() {
   return { reportOpen, reportTargetId, canReportOf, openReport }
 }
 
-/** 消息举报的 targetType（与 openapi 契约一致：4 = 聊天消息） */
-export const MSG_REPORT_TARGET_TYPE = 4
-
-export default { useMsgReport, MSG_REPORT_TARGET_TYPE }
+export default { useMsgReport }

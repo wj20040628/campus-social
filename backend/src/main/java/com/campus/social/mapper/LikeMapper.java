@@ -38,6 +38,9 @@ public interface LikeMapper extends BaseMapper<Like> {
     @Delete("DELETE FROM `like` WHERE user_id = #{userId} AND target_type = #{targetType} AND target_id = #{targetId}")
     int hardDelete(@Param("userId") long userId, @Param("targetType") int targetType, @Param("targetId") long targetId);
 
+    @Delete("DELETE FROM `like` WHERE target_type = #{targetType} AND target_id = #{targetId}")
+    int hardDeleteByTarget(@Param("targetType") int targetType, @Param("targetId") long targetId);
+
     /**
      * 批量判定「我对这批评论是否已赞」，返回已赞的评论 id 集合。
      *

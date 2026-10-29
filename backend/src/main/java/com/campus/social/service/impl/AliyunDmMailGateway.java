@@ -5,6 +5,7 @@ import com.aliyun.dm20151123.models.SingleSendMailRequest;
 import com.aliyun.teaopenapi.models.Config;
 import com.aliyun.teautil.models.RuntimeOptions;
 import com.campus.social.service.MessageGateway;
+import com.campus.social.util.MailSubjects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -35,8 +36,8 @@ import java.util.concurrent.CompletableFuture;
  * 由后台日志暴露,不影响主流程(验证码仍在 Redis)。
  *
  * <p>发信内容:优先走控制台「模板管理」已审核模板({@code template-id} 非空时),
- * 内容是受控的、被判垃圾邮件概率低于裸 HtmlBody;模板模式下标题以请求
- * {@code subject} 为准(需与控制台模板「邮件标题」保持一致),正文由模板渲染,
+ * 内容是受控的、被判垃圾邮件概率低于裸 HtmlBody;模板模式下标题仍以请求
+ * {@code subject} 为准(验证码会拼进主题,见 {@link MailSubjects}),正文由模板渲染,
  * 不再直传 HtmlBody。模板 ID 未配置时回退为直传 HtmlBody(本地联调兼容)。
  * 无论哪种模式,本项目均为事务性单发(验证码),不群发。
  */
@@ -52,7 +53,7 @@ public class AliyunDmMailGateway implements MessageGateway {
     private final String tagName;       // 邮件标签(可选,用于 DM 控制台统计)
     /** 控制台「模板管理」已审核邮件模板 ID;非空则走模板发信(忽略 HtmlBody),为空回退直传 HtmlBody */
     private final String templateId;
-    /** 邮件标题:模板模式下标题以请求为准(需与控制台模板「邮件标题」保持一致) */
+    /** 邮件标题基串:验证码会拼在后面,锁屏通知不点开也能看到 6 位码 */
     private final String subject;
     /**
      * 通知类邮件模板 ID(可选)。
@@ -79,7 +80,7 @@ public class AliyunDmMailGateway implements MessageGateway {
             @Value("${app.campus.aliyun.address-type:1}") Integer addressType,
             @Value("${app.campus.aliyun.tag-name:}") String tagName,
             @Value("${app.campus.aliyun.template-id:}") String templateId,
-            @Value("${app.campus.aliyun.subject:系统验证码通知}") String subject,
+            @Value("${app.campus.aliyun.subject:友声验证码}") String subject,
             @Value("${app.campus.aliyun.notice-template-id:}") String noticeTemplateId,
             @Value("${app.campus.aliyun.credential-type:ecs_ram_role}") String credentialType,
             @Value("${app.campus.aliyun.role-name:}") String roleName,
@@ -206,7 +207,7 @@ public class AliyunDmMailGateway implements MessageGateway {
                 .setFromAlias(fromAlias)
                 .setReplyToAddress(false)
                 .setToAddress(target)
-                .setSubject(subject);
+                .setSubject(MailSubjects.withCode(subject, code));
         if (templateId != null && !templateId.isEmpty()) {
             // 模板发信:内容以控制台已审核模板为准,忽略 HtmlBody,降低反垃圾风控命中率
             req.setTemplate(new SingleSendMailRequest.SingleSendMailRequestTemplate()

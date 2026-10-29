@@ -96,6 +96,63 @@ public class PostNotifySupport {
         wsPush.pushNotify(userId, n.getId(), type, targetId, actorId);
     }
 
+    /**
+     * 系统处置通知（2026-10-28）：举报结果、封禁、下架、解封共用。
+     *
+     * <p>actor 恒为 null——处置是平台动作，用户看到「管理员 #3 封了你」既无意义
+     * 也不安全（反馈回复的匿名口径同此）。正文放 content，前端整段展示。
+     *
+     * <p>targetId 按 notify.target_id NOT NULL 约束兜底为 0；账号类通知
+     * （封禁/解封）本来就没有可指向的实体。
+     */
+    public void pushSystemNotify(long userId, int type, Long targetId, Long postId, String content) {
+        Set<Integer> disabled = parseDisabled(userMapper.selectNotifyPrefById(userId));
+        if (disabled.contains(type)) {
+            log.debug("system notify skipped by pref: userId={}, type={}", userId, type);
+            return;
+        }
+        Notify n = new Notify();
+        n.setUserId(userId);
+        n.setType(type);
+        n.setTargetId(targetId == null ? 0L : targetId);
+        n.setPostId(postId);
+        n.setActorId(null);
+        n.setContent(content);
+        n.setIsRead(0);
+        notifyMapper.insert(n);
+        userMapper.adjustUnreadNotifyCount(userId, 1);
+        wsPush.pushNotify(userId, n.getId(), type, n.getTargetId(), 0L);
+    }
+
+    /**
+     * 认证审核结果通知（2026-10-28）。
+     *
+     * <p>为什么单独一个方法：学号核验既不是内容也不是文件，它的「跳转目标」
+     * 是编辑资料页而不是某个实体详情，所以 targetId 没有可指向的行——
+     * notify.target_id 是 NOT NULL，这里固定写 0（前端不读它）。
+     *
+     * <p>actor 留空：通过/驳回是平台动作，让用户看到「管理员 #3 驳回了你」
+     * 既无意义也不安全。驳回理由走 content，与反馈回复同一口径。
+     */
+    public void pushVerifyResult(long userId, int type, String content) {
+        Set<Integer> disabled = parseDisabled(userMapper.selectNotifyPrefById(userId));
+        if (disabled.contains(type)) {
+            log.debug("verify notify skipped by pref: userId={}, type={}", userId, type);
+            return;
+        }
+        Notify n = new Notify();
+        n.setUserId(userId);
+        n.setType(type);
+        n.setTargetId(0L);
+        n.setPostId(null);
+        n.setActorId(null);
+        n.setContent(content);
+        n.setIsRead(0);
+        notifyMapper.insert(n);
+        userMapper.adjustUnreadNotifyCount(userId, 1);
+        wsPush.pushNotify(userId, n.getId(), type, 0L, 0L);
+    }
+
     /** 解析 notify_pref 列里的 disabled 类型集合;NULL/空/非法都视为全开 */
     private Set<Integer> parseDisabled(String pref) {
         Set<Integer> disabled = new HashSet<>();

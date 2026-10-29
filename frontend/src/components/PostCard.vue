@@ -9,17 +9,17 @@
   <article class="pc" @click="$emit('click', post)">
     <header class="pc__head">
       <!--
-        树洞匿名帖(2026-10-25):后端不下发 author/authorId,这里统一渲染
-        「匿名」+ 树洞标签;头像/名字不挂点击(点了也没主页可去)。
+        历史匿名帖(2026-10-25 引入,2026-10-27 匿名发布下线):后端不下发
+        author/authorId,这里统一渲染「匿名」标签;头像/名字不挂点击(点了也没主页可去)。
       -->
       <span class="pc__ava" :class="{ 'pc__anon': isAnon }" @click.stop="goAuthor">
-        <InitialAvatar :size="40" :src="isAnon ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="isAnon ? '匿' : (post.author ? displayName(post.author) : '')" />
+        <InitialAvatar :size="38" :src="isAnon ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="isAnon ? '匿' : (post.author ? displayName(post.author) : '')" />
       </span>
       <span class="pc__who" :class="{ 'pc__anon': isAnon }">
         <span class="pc__name" @click.stop="goAuthor">{{ isAnon ? '匿名' : (post.author ? displayName(post.author) : '匿名') }}</span>
         <span class="pc__time ys-num">{{ timeText }}</span>
       </span>
-      <span v-if="isAnon" class="pc__tag pc__tag--anon">树洞</span>
+      <span v-if="isAnon" class="pc__tag pc__tag--anon">匿名</span>
       <!--
         圈子标签：**必须有圈名**才渲染。
         改版前只写死「圈子」两个字（后端那时只下发 circleId、没有 circleName），
@@ -53,7 +53,7 @@
             图片已失效
           </div>
           <el-image v-else-if="m.type === 'img'" :src="resolveThumb(m.url)" :preview-src-list="imgList" :initial-index="i" fit="cover" class="pc__img" loading="lazy" @click.stop @error="onMediaError(i)" />
-          <video v-else :src="resolveUrl(m.url)" controls class="pc__video" @click.stop></video>
+          <PostVideo v-else :src="m.url" :poster="m.poster" class="pc__video" @click.stop />
         </template>
       </div>
     </div>
@@ -112,6 +112,7 @@ import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { displayName } from '@/utils/mask'
 import { relTime } from '@/utils/relTime'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import PostVideo from '@/components/post/PostVideo.vue'
 import { like, unlike, favorite, unfavorite } from '@/api/feed'
 import { ElMessage } from '@/utils/feedback'
 
@@ -148,7 +149,7 @@ function onMediaError(i) {
  */
 const timeText = computed(() => relTime(props.post.createTime) || props.post.createTime || '')
 
-/** 树洞匿名帖:后端已抹掉 author,前端只负责统一视觉与禁跳转 */
+/** 历史匿名帖:后端已抹掉 author,前端只负责统一视觉与禁跳转 */
 const isAnon = computed(() => !!props.post.anonymous)
 
 function goDetail() { router.push(`/post/${props.post.id}`) }
@@ -217,9 +218,8 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
   border: 1px solid var(--ys-border);
   border-radius: var(--ys-radius-2xl);
   box-shadow: var(--ys-shadow-1);
-  /* 16 → 15：卡片内留白收紧 1px，配合下面 .pc__body 上距 12→10，
-     短内容（「111」这种一条）不再显得中间空一大块 */
-  padding: 15px var(--ys-space-4) 12px;
+  /* 只精修留白:上下 12、左右保持 16,短内容不再显得中间空一块 */
+  padding: 12px var(--ys-space-4) 12px;
   cursor: pointer;
   /*
    * 屏外卡片跳过布局与绘制（配合 useHomeFeed 的 200 条上限做）。
@@ -248,7 +248,7 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 .pc__who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pc__name {
   align-self: flex-start; /* 点击热区收缩到昵称文字本身，不占满整行 */
-  font-size: 15px; font-weight: var(--ys-weight-semibold); line-height: 1.3;
+  font-size: 14px; font-weight: var(--ys-weight-semibold); line-height: 1.3;
   color: var(--ys-fg); cursor: pointer;
 }
 .pc__name:hover { color: var(--ys-accent); }
@@ -286,22 +286,22 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 .pc__tag--warn { color: var(--ys-warning); background: var(--ys-warning-soft); }
 .pc__tag--danger { color: var(--ys-danger); background: var(--ys-danger-soft); }
 .pc__tag--top { color: var(--ys-accent-on); background: var(--ys-fg); }
-/* 树洞标签:中性信息色,与审核/驳回(警示系)区分开——匿名不是异常状态 */
+/* 匿名标签:中性信息色,与审核/驳回(警示系)区分开——匿名不是异常状态 */
 .pc__tag--anon { color: var(--ys-info); background: var(--ys-info-soft); }
 /* 匿名帖的头像/名字不可点:去掉手型,避免「点了没反应」的可点暗示 */
 .pc__anon { cursor: default; }
 
-/* 12 → 10：见 .pc 的 padding 注释 */
-.pc__body { margin-top: 10px; }
+/* 12 → 8：见 .pc 的 padding 注释 */
+.pc__body { margin-top: 8px; }
 .pc__text {
-  margin: 0; font-size: var(--ys-text-md); line-height: var(--ys-lh-md); color: var(--ys-fg);
+  margin: 0; font-size: var(--ys-text-base); line-height: var(--ys-lh-base); color: var(--ys-fg);
   white-space: pre-wrap;
   /* 长串（URL / 连续字母数字）必须折行，否则会把整张卡片撑破 ——
      详情页 PostBody.css 早就这么做了，卡片这边漏了同一道防护 */
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-.pc__topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.pc__topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 /*
  * 话题 chip：长话题折行而不是撑破卡片。
  *
@@ -371,7 +371,7 @@ const imgList = computed(() => mediaList.value.filter((x) => x.type === 'img').m
 
 .pc__foot {
   display: flex; align-items: center; gap: 2px;
-  margin-top: 11px; padding-top: 9px;
+  margin-top: 8px; padding-top: 8px;
   border-top: 1px solid var(--ys-border-soft);
 }
 /*

@@ -48,15 +48,20 @@ public class StudentNoChangeSupport {
     private final UserMapper userMapper;
     /** 自动通过判定:与提交学号接口共用,避免设置页用户排队、引导页秒过的双标 */
     private final StudentNoAutoPassSupport autoPass;
+    /** 六层硬校验:与 POST /user/verify/student-no 共用同一把尺子 */
+    private final StudentNoProfileValidator studentNoValidator;
 
     /**
      * 处理一次学号变更。
      *
      * @param user       当前用户（其 {@code verifyStatus} 决定要不要迁移状态）
-     * @param studentNo  新学号，已确保非空白且与旧值不同
+     * @param studentNo  新学号，已确保非空白
      * @param oldStudentNo 旧学号，仅用于日志
      */
     public void apply(User user, String studentNo, String oldStudentNo) {
+        // 六层硬校验（2026-10-28）：与提交学号接口同一把尺子。
+        // 设置页此前只查唯一性，格式不对/专业码对不上的学号也能进人工队列。
+        studentNoValidator.validate(studentNo, user);
         // 排除自己:学号未变更时也会走到这里(见 AuthServiceImpl#updateProfile),
         // 不排除会把自己那条记录当成「已被占用」而误报 409。
         requireUnused(studentNo, user.getId());

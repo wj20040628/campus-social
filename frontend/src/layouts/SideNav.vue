@@ -30,6 +30,10 @@
         <el-icon><OfficeBuilding /></el-icon>
         <span>集市</span>
       </el-menu-item>
+      <el-menu-item index="/files">
+        <el-icon><FolderOpened /></el-icon>
+        <span>文件</span>
+      </el-menu-item>
 
       <el-menu-item index="__grp_mine__" disabled class="side__grp">我的</el-menu-item>
       <el-menu-item index="/chat">
@@ -67,33 +71,46 @@
         <template #title>
           <el-icon><Lock /></el-icon>
           <span>管理后台</span>
+          <!-- 子菜单收起时也要能看见有活：总数挂在外层，不必 hover 才发现 -->
+          <AdminPendingBadge :count="pendingTotal" class="side__sub-badge" />
         </template>
         <!--
           学号核验排第一,不是按字母也不是按开发顺序:
           认证是其他一切能力的前置(没过认证的用户不能搭话、不能发公告),
           一堆人卡在「审核中」时它是管理员唯一有盼头的那件事。
         -->
-        <el-menu-item index="/admin/verify">
+        <el-menu-item
+          index="/admin/verify"
+          :class="{ 'is-pending': pending.summary.verifyPending > 0 }"
+        >
           <el-icon><Postcard /></el-icon>
           <span>学号核验</span>
-          <span v-if="pending.summary.verifyPending" class="side__pending ys-num">
-            {{ pending.summary.verifyPending }}
-          </span>
+          <AdminPendingBadge :count="pending.summary.verifyPending" class="side__pending" />
         </el-menu-item>
         <!-- 举报有时效,排最前(2026-10-25 举报拆独立页后与机审分开计数) -->
-        <el-menu-item index="/admin/reports">
+        <el-menu-item
+          index="/admin/reports"
+          :class="{ 'is-pending': pending.summary.reportPending > 0 }"
+        >
           <el-icon><DocumentChecked /></el-icon>
           <span>举报处置</span>
-          <span v-if="pending.summary.reportPending" class="side__pending ys-num">
-            {{ pending.summary.reportPending }}
-          </span>
+          <AdminPendingBadge :count="pending.summary.reportPending" class="side__pending" />
         </el-menu-item>
-        <el-menu-item index="/admin/review">
+        <el-menu-item
+          index="/admin/review"
+          :class="{ 'is-pending': pending.summary.reviewPending > 0 }"
+        >
           <el-icon><DocumentChecked /></el-icon>
           <span>内容审核</span>
-          <span v-if="pending.summary.reviewPending" class="side__pending ys-num">
-            {{ pending.summary.reviewPending }}
-          </span>
+          <AdminPendingBadge :count="pending.summary.reviewPending" class="side__pending" />
+        </el-menu-item>
+        <el-menu-item
+          index="/admin/files"
+          :class="{ 'is-pending': pending.summary.filePending > 0 }"
+        >
+          <el-icon><FolderOpened /></el-icon>
+          <span>文件审核</span>
+          <AdminPendingBadge :count="pending.summary.filePending" class="side__pending" />
         </el-menu-item>
         <!-- 用户处置(2026-10-24 新增):找人 / 直接封禁 / 手动解封 -->
         <el-menu-item index="/admin/users">
@@ -113,12 +130,13 @@
           <span>圈子处置</span>
         </el-menu-item>
         <!-- 反馈排最后:它是「改进建议」不是「必须处理的违规」,不占管理员的日常动线 -->
-        <el-menu-item index="/admin/feedback">
+        <el-menu-item
+          index="/admin/feedback"
+          :class="{ 'is-pending': pending.summary.feedbackPending > 0 }"
+        >
           <el-icon><ChatLineSquare /></el-icon>
           <span>意见反馈</span>
-          <span v-if="pending.summary.feedbackPending" class="side__pending ys-num">
-            {{ pending.summary.feedbackPending }}
-          </span>
+          <AdminPendingBadge :count="pending.summary.feedbackPending" class="side__pending" />
         </el-menu-item>
       </el-sub-menu>
     </el-menu>
@@ -130,10 +148,11 @@ import { computed, onMounted } from 'vue'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
   Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
-  ChatLineSquare, UserFilled,
+  ChatLineSquare, UserFilled, FolderOpened,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useAdminPending } from '@/composables/useAdminPending'
+import AdminPendingBadge from '@/components/admin/AdminPendingBadge.vue'
 
 const props = defineProps({
   routePath: { type: String, required: true },
@@ -151,6 +170,7 @@ const userStore = useUserStore()
 
 /* 管理待办角标:与 AppDrawer 共用模块级缓存,挂载时拉一次(2026-10-24 新增) */
 const pending = useAdminPending()
+const pendingTotal = computed(() => pending.total())
 onMounted(() => pending.refresh())
 
 const activeMenu = computed(() => {
@@ -158,6 +178,7 @@ const activeMenu = computed(() => {
   if (p.startsWith('/admin/verify')) return '/admin/verify'
   if (p.startsWith('/admin/announcement')) return '/admin/announcement'
   if (p.startsWith('/admin/review')) return '/admin/review'
+  if (p.startsWith('/admin/files')) return '/admin/files'
   if (p.startsWith('/admin/reports')) return '/admin/reports'
   if (p.startsWith('/admin/users')) return '/admin/users'
   if (p.startsWith('/admin/audit')) return '/admin/audit'
@@ -170,6 +191,7 @@ const activeMenu = computed(() => {
   if (p.startsWith('/circles')) return '/circles'
   if (p.startsWith('/activity')) return '/circles'
   if (p.startsWith('/mkt')) return '/mkt'
+  if (p.startsWith('/files')) return '/files'
   /*
    * /publish 不再有侧栏菜单项（发动态已移进顶栏按钮，2026-10-21）。
    * 但它在语义上属于首页动线，落到「首页」高亮比整列全灭更合理。
@@ -262,12 +284,18 @@ const activeMenu = computed(() => {
   position: relative;
 }
 
-/* 管理待办数(2026-10-24 新增):右对齐的小数字,与通知/消息红点同一信息位 */
+/* 管理待办角标：红色数字贴右，整项文字同时变红，扫一眼就知道该点哪一项 */
 .side__pending {
   margin-left: auto;
-  padding-right: var(--ys-space-3);
-  font-size: var(--ys-text-xs);
-  color: var(--ys-accent-2);
-  font-weight: var(--ys-weight-semibold);
+  margin-right: var(--ys-space-2);
+}
+
+.side__sub-badge {
+  margin-left: var(--ys-space-2);
+}
+
+.side__menu :deep(.el-menu-item.is-pending),
+.side__menu :deep(.el-menu-item.is-pending .el-icon) {
+  color: var(--ys-danger);
 }
 </style>

@@ -24,4 +24,7 @@ public class PendingSummaryVO {
 
     /** 待处理意见反馈数（feedback status=0） */
     private Integer feedbackPending;
+
+    /** 待审核文件数（file_asset status=0，2026-10-27） */
+    private Integer filePending;
 }

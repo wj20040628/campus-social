@@ -15,6 +15,17 @@ import java.util.List;
 public interface UserMapper extends BaseMapper<User> {
 
     /**
+     * 昵称是否已被占用（注册自动取名查重用）。
+     *
+     * <p>昵称没有唯一索引——它允许用户重名，只在「系统自动生成」时要避开
+     * 已有名字，否则同一时段注册的人会看到一串一模一样的「用户1234」。
+     * 已注销账号也算占用，避免同期用户与墓碑记录撞名。
+     */
+    @Select("SELECT COUNT(*) FROM user WHERE nickname = #{nickname}")
+    int countByNickname(@Param("nickname") String nickname);
+
+
+    /**
      * 批量取用户，键为 user id。
      *
      * <p>用于评论列表这类「一页N 条、每条都要作者信息」的场景：
@@ -137,12 +148,11 @@ public interface UserMapper extends BaseMapper<User> {
     int updateVerifyStatus(@Param("userId") Long userId, @Param("status") int status);
 
     /**
-     * 驳回后改资料触发重新核验：3 → 2，且**必须换一个新学号**。
+     * 驳回后改资料触发重新核验：3 → 2。
      *
-     * <p><b>为什么学号是入参而不是沿用旧值</b>：原学号正是被驳回的原因
-     * （已被人占用 / 与学籍不符），沿用它重排队列等于让管理员再看一遍
-     * 同一个必然再被驳回的申请，纯粹浪费人工。强制换号把这个判断
-     * 交给用户——他最清楚自己哪个学号是对的。
+     * <p><b>学号是入参</b>：驳回时 {@code rejectVerify} 已把 student_no 置空，
+     * 用户重新提交时必须重新填一次。同号、不同号都可以——判断「这个号对不对」
+     * 是用户和审核管理员的事，不是代码能提前替他们决定的。
      *
      * <p><b>WHERE 带 verify_status = 3</b>：这是本轮最要紧的边界。
      * 没有它，已认证（1）的用户改个昵称资料就会被拉回待审队列，
@@ -173,8 +183,9 @@ public interface UserMapper extends BaseMapper<User> {
      * 两者的组合之所以成立，是因为 id DESC 与 update_time DESC 在
      * 「后提交的 id 更大」这个前提下同向。
      *
-     * <p>只取审核需要的 6 列：OD-19 要求后台在 375px 手机上可用，
-     * 而管理员判断真伪只需要学号、院系年级、昵称，其余列不下发。
+     * <p>只取审核真正需要的列：OD-19 要求后台在 375px 手机上可用，
+     * 头像、简介、粉丝数一律不下发。2026-10-28 追加了专业名/层次/专业码
+     * 与年级入学年份——管理员要能拿学号和用户自填的归属直接对照。
      *
      * <p><b>列名必须起别名对齐 VO 属性名</b>：{@code map-underscore-to-camel-case}
      * 只能把 {@code student_no} 映射成 {@code studentNo}，
@@ -184,11 +195,18 @@ public interface UserMapper extends BaseMapper<User> {
      * 而 nextCursor 恰好取自 userId，于是分页永远拉不满第二页且看不出报错。
      */
     @Select("<script>"
-            + "SELECT id AS user_id, nickname, student_no, dept, grade, "
-            + "update_time AS submitted_at FROM user "
-            + "WHERE verify_status = 2 AND is_deleted = 0 AND status = 0 "
-            + "<if test='cursor != null'> AND id &lt; #{cursor} </if>"
-            + "ORDER BY update_time DESC, id DESC LIMIT #{limit}"
+            + "SELECT u.id AS user_id, u.nickname, u.student_no, u.dept, u.grade, "
+            + "m.name AS major, m.level AS major_level, m.code AS major_code, "
+            + "g.enroll_year AS grade_enroll_year, "
+            // 学院一致性在 SQL 里算：user.dept_id 与专业所属学院比，不给前端下发内部 id
+            + "CASE WHEN u.dept_id IS NULL OR m.dept_id IS NULL THEN NULL "
+            + "     WHEN u.dept_id = m.dept_id THEN 1 ELSE 0 END AS dept_match, "
+            + "u.update_time AS submitted_at FROM user u "
+            + "LEFT JOIN school_major m ON m.id = u.major_id AND m.is_deleted = 0 "
+            + "LEFT JOIN school_grade g ON g.id = u.grade_id AND g.is_deleted = 0 "
+            + "WHERE u.verify_status = 2 AND u.is_deleted = 0 AND u.status = 0 "
+            + "<if test='cursor != null'> AND u.id &lt; #{cursor} </if>"
+            + "ORDER BY u.update_time DESC, u.id DESC LIMIT #{limit}"
             + "</script>")
     List<com.campus.social.vo.AdminVerifyPendingItemVO> selectPendingVerify(
             @Param("cursor") Long cursor, @Param("limit") int limit);
@@ -208,8 +226,15 @@ public interface UserMapper extends BaseMapper<User> {
             + "WHERE id = #{userId} AND verify_status = 2")
     int approveVerify(@Param("userId") long userId);
 
-    /** 驳回学号核验：2 → 3，同样只认「审核中」这一种输入状态 */
-    @Update("UPDATE user SET verify_status = 3, update_time = NOW() "
+    /**
+     * 驳回学号核验：2 → 3，同时把 student_no 置空（2026-10-28）。
+     *
+     * <p>不释放学号的后果：一个账号提交了别人的学号并被驳回，这个号仍被
+     * uk_student_no 锁着，真正的本人反而无法提交（409）。驳回意味着
+     * 「这条学号没有通过核验」，它不该继续占用唯一键。原始提交值仍在
+     * audit_log 里（verify_student_no_submit），需要追溯时查得到。
+     */
+    @Update("UPDATE user SET verify_status = 3, student_no = NULL, update_time = NOW() "
             + "WHERE id = #{userId} AND verify_status = 2")
     int rejectVerify(@Param("userId") long userId);
 
@@ -391,4 +416,15 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE user SET cover_url = #{coverUrl}, update_time = NOW() "
             + "WHERE id = #{id} AND is_deleted = 0")
     int updateCoverUrl(@Param("id") Long id, @Param("coverUrl") String coverUrl);
+
+    /**
+     * 行锁用户（2026-10-27，文件容量配额并发用）。
+     *
+     * <p>文件上传要先 SUM 已用容量再插入，两个并发请求若都先查后写，
+     * 各自看到「还差 1MB」就会一起通过。锁住同一行 user 把这段
+     * 读-算-写串行化；校园量级下持锁时间是一次 3MB 写盘，可接受。
+     * 必须在事务内调用。
+     */
+    @Select("SELECT id FROM user WHERE id = #{userId} FOR UPDATE")
+    Long lockById(@Param("userId") Long userId);
 }

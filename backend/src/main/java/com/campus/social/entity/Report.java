@@ -41,6 +41,9 @@ public class Report implements Serializable {
     /** 补充说明 */
     private String reasonText;
 
+    /** 举报提交时的目标快照(JSON: 标题/正文/作者/媒体/时间);历史举报为 null */
+    private String targetSnapshot;
+
     /** 0待审 1成立 2驳回 */
     private Integer status;
 

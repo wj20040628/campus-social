@@ -51,6 +51,25 @@ public class ReportServiceImpl implements ReportService {
     private static final String ACTION_BAN = "ban";
     private static final String ACTION_REJECT = "reject";
     private static final String ACTION_IGNORE = "ignore";
+    /**
+     * 仅下架内容、不封人（2026-10-28）。
+     *
+     * <p>此前成立只有「封禁」一条路，轻微违规（一条广告评论、一次擦边图）
+     * 只能判驳回（等于放过）或封号（过重）——两个都不对，
+     * 管理员于是倾向于不处理。下架把「内容违规但人不至于封」这档补上。
+     */
+    private static final String ACTION_TAKEDOWN = "takedown";
+
+    /** notify.type：举报结果回执（发给举报人） */
+    private static final int NOTIFY_REPORT_RESULT = 18;
+    /** notify.type：账号被封禁（发给被处置人） */
+    private static final int NOTIFY_ACCOUNT_BANNED = 19;
+    /** notify.type：内容被下架（发给被处置人） */
+    private static final int NOTIFY_CONTENT_TAKEDOWN = 20;
+    /** notify.type：文件下架（复用 15，前端已有「去我的文件看理由」的跳转） */
+    private static final int NOTIFY_FILE_TAKEDOWN = 15;
+    /** notify.type：圈子被解散（发给圈主，2026-10-29 加；点击跳圈子详情） */
+    private static final int NOTIFY_CIRCLE_TAKEDOWN = 23;
 
     /** report.status */
     private static final int STATUS_PENDING = 0;
@@ -60,17 +79,22 @@ public class ReportServiceImpl implements ReportService {
     /** 审计动作名 */
     private static final String AUDIT_BAN = "report_ban";
     private static final String AUDIT_REJECT = "report_reject";
+    private static final String AUDIT_TAKEDOWN = "report_takedown";
 
     private final ReportMapper reportMapper;
     private final UserMapper userMapper;
     private final BanService banService;
     private final AuditService auditService;
+    /** 处置结果通知（2026-10-28）：举报人、被下架/被封禁的作者 */
+    private final PostNotifySupport notifySupport;
     /** 举报阈值折叠(2026-10-24):同一帖子独立举报人达到阈值即折叠进人审 */
     private final ReportFoldService foldService;
     /** 举报集中自动封禁(2026-10-25):24h 内多名认证举报人 → 限期封禁止血 */
     private final ReportAutoBanService autoBanService;
     /** 举报目标 → 作者的归因(2026-10-25 抽出,与自动封禁共用一份 switch) */
     private final ReportTargetResolver targetResolver;
+    /** 举报时目标快照(2026-10-29):作者删帖后管理员仍能看到原文/作者/媒体 */
+    private final ReportSnapshotService snapshotService;
     /*
      * 下架不再需要各表的 Mapper：
      * 统一走 reportMapper 的 takedownXxx（显式 UPDATE），
@@ -89,8 +113,13 @@ public class ReportServiceImpl implements ReportService {
         }
 
         try {
+            /*
+             * 快照在插入举报前抓取：作者随后删帖/删评论，管理员仍能看到举报时的原文。
+             * 抓取失败不影响举报主流程（captureQuietly 返回 null）。
+             */
+            String snapshot = snapshotService.captureQuietly(dto.getTargetType(), dto.getTargetId());
             reportMapper.insertReport(reporterId, dto.getTargetType(), dto.getTargetId(),
-                    dto.getReasonType(), dto.getReasonText());
+                    dto.getReasonType(), dto.getReasonText(), snapshot);
         } catch (DuplicateKeyException e) {
             // 并发窗口内另一个请求刚插进同一条唯一键。回查拿 id，不能当成失败报错——
             // 对用户来说「重复举报」不是错误。
@@ -163,9 +192,11 @@ public class ReportServiceImpl implements ReportService {
         LocalDateTime now = LocalDateTime.now();
         return switch (action) {
             case ACTION_BAN -> handleBan(adminId, report, dto, now);
-            case ACTION_REJECT -> handleReject(adminId, reportId, dto, now);
+            case ACTION_TAKEDOWN -> handleTakedown(adminId, report, dto, now);
+            case ACTION_REJECT -> handleReject(adminId, report, dto, now);
             case ACTION_IGNORE -> handleIgnore(adminId, reportId, dto);
-            default -> throw new BusinessException(UNPROCESSABLE, "处置动作不合法，只能是 ban / reject / ignore");
+            default -> throw new BusinessException(UNPROCESSABLE,
+                    "处置动作不合法，只能是 ban / takedown / reject / ignore");
         };
     }
 
@@ -175,7 +206,7 @@ public class ReportServiceImpl implements ReportService {
         if (banDays == null || banDays < 0) {
             throw new BusinessException(UNPROCESSABLE, "封禁必须指定天数，0 表示永久");
         }
-        // 被封禁的是内容的作者，不是内容本身（targetType 五种取值分别解析）
+        // 被封禁的是内容的作者，不是内容本身（按 targetType 解析，圈子=圈主）
         long targetUserId = resolveTargetUserId(report);
         /*
          * 管理员护栏(2026-10-25 审计补):手动封禁(AdminUserServiceImpl.ban)对
@@ -208,6 +239,16 @@ public class ReportServiceImpl implements ReportService {
          */
         auditService.record(adminId, "report_upheld", "user", targetUserId,
                 "举报#" + report.getId() + "成立,信誉-20", "");
+        /*
+         * 通知(2026-10-28 补):此前成立只写审计,举报人永远不知道结果,
+         * 被处置人只看到账号突然不能发帖——两端都是黑箱。
+         */
+        notifyPunished(report, targetUserId, banDays, bannedUntil, takedown, dto.getHandleNote());
+        notifyReporter(report, report.getTargetType() == ReportTargetType.USER
+                ? "举报已核实成立，该用户已被封禁。"
+                : report.getTargetType() == ReportTargetType.CIRCLE
+                        ? "举报已核实成立，圈主已被封禁，圈子已解散。"
+                        : "举报已核实成立，发布者已被封禁，相关内容已下架。");
         log.info("report ban: report={}, targetUser={}, days={}, takedown={}, admin={}",
                 report.getId(), targetUserId, banDays, takedown, adminId);
         return ReportHandleVO.builder()
@@ -257,6 +298,11 @@ public class ReportServiceImpl implements ReportService {
                         ? "消息#" + report.getTargetId()
                         : "消息(已下架或已删)";
             }
+            case ReportTargetType.GROUP_MESSAGE -> { // 软删隐藏(群消息列表按 is_deleted 过滤)
+                yield reportMapper.takedownGroupMessage(report.getTargetId()) > 0
+                        ? "群消息#" + report.getTargetId()
+                        : "群消息(已下架或已删)";
+            }
             /*
              * 集市活动（targetType=6，2026-10-21 新增）。
              *
@@ -274,20 +320,168 @@ public class ReportServiceImpl implements ReportService {
                         ? "集市活动#" + report.getTargetId()
                         : "集市活动(已下架或已删)";
             }
+            /*
+             * 文件（targetType=7，2026-10-27）。
+             * 只置 status=3 下架，不物理删：文件对象与审核记录要留作申诉证据；
+             * 删除对象由 FilePurgeJob 在 7 天后处理。
+             */
+            case ReportTargetType.FILE -> {
+                yield reportMapper.takedownFile(report.getTargetId()) > 0
+                        ? "文件#" + report.getTargetId()
+                        : "文件(已下架或已删)";
+            }
+            /*
+             * 圈子（targetType=9，2026-10-29）。
+             * 「仅下架」对圈子就是解散：status=1 后列表/详情/搜索全过滤，
+             * 圈内帖子级联 status=2，与圈主解散同一口径。不封圈主——
+             * 圈子违规不等于圈主个人该被封，管理员要封人可另选「成立并封禁」。
+             */
+            case ReportTargetType.CIRCLE -> {
+                if (reportMapper.takedownCircle(report.getTargetId()) > 0) {
+                    reportMapper.takedownCirclePosts(report.getTargetId());
+                    yield "圈子#" + report.getTargetId();
+                }
+                yield "圈子(已解散或已删)";
+            }
             default -> null; // 1用户 / 5搭子(未上线):无内容可下架
         };
     }
 
+    /**
+     * 仅下架内容、不封禁作者（2026-10-28）。
+     *
+     * <p>适用面：内容违规（广告、擦边、引流）但人还值得留。此前这档只能
+     * 二选一——驳回等于放过，封禁等于杀人，管理员于是拖着不处置。
+     *
+     * <p>没有内容可下架的目标（用户本人 / 未上线的搭子）直接 422 而不是
+     * 静默成功：管理员点「仅下架」却发现什么都没发生时，会以为系统坏了。
+     */
+    private ReportHandleVO handleTakedown(long adminId, Report report, ReportHandleDTO dto, LocalDateTime now) {
+        int targetType = report.getTargetType() == null ? 0 : report.getTargetType();
+        if (targetType == ReportTargetType.USER || targetType == ReportTargetType.BUDDY_POST) {
+            throw new BusinessException(UNPROCESSABLE, "这条举报没有可下架的内容，请改选封禁或驳回");
+        }
+        // 作者先解析：内容一旦被下架，resolveUserId 的查询带 is_deleted=0 会查空
+        long authorId = resolveTargetUserId(report);
+        if (reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, dto.getHandleNote()) == 0) {
+            throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
+        }
+        String takedown = takedownContent(report);
+        auditService.record(adminId, AUDIT_TAKEDOWN, "report", report.getId(),
+                "举报成立，下架内容(" + takedown + ")，未封禁"
+                        + (dto.getHandleNote() == null ? "" : "，备注 " + dto.getHandleNote()), "");
+        // 成立即计信誉分，与封禁口径一致（只下架不代表没违规）
+        auditService.record(adminId, "report_upheld", "user", authorId,
+                "举报#" + report.getId() + "成立,信誉-20", "");
+        notifyPunished(report, authorId, null, null, takedown, dto.getHandleNote());
+        notifyReporter(report, report.getTargetType() == ReportTargetType.CIRCLE
+                ? "举报已核实成立，该圈子已被解散。"
+                : "举报已核实成立，相关内容已下架。");
+        log.info("report takedown: report={}, target={}#{}, admin={}",
+                report.getId(), targetType, report.getTargetId(), adminId);
+        return ReportHandleVO.builder()
+                .reportId(report.getId())
+                .status(STATUS_CONFIRMED)
+                .action(ACTION_TAKEDOWN)
+                .build();
+    }
+
+    /**
+     * 通知被处置人（2026-10-28）：封禁与内容下架。
+     *
+     * <p>两件事分成两条通知而不是合并：账号被封与某条内容被删是两个后果，
+     * 合并成一段话会让「我只被删了一条评论，为什么账号也停了」更难分辨。
+     * 被处置人当时可能登不进来（封禁拦截登录），通知落库等他解封后可见，
+     * 登录页同时会显示解封时间与申诉入口。
+     *
+     * <p>actor 留空、不暴露处置管理员；理由取 handleNote（管理员备注，
+     * 契约已声明会同步给被处置人）。
+     */
+    private void notifyPunished(Report report, long authorId, Integer banDays,
+            LocalDateTime bannedUntil, String takedownDesc, String handleNote) {
+        String reason = handleNote == null || handleNote.isBlank() ? "" : "处置说明：" + handleNote.trim() + "。";
+        if (banDays != null) {
+            String span = banDays <= 0 ? "永久封禁"
+                    : "封禁 " + banDays + " 天" + (bannedUntil == null ? ""
+                            : "（" + bannedUntil.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) + " 自动解封）");
+            notifySupport.pushSystemNotify(authorId, NOTIFY_ACCOUNT_BANNED, 0L, null,
+                    "因违反社区规范，你的账号已被" + span + "。" + reason
+                            + "如有异议，可在登录页提交封禁申诉。");
+        }
+        if (takedownDesc != null) {
+            int tt = report.getTargetType() == null ? 0 : report.getTargetType();
+            if (tt == ReportTargetType.CIRCLE) {
+                // 圈子没有「内容下架」这个说法，用独立 type 23：前端点击跳圈子详情，
+                // 文案也直接说「被解散」。复用 20 会被误解成某条帖子被删。
+                String circleName = reportMapper.selectCircleSummary(report.getTargetId());
+                String subject = circleName == null || circleName.isBlank()
+                        ? "你创建的圈子"
+                        : "你创建的圈子「" + circleName + "」";
+                notifySupport.pushSystemNotify(authorId, NOTIFY_CIRCLE_TAKEDOWN,
+                        report.getTargetId(), null,
+                        subject + "因被举报核实违规，已被解散。" + reason
+                                + "如有异议，可在「意见反馈」申请复核。");
+            } else {
+                // 文件走 15（前端已有「去我的文件看理由」入口），其余内容走 20
+                notifySupport.pushSystemNotify(authorId,
+                        tt == ReportTargetType.FILE ? NOTIFY_FILE_TAKEDOWN : NOTIFY_CONTENT_TAKEDOWN,
+                        report.getTargetId(),
+                        tt == ReportTargetType.POST ? report.getTargetId() : null,
+                        "你发布的" + targetLabel(report.getTargetType()) + "因被举报核实违规，已下架。" + reason
+                                + "如有异议，可在「意见反馈」申请复核。");
+            }
+        }
+    }
+
+    /**
+     * 通知举报人处置结果（2026-10-28）。
+     *
+     * <p>举报人此前拿不到任何结果：举报完就石沉大海，下次干脆不报了。
+     * 忽略（ignore）不发——「已阅未处置」没有结论可回执，硬发一条
+     * 「已忽略」只会让举报人觉得被敷衍。
+     */
+    private void notifyReporter(Report report, String verdict) {
+        Long authorId = targetResolver.resolveUserId(report);
+        if (authorId != null && report.getReporterId() != null
+                && authorId.longValue() == report.getReporterId().longValue()) {
+            return; // 自举报：同一个人不收两条自相矛盾的通知
+        }
+        notifySupport.pushSystemNotify(report.getReporterId(), NOTIFY_REPORT_RESULT,
+                report.getId(), null, verdict);
+    }
+
+    /** 用户可读的内容类型名（通知正文用；审计里用的是「帖子#123」那种定位串） */
+    private String targetLabel(Integer targetType) {
+        if (targetType == null) {
+            return "内容";
+        }
+        return switch (targetType) {
+            case ReportTargetType.POST -> "帖子";
+            case ReportTargetType.COMMENT -> "评论";
+            case ReportTargetType.CHAT_MESSAGE -> "私信消息";
+            case ReportTargetType.GROUP_MESSAGE -> "群消息";
+            case ReportTargetType.MKT_ACTIVITY -> "集市活动";
+            case ReportTargetType.FILE -> "文件";
+            case ReportTargetType.CIRCLE -> "圈子";
+            default -> "内容";
+        };
+    }
+
     /** 驳回：举报不成立 */
-    private ReportHandleVO handleReject(long adminId, long reportId, ReportHandleDTO dto, LocalDateTime now) {
-        int affected = reportMapper.handle(reportId, STATUS_REJECTED, adminId, now, dto.getHandleNote());
+    private ReportHandleVO handleReject(long adminId, Report report, ReportHandleDTO dto, LocalDateTime now) {
+        int affected = reportMapper.handle(report.getId(), STATUS_REJECTED, adminId, now, dto.getHandleNote());
         if (affected == 0) {
             throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
         }
-        auditService.record(adminId, AUDIT_REJECT, "report", reportId, dto.getHandleNote(), "");
-        log.info("report rejected: report={}, admin={}", reportId, adminId);
+        auditService.record(adminId, AUDIT_REJECT, "report", report.getId(), dto.getHandleNote(), "");
+        /*
+         * 驳回也回执（2026-10-28）：举报人最怕的不是「不成立」，
+         * 是不知道为什么、也没有人告诉他。不告知被举报人——举报不成立对他没有处置。
+         */
+        notifyReporter(report, "经核实，你举报的内容暂未发现明确违规。感谢你一起维护校园环境。");
+        log.info("report rejected: report={}, admin={}", report.getId(), adminId);
         return ReportHandleVO.builder()
-                .reportId(reportId)
+                .reportId(report.getId())
                 .status(STATUS_REJECTED)
                 .action(ACTION_REJECT)
                 .build();
@@ -323,10 +517,11 @@ public class ReportServiceImpl implements ReportService {
     /**
      * 解析被封禁的用户 id。
      *
-     * <p>{@code targetType} 五种取值的处置对象各不相同：
+     * <p>{@code targetType} 各取值的处置对象各不相同：
      * 1用户→ targetId 本身；2帖子→ post.author_id；3评论→ comment.user_id；
-     * 4聊天消息→ chat_message.sender_id；
-     * 5搭子→ buddy_post（MVP+ 第二批，表已建但无端点，故不支持封禁）。
+     * 4私聊消息→ chat_message.sender_id；5搭子→ buddy_post（未上线）；
+     * 6集市活动→ mkt_activity.user_id；7文件→ file_asset.user_id；
+     * 8群消息→ group_message.sender_id；9圈子→ circle.owner_id。
      *
      * <p>任一环查不到都回 404 而不是默默封举报人：封错对象的代价
      * （误封无辜用户）远大于让管理员多点一次重新定位。

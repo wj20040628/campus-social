@@ -9,13 +9,6 @@
   -->
   <div class="chat">
     <!--
-      搭话规则说明(2026-10-25 改版):原先是这里的一条常驻横幅(带「知道了」),
-      被用户评「难看」——横幅为一句静态规则占用整行视觉权重不划算。
-      现收进气泡:ⓘ 挂在会话列表搜索框右缘(ChatConvList.vue .cl__rulebtn),
-      悬停/聚焦即看,零打扰。额度数字与 campus.daily-new-peer-limit /
-      per-peer-daily-limit 对应,改配置时同步那边。
-    -->
-    <!--
       ============ 会话列表 ============
       手机:仅 /chat 列表路由渲染(单栏路由切换);
       桌面:**双栏的左栏,必须渲染** —— 早前 v-if 只写了 isListRoute(手机条件),
@@ -28,7 +21,6 @@
       :convs="convs"
       :groups="groups"
       :stranger-list="strangerList"
-      :quota="quotaLeft"
       :loading="listLoading"
       :active-id="currentConvId"
       :active-kind="currentKind"
@@ -58,6 +50,9 @@
           :history-loading="historyLoading"
           :history-error="historyError"
           :block="block"
+          :per-peer-limit="perPeerLimit"
+          :per-peer-remaining="peerRemaining"
+          :hide-stranger-rule="peerIsStranger !== true"
           :sending="sending"
           :can-recall="canRecall"
           :group-info="groupInfo"
@@ -164,8 +159,8 @@ onMounted(() => {
  * 写 `core.convs.value` 在模板里能跑但极易漏掉 .value(漏了就永远渲染空)。
  */
 const {
-  convs, groups, strangerList, quotaLeft,
-  messages, replyToMsg, currentKind, currentConvId,
+  convs, groups, strangerList, perPeerLimit, peerIsStranger, peerRemaining, loadPeerQuota,
+  messages, replyToMsg, currentKind, currentConvId, currentConv,
   groupInfo, mutedMe, currentGroup,
   historyLoading, historyError, headTitle, hasActive, canRecall,
   openConv: coreOpenConv, openGroup: coreOpenGroup, doRecall,
@@ -177,6 +172,19 @@ const {
 /* 输入 / 发送 / 重试:2026-10-15 拆去 composables/useChatComposer.js
    (draft/sending/threadRef/onSend/retrySend 都从那里来) */
 const { draft, sending, threadRef, onSend, retrySend } = useChatComposer(core)
+
+/*
+ * 会话内规则：当前这个人还是不是陌生人、今天还剩几条。
+ * 由后端 /chat/stranger-quota?peerId= 一次判定（对方关注我 / 回复过我
+ * 都算已解锁），前端不再自己拼关系状态 —— 关系判断多一处就多一处漂移。
+ */
+watch(
+  currentConv,
+  (conv) => {
+    loadPeerQuota(conv?.peer?.id)
+  },
+  { immediate: true },
+)
 
 /**
  * 列表骨架 = 首屏加载(core 内部三并发,结束后自己关) || 路由跳转加载。
@@ -191,14 +199,22 @@ const isListRoute = computed(() => isMobile.value && route.name === 'chat')
 const isThreadRoute = computed(() => route.name === 'chatThread')
 
 /**
- * 阻断原因(AC-04)。
- * **只在 quota 明确为 0 时阻断** —— 拉取失败时 quotaLeft 是 null,
- * 此时不阻断。误阻断(明明能发却发不出去)比漏阻断(发出去才被拒)伤害大得多。
- * 对方关闭陌生人消息(AC-05)需要后端在会话详情里下发该字段,
- * 当前 openapi 的 ConversationVO 无此字段,故本轮不做前端判定(见交付 advisory)。
- * 群禁言:群聊 + 我被群主禁言(mutedMe)→ 阻断输入,后端 GROUP_MUTED(1046) 兜底。
+ * 阻断原因。
+ *
+ * 陌生人条数额度(AC-04)不在这里预拦(2026-10-28 口径):
+ * 规则是**按人**的 —— 对同一个陌生人每天 N 条,对方关注我 / 回复过我之后
+ * 解除,且「我关注对方」不解锁。前端拿不到「对方关注没关注我」
+ * 「我今天已经给这个人发了几条」这两件事,一律按剩余额度阻断会误伤
+ * 已解锁的会话。改由后端判定,超限时用具体文案拒绝,发送失败的气泡 + toast
+ * 就是提示(见 StrangerQuotaServiceImpl / StrangerPolicy)。这里只保留
+ * **前端确定**的阻断:
+ *   - 群禁言(群聊 + mutedMe) → 后端 GROUP_MUTED(1046) 兜底
+ *   - 未认证 → 前端确定,给「去认证」出口
  */
-const { code: verifyCode } = useVerifyStatus()
+const { code: verifyCode, profileComplete } = useVerifyStatus()
+
+/** 已经填过学校归属的人，「去认证」直接去编辑资料页的学号框，不再走整套引导 */
+const verifyEntry = computed(() => (profileComplete.value ? '/profile' : '/onboarding'))
 
 const block = computed(() => {
   // 群禁言优先显示(更具体):群聊且我被禁言
@@ -206,17 +222,18 @@ const block = computed(() => {
     return { text: '你已被群主禁言,无法发言', tone: 'danger' }
   }
   /*
-   * 未认证阻断(2026-10-24 补):私聊发消息后端必拒(ChatGuard AC-11,403/1029),
-   * 但此前前端不拦也不提示——实测未认证用户能打字、点发送后**静默无反应**
-   * (无 toast、无跳转),像"点了没反应"。认证状态是确定值(非 null 语义),
-   * 符合本函数"确定才阻断"的原则。to 字段给横幅一个"去认证"出口。
+   * 未认证阻断(2026-10-28 扩到群聊):私聊与群聊发消息后端都要求认证
+   * (ChatGuard AC-11 / GroupController @RequireVerified)。此前群聊被排除在
+   * 拦截之外，未认证用户可以在群里正常发言，等于从侧门绕开了私聊限制。
    */
-  if (currentKind.value !== 'group' && verifyCode.value !== VERIFY_OK) {
-    return { text: '完成校内认证后才能发私信', tone: 'danger', to: '/onboarding' }
-  }
-  const q = quotaLeft.value
-  if (q !== null && q <= 0) {
-    return { text: '今天打招呼的次数用完了,明天再来', tone: 'danger' }
+  if (verifyCode.value !== VERIFY_OK) {
+    return {
+      text: currentKind.value === 'group'
+        ? '完成校内认证后才能发群消息'
+        : '完成校内认证后才能发私信',
+      tone: 'danger',
+      to: verifyEntry.value,
+    }
   }
   return null
 })

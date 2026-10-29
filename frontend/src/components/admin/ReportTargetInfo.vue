@@ -9,7 +9,7 @@
   -->
   <div class="rti">
     <p v-if="report.targetAuthorId" class="rti__author">
-      {{ report.targetType === 1 ? '被举报人' : '被举报内容的作者' }}:
+      {{ report.targetType === 1 ? '被举报人' : report.targetType === 9 ? '圈主' : '被举报内容的作者' }}:
       <button
         type="button"
         class="rti__link"
@@ -20,7 +20,7 @@
     </p>
 
     <h3 class="rti__label">
-      {{ report.targetType === 1 ? '被举报人' : '被举报内容' }}
+      {{ report.targetType === 1 ? '被举报人' : report.targetType === 9 ? '被举报圈子' : '被举报内容' }}
       <span class="rti__type" :data-type="report.targetType">
         {{ targetTypeLabel(report.targetType) }}
       </span>
@@ -38,6 +38,19 @@
     <p v-else class="rti__content" :class="{ 'is-open': expanded }">
       {{ report.targetSummary }}
     </p>
+
+    <!--
+      举报时快照（2026-10-29）：举报提交那一刻抓的目标内容。
+      作者事后删帖/删评论也不影响；原内容还在时也可以展开对照，
+      防止「举报后改文案」导致管理员看到的和举报人看到的不是同一段。
+    -->
+    <details v-if="report.targetSnapshotText" class="rti__snap">
+      <summary class="rti__snap-summary">
+        举报时快照
+        <span class="rti__snap-hint">{{ snapshotHint }}</span>
+      </summary>
+      <pre class="rti__snap-text">{{ report.targetSnapshotText }}</pre>
+    </details>
 
     <!-- 补充说明:举报人填的 reasonText,超 60 字后端已截断并置 truncated -->
     <div v-if="report.reasonText" class="rti__note">
@@ -72,6 +85,16 @@ const route = computed(() => {
     ? `${prefix}${props.report.targetId}`
     : null
 })
+
+/** 原内容是否已经被删除（targetSummary 会退成快照或「已删除」） */
+const liveGone = computed(() => {
+  const s = props.report.targetSummary || ''
+  return s === '内容已删除或不存在' || s.startsWith('举报时快照：')
+})
+
+const snapshotHint = computed(() =>
+  liveGone.value ? '（原文已删除，以下为举报时留存）' : '（可与当前内容对照）',
+)
 </script>
 
 <style scoped>
@@ -156,5 +179,38 @@ const route = computed(() => {
   font-size: var(--ys-text-sm);
   line-height: 1.7;
   color: var(--ys-muted);
+}
+
+/* 举报时快照：默认收起，原文被删时才需要展开；别让它把手机端首屏撑长 */
+.rti__snap {
+  margin-top: var(--ys-space-2);
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+}
+
+.rti__snap-summary {
+  cursor: pointer;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-fg-2);
+  user-select: none;
+}
+
+.rti__snap-hint {
+  color: var(--ys-muted);
+  font-size: var(--ys-text-xs);
+}
+
+.rti__snap-text {
+  margin: var(--ys-space-2) 0 0;
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  line-height: 1.7;
+  color: var(--ys-fg-2);
 }
 </style>

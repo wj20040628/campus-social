@@ -3,6 +3,7 @@ import { ElMessage } from '@/utils/feedback'
 import { list as listApi, join as joinApi, createCircle as createApi, search as searchApi } from '@/api/circle'
 import { useUserStore } from '@/stores/user'
 import { isIdentityVerified } from '@/utils/mask'
+import { openAuthGate } from '@/composables/useAuthGate'
 
 /**
  * 圈子列表的数据与副作用(Circles.vue.md)
@@ -202,7 +203,7 @@ export function useCircles() {
      * 两处若用不同判据，会出现「能建圈但不能加入」这种自相矛盾。
      */
     if (!isIdentityVerified(userStore.userInfo)) {
-      ElMessage.warning('完成校内认证后才能加入圈子')
+      openAuthGate()
       return
     }
     try {

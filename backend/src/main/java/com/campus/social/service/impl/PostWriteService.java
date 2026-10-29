@@ -80,6 +80,15 @@ public class PostWriteService {
                 && (dto.getMedia() == null || dto.getMedia().isBlank())) {
             throw new BusinessException(BAD_REQUEST, "内容不能为空(需文案或媒体)");
         }
+        /*
+         * 2026-10-27 匿名发布下线:历史匿名帖保留只读,但不再接收新的匿名帖。
+         * 不能静默把 anonymous=true 改成公开 —— 老客户端(缓存的前端)
+         * 仍可能带这个字段,静默忽略会把用户以为匿名发的内容实名发出去。
+         * 明确拒绝,让旧客户端用户看到「匿名发布已下线」而不是泄露身份。
+         */
+        if (Boolean.TRUE.equals(dto.getAnonymous())) {
+            throw new BusinessException(BAD_REQUEST, "匿名发布已下线");
+        }
 
         String content = dto.getContent() == null ? "" : dto.getContent();
         if (sensitive.containsBlock(content)) {
@@ -112,8 +121,8 @@ public class PostWriteService {
         post.setViewCount(0);
         post.setCircleId(dto.getCircleId());
         post.setHotScore(0.0);
-        // 树洞匿名:仅创建时生效,edit 走列级 UPDATE 不碰此列,天然不可翻转
-        post.setIsAnonymous(Boolean.TRUE.equals(dto.getAnonymous()) ? 1 : 0);
+        // 新帖一律非匿名:匿名发布已下线,历史匿名帖只保留只读展示
+        post.setIsAnonymous(0);
         postMapper.insert(post);
 
         topicBinder.bind(post.getId(), dto.getTopics());
@@ -150,7 +159,7 @@ public class PostWriteService {
         }
         if (n != null && n > limit) {
             throw new BusinessException(POST_DAILY_LIMIT_REACHED,
-                    "今天的发帖额度(" + limit + " 条)用完了,完成认证或提升信誉分可增加额度");
+                    "今天的发帖额度(" + limit + " 条)用完了,信誉分提到 80/100 可升到 10/15 条");
         }
     }
 

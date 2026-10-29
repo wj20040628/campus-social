@@ -16,7 +16,7 @@ public class Like implements Serializable {
 
     private Long userId;
 
-    /** 1帖 2评 */
+    /** 1帖 2评 3文件 */
     private Integer targetType;
 
     private Long targetId;

@@ -31,6 +31,9 @@ public class ReportListVO implements Serializable {
     /** 被举报对象的正文摘要，由 service 按 targetType 分派查询后填入 */
     private String targetSummary;
 
+    /** 举报提交时的目标快照(JSON);历史举报为 null */
+    private String targetSnapshot;
+
     /** 1骚扰 2广告 3色情 4诈骗 5其他 */
     private Integer reasonType;
 

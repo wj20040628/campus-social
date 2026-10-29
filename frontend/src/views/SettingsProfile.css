@@ -206,6 +206,43 @@
 
 .sp-verify--warn { color: var(--ys-accent-2); }
 
+/* ---------- 提交认证按钮(未认证 / 已驳回才出现) ---------- */
+.sp-verify-act {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-2);
+  margin-top: var(--ys-space-3);
+}
+
+.sp-verify-btn {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-accent-on);
+  cursor: pointer;
+}
+
+.sp-verify-btn:active:not(:disabled) {
+  opacity: 0.8;
+}
+
+.sp-verify-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sp-verify-hint {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
 /* ---------- 兴趣 chip ---------- */
 .sp-chips {
   display: flex;

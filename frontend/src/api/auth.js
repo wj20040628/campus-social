@@ -79,6 +79,16 @@ export function changePassword(oldPassword, newPassword) {
   return request.put('/user/password', { oldPassword, newPassword }, { silent: true })
 }
 
+/** 无密码账号:向绑定邮箱发设置密码验证码(type=setpwd) */
+export function sendSetPasswordCode() {
+  return request.post('/user/password/send-code', {}, { silent: true })
+}
+
+/** 无密码账号:邮箱验证码 + 新密码首次设密 */
+export function setPassword(code, newPassword) {
+  return request.post('/user/password/set', { code, newPassword }, { silent: true })
+}
+
 export function refresh(refreshToken) {
   return request.post('/auth/refresh', { refreshToken })
 }
@@ -168,6 +178,6 @@ export function setNotifyPref(pref) {
 
 export default {
   login, loginByCode, register, sendCode, forgotPassword, resetPassword, appealStudentNo,
-  bindEmail, changePassword, refresh, logout, me, userCard, updateMe, setCover,
-  mentionCandidates, getNotifyPref, setNotifyPref,
+  bindEmail, changePassword, sendSetPasswordCode, setPassword, refresh, logout, me, userCard,
+  updateMe, setCover, mentionCandidates, getNotifyPref, setNotifyPref,
 }

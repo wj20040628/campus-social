@@ -4,6 +4,7 @@ import com.campus.social.common.CursorPage;
 import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.interceptor.AuthInterceptor;
+import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.GroupService;
 import com.campus.social.vo.GroupMemberInfoVO;
 import com.campus.social.vo.GroupMessageVO;
@@ -28,7 +29,13 @@ public class GroupController {
         this.groupService = groupService;
     }
 
-    /** 建群 + 拉人:body { name, avatarUrl, memberIds[] } */
+    /**
+     * 建群 + 拉人:body { name, avatarUrl, memberIds[] }。
+     *
+     * <p>{@code @RequireVerified}（2026-10-28 补）：群聊此前完全绕过认证门槛，
+     * 未认证用户可以建群、拉人、发群消息，把私聊的 AC-11 从侧门整个绕开。
+     */
+    @RequireVerified
     @PostMapping
     public Result<Map<String, Long>> create(@RequestBody Map<String, Object> body, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -62,7 +69,8 @@ public class GroupController {
         return Result.ok(groupService.groupMessages(groupId, me, lastId, PageSize.clamp(size)));
     }
 
-    /** 发群消息:body { content, replyToId } */
+    /** 发群消息:body { content, replyToId }。与私聊同一条认证门槛。 */
+    @RequireVerified
     @PostMapping("/{groupId}/message")
     public Result<com.campus.social.vo.GroupSendVO> sendMessage(
             @PathVariable("groupId") long groupId,
@@ -106,6 +114,8 @@ public class GroupController {
     }
 
     /** 拉人(群成员均可):body { userIds[] } */
+    /** 邀请成员。同样要求邀请人已认证；目标用户另有关系校验（见 service）。 */
+    @RequireVerified
     @PostMapping("/{groupId}/members")
     public Result<Map<String, Integer>> addMembers(
             @PathVariable("groupId") long groupId,

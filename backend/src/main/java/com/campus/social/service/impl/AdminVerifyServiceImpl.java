@@ -8,6 +8,7 @@ import com.campus.social.service.AuditService;
 import com.campus.social.service.RoleService;
 import com.campus.social.vo.AdminVerifyPageVO;
 import com.campus.social.vo.AdminVerifyPendingItemVO;
+import com.campus.social.vo.StudentNoParsedVO;
 import com.campus.social.util.StudentNoParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,12 +54,17 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
     private static final String ACTION_VERIFY_PASS = "verify_approve";
     private static final String ACTION_VERIFY_REJECT = "verify_reject";
 
+    /** 通知类型：16 认证通过 / 17 认证未通过（驳回理由放 content） */
+    private static final int NOTIFY_VERIFY_PASS = 16;
+    private static final int NOTIFY_VERIFY_REJECT = 17;
+
     /** verify_status = 2 审核中 */
     private static final int VERIFY_PENDING = 2;
 
     private final UserMapper userMapper;
     private final AuditService auditService;
     private final RoleService roleService;
+    private final PostNotifySupport notifySupport;
 
     @Override
     public AdminVerifyPageVO pending(Long cursor, int size) {
@@ -92,6 +98,8 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
         }
         auditService.record(adminId, ACTION_VERIFY_PASS, "user", userId,
                 "渠道:学号核验 学号:" + nullToEmpty(target.getStudentNo()), "");
+        // 通过也要通知：此前用户只能自己进「编辑资料」猜结果
+        notifySupport.pushVerifyResult(userId, NOTIFY_VERIFY_PASS, null);
         log.info("verify approved: user={}, admin={}", userId, adminId);
     }
 
@@ -108,6 +116,9 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
         // detail 直接存 reason 原串：status() 的 rejectReason() 读的就是 detail，
         // 拼前缀会让用户看到「驳回理由: xxx」这种二次包装的文案
         auditService.record(adminId, ACTION_VERIFY_REJECT, "user", userId, reason, "");
+        // 驳回理由必须送到用户手里，否则「驳回」等于静默失败——用户只会反复重提
+        notifySupport.pushVerifyResult(userId, NOTIFY_VERIFY_REJECT,
+                reason == null ? null : reason.trim());
         log.info("verify rejected: user={}, admin={}, reasonLen={}", userId, adminId,
                 reason == null ? 0 : reason.length());
     }
@@ -128,8 +139,41 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
      */
     private void fillParsed(List<AdminVerifyPendingItemVO> rows) {
         for (AdminVerifyPendingItemVO row : rows) {
-            row.setStudentNoParsed(StudentNoParser.parse(row.getStudentNo()));
+            StudentNoParsedVO parsed = StudentNoParser.parse(row.getStudentNo());
+            row.setStudentNoParsed(parsed);
+            row.setLevel(levelText(row.getMajorLevel()));
+            row.setGradeMatch(gradeMatch(parsed, row.getGradeEnrollYear()));
+            row.setMajorMatch(majorMatch(parsed, row.getMajorCode()));
         }
+    }
+
+    /** 字典层次 → 文案。未知值回 null，不猜 */
+    private static String levelText(Integer level) {
+        if (level == null) return null;
+        if (level == 1) return "本科";
+        if (level == 2) return "专科";
+        return null;
+    }
+
+    /**
+     * 年级比对：字典 enroll_year 与学号前两位（2000 + 两位）直接比。
+     * 任一侧缺失回 null——「不知道」不能显示成「不一致」。
+     */
+    private static Boolean gradeMatch(StudentNoParsedVO parsed, Integer enrollYear) {
+        if (parsed == null || !parsed.isParsed() || parsed.getEntranceYear() == null
+                || enrollYear == null) {
+            return null;
+        }
+        return parsed.getEntranceYear().equals(enrollYear);
+    }
+
+    /** 专业比对：字典 6 位专业码与学号位 3-8 直接比，语义同上 */
+    private static Boolean majorMatch(StudentNoParsedVO parsed, String dictCode) {
+        if (parsed == null || !parsed.isParsed() || parsed.getMajorCode() == null
+                || dictCode == null || dictCode.isBlank()) {
+            return null;
+        }
+        return parsed.getMajorCode().equals(dictCode.trim());
     }
 
     /**

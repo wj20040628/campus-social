@@ -21,7 +21,7 @@ import java.util.List;
  * {@code getAndExpire} / {@code randomMember} / {@code copy} /
  * {@code expire(key,ttl,ExpiryPolicy.*)}。
  *
- * <p>五段脚本模板出处：ARCHITECTURE.md §6.5，逐字照搬未改语义。
+ * <p>脚本模板出处：ARCHITECTURE.md §6.5。
  */
 @Component
 public class RedisLua {

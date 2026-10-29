@@ -8,9 +8,8 @@ import java.io.Serializable;
 /**
  * 发送消息回执（F3）。
  *
- * <p>{@code remainingNewPeerQuota} 只在「本次是向新对象发起首条」时有值，
- * 非新对象场景为 null —— 前端据此决定要不要刷新「还能搭话 N 人」文案，
- * 盲目清零会让用户看到额度凭空蒸发。
+ * <p>2026-10-28：不再有「新对象名额」。{@code remainingPerPeerQuota}
+ * 只在本次按陌生人规则发送时有值；对方已关注/回复时无额度限制，为 null。
  */
 @Data
 @Builder
@@ -19,11 +18,11 @@ public class ChatSendVO implements Serializable {
 
     private Long msgId;
 
-    /** 本次是否属于向陌生人发起（用于前端埋点） */
+    /** 本次是否属于向陌生人发送（用于前端规则提示与埋点） */
     private Boolean isStranger;
 
-    /** 本次为向新对象发起首条时的剩余额度；否则 null */
-    private Integer remainingNewPeerQuota;
+    /** 本次发送后对同一陌生人的剩余条数；非陌生人场景为 null */
+    private Integer remainingPerPeerQuota;
 
     /**
      * 打码后的消息文本（2026-10-24 加）。

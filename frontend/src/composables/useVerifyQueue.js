@@ -160,10 +160,28 @@ function putBack(snap) {
    * 为什么不是常驻输入框:机审队列(AdminReview)里理由框常驻,是因为那一屏
    * 只处置 1~2 条;这里一屏 20 条,常驻会让每张卡片高出一倍,
    * 管理员要滚很久才看得到下一条。
+   *
+   * 2026-10-28：打开时**预填自动生成的建议理由**。此前每条都要管理员
+   * 手打一遍「学校信息和学号不匹配」，20 条就是 20 遍。生成规则只读后端
+   * 已经算好的三个比对位，不在这里猜学号。
    */
   function openReject(item) {
     rejecting.value = item.userId
-    reason.value = ''
+    reason.value = suggestReason(item)
+  }
+
+  /**
+   * 按比对结果拼建议理由。三项都不符时合成一句，避免「学院不符、专业不符、
+   * 年级不符」三条独立句读起来像三次不同的错误。
+   * 全为 true/null 时返回空串——没有依据就不替管理员编理由。
+   */
+  function suggestReason(item) {
+    const bad = []
+    if (item?.deptMatch === false) bad.push('学院')
+    if (item?.majorMatch === false) bad.push('专业')
+    if (item?.gradeMatch === false) bad.push('年级')
+    if (!bad.length) return ''
+    return `${bad.join('、')}与学号不匹配，请核对后重新提交`
   }
 
   function cancelReject() {

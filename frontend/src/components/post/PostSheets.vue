@@ -63,6 +63,7 @@
  * defineModel + 六个 emit,签名比 props/emit 更难读。props + emit 更直白。
  */
 import { ElMessage } from '@/utils/feedback'
+import { copyText } from '@/utils/clipboard'
 import { submitReport } from '@/api/review'
 import { blacklist } from '@/api/relation'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
@@ -95,13 +96,10 @@ function openReport() {
 
 async function copyLink() {
   emit('update:moreOpen', false)
-  try {
-    await navigator.clipboard.writeText(window.location.href)
-    ElMessage.success('链接已复制')
-  } catch {
-    // 非安全上下文(iOS http、微信内置浏览器)没有 clipboard API
-    ElMessage.warning('这个浏览器不让复制，长按地址栏试试')
-  }
+  // http 源没有 clipboard API，copyText 内部退化到 execCommand
+  const ok = await copyText(window.location.href)
+  if (ok) ElMessage.success('链接已复制')
+  else ElMessage.warning('这个浏览器不让复制，长按地址栏试试')
 }
 
 /**

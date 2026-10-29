@@ -36,6 +36,8 @@ export const AUTH_ERR = {
   // 账号体系重构:邮箱安全凭证
   EMAIL_ALREADY_BOUND: 1059,
   EMAIL_NOT_BOUND: 1060,
+  PASSWORD_NOT_SET: 1066,
+  PASSWORD_ALREADY_SET: 1067,
 }
 
 /**
@@ -79,14 +81,37 @@ export function authErrCodeLoose(e) {
  *   title 是主句,reason 是副句(含用户下一步能做的事)
  */
 export function accountBlocked(e) {
-  return blockedByCode(authErrCodeLoose(e))
+  const b = blockedByCode(authErrCodeLoose(e))
+  /*
+   * 封禁截止时间（2026-10-28）：后端把「将于 X 自动解封」放进了 message。
+   * 固定副句只说「联系管理员申诉」，用户仍不知道自己什么时候能回来——
+   * 服务端说得更具体时把它带出来；注销没有补充信息，不必处理。
+   */
+  if (b && b.code === AUTH_ERR.USER_FROZEN) {
+    b.detail = informativeFrozenDetail(e?.response?.data?.message)
+  }
+  return b
+}
+
+/**
+ * 只保留「有新增信息」的封禁说明。
+ *
+ * 各处封禁护栏的 message 有长有短：「账号已冻结」「账号已冻结，无法发帖」
+ * 与副句重复，展示出来只是噪音；带解封时间（AuthServiceImpl）或标明永久的
+ * 才值得多占一行。
+ */
+function informativeFrozenDetail(msg) {
+  return typeof msg === 'string' && /(自动解封|永久封禁)/.test(msg) ? msg : ''
 }
 
 /**
  * 按业务码拿账号不可用状态。
  * 登录失败（error 对象）与「登录态中途被封、路由带 code 跳回登录页」共用同一套文案。
+ *
+ * @param {number} code
+ * @param {string} [detail] 服务端补充说明（封禁截止时间等）
  */
-export function blockedByCode(code) {
+export function blockedByCode(code, detail) {
   if (code === AUTH_ERR.USER_FROZEN) {
     return {
       code,
@@ -94,6 +119,7 @@ export function blockedByCode(code) {
       // 必须说清能做什么。设计 §3 明确「如果你觉得是误判,联系管理员申诉」——
       // 只说「被封禁」而不给出路,用户除了放弃没有第二个选项。
       reason: '如果觉得是误判,联系管理员申诉。管理员解封后就能正常登录。',
+      detail: informativeFrozenDetail(detail),
     }
   }
   if (code === AUTH_ERR.USER_CANCELLED) {
@@ -101,6 +127,7 @@ export function blockedByCode(code) {
       code,
       title: '这个账号已经注销了',
       reason: '注销后数据不再保留。想继续用校园社交的话,重新注册一个账号就行。',
+      detail: '',
     }
   }
   return null
@@ -147,6 +174,7 @@ export function credentialMessage(e, kind) {
     return '验证码登录没成功，再试一次'
   }
   if (code === AUTH_ERR.WRONG_PASSWORD) return '学号或密码不对，再试一次'
+  if (code === AUTH_ERR.PASSWORD_NOT_SET) return '这个账号还没设置密码，请先用邮箱验证码登录'
   if (code === AUTH_ERR.EMAIL_NOT_REGISTERED) return '这个邮箱还没绑定账号'
   if (code === AUTH_ERR.EMAIL_NOT_BOUND) return '这个学号还没绑定邮箱，先去绑定邮箱再试'
   return '登录没成功，再试一次'

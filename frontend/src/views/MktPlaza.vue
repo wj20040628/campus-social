@@ -97,6 +97,7 @@ import { ElMessage } from '@/utils/feedback'
 import { Plus } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { isIdentityVerified } from '@/utils/mask'
+import { openAuthGate } from '@/composables/useAuthGate'
 import MktList from '@/components/mkt/MktList.vue'
 import { PLAZA_FILTERS } from '@/components/mkt/mktConstants'
 import { useMktOwnerActions } from '@/composables/useMktOwnerActions'
@@ -232,7 +233,7 @@ const { edit, toggle, full, reactivate, remove } = useMktOwnerActions(loadMy)
  */
 function goPublish() {
   if (!isIdentityVerified(userStore.userInfo)) {
-    ElMessage.warning('完成校内认证后才能发布集市活动')
+    openAuthGate()
     return
   }
   router.push('/mkt/publish')

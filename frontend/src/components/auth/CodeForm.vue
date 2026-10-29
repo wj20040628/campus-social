@@ -40,9 +40,16 @@
         <span v-if="cd > 0" class="code-cd" aria-hidden="true">{{ cd }}s 后重发</span>
       </div>
     </el-form-item>
+    <!-- 协议勾选由页面注入,位置固定在提交按钮之前 -->
+    <slot name="consent" />
     <el-form-item>
+      <!--
+        2026-10-28:新人不知道「验证码登录」等于注册。
+        相比在输入框下加一行说明，直接把动作写全更省地方 ——
+        用「/」不用「&」：中文界面约定如此，读屏也会把 & 读成 and。
+      -->
       <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
-        验证码登录
+        验证码登录 / 注册
       </el-button>
     </el-form-item>
   </el-form>
@@ -127,4 +134,5 @@ async function onSubmit() {
   white-space: nowrap;
   border: 0;
 }
+
 </style>

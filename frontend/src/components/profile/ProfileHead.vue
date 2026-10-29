@@ -22,8 +22,22 @@
         type="button"
         class="p-avatar-btn"
         :disabled="avatarBusy"
-        :aria-label="avatarBusy ? '头像上传中' : '更换头像'"
-        @click="$emit('change-avatar')"
+        :aria-label="avatarBusy ? '头像上传中' : '头像操作'"
+        @click="onAvatarClick"
+      >
+        <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
+      </button>
+      <!--
+        他人头像（2026-10-28）：点一下看大图。此前是纯 el-avatar，
+        别人的头像点了没有任何反应，小尺寸头像也看不清是谁。
+        没有头像时不包按钮——点了只会弹一张空图。
+      -->
+      <button
+        v-else-if="user.avatarUrl"
+        type="button"
+        class="p-avatar-btn"
+        aria-label="查看头像大图"
+        @click="$emit('preview-avatar')"
       >
         <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
       </button>
@@ -86,11 +100,11 @@
         :type="following ? 'default' : 'primary'"
         :loading="followLoading"
         :aria-pressed="!!following"
-        :aria-label="`${following ? '已关注' : '关注'} ${displayName(user)}`"
+        :aria-label="`${followLabel} ${displayName(user)}`"
         class="p-act"
         @click="$emit('follow')"
       >
-        <el-icon><Plus /></el-icon> {{ following ? '已关注' : '关注' }}
+        <el-icon v-if="!mutual"><Plus /></el-icon> {{ followLabel }}
       </el-button>
       <!--
         AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
@@ -104,6 +118,17 @@
         <el-icon><WarningFilled /></el-icon> 举报
       </el-button>
     </div>
+
+    <!--
+      本人点头像（2026-10-28）：此前直接进相册，用户想看自己头像大图没有入口。
+      设过头像才给「查看大图」，没设过点开只会是一张空白图。
+    -->
+    <ActionSheet v-model="avatarSheetOpen" title="头像">
+      <button v-if="user.avatarUrl" type="button" class="p-sheet__item" @click="previewAvatar">
+        查看大图
+      </button>
+      <button type="button" class="p-sheet__item" @click="changeAvatar">更换头像</button>
+    </ActionSheet>
   </div>
 </template>
 
@@ -115,7 +140,8 @@
  * 空介绍的「点击添加介绍」仍走 edit 事件进编辑页。
  */
 import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { displayName } from '@/utils/mask'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 
@@ -128,6 +154,8 @@ const props = defineProps({
   verified: { type: Boolean, default: false },
   isMe: { type: Boolean, default: false },
   following: { type: Boolean, default: false },
+  /** 对方也关注了我（2026-10-28）：按钮文案改成「互相关注」 */
+  followedBy: { type: Boolean, default: false },
   followLoading: { type: Boolean, default: false },
   /**
    * 是否显示关注/私信按钮。本人看不到,未登录也看不到 ——
@@ -140,7 +168,25 @@ const props = defineProps({
   avatarBusy: { type: Boolean, default: false },
 })
 
-defineEmits(['follow', 'chat', 'edit', 'report', 'change-avatar'])
+const emit = defineEmits(['follow', 'chat', 'edit', 'report', 'change-avatar', 'preview-avatar'])
+
+/** 本人头像面板：查看大图 / 更换头像 */
+const avatarSheetOpen = ref(false)
+
+function onAvatarClick() {
+  avatarSheetOpen.value = true
+}
+
+/** 先关面板再抛事件：面板不关会盖住全屏看图，也挡住系统相册回跳 */
+function previewAvatar() {
+  avatarSheetOpen.value = false
+  emit('preview-avatar')
+}
+
+function changeAvatar() {
+  avatarSheetOpen.value = false
+  emit('change-avatar')
+}
 
 /**
  * 有没有写过介绍。
@@ -149,6 +195,9 @@ defineEmits(['follow', 'chat', 'edit', 'report', 'change-avatar'])
  * 只有空格的值，模板里 v-if 用原始字符串会在主页上排出一行空白。
  */
 const hasBio = computed(() => !!(props.user?.bio || '').trim())
+/** 双向关注（2026-10-28）：按钮文案改「互相关注」，与单向的「已关注」区分 */
+const mutual = computed(() => props.following && props.followedBy)
+const followLabel = computed(() => (mutual.value ? '互相关注' : props.following ? '已关注' : '关注'))
 </script>
 
 <style scoped src="./ProfileHead.css"></style>

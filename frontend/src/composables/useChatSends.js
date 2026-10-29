@@ -17,13 +17,14 @@ import { ElMessage } from '@/utils/feedback'
  * @param {Function} ctx.loadGroups
  * @param {Function} ctx.loadHistory
  * @param {Function} ctx.loadGroupHistory
+ * @param {Function} ctx.loadPeerQuota 发送成功后刷新「对这个人」的剩余条数
  * @param {number}   ctx.myId
  * @param {{ send: Function, groupSend: Function }} ctx.api
  */
 export function useChatSends(ctx) {
   const {
     currentGroup, currentConv, currentKind, messages, replyToMsg,
-    fmt, scrollBottom, loadConvs, loadGroups, loadHistory, loadGroupHistory,
+    fmt, scrollBottom, loadConvs, loadGroups, loadHistory, loadGroupHistory, loadPeerQuota,
     myId, api,
   } = ctx
 
@@ -56,10 +57,13 @@ export function useChatSends(ctx) {
         messages.value.push(baseBubble(msgId, res?.content || content, replyId, replyContent, replyName, true))
         loadGroups().catch(() => {})
       } else {
-        const res = await api.send(currentConv.value.peer?.id, content, replyId)
+        const peerId = currentConv.value.peer?.id
+        const res = await api.send(peerId, content, replyId)
         msgId = res?.msgId || Date.now()
         messages.value.push(baseBubble(msgId, res?.content || content, replyId, replyContent, replyName, false))
         loadConvs().catch(() => {})
+        // 陌生人每天 1 条：发完刷新对这个人剩余，规则行不会停留在旧数字
+        loadPeerQuota?.(peerId).catch(() => {})
       }
       replyToMsg.value = null
       scrollBottom()

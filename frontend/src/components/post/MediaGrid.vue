@@ -25,7 +25,7 @@
           class="mg__thumb"
           :alt="`待发布的图片 ${i + 1},点右上角删除`"
         />
-        <video v-else :src="resolveUrl(cell.url)" class="mg__thumb" controls />
+        <PostVideo v-else :src="cell.url" :poster="cell.poster" class="mg__thumb" />
         <span v-if="cell.kind === 'video'" class="mg__badge">视频</span>
 
         <button
@@ -38,10 +38,18 @@
         </button>
       </template>
 
-      <!-- 上传中:纯色底 + 匀速转圈。不用模糊占位(与 2 秒加载预算冲突) -->
+      <!--
+        上传中(2026-10-29 改进):百分比 + 进度条 + 约剩时间。
+        弱网传 20MB 视频要 1 分钟,只有转圈用户会以为卡死、提前退出。
+      -->
       <template v-else-if="cell.state === 'uploading'">
-        <span class="mg__spinner" aria-hidden="true" />
-        <span class="mg__hint">上传中</span>
+        <div class="mg__progress">
+          <span class="mg__pct ys-num">{{ cell.progress }}%</span>
+          <span class="mg__bar" aria-hidden="true">
+            <i :style="{ width: cell.progress + '%' }" />
+          </span>
+          <span class="mg__hint">{{ uploadHint(cell) }}</span>
+        </div>
       </template>
 
       <!-- 上传失败:格内红底 + 重传。用户能精确知道是哪一张出的问题 -->
@@ -63,7 +71,8 @@
 
 <script setup>
 import { Close, WarningFilled } from '@element-plus/icons-vue'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
+import PostVideo from '@/components/post/PostVideo.vue'
 
 /**
  * @param {Array<{key:string, state:'uploading'|'done'|'failed', kind?:'image'|'video', url?:string, file?:File}>} cells
@@ -75,6 +84,17 @@ defineProps({
 })
 
 defineEmits(['remove', 'retry'])
+
+/** 上传中格子底部的说明:不确定大小/速度时只说要等,有速度后给剩余时间 */
+function uploadHint(cell) {
+  if (cell.progress >= 99) return '处理中…'
+  if (cell.etaSec) {
+    return cell.etaSec < 60
+      ? `约剩 ${Math.ceil(cell.etaSec)} 秒`
+      : `约剩 ${Math.ceil(cell.etaSec / 60)} 分钟`
+  }
+  return cell.kind === 'video' ? '视频较大，请稍候' : '上传中'
+}
 </script>
 
 <style scoped>
@@ -143,24 +163,41 @@ defineEmits(['remove', 'retry'])
   z-index: -1;
 }
 
-.mg__spinner {
+.mg__progress {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
-  border: 2px solid var(--ys-border);
-  border-top-color: var(--ys-accent);
-  border-radius: var(--ys-radius-full);
-  animation: mg-spin 0.9s var(--ys-ease-linear) infinite;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--ys-space-2);
 }
 
-/* 匀速:转圈是加载指示不是装饰,故用 linear 而非 out */
-@keyframes mg-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.mg__pct {
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  font-weight: 600;
+  color: var(--ys-text);
+}
+
+.mg__bar {
+  width: 72%;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-border);
+}
+
+.mg__bar > i {
+  display: block;
+  height: 100%;
+  background: var(--ys-accent);
+  transition: width 0.2s linear;
+}
+
+.mg__progress .mg__hint {
+  margin-top: 0;
 }
 
 .mg__cell--failed {
@@ -205,8 +242,8 @@ defineEmits(['remove', 'retry'])
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mg__spinner {
-    animation: none;
+  .mg__bar > i {
+    transition: none;
   }
 }
 </style>

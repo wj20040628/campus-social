@@ -7,6 +7,7 @@ import com.campus.social.dto.UpdateProfileDTO;
 import com.campus.social.dto.UpdateCoverDTO;
 import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
+import com.campus.social.dto.SetPasswordDTO;
 import com.campus.social.entity.User;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.mapper.UserMapper;
@@ -220,6 +221,27 @@ public class UserController {
             return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
         }
         authService.changePassword(me, dto);
+        return Result.ok();
+    }
+
+    /** 无密码账号:向绑定邮箱发设置密码验证码(type=setpwd) */
+    @PostMapping("/password/send-code")
+    public Result<String> sendSetPasswordCode(HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        return Result.ok(authService.sendSetPasswordCode(me));
+    }
+
+    /** 无密码账号:验证码 + 新密码首次设密 */
+    @PostMapping("/password/set")
+    public Result<Void> setPassword(@Valid @RequestBody SetPasswordDTO dto, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        authService.setPassword(me, dto);
         return Result.ok();
     }
 

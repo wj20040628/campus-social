@@ -28,6 +28,8 @@ public class Post implements Serializable {
     private Integer commentCount;
     /** 收藏数(与 likeCount 同构的冗余列,由 PostServiceImpl 在同事务内 ±1) */
     private Integer favoriteCount;
+    /** 分享次数:每次成功保存/分享卡片 +1,不做去重 */
+    private Integer shareCount;
     /** 浏览量 */
     private Integer viewCount;
 
@@ -40,6 +42,13 @@ public class Post implements Serializable {
 
     /** 树洞匿名帖 0否1是:作者不出现在任何展示出口,管理端(审核/举报/日志)仍可实锤 */
     private Integer isAnonymous;
+
+    /**
+     * 推荐流的排序分:当前登录人与作者共同拥有的兴趣标签数。
+     * 只在 {@code /post/feed/recommend} 的查询里由 SQL 算出,不落库。
+     */
+    @TableField(exist = false)
+    private Integer sharedTagCount;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

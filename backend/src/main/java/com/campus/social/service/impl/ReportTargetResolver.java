@@ -33,7 +33,10 @@ public class ReportTargetResolver {
             case ReportTargetType.POST -> reportMapper.selectPostAuthorId(report.getTargetId());
             case ReportTargetType.COMMENT -> reportMapper.selectCommentAuthorId(report.getTargetId());
             case ReportTargetType.CHAT_MESSAGE -> reportMapper.selectChatMessageSenderId(report.getTargetId());
+            case ReportTargetType.GROUP_MESSAGE -> reportMapper.selectGroupMessageSenderId(report.getTargetId());
             case ReportTargetType.MKT_ACTIVITY -> reportMapper.selectMktActivityOwnerId(report.getTargetId());
+            case ReportTargetType.FILE -> reportMapper.selectFileOwnerId(report.getTargetId());
+            case ReportTargetType.CIRCLE -> reportMapper.selectCircleOwnerId(report.getTargetId());
             default -> null; // 搭子等未上线类型
         };
     }

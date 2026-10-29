@@ -57,7 +57,26 @@
       >
         {{ cap(circle.memberCount) }} 成员
       </RouterLink>
+      <!--
+        举报圈子（2026-10-29）：自评估报告承诺「用户可对圈子发起举报」。
+        圈主不显示——举报自己的圈子没有意义；成员与非成员都可报。
+      -->
+      <button
+        v-if="canReport"
+        type="button"
+        class="cd__report"
+        @click="reportOpen = true"
+      >举报</button>
     </div>
+
+    <!-- 举报圈子（2026-10-29）：targetType=9，管理端「解散圈子」= 后端 takedown -->
+    <ReportSheet
+      v-model="reportOpen"
+      :target-type="9"
+      :target-id="circle.id"
+      sheet-title="举报这个圈子"
+      :submit-fn="submitReport"
+    />
   </header>
 </template>
 
@@ -67,9 +86,11 @@
  * 只负责展示 + 一个加入按钮,自己不调接口 —— 加入后的状态同步由父组件管,
  * 否则会出现「组件自己把 joined 改了、父组件的 canCreate 却还按旧值算」。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { CircleCheck, Setting } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
+import ReportSheet from '@/components/post/ReportSheet.vue'
+import { submitReport } from '@/api/review'
 
 const props = defineProps({
   circle: { type: Object, required: true },
@@ -78,11 +99,17 @@ const props = defineProps({
 })
 defineEmits(['join', 'leave', 'manage'])
 
+/** 圈子举报表开合（2026-10-29）；入口在本组件成员数右侧的「举报」 */
+const reportOpen = ref(false)
+
 /** myRole:1 圈主 / 2 圈管理 / 3 成员 / 0 非成员。role<=2 露管理入口。 */
 const canManage = computed(() => {
   const r = Number(props.circle?.myRole)
   return r === 1 || r === 2
 })
+
+/** 圈主不举报自己的圈子；其余角色（含非成员）都可发起举报 */
+const canReport = computed(() => Number(props.circle?.myRole) !== 1)
 
 const ownerName = computed(() =>
   props.circle.owner ? displayName(props.circle.owner) : '暂无圈主',

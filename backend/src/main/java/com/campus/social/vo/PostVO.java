@@ -34,6 +34,8 @@ public class PostVO {
     private Integer likeCount;
     private Integer commentCount;
     private Integer favoriteCount;
+    /** 分享次数。仅已发布帖可分享；自己分享也计，不做去重 */
+    private Integer shareCount;
     private Integer viewCount;
     /** 话题名列表(快手式 #话题#) */
     private List<String> topics;

@@ -6,6 +6,7 @@ import com.campus.social.common.Result;
 import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.dto.CreatePostDTO;
 import com.campus.social.interceptor.AuthInterceptor;
+import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.PostService;
 import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
@@ -26,7 +27,14 @@ public class PostController {
         this.postService = postService;
     }
 
-    /** 发动态 */
+    /**
+     * 发动态。
+     *
+     * <p>{@code @RequireVerified}（2026-10-29）：自评估报告承诺「校内认证通过后
+     * 才开放发帖」。私信/群聊/建群/文件上传此前已有门槛，发帖与评论是最后
+     * 两个漏口——未认证账号可以发帖，与报告对不上。认证前仍可浏览、点赞。
+     */
+    @RequireVerified
     @PostMapping
     public Result<Map<String, Long>> create(@Valid @RequestBody CreatePostDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -34,7 +42,13 @@ public class PostController {
         return Result.ok(Map.of("postId", id));
     }
 
-    /** 编辑动态(仅作者) */
+    /**
+     * 编辑动态(仅作者)。
+     *
+     * <p>与发帖同一条认证门槛：编辑也是把内容重新发布出去，
+     * 只拦创建不拦编辑，等于留了一个「先让认证用户代发、再由未认证账号改」的口子。
+     */
+    @RequireVerified
     @PutMapping("/{id}")
     public Result<com.campus.social.vo.PostVO> edit(@PathVariable("id") long id,
             @Valid @RequestBody CreatePostDTO dto, HttpServletRequest req) {
@@ -69,6 +83,20 @@ public class PostController {
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return Result.ok(postService.feed(me, lastId, PageSize.clamp(size), by, order, topic, anonymous));
+    }
+
+    /** 推荐流:共同兴趣标签等权排序,同分新帖优先;无标签用户退化为最新 */
+    @GetMapping("/feed/recommend")
+    public Result<com.campus.social.vo.RecommendFeedVO> recommend(
+            @RequestParam(value = "lastScore", required = false) Integer lastScore,
+            @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(401, "请先登录");
+        }
+        return Result.ok(postService.recommendFeed(me, lastScore, lastId, PageSize.clamp(size)));
     }
 
     /** 探索页(热门) */
@@ -140,6 +168,19 @@ public class PostController {
     }
 
     /**
+     * 分享计数 +1。
+     *
+     * <p>只记录次数、不落分享明细：产品口径是「每分享一次加一」，自己重复分享也计。
+     * 前端在**保存/分享卡片成功**后调用，而不是点开分享面板就调 ——
+     * 打开又关掉不该算一次分享。
+     */
+    @PostMapping("/{id}/share")
+    public Result<Void> share(@PathVariable("id") long id) {
+        postService.share(id);
+        return Result.ok();
+    }
+
+    /**
      * 我收藏的帖子(按收藏时间倒序)。
      *
      * <p>lastId 是**收藏记录 id**而非帖子 id,前端把上一页的 nextCursor 原样回传即可。
@@ -170,7 +211,8 @@ public class PostController {
         return Result.ok(postService.likedPosts(me, me, lastId, PageSize.clamp(size)));
     }
 
-    /** 评论 */
+    /** 评论（与发帖同一认证门槛；删除自己的评论不受限） */
+    @RequireVerified
     @PostMapping("/{id}/comment")
     public Result<Map<String, Long>> comment(@PathVariable("id") long id,
                                               @Valid @RequestBody CreateCommentDTO dto,

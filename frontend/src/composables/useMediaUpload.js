@@ -3,6 +3,7 @@ import { uploadToOss } from '@/composables/useOssUpload'
 import { ElMessage } from '@/utils/feedback'
 import { ensureUploadConfig, limits } from '@/composables/useUploadConfig'
 import { isHevcFile } from '@/utils/videoCodec'
+import { createVideoPoster } from '@/utils/videoPoster'
 
 /** 单格媒体上限。超过时拒绝第 10 张并给出具体数字(Publish.vue.md §3) */
 export const MAX_MEDIA = 9
@@ -40,11 +41,14 @@ export function useMediaUpload() {
 
   const doneCount = computed(() => cells.value.filter((c) => c.state === 'done').length)
   const failedCount = computed(() => cells.value.filter((c) => c.state === 'failed').length)
+  const uploadingCount = computed(() => cells.value.filter((c) => c.state === 'uploading').length)
   /** 已成功的媒体项,提交时直接给这个 —— 不要自己再 map 一次,容易漏字段 */
   const readyMedia = computed(() =>
     cells.value.filter((c) => c.state === 'done').map((c) => ({
       type: c.kind === 'video' ? 'video' : 'img',
       url: c.url,
+      // 视频封面:移动端浏览器不预加载视频,没有 poster 就是一块黑
+      ...(c.poster ? { poster: c.poster } : {}),
     })),
   )
 
@@ -95,11 +99,45 @@ export function useMediaUpload() {
    * 2. 重传必须复用原格,不能走 uploadFile —— 那会 append 一个新格。
    */
   async function runUpload(cell) {
+    const startedAt = Date.now()
+    cell.progress = 0
+    cell.loadedBytes = 0
+    cell.totalBytes = cell.file?.size || 0
+    cell.etaSec = null
+    // 视频封面与上传并行截取:20MB 视频传 20 秒,截帧通常 1 秒内就完成
+    const posterTask = cell.kind === 'video' && cell.file ? createVideoPoster(cell.file) : null
     try {
       // 优先 OSS 直传,失败/未开启自动降级服务端 POST /upload;
       // 直传成功代表 OSS 回调已落库归属,返回的 url 即规范相对路径
-      const data = await uploadToOss(cell.file, cell.kind)
+      const data = await uploadToOss(cell.file, cell.kind, ({ loaded, total }) => {
+        const elapsed = (Date.now() - startedAt) / 1000
+        cell.loadedBytes = loaded
+        cell.totalBytes = total || cell.totalBytes
+        // 到 100% 后服务端还要落盘/转存,先停在 99% 显示「处理中」,避免假完成
+        cell.progress = cell.totalBytes
+          ? Math.min(99, Math.floor((loaded / cell.totalBytes) * 100))
+          : 0
+        // 前 1.5 秒的速度包含建连/STS 开销,估出来偏慢,不展示
+        if (elapsed >= 1.5 && loaded > 0 && cell.totalBytes > loaded) {
+          const speed = loaded / elapsed
+          cell.etaSec = Math.max(1, Math.round((cell.totalBytes - loaded) / speed))
+        }
+      })
+      // 视频封面:截帧成功就按图片上传,拿到的 url 随 media JSON 一起落库。
+      // 失败不阻塞发布,旧帖/失败时前端仍有 #t 首帧兜底。
+      if (posterTask) {
+        const posterFile = await posterTask
+        if (posterFile) {
+          try {
+            const p = await uploadToOss(posterFile, 'image')
+            cell.poster = p.url
+          } catch {
+            /* 封面失败不影响视频本身 */
+          }
+        }
+      }
       cell.url = data.url
+      cell.progress = 100
       cell.state = 'done'
       cell.file = null // 传完就释放,别把 File 挂在响应式对象里长期占内存
     } catch {
@@ -120,7 +158,18 @@ export function useMediaUpload() {
     // 若用普通对象,直接改原始对象不经过 Proxy,不会触发重渲染 ——
     // 表现是「格子一直停在『上传中』转圈、图片永不出现」,但数据其实已就绪
     // (能点发布、发出来的帖子里图片也正常),从后端日志完全看不出来。
-    const cell = reactive({ key: `m${seq}`, state: 'uploading', kind, file, url: '' })
+    const cell = reactive({
+      key: `m${seq}`,
+      state: 'uploading',
+      kind,
+      file,
+      url: '',
+      progress: 0,
+      loadedBytes: 0,
+      totalBytes: file.size || 0,
+      etaSec: null,
+      poster: '',
+    })
     cells.value.push(cell)
     await runUpload(cell)
   }
@@ -147,6 +196,7 @@ export function useMediaUpload() {
         state: 'done',
         kind: m.type === 'video' ? 'video' : 'image',
         url: m.url,
+        poster: m.poster || '',
         file: null,
       }
     })
@@ -157,7 +207,7 @@ export function useMediaUpload() {
   }
 
   return {
-    cells, doneCount, failedCount, readyMedia,
+    cells, doneCount, failedCount, uploadingCount, readyMedia,
     beforeUpload, uploadFile, retry, remove, seed, reset,
     /** 视频功能总开关(响应式):false 时 UI 隐藏视频按钮 */
     videoEnabled: VIDEO_ENABLED,

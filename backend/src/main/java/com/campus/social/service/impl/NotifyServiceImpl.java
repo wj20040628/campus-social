@@ -110,6 +110,18 @@ public class NotifyServiceImpl implements NotifyService {
             case 9: return "在评论中@了你";
             case 10: return "在你的集市活动下留言了";
             case 11: return "回复了你的反馈";
+            case 13: return "你的文件已通过审核";
+            case 14: return "你的文件未通过审核";
+            case 15: return "你的文件已被下架";
+            case 16: return "你的校内认证已通过";
+            case 17: return "你的校内认证未通过";
+            // 举报与处置结果（2026-10-28）：18 举报人 / 19 封禁 / 20 内容下架 / 21 解封
+            case 18: return "你举报的内容有结果了";
+            case 19: return "你的账号已被暂停使用";
+            case 20: return "你的内容已被下架";
+            case 21: return "你的账号已恢复正常";
+            case 22: return "你被邀请加入了群聊";
+            case 23: return "你创建的圈子已被解散";
             default: return "";
         }
     }

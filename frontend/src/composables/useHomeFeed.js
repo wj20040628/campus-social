@@ -16,16 +16,38 @@
  */
 import { ref, watch, nextTick, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { feed as feedApi, feedFollowing as followingApi } from '@/api/feed'
-import { useVerifyStatus } from '@/composables/useVerifyStatus'
+import { feed as feedApi, feedFollowing as followingApi, feedRecommend } from '@/api/feed'
 import { feedDirty } from '@/composables/useFeedRefresh'
+
+/** 首页 tab 记忆:只认这三个值,脏数据/旧版本残留一律回「关注」 */
+const HOME_TAB_KEY = 'ys-home-tab'
+const HOME_TABS = ['following', 'all', 'recommend']
+
+function readHomeTab() {
+  try {
+    const v = localStorage.getItem(HOME_TAB_KEY)
+    return HOME_TABS.includes(v) ? v : 'following'
+  } catch {
+    return 'following'
+  }
+}
+
+function writeHomeTab(v) {
+  try {
+    localStorage.setItem(HOME_TAB_KEY, v)
+  } catch {
+    /* 无痕模式/配额满:记忆失败不影响当前 tab */
+  }
+}
 
 export function useHomeFeed(isMobile) {
   const router = useRouter()
 
-  const tab = ref('following') // 默认"关注"
+  const tab = ref(readHomeTab()) // 刷新后留在原 tab
   const posts = ref([])
   const cursor = ref(null)
+  /** 推荐流专用游标:共同标签数。与 id 成对使用,缺一不可 */
+  const cursorScore = ref(null)
   const hasMore = ref(true)
   const loading = ref(false)
   /*
@@ -37,9 +59,6 @@ export function useHomeFeed(isMobile) {
   const loadError = ref(false)
   const failStreak = ref(0)
   const sentinelEl = ref(null)
-  // 排序模式:new=最新(默认,可无限刷) / hot=最热(按点赞,只看第一页)
-  const searchQ = ref('')
-  const sortMode = ref('new')
   const savedScrollY = ref(0)
   const feedBarHidden = ref(false)
   let observer = null
@@ -55,9 +74,6 @@ export function useHomeFeed(isMobile) {
    * 会明显掉帧,而且 KeepAlive 返回时要重新布局这一整片。
    */
   const MAX_POSTS = 200
-
-  // 认证状态是模块级单例,这里拿到的 load 与个人主页那边是同一个函数
-  const { load: loadVerifyStatus } = useVerifyStatus()
 
   function normalize(list) {
     return (list || []).map((p) => ({
@@ -76,13 +92,6 @@ export function useHomeFeed(isMobile) {
       createTime: p.createTime,
       media: p.media || null,
     }))
-  }
-
-  // 搜索框回车 → 跳搜索结果页
-  function doSearch() {
-    const kw = searchQ.value.trim()
-    if (!kw) return
-    router.push({ path: '/search', query: { kw } })
   }
 
   function goFollow() {
@@ -132,11 +141,12 @@ export function useHomeFeed(isMobile) {
     lastWinScrollTop = window.scrollY || 0
   }
 
-  // 拉 feed(按当前 tab / 筛选 / 方向)
+  // 拉 feed(按当前 tab)
   async function loadFeed(reset = false) {
     if (reset) {
       posts.value = []
       cursor.value = null
+      cursorScore.value = null
       hasMore.value = true
       loadError.value = false
       failStreak.value = 0
@@ -150,24 +160,21 @@ export function useHomeFeed(isMobile) {
         else await appendCapped(normalize(data.list))
         cursor.value = data.hasMore ? data.nextCursor : null
         hasMore.value = data.hasMore
-      } else if (tab.value === 'hole') {
-        // 树洞 tab(2026-10-25):匿名帖聚合流,时间序可无限刷(口径同「全部」默认)
-        const data = await feedApi(cursor.value, 20, { anonymous: true, by: 'time', order: 'desc' })
-        if (cursor.value && !reset) await appendCapped(normalize(data.list))
-        else posts.value = normalize(data.list)
-        cursor.value = data.hasMore ? data.nextCursor : null
+      } else if (tab.value === 'recommend') {
+        // 推荐:共同标签数 + 帖子 id 复合游标;无标签用户在服务端退化成最新
+        const data = await feedRecommend(cursorScore.value, cursor.value, 20)
+        if (reset) posts.value = normalize(data.list)
+        else await appendCapped(normalize(data.list))
+        cursor.value = data.hasMore ? data.nextId : null
+        cursorScore.value = data.hasMore ? data.nextScore : null
         hasMore.value = data.hasMore
       } else {
-        // 全部 tab:「最热」是非默认筛选,只看第一页,不叠加无限刷(同旧逻辑)
-        const filtered = sortMode.value !== 'new'
-        const data = await feedApi(filtered ? (reset ? null : cursor.value) : cursor.value, 20, {
-          by: sortMode.value === 'hot' ? 'like' : 'time',
-          order: 'desc',
-        })
-        if (!filtered && cursor.value && !reset) await appendCapped(normalize(data.list))
-        else posts.value = normalize(data.list)
-        cursor.value = data.hasMore && !filtered ? data.nextCursor : null
-        hasMore.value = data.hasMore && !filtered
+        // 全部:固定按时间倒序,不再提供「最热」筛选
+        const data = await feedApi(cursor.value, 20, { by: 'time', order: 'desc' })
+        if (reset) posts.value = normalize(data.list)
+        else await appendCapped(normalize(data.list))
+        cursor.value = data.hasMore ? data.nextCursor : null
+        hasMore.value = data.hasMore
       }
       loadError.value = false
       failStreak.value = 0
@@ -195,14 +202,11 @@ export function useHomeFeed(isMobile) {
     }
   }
 
-  /** 排序切换:最新 / 最热。点当前项不重拉 */
-  function setSort(mode) {
-    if (sortMode.value === mode) return
-    sortMode.value = mode
+  // tab 变化:先记下来,再重拉第一页
+  watch(tab, (v) => {
+    writeHomeTab(v)
     loadFeed(true)
-  }
-
-  watch(tab, () => loadFeed(true))
+  })
 
   function setupObserver() {
     observer?.disconnect()
@@ -217,9 +221,6 @@ export function useHomeFeed(isMobile) {
   }
 
   onMounted(async () => {
-    // 与 feed 并行发起,不 await:认证状态是附加信息,不该拖慢首屏。
-    // 失败也不影响本页(useVerifyStatus 内部吞掉,不抛)。
-    loadVerifyStatus()
     await loadFeed(true)
     nextTick(setupObserver)
     setupFeedBarScroll()
@@ -286,7 +287,7 @@ export function useHomeFeed(isMobile) {
   })
 
   return {
-    tab, posts, loading, hasMore, loadError, searchQ, sortMode, sentinelEl, listEl, feedBarHidden,
-    setSort, doSearch, goFollow, retryFeed: () => loadFeed(true),
+    tab, posts, loading, hasMore, loadError, sentinelEl, listEl, feedBarHidden,
+    goFollow, retryFeed: () => loadFeed(true),
   }
 }

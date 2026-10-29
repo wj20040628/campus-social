@@ -105,13 +105,15 @@ class CreditQuotaGuardTest {
     }
 
     @Test
-    void unverifiedPostDailyCappedAtThree() {
-        for (int i = 1; i <= 3; i++) {
+    void postDailyCappedAtTier1Five() {
+        // 2026-10-28:发帖日额改为信誉档位(60 分 5 / 80 分 10 / 100 分 15),
+        // 新号基准 60 → 1 档 5 条
+        for (int i = 1; i <= 5; i++) {
             long pid = postService.create(unverifiedUserId, samplePost("第" + i + "条"));
-            assertTrue(pid > 0, "第 " + i + " 条(限额 3)应成功");
+            assertTrue(pid > 0, "第 " + i + " 条(限额 5)应成功");
         }
         BusinessException e = assertThrows(BusinessException.class,
-                () -> postService.create(unverifiedUserId, samplePost("第四条")));
+                () -> postService.create(unverifiedUserId, samplePost("第六条")));
         assertEquals(ResultCode.POST_DAILY_LIMIT_REACHED.getCode(), e.getCode());
     }
 
@@ -127,12 +129,12 @@ class CreditQuotaGuardTest {
         notMember.setCircleId(53L); // 羽毛球圈,该用户未加入
         assertThrows(BusinessException.class, () -> postService.create(unverifiedUserId, notMember));
 
-        // 两次失败之后,3 条正常发帖仍应全部成功
-        for (int i = 1; i <= 3; i++) {
+        // 两次失败之后,1 档的 5 条正常发帖仍应全部成功
+        for (int i = 1; i <= 5; i++) {
             assertTrue(postService.create(unverifiedUserId, samplePost("失败不计额" + i)) > 0);
         }
         BusinessException e = assertThrows(BusinessException.class,
-                () -> postService.create(unverifiedUserId, samplePost("第四条")));
+                () -> postService.create(unverifiedUserId, samplePost("第六条")));
         assertEquals(ResultCode.POST_DAILY_LIMIT_REACHED.getCode(), e.getCode());
     }
 

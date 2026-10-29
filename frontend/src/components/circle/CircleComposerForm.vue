@@ -25,7 +25,7 @@
     <ul v-if="media.length" class="cff__media">
       <li v-for="(m, i) in media" :key="m.url" class="cff__media-item">
         <el-image v-if="m.type === 'img'" :src="resolveThumb(m.url)" fit="cover" class="cff__thumb" />
-        <video v-else :src="resolveUrl(m.url)" controls class="cff__thumb" />
+        <PostVideo v-else :src="m.url" :poster="m.poster" class="cff__thumb" />
         <button
           type="button"
           class="cff__media-del"
@@ -88,10 +88,12 @@
 import { computed, ref } from 'vue'
 import { Close, Picture } from '@element-plus/icons-vue'
 import { uploadToOss } from '@/composables/useOssUpload'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
+import PostVideo from '@/components/post/PostVideo.vue'
 import { ElMessage } from '@/utils/feedback'
 import { ensureUploadConfig, limits } from '@/composables/useUploadConfig'
 import { isHevcFile, VIDEO_SUPPORTED_FORMATS, VIDEO_UNSUPPORTED_NOTE } from '@/utils/videoCodec'
+import { createVideoPoster } from '@/utils/videoPoster'
 
 const props = defineProps({
   circleName: { type: String, default: '' },
@@ -164,7 +166,22 @@ async function uploadFile({ file }) {
   const isVideo = file.type.startsWith('video/')
   try {
     const data = await uploadToOss(file, isVideo ? 'video' : 'image')
-    if (data?.url) media.value = [...media.value, { type: isVideo ? 'video' : 'img', url: data.url }]
+    if (!data?.url) return
+    media.value = [...media.value, { type: isVideo ? 'video' : 'img', url: data.url }]
+    if (isVideo) {
+      // 视频封面后台补:截帧/上传失败只是没封面,已上传的视频不动
+      createVideoPoster(file).then(async (posterFile) => {
+        if (!posterFile) return
+        try {
+          const p = await uploadToOss(posterFile, 'image')
+          if (p?.url) {
+            media.value = media.value.map((m) => (m.url === data.url ? { ...m, poster: p.url } : m))
+          }
+        } catch {
+          /* 封面失败不影响视频发布 */
+        }
+      })
+    }
   } catch (e) {
     // 上传失败：附件没加上，但已打的字还在。
     // 不提示等于让用户以为图传上去了，发完帖子才发现少一张。

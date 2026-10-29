@@ -35,7 +35,7 @@
             「取消必须永远存在且永远在最下」是操作表能被安全使用的底线。
           -->
           <button type="button" class="asheet__cancel" @click="close">
-            取消
+            {{ cancelText }}
           </button>
           <SafeArea position="bottom" />
         </div>
@@ -66,6 +66,8 @@ const props = defineProps({
   title: { type: String, default: '' },
   /** 面板高度。70vh 用于「谁还没看」这类长名单 */
   height: { type: String, default: '' },
+  /** 底部取消文案。默认「取消」,认证闸门用「先逛逛」 */
+  cancelText: { type: String, default: '取消' },
 })
 
 const emit = defineEmits(['update:modelValue', 'close'])

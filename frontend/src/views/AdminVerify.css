@@ -120,6 +120,69 @@
   font-size: var(--ys-text-xs);
 }
 
+/*
+ * 自填归属 + 比对（2026-10-28）。
+ *
+ * **单列而不是两列**：两列时「专业 土木工程 + 与学号不符」这一行只剩 ~150px，
+ * 长院系名被挤成一列竖排的单字（实测截图里「人工智能学院」竖着写）。
+ * 单列 + 标签定宽 + 徽标靠右，任何长度都读得通顺。
+ */
+.vcard__info {
+  list-style: none;
+  margin: var(--ys-space-3) 0 0;
+  padding: var(--ys-space-2) var(--ys-space-3);
+  border: 1px solid var(--ys-border-soft);
+  border-radius: var(--ys-radius-lg);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.vcard__info li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+}
+
+.vcard__info-k {
+  flex: none;
+  width: 3em;
+  color: var(--ys-muted);
+}
+
+.vcard__info-v {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--ys-weight-medium);
+  color: var(--ys-fg);
+}
+
+.vcard__info li.is-bad .vcard__info-v {
+  color: var(--ys-danger);
+}
+
+.vcard__bad {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-danger-soft);
+  color: var(--ys-danger);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.vcard__warn {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-danger);
+}
+
 /* ---------------- 行 3:昵称 · 院系 ---------------- */
 
 .vcard__who {
@@ -186,6 +249,43 @@
 .vcard__reason input:focus-visible {
   outline: 2px solid var(--ys-focus-ring);
   outline-offset: 1px;
+}
+
+/*
+ * 常用理由：横滑一行胶囊。管理员的视线在卡片上、手指在底部，
+ * 竖排会把「取消/提交驳回」推到屏幕外，横滑则始终维持在拇指高度。
+ */
+.vcard__presets {
+  display: flex;
+  gap: var(--ys-space-2);
+  margin: calc(var(--ys-space-2) * -1) 0 var(--ys-space-3);
+  padding-bottom: 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.vcard__presets::-webkit-scrollbar {
+  display: none;
+}
+
+.vcard__preset {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vcard__preset:active {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
 }
 
 /* 两列网格而不是 flex:flex 下两个按钮会被内容宽度推开,长短文案不等宽 */

@@ -20,7 +20,7 @@
     <ul class="tcard__list">
       <li class="tcard__item" data-state="ok">
         <span class="tcard__text">内容产出 +{{ bonus }} 分</span>
-        <Tip content="近 30 天内，自己发的每条动态（审核通过后）、每条集市活动 +1 分，最多加 40 分；被下架或删除的不计" />
+        <Tip content="近 30 天内，自己发的每条动态（审核通过后）、每条集市活动、每份过审文件 +1 分，总产出最多加 40 分（其中文件来源最多加 10 分）；被下架或删除的不计" />
       </li>
       <li class="tcard__item" :data-state="badRecord ? 'bad' : 'ok'">
         <span class="tcard__text">{{ badRecord ? '违规记录已扣分' : '无违规记录' }}</span>
@@ -37,7 +37,7 @@
       <div class="tcard__quota-row"><span class="tcard__quota-k">同时可建圈子</span><span class="tcard__quota-v">{{ circleQuota }} 个</span></div>
       <div class="tcard__quota-row"><span class="tcard__quota-k">同时在投集市</span><span class="tcard__quota-v">{{ mktQuota }} 条</span></div>
       <div class="tcard__quota-row"><span class="tcard__quota-k">每天可发动态</span><span class="tcard__quota-v">{{ postDaily }} 条</span></div>
-      <Tip content="这些上限随信誉分升档：到 75 分时圈子和集市各 2，到 90 分时各 3。集市到期或暂停、圈子解散后，名额立即腾出来" />
+      <Tip content="这些上限随信誉分升档：到 80 分时圈子和集市各 2，到 100 分时各 3。集市到期或暂停、圈子解散后，名额立即腾出来" />
     </div>
   </el-card>
 </template>

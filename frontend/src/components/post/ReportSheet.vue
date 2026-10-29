@@ -57,8 +57,8 @@ import { ElMessage } from '@/utils/feedback'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { REPORT_REASONS } from '@/constants/reportReason'
 
-/** 目标类型:1用户 2帖子 3评论 4聊天消息 5搭子 */
-const TARGET = { USER: 1, POST: 2, COMMENT: 3, MESSAGE: 4, PARTNER: 5 }
+/** 目标类型:1用户 2帖子 3评论 4私聊消息 5搭子 6集市活动 7文件 8群消息 9圈子 */
+const TARGET = { USER: 1, POST: 2, COMMENT: 3, MESSAGE: 4, PARTNER: 5, MKT: 6, FILE: 7, GROUP_MESSAGE: 8, CIRCLE: 9 }
 
 /**
  * 原因类型。文案来自 constants/reportReason.js —— **本文件不再自己写一遍**。
@@ -73,7 +73,7 @@ const REASONS = REPORT_REASONS
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  /** 被举报对象类型:1用户 2帖子 3评论 4聊天消息 5搭子 */
+  /** 被举报对象类型:1用户 2帖子 3评论 4私聊消息 5搭子 6集市 7文件 8群消息 9圈子 */
   targetType: { type: Number, required: true },
   /** 被举报对象 id */
   targetId: { type: [Number, String], default: null },
@@ -122,7 +122,7 @@ async function doSubmit() {
       // 只在有内容时带上,避免提交一个空串让后端的 maxLength 校验白跑一趟
       ...(reasonText.value.trim() ? { reasonText: reasonText.value.trim() } : {}),
     })
-    ElMessage.success(data?.duplicated ? '已经举报过了,记录还在' : '举报已受理,管理员会看')
+    ElMessage.success(data?.duplicated ? '已经举报过了,记录还在' : '举报已受理,处理结果会通知你')
     emit('update:modelValue', false)
     emit('done', data)
   } catch (e) {

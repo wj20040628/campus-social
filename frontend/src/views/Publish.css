@@ -341,6 +341,16 @@
   margin-top: 4px;
 }
 
+/* 上传中提示(2026-10-29):弱网传 20MB 视频要 1 分钟,告诉用户还要等多久 */
+.pub__upload-tip {
+  flex: 1 0 100%;
+  order: -1;
+  margin: 0 0 var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-accent);
+}
+
 .pub__upload {
   display: contents;
 }

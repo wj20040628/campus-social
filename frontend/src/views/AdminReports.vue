@@ -29,13 +29,18 @@
         <p class="review-admin__hint">举报有时效，先处理</p>
       </header>
 
-      <el-tabs v-model="tab" class="review-admin__tabs" @tab-change="() => {}">
+      <el-tabs v-model="tab" class="review-admin__tabs">
         <el-tab-pane label="待处理" name="report" />
         <el-tab-pane label="已处理" name="processed" />
       </el-tabs>
 
-      <ReportPane v-if="tab === 'report'" :handled="false" @switch-tab="() => {}" />
-      <ReportPane v-else :handled="true" @switch-tab="() => {}" />
+      <!--
+        switch-tab 接到 tab 上（2026-10-28 修）。
+        此前两处都写成 `() => {}`：空态里「看看已处理的」按钮点下去毫无反应，
+        管理员以为坏了。emit 的值就是目标 tab 名。
+      -->
+      <ReportPane v-if="tab === 'report'" :handled="false" @switch-tab="(name) => (tab = name)" />
+      <ReportPane v-else :handled="true" @switch-tab="(name) => (tab = name)" />
     </template>
   </div>
 </template>

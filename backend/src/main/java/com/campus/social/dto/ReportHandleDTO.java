@@ -14,13 +14,17 @@ import lombok.Data;
 @Data
 public class ReportHandleDTO {
 
-    /** ban 成立并封禁 / reject 驳回 / ignore 忽略 */
+    /** ban 成立并封禁 / takedown 成立仅下架 / reject 驳回 / ignore 忽略 */
     @NotBlank(message = "处置动作不能为空")
     private String action;
 
     /** action=ban 时必填。1/7/30，0 表示永久封禁 */
     private Integer banDays;
 
+    /**
+     * 处置备注。写入 audit_log，并随结果通知展示给被处置人（2026-10-28），
+     * 别在这里写只有管理员该看的话。
+     */
     @Size(max = 200, message = "处置备注最多 200 字")
     private String handleNote;
 }

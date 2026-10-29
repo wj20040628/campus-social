@@ -118,6 +118,8 @@ export function useVerifyStatus() {
     /** §5 A3:认证解锁的能力位,前端此前零消费,现在暴露出去 */
     canStrangerChat: computed(() => state.value?.canStrangerChat ?? false),
     canPublishAnnouncement: computed(() => state.value?.canPublishAnnouncement ?? false),
+    /** 学校归属是否填全（决定“去认证”该去引导页还是编辑资料页） */
+    profileComplete: computed(() => state.value?.profileComplete === true),
     autoApproved: computed(() => state.value?.autoApproved ?? false),
     /**
      * 该不该展示「驳回」提示条。

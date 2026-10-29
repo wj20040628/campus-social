@@ -326,8 +326,19 @@
   }
 }
 
-/* ---------------- 管理待办角标(2026-10-24 新增) ---------------- */
-/* 弹层项是 flex 行,角标推到行尾;带数字时用胶囊形态(UnreadDot 内部已处理) */
-.adrawer__pending {
+/* ---------------- 管理待办角标 ---------------- */
+/* 弹层项是 flex 行,角标推到行尾 */
+.adrawer__pending,
+.adrawer__count {
   margin-left: auto;
+}
+
+/* 有未处理时整项变红:红底数字之外再给文字一层提示 */
+.adrawer__item--pending,
+.adrawer__item--pending .adrawer__ic {
+  color: var(--ys-danger);
+}
+
+.asheet__item.is-pending {
+  color: var(--ys-danger);
 }

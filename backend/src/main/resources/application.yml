@@ -56,12 +56,16 @@ spring:
       database: ${REDIS_DB:0}
       timeout: 3s
   # ------------------------------------------------------------
-  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 10MB)
+  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 25MB)
+  #
+  # 上限按产品真实上限收口(2026-10-29):此前 request 放到 100MB、Nginx
+  # 200MB、Tomcat 200MB,一个异常请求就能把 3Mbps 带宽和临时磁盘吃满。
+  # 30MB 覆盖 25MB 视频 + multipart 开销;文件库文档上限 3MB,不受影响。
   # ------------------------------------------------------------
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 100MB
+      max-file-size: 25MB
+      max-request-size: 30MB
   # 禁用默认静态资源映射(避免 /uploads/** 被拦截)
   web:
     resources:
@@ -131,6 +135,22 @@ upload:
   # 视频功能总开关:true=正常收视频(受 max-video-bytes 限制);false=彻底关,
   # 拒收一切 video 上传并让前端隐藏视频入口。改这一个值 + 重启即可,零代码回滚。
   video-enabled: true
+  # 文件库(2026-10-27):文档对象存 files/ 私有前缀,不走 /uploads/ 公共读链路。
+  # 单文件硬上限 3MB 是第一道保护;实际可用上限按信誉档位再收窄(FileLimits)。
+  file:
+    max-bytes: ${FILE_MAX_BYTES:3145728}
+    daily-upload-limit: ${FILE_DAILY_UPLOAD_LIMIT:5}
+    pending-limit: ${FILE_PENDING_LIMIT:5}
+    # 下载签名 URL 短时效:即使被转发,链接也很快失效
+    presign-ttl-seconds: ${FILE_PRESIGN_TTL_SECONDS:60}
+    download:
+      guest-hourly: ${FILE_GUEST_DOWNLOAD_HOURLY:120}
+      guest-daily: ${FILE_GUEST_DOWNLOAD_DAILY:1000}
+      user-daily: ${FILE_USER_DOWNLOAD_DAILY:2000}
+      # auto(默认)=首次下载探测 OSS 是否允许覆盖 Content-Disposition，可用走直链、
+      # 不可用回落到服务端转发；oss=强制直链（不探测）；proxy=强制转发（占带宽）。
+      # 直链不占 ECS 带宽，微信会提示「离开微信」；转发同域无提示但吃 3Mbps。
+      mode: ${FILE_DOWNLOAD_MODE:auto}
   # 图片压缩 / 转 WebP / 缩略图(OSS 接入降本①②)。仅作用于「后端经手字节」的
   # 上传路径(POST /upload 服务端兜底);前端直传(P4)压缩在浏览器侧做。
   image:
@@ -149,7 +169,8 @@ server:
   # 用户正打字发评论就收到失败。systemd 侧需配 TimeoutStopSec=30 配合。
   shutdown: graceful
   tomcat:
-    max-http-form-post-size: 200MB
+    # 与 multipart 的 max-request-size 保持一致,避免 Tomcat 先放进来再被 Spring 拒
+    max-http-form-post-size: 30MB
     # ----------------------------------------------------------
     # 工作线程上限
     #
@@ -240,6 +261,10 @@ app:
     endpoint: ${OSS_ENDPOINT:oss-cn-hangzhou.aliyuncs.com}
     # 内网域名:ECS 后端拉头 / 回调校验用,免流量费
     internal-endpoint: ${OSS_INTERNAL_ENDPOINT:oss-cn-hangzhou-internal.aliyuncs.com}
+    # 下载直链用的自定义域名(CNAME 到桶),留空则仍是 bucket.oss-cn-*.aliyuncs.com。
+    # 配了它,微信里点下载就不会因为跳到阿里云域名而提示「离开微信」;HTTPS 需在 OSS 控制台
+    # 给这个域名单独托管证书(证书要覆盖该子域名,主域名证书不算)。
+    custom-domain: ${OSS_CUSTOM_DOMAIN:}
     # STS 扮演的 RAM 角色 ARN
     role-arn: ${OSS_ROLE_ARN:acs:ram::1930391355152122:role/oss-uploader-role}
     # STS 服务接入点(地域级)
@@ -289,8 +314,9 @@ app:
       # 控制台「模板管理」已审核邮件模板 ID;非空则 SingleSendMail 走模板发信
       # (忽略 HtmlBody,内容以模板为准,降低反垃圾风控),为空则回退直传 HtmlBody
       template-id: ${ALIYUN_DM_TEMPLATE_ID:445523}
-      # 邮件标题:与控制台模板「邮件标题」保持一致(模板模式下标题以请求为准)
-      subject: ${ALIYUN_DM_SUBJECT:系统验证码通知}
+      # 邮件标题基串:发送时会把 6 位验证码拼在后面(可用 {code} 占位指定位置),
+      # 手机通知栏不点开邮件也能看到验证码
+      subject: ${ALIYUN_DM_SUBJECT:友声验证码}
       # 凭据类型:ecs_ram_role(默认,走 ECS 实例元数据自动发/自动刷 STS,磁盘与 env 无 AK)
       #          access_key(回退,用上方 access-key-id/secret 环境变量,适用于本地或非 ECS)
       credential-type: ${ALIYUN_DM_CREDENTIAL_TYPE:ecs_ram_role}
@@ -317,9 +343,8 @@ campus:
   # 校园邮箱域名白名单,逗号分隔。生产用 CAMPUS_EMAIL_DOMAIN_WHITELIST 注入。
   # 为空时所有域名都会被拒(1032),这是刻意设计:宁可不认证,不可错认证。
   email-domain-whitelist: ${CAMPUS_EMAIL_DOMAIN_WHITELIST:}
-  # F3 免好友搭话护栏
-  daily-new-peer-limit: 8     # 每天最多向 8 个新对象发起首条
-  per-peer-daily-limit: 15     # 对同一陌生人每天最多 15 条
+  # F3 免好友搭话护栏（2026-10-28：不限制对象数量，只限制对同一陌生人的频率）
+  per-peer-daily-limit: 1     # 对同一陌生人每天最多 1 条；对方关注/回复后解除
   # F11 引导
   onboarding-min-tags: 3
   onboarding-max-tags: 12
@@ -336,12 +361,15 @@ campus:
     trust-min-days: ${CAMPUS_REVIEW_TRUST_MIN_DAYS:14}
     # 信誉记录(产出加分与违规扣分)的计算窗口(天):窗口外不计。
     # 30 天=月度活跃度口径:扣分一个月出清,档位要靠当月产出维持。
-    # 信誉分 = 60(基准) + 产出加分(过审帖/集市 ×1,封顶 40) - 成立举报×20 - 封禁×40
-    # 受信线 60=基准(扣分掉线,产出补回);建圈/集市在投配额按分数档 1/2/3(75/90 分档)
+    # 信誉分 = 60(基准) + 产出加分(过审帖/集市/文件 ×1,封顶 40;文件来源另封顶 10)
+    #          - 成立举报×20 - 封禁×40
+    # 受信线 60=基准(扣分掉线,产出补回);建圈/集市在投配额按分数档 1/2/3(80/100 分档)
+    # 文件档位同一条线:60–79=1MB/5MB、80–99=2MB/10MB、100=3MB/15MB(见 FileLimits)
     credit-decay-days: ${CAMPUS_REVIEW_CREDIT_DECAY_DAYS:30}
-    # 发帖日配额:未认证 3/日(防机器刷),认证 30/日(Redis 自然日分桶)
-    post-daily-unverified: ${CAMPUS_REVIEW_POST_DAILY_UNVERIFIED:3}
-    post-daily-verified: ${CAMPUS_REVIEW_POST_DAILY_VERIFIED:30}
+    # 发帖日配额(2026-10-28):按信誉档位,与建圈/集市/文件同一条 60-80-100 线
+    post-daily-tier1: ${CAMPUS_REVIEW_POST_DAILY_TIER1:5}
+    post-daily-tier2: ${CAMPUS_REVIEW_POST_DAILY_TIER2:10}
+    post-daily-tier3: ${CAMPUS_REVIEW_POST_DAILY_TIER3:15}
     # 集中举报自动封禁:24h 内 ≥N 个已认证的独立举报人举报同一用户(含其内容)
     # → 自动封禁 auto-ban-days 天,到期自动解封,管理员可提前手动解封;<=0 关闭
     auto-ban-reporters: ${CAMPUS_REVIEW_AUTO_BAN_REPORTERS:3}

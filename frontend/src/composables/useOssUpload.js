@@ -55,12 +55,12 @@ function buildClient(OSS, sts, uploadHost) {
     stsToken: sts.securityToken,
     bucket,
     secure: true,
-    timeout: 120000, // 视频可能较大，放宽到 120s
+    timeout: 300000, // 视频最大 25MB，弱网可能要 2 分钟以上，与兜底上传同口径
   })
 }
 
 /** 真正的 OSS PUT（带回调头）。成功回 {url, kind} */
-async function putDirect(file, stsMeta, kind) {
+async function putDirect(file, stsMeta, kind, onProgress) {
   const { key, uploadHost, callback, callbackVar, sts } = stsMeta
   // ali-oss 仅在「真要走直传」时才动态加载：备案中直传关闭时每次都降级 POST /upload，
   // SDK 完全不下发，路由 chunk 也不会被它拖胖。
@@ -76,6 +76,12 @@ async function putDirect(file, stsMeta, kind) {
     },
     // 大文件 ali-oss 内部自动走分片，后端 STS 策略已授权 ListParts / AbortMultipartUpload
     mime: contentType,
+    // ali-oss 的 progress 给 0~1 的 fraction，换算成字节交给 UI
+    progress: (p) => {
+      if (typeof onProgress === 'function') {
+        onProgress({ loaded: Math.round(file.size * p), total: file.size })
+      }
+    },
   })
   // 回调成功 → 客户端拿到 {"status":"ok"}；url 用服务端 key 拼规范相对路径
   return { url: '/' + key, kind, thumbUrl: undefined }
@@ -92,31 +98,31 @@ function fetchSts(ext) {
  * @param {'image'|'video'} kind
  * @returns {Promise<{url:string, kind:string, thumbUrl?:string}>}
  */
-export async function uploadToOss(file, kind = 'image') {
+export async function uploadToOss(file, kind = 'image', onProgress) {
   const ext = extOf(file)
   let stsMeta
   try {
     stsMeta = await fetchSts(ext)
   } catch (e) {
     if (e?.businessCode === 401) throw e // 未登录：不降级，交由调用方处理
-    return fallbackUpload(file, kind) // 直传不可用 → 服务端兜底
+    return fallbackUpload(file, kind, onProgress) // 直传不可用 → 服务端兜底
   }
   try {
-    return await putDirect(file, stsMeta, kind)
+    return await putDirect(file, stsMeta, kind, onProgress)
   } catch (e) {
     // STS 临期 / token 失效：刷新一次重试
     const why = (e?.name || '') + ' ' + (e?.message || '')
     if (/ExpiredToken|InvalidAccessKeyId|SecurityToken|403/.test(why)) {
       try {
         const fresh = await fetchSts(ext)
-        return await putDirect(file, fresh, kind)
+        return await putDirect(file, fresh, kind, onProgress)
       } catch (e2) {
         if (e2?.businessCode === 401) throw e2
-        return fallbackUpload(file, kind)
+        return fallbackUpload(file, kind, onProgress)
       }
     }
     // 其余 OSS 错误（网络 / CORS / 回调 403 内容不符）→ 降级服务端兜底
-    return fallbackUpload(file, kind)
+    return fallbackUpload(file, kind, onProgress)
   }
 }
 

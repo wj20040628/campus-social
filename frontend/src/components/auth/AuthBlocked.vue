@@ -14,6 +14,8 @@
         <el-icon class="blocked__icon" :size="28" aria-hidden="true"><Lock /></el-icon>
         <p class="blocked__title">{{ title }}</p>
         <p class="blocked__reason">{{ reason }}</p>
+        <!-- 后端补充信息（2026-10-28）：封禁截止时间等。没有就不占位。 -->
+        <p v-if="detail" class="blocked__detail">{{ detail }}</p>
       </div>
 
       <!--
@@ -50,6 +52,8 @@ const props = defineProps({
   title: { type: String, required: true },
   /** 副句:说清能做什么 */
   reason: { type: String, required: true },
+  /** 服务端补充说明（如封禁截止时间）；无则不渲染 */
+  detail: { type: String, default: '' },
   /** 是否提供申诉出口（封禁=true，注销=false） */
   appealable: { type: Boolean, default: false },
 })

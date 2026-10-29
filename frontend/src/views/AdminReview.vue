@@ -140,15 +140,33 @@
               驳回要理由所以输入框常驻在按钮上方(不是弹窗)。
             -->
             <div v-if="t.status === 0" class="task-actions">
-              <label class="task-reason-input">
-                <span class="task-reason-input__label">驳回理由(发布者会看到)</span>
+              <div class="task-reason-input">
+                <label class="task-reason-input__label" :for="`review-reason-${t.id}`">
+                  驳回理由(发布者会看到)
+                </label>
+                <!--
+                  常用理由（2026-10-28）：机审队列一屏三五条，同一种违规
+                  要手打三遍「含敏感词」。点一下填进输入框，还能再改。
+                -->
+                <div class="task-presets">
+                  <button
+                    v-for="p in REJECT_PRESETS"
+                    :key="p"
+                    type="button"
+                    class="task-preset"
+                    @click="reasons[t.id] = p"
+                  >
+                    {{ p }}
+                  </button>
+                </div>
                 <input
+                  :id="`review-reason-${t.id}`"
                   v-model="reasons[t.id]"
                   type="text"
                   maxlength="512"
                   placeholder="写清依据"
                 />
-              </label>
+              </div>
               <div class="task-btns">
                 <button
                   type="button"
@@ -214,7 +232,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Files, WarningFilled } from '@element-plus/icons-vue'
@@ -234,7 +252,7 @@ const router = useRouter()
 const userStore = useUserStore()
 const isMobile = useIsMobile()
 
-const tab = ref('report')
+const tab = ref('review')
 const {
   list, pendingCount, hasMore, loading, failed, busy, reasons, undo,
   load, observeSentinel, approve, reject, undoReview,
@@ -304,17 +322,27 @@ function aiVerdictText(v) {
   return { approve: '建议通过', reject: '建议驳回', manual: '转人工' }[v] || '未知'
 }
 
-/** 切 Tab。两个域的数据各自管理,这里只做「离开时收摊、进来时开工」 */
+/** 机审驳回常用理由（2026-10-28）：点一下填进输入框，仍可修改 */
+const REJECT_PRESETS = ['含敏感词', '疑似广告引流', '色情低俗', '人身攻击', '与校园无关']
+
+/** 切 Tab。两个机审视图各自重新拉第一页（举报域已拆去 AdminReports） */
+let booted = false
 function onTabChange(name) {
   tab.value = name
-  /*
-   * 举报域（report/processed）归 ReportPane 管，它在自己的 setup 里拉数据。
-   * 这里不能再 load 一次 —— 那会去打机审队列的接口,纯属白跑一趟。
-   * 机审两个 tab（review/reviewHistory）走同一个 useReviewQueue,
-   * 靠 which 参数区分打 pending 还是 processed。
-   */
+  booted = true
   load(name, true).then(() => observeSentinel(name))
 }
+
+/**
+ * 首次进入必须自己拉一次（2026-10-28 修）。
+ *
+ * <p>此前只有 tab-change 触发 load，而 tab 初值就是当前 tab，用户不点就
+ * 没有事件 —— 实测进入 /admin/review 是一片空白，队列有待审时管理员
+ * 会以为没活干。booted 守住 el-tabs 若在挂载时补发 tab-change 的重复加载。
+ */
+onMounted(() => {
+  if (!booted) onTabChange(tab.value)
+})
 
 /**
  * 标题下那行提示（2026-10-24 补第三档）。

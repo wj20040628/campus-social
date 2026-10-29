@@ -18,13 +18,14 @@
       </button>
       <!-- 分享卡片(2026-10-25):扫码进来的人免登录可读(后端已放游客 GET) -->
       <button
-        v-if="post"
+        v-if="post && post.status === 1"
         type="button"
-        class="detail__more"
-        aria-label="生成分享卡片"
+        class="detail__more detail__share"
+        :aria-label="`生成分享卡片，已分享 ${post.shareCount || 0} 次`"
         @click="shareOpen = true"
       >
-        <el-icon :size="20"><Share /></el-icon>
+        <el-icon :size="18"><Share /></el-icon>
+        <span class="detail__share-n ys-num">{{ cap(post.shareCount || 0) }}</span>
       </button>
       <button
         v-if="post"
@@ -183,7 +184,7 @@
     />
 
     <!-- 分享卡片:卡片内容由已加载的帖子数据拼装,匿名帖作者行显示「匿名」 -->
-    <ShareCardSheet v-model:open="shareOpen" :spec="shareSpec" />
+    <ShareCardSheet v-model:open="shareOpen" :spec="shareSpec" @shared="onShared" />
   </div>
 </template>
 
@@ -207,6 +208,7 @@ import { usePostDetailActions } from '@/composables/usePostDetailActions'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import { shareUrl } from '@/utils/shareCard'
+import { sharePost } from '@/api/feed'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import CommentComposer from '@/components/post/CommentComposer.vue'
@@ -269,6 +271,24 @@ const shareSpec = computed(() => {
 
 function goEdit() {
   router.push(`/post/${route.params.id}/edit`)
+}
+
+/**
+ * 保存/分享卡片成功后 +1。
+ *
+ * 只在成功保存或系统分享返回后触发；打开面板不算。
+ * 游客也能分享，但不计数（接口需要登录，避免匿名刷数）。
+ * 先本地 +1 再发请求，失败回滚到改之前的旧值。
+ */
+async function onShared() {
+  if (!userStore.hasToken || !post.value?.id) return
+  const before = post.value.shareCount || 0
+  post.value.shareCount = before + 1
+  try {
+    await sharePost(post.value.id)
+  } catch {
+    post.value.shareCount = before
+  }
 }
 
 function goUser(id) {

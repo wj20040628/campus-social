@@ -49,15 +49,39 @@
 
           <!--
             行 2:学号解析出的年级 与 用户自填的年级 **并排**。
-            矛盾(填 23 级、学号 25 开头)靠管理员肉眼抓。
-            本页**不写自动比对**:grade 是名称快照,格式由院系字典表决定,
-            字典表还没落地 —— 现在写死「2023 == 2023级」这类规则必错。
+            2026-10-28 起比对由后端用字典值算（年级 enroll_year、专业 6 位 code），
+            前端只读 gradeMatch / majorMatch：false 标红，null（解析不出或缺字典）
+            不标。不在这里做任何字符串匹配——规则只有后端一份。
           -->
           <p v-if="row.parsed || row.item.grade" class="vcard__grades">
             <span v-if="row.parsed" class="vcard__parsed">{{ row.parsed }}</span>
             <span v-if="row.parsed && row.item.grade" class="vcard__vs">/</span>
             <span v-if="row.item.grade" class="vcard__claimed">本人填 {{ row.item.grade }}</span>
           </p>
+
+          <!-- 自填的学校归属：与学号不符的项直接标红，管理员不用自己心算 -->
+          <ul v-if="row.hasClaim" class="vcard__info">
+            <li :class="{ 'is-bad': row.item.gradeMatch === false }">
+              <span class="vcard__info-k">年级</span>
+              <span class="vcard__info-v">{{ row.item.grade || '—' }}</span>
+              <span v-if="row.item.gradeMatch === false" class="vcard__bad">与学号不符</span>
+            </li>
+            <li :class="{ 'is-bad': row.item.majorMatch === false }">
+              <span class="vcard__info-k">专业</span>
+              <span class="vcard__info-v">{{ row.item.major || '—' }}</span>
+              <span v-if="row.item.majorMatch === false" class="vcard__bad">与学号不符</span>
+            </li>
+            <li>
+              <span class="vcard__info-k">层次</span>
+              <span class="vcard__info-v">{{ row.item.level || '—' }}</span>
+            </li>
+            <li :class="{ 'is-bad': row.item.deptMatch === false }">
+              <span class="vcard__info-k">学院</span>
+              <span class="vcard__info-v">{{ row.item.dept || '—' }}</span>
+              <span v-if="row.item.deptMatch === false" class="vcard__bad">与专业不符</span>
+            </li>
+          </ul>
+          <p v-if="row.mismatch" class="vcard__warn">有 {{ row.mismatch }} 项与学号不一致，核实后再决定</p>
 
           <p class="vcard__who">
             <!--
@@ -91,6 +115,22 @@
                   placeholder="写清该怎么改"
                 />
               </label>
+              <!--
+                常用理由（2026-10-28）：点一下直接填进输入框，还能再改。
+                输入框已按比对结果预填，这里的短句覆盖它——
+                管理员最常见的动作是「换一句更具体的」。
+              -->
+              <div class="vcard__presets">
+                <button
+                  v-for="p in REJECT_PRESETS"
+                  :key="p"
+                  type="button"
+                  class="vcard__preset"
+                  @click="reason = p"
+                >
+                  {{ p }}
+                </button>
+              </div>
               <div class="vcard__btns">
                 <button type="button" class="vcard__btn" @click="cancelReject()">取消</button>
                 <button
@@ -212,12 +252,31 @@ function parsedLine(item) {
 }
 
 const rows = computed(() =>
-  list.value.map((item) => ({
-    item,
-    parsed: parsedLine(item),
-    unparsable: item?.studentNoParsed != null && item.studentNoParsed.parsed === false,
-  })),
+  list.value.map((item) => {
+    const mismatch = [item?.deptMatch, item?.gradeMatch, item?.majorMatch].filter(
+      (v) => v === false
+    ).length
+    return {
+      item,
+      parsed: parsedLine(item),
+      unparsable: item?.studentNoParsed != null && item.studentNoParsed.parsed === false,
+      hasClaim: !!(item?.dept || item?.major || item?.level || item?.grade),
+      mismatch,
+    }
+  }),
 )
+
+/**
+ * 常用驳回理由。前四条与三个比对位一一对应，管理员看到哪一项标红就点哪条；
+ * 最后一条覆盖「看不出哪里错、但就是不像本人」的情况。
+ */
+const REJECT_PRESETS = [
+  '学号与本人不符，请填写自己的学号',
+  '学院与学号不匹配，请重新选择学院',
+  '专业与学号不匹配，请重新选择专业',
+  '年级与学号不匹配，请重新选择年级',
+  '学校信息不全，请补全后重新提交',
+]
 
 /**
  * 权限判定用 store 的 isAdmin,不等 API 返 403 ——

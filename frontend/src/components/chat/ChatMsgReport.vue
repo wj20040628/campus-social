@@ -8,13 +8,13 @@
     2. 举报表本身不需要知道聊天上下文（会话 id、对方是谁），只需要消息 id。
        抽出来之后，将来群聊/单聊若要分别定制文案，改这一处就够。
 
-    后端能力：POST /report 的 targetType=4（聊天消息）。
-    举报成立时 ReportServiceImpl 会把该消息 is_deleted=1，
-    于是它从双方会话里消失 —— 这正是「举报骚扰私信」应有的效果。
+    后端能力：POST /report 的 targetType=4（私聊消息）/ 8（群消息）。
+    两张表各自自增 id，群消息绝不能按 4 提交——否则管理员会按同一个 id
+    去 chat_message 里取到另一条私信的作者与正文。
   -->
   <ReportSheet
     v-model="open"
-    :target-type="TARGET_TYPE"
+    :target-type="targetType"
     :target-id="messageId"
     sheet-title="举报这条消息"
     :submit-fn="submit"
@@ -27,14 +27,13 @@ import { ElMessage } from '@/utils/feedback'
 import { submitReport } from '@/api/review'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 
-/** targetType=4 = 聊天消息，与 openapi 契约的 enum 一致 */
-const TARGET_TYPE = 4
-
 const props = defineProps({
   /** 开合（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 被举报消息 id */
   messageId: { type: [Number, String], default: null },
+  /** 4=私聊消息 / 8=群消息（openapi 契约的 enum） */
+  targetType: { type: Number, default: 4 },
 })
 
 const emit = defineEmits(['update:modelValue'])

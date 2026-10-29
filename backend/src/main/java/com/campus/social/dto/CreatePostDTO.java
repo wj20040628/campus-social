@@ -31,6 +31,11 @@ public class CreatePostDTO {
     /** 话题名列表(不带 #) */
     private List<String> topics;
 
-    /** 树洞匿名帖:创建时可选,编辑不可翻转 */
+    /**
+     * 树洞匿名帖标记。
+     *
+     * <p>2026-10-27 起匿名发布下线:传 {@code true} 会被后端拒绝,
+     * 避免旧客户端静默把内容实名发出。字段保留只为兼容旧客户端请求体。
+     */
     private Boolean anonymous;
 }

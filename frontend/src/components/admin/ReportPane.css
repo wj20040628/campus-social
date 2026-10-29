@@ -319,9 +319,20 @@
 
 .report-pane__ban-days {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--ys-space-2);
   margin-bottom: var(--ys-space-3);
+}
+
+/* 说明行占满整行：封禁会连带下架内容，这句必须让人看到再点 */
+.report-pane__ban-confirm {
+  flex-basis: 100%;
+  margin: 0 0 var(--ys-space-1);
+  font-size: var(--ys-text-xs);
+  line-height: 1.6;
+  color: var(--ys-fg-2);
+  overflow-wrap: anywhere;
 }
 
 .report-pane__ban-days label {
@@ -351,7 +362,9 @@
 
 .report-pane__actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* auto-fit：封禁档可能只有 2 个按钮（举报对象是用户，没有可下架的内容），
+     固定 3 列会空出一格，按钮宽度也跟着不齐 */
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   /* 间距 8px 是防误触的一部分:相邻按钮的概率靠间距吃掉 */
   gap: var(--ys-space-2);
 }
@@ -367,6 +380,7 @@
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg);
   cursor: pointer;
+  white-space: nowrap;
   transition:
     opacity var(--ys-motion-instant) var(--ys-ease-out),
     transform var(--ys-motion-instant) var(--ys-ease-out);
@@ -474,12 +488,28 @@
   .report-pane__foot {
     position: static;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
     gap: var(--ys-space-4);
     padding: 0 var(--ys-gutter-desktop) var(--ys-space-5);
     border-top: 0;
     background: none;
+  }
+
+  /*
+   * 桌面操作按钮用 flex 而不是 grid（2026-10-29）。
+   * grid 的 minmax(0,1fr) 在 flex 父级里宽度会塌成 0，「解散圈子」四个字
+   * 被压成竖排（E2E 截图实测）。flex + min-width 保证按钮始终横排。
+   */
+  .report-pane__actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: var(--ys-space-2);
+  }
+
+  .report-pane__actions .report-pane__btn {
+    min-width: 88px;
   }
 
   .report-pane__ban-days {

@@ -137,6 +137,8 @@ public class SearchController {
                 .status(p.getStatus())
                 .likeCount(p.getLikeCount())
                 .commentCount(p.getCommentCount())
+                .favoriteCount(p.getFavoriteCount() == null ? 0 : p.getFavoriteCount())
+                .shareCount(p.getShareCount() == null ? 0 : p.getShareCount())
                 .circleId(p.getCircleId())
                 .createTime(p.getCreateTime())
                 .build();

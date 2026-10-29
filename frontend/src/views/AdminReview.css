@@ -345,6 +345,30 @@
   color: var(--ys-muted);
 }
 
+/* 常用驳回理由（2026-10-28）：中性描边，与「命中词」的红色标签区分——
+   红色是「系统判定有问题」，这里只是「常写的几句话」 */
+.task-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+}
+
+.task-preset {
+  min-height: 28px;
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border-control);
+  border-radius: var(--ys-radius-sm);
+  background: transparent;
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg-2);
+  cursor: pointer;
+}
+
+.task-preset:active {
+  background: var(--ys-surface-2);
+}
+
 .task-reason-input input {
   min-height: var(--ys-touch-min);
   padding: 0 var(--ys-space-3);

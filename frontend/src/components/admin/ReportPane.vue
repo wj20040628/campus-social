@@ -165,17 +165,18 @@
       </div>
     </div>
 
-    <!--
-      行 4:吸底操作栏(§1.4)。
-      「成立并封禁」放最右是**刻意的**:右手握持拇指落在右下,
-      把不可逆动作放在最容易误触的位置,是防误触而不是反人体工学。
-    -->
+    <!-- 行 4:吸底操作栏(§1.4)。重动作放最右是刻意的防误触,不是反人体工学 -->
     <footer v-if="current && !listMode && !readOnly" class="report-pane__foot">
-      <!--
-        封禁天数:默认 7 天。0(永久)不设默认 ——
-        永久封禁是不可逆里最重的一档,必须让管理员主动去选,不能顺手点到。
-      -->
+      <!-- 封禁天数:默认 7 天。0(永久)必须主动选,不能顺手点到 -->
       <div v-if="stage === 'ban'" class="report-pane__ban-days">
+        <!-- 封禁会连带下架内容（后端 handleBan 的行为），不写出来，管理员会以为只封人 -->
+        <p class="report-pane__ban-confirm">
+          {{ current?.targetType === 9
+            ? '封禁会同时解散该圈子；只想解散圈子就选「解散圈子」'
+            : canTakedown
+              ? '封禁会同时下架被举报内容；只想删内容就选「仅下架」'
+              : '封禁会立即冻结账号，到期自动解封' }}
+        </p>
         <label for="rp-ban-days">封禁时长</label>
         <select id="rp-ban-days" v-model.number="banDays" class="report-pane__ban-select">
           <option v-for="d in BAN_DAY_OPTIONS" :key="d.v" :value="d.v">{{ d.t }}</option>
@@ -184,38 +185,41 @@
       </div>
 
       <div class="report-pane__actions">
-        <button type="button" class="report-pane__btn" :disabled="busy" @click="act('ignore')">
-          忽略
-        </button>
         <!--
-          驳回（2026-10-21 改成一步到底）。
-          原来它写的是 `stage === 'ban' ? act('reject') : confirmBan()`，
-          而 confirmBan() 只是把 stage 切到 'ban'（展开封禁时长选择）——
-          于是管理员点「驳回」时屏幕会冒出一个「封禁时长」下拉，
-          既不合语义（驳回不封禁任何人），又让人以为点了没反应。
-          驳回是不可逆但**无副作用**的动作（不封人、不下架），不需要二段确认。
+          第二段（stage=ban）：不再重复三个按钮，而是「取消 / 仅下架 / 封禁 N 天」。
+          仅下架（2026-10-28）补的是「内容违规但人不至于封」这一档——
+          此前只能驳回（等于放过）或封号（过重），轻微违规没人愿意处置。
         -->
-        <button
-          type="button"
-          class="report-pane__btn"
-          :disabled="busy"
-          @click="act('reject')"
-        >
-          驳回
-        </button>
-        <!--
-          「成立并封禁」保留二段确认：它要选封禁天数，且会封人、下架内容，
-          是全套操作里唯一不可撤销的重动作。第一下展开时长面板，
-          第二下才真正执行 —— 这是它该有的摩擦。
-        -->
-        <button
-          type="button"
-          class="report-pane__btn report-pane__btn--danger"
-          :disabled="busy"
-          @click="stage === 'ban' ? act('ban') : confirmBan()"
-        >
-          {{ banLabel }}
-        </button>
+        <template v-if="stage === 'ban'">
+          <button type="button" class="report-pane__btn" :disabled="busy" @click="stage = 'idle'">
+            取消
+          </button>
+          <button v-if="canTakedown" type="button" class="report-pane__btn" :disabled="busy" @click="act('takedown')">
+            {{ takedownLabel }}
+          </button>
+          <button type="button" class="report-pane__btn report-pane__btn--danger" :disabled="busy" @click="act('ban')">
+            {{ banLabel }}
+          </button>
+        </template>
+
+        <template v-else>
+          <button type="button" class="report-pane__btn" :disabled="busy" @click="act('ignore')">
+            忽略
+          </button>
+          <!-- 驳回不可逆但无副作用（不封人、不下架），一步到底，不再二段确认 -->
+          <button type="button" class="report-pane__btn" :disabled="busy" @click="act('reject')">
+            驳回
+          </button>
+          <!-- 「成立并封禁」要选天数、封人、下架内容，保留二段确认 -->
+          <button
+            type="button"
+            class="report-pane__btn report-pane__btn--danger"
+            :disabled="busy"
+            @click="confirmBan()"
+          >
+            成立并封禁
+          </button>
+        </template>
       </div>
     </footer>
 
@@ -275,6 +279,7 @@ const {
   list, total, hasMore, loading, failed, busy, actionError, listMode,
   expanded, banDays, stage, undo, doneCount, progressPct, current, currentIndex,
   longContent, banLabel,
+  canTakedown, takedownLabel, verdictText,
   reasonText, load, loadMore, openOne, confirmBan, act, onUndo, reset,
 } = q
 
@@ -369,20 +374,6 @@ useReviewHotkeys({
 
 function fmt(t) {
   return t ? dayjs(t).format('MM-DD HH:mm') : ''
-}
-
-/**
- * 处置结论文案（2026-10-24 加）。
- *
- * 关键分支：status=0 但 handlerId 非空 = **已忽略**。
- * 「忽略」按契约不改 status，只看 status 会把它标成「待处理」——
- * 一条已被忽略的举报在已处理列表里写着「待处理」，比不显示更误导。
- */
-function verdictText(r) {
-  if (!r) return ''
-  if (r.status === 1) return '成立并封禁'
-  if (r.status === 2) return '驳回'
-  return r.handlerId ? '忽略' : '待处理'
 }
 </script>
 

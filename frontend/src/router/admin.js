@@ -27,6 +27,13 @@ const adminRoutes = [
     meta: { requiresAuth: true, requiresAdmin: true, title: '意见反馈', back: true },
   },
   {
+    /* 文件审核(2026-10-27):待审/通过/驳回/下架,队列就是 file_asset.status */
+    path: 'admin/files',
+    name: 'adminFiles',
+    component: () => import('@/views/AdminFiles.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '文件审核', back: true },
+  },
+  {
     /*
       用户处置(2026-10-24 新增):找人 / 直接封禁 / 手动解封。
       此前封人只能走举报流程、解封没有任何端点——永久封禁误判只能改库。

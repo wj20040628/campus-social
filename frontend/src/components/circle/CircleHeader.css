@@ -179,3 +179,32 @@
   color: var(--ys-accent-hover);
   text-decoration-color: currentColor;
 }
+
+/* 举报圈子：同为一行灰色小字，靠右；热区外扩到 44 高（与成员数同一处理） */
+.cd__report {
+  flex: none;
+  margin-left: auto;
+  min-height: 28px;
+  padding: 0 var(--ys-space-2);
+  border: none;
+  background: transparent;
+  color: var(--ys-muted);
+  font-size: var(--ys-text-sm);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.cd__report::after {
+  content: '';
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+.cd__report:hover {
+  color: var(--ys-danger);
+}

@@ -88,6 +88,27 @@
             <el-icon :size="15"><CircleCheckFilled v-if="verifyTip.ok" /><WarningFilled v-else /></el-icon>
             <span>{{ verifyTip.text }}</span>
           </p>
+          <!--
+            提交认证 / 重新提交认证（2026-10-28）。
+            走 POST /user/verify/student-no，与引导页 StepVerify 是**同一个端点**：
+            这条端点的六层校验与自动通过判据是一套；若这里另走 PUT /user/me
+            顺带触发重提，两条路的判据会各说各话（同一学号引导页秒过、设置页排队）。
+            审核中(2)/已认证(1)不显示按钮 —— verifyTip 已经把状态说清楚了，
+            再给一个点不动的按钮只是让人反复试。
+          -->
+          <div v-if="canSubmitVerify" class="sp-verify-act">
+            <button
+              type="button"
+              class="sp-verify-btn"
+              :disabled="verifySubmitting || !studentNoValid"
+              @click="submitVerify"
+            >
+              {{ verifySubmitting ? '提交中…' : verifyRejected ? '重新提交认证' : '提交认证' }}
+            </button>
+            <p class="sp-verify-hint">
+              会与你上面选的学院、本专科、专业、年级逐项比对；学号需 13~14 位纯数字
+            </p>
+          </div>
         </section>
 
         <!-- 兴趣标签:当前选中直接铺成 chip,最后一个是「+ 添加」入口 -->
@@ -128,6 +149,7 @@ import { ArrowLeft, Plus, CircleCheckFilled, WarningFilled } from '@element-plus
 import { me as meApi } from '@/api/auth'
 import { uploadToOss } from '@/composables/useOssUpload'
 import { saveSchoolProfile, readIdentity } from '@/api/dict'
+import { submitStudentNo } from '@/api/verify'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
 import { useVerifyTip } from '@/composables/useVerifyTip'
 import request from '@/utils/request'
@@ -143,7 +165,7 @@ import ProfileTagDialog from '@/views/settings/ProfileTagDialog.vue'
 const userStore = useUserStore()
 const dict = useDictStore()
 const router = useRouter()
-const { load: loadVerify } = useVerifyStatus()
+const { load: loadVerify, code: verifyCode } = useVerifyStatus()
 
 const saving = ref(false)
 const schoolSaving = ref(false)
@@ -178,8 +200,50 @@ const identityDirty = computed(() =>
 /** 认证状态提示行的文案与主色(映射逻辑见 useVerifyTip) */
 const { verifyTip } = useVerifyTip()
 /* 已认证(1)/审核中(2):这两态下改学号或归属会触发"改即重审" */
-const { code: verifyCode } = useVerifyStatus()
 const verifyGuarded = computed(() => verifyCode.value === 1 || verifyCode.value === 2)
+
+/* ---- 提交认证(2026-10-28) ---- */
+const verifySubmitting = ref(false)
+/** 0 未认证 / 3 已驳回:这两态才给提交入口;null(没拉到)按未知处理,不给 */
+const canSubmitVerify = computed(
+  () => verifyCode.value === 0 || verifyCode.value === 3,
+)
+const verifyRejected = computed(() => verifyCode.value === 3)
+/** 与后端 DTO 的格式要求一致:13~14 位纯数字。格式不对先在本地挡住 */
+const studentNoValid = computed(() => /^\d{13,14}$/.test(form.studentNo || ''))
+
+/**
+ * 提交学号认证。
+ *
+ * 归属有改动先落库:submitStudentNo 拿**库里**的院系/年级/专业做六层比对,
+ * 页面上的新归属还没保存,用它去比旧值必然对不上(1058),
+ * 而错误文案只说「信息不符」,用户看不出是哪一步旧了。
+ */
+async function submitVerify() {
+  if (verifySubmitting.value || !studentNoValid.value) return
+  if (identityDirty.value) {
+    const ok = await saveSchool()
+    if (!ok) return
+  }
+  verifySubmitting.value = true
+  try {
+    const data = await submitStudentNo({ studentNo: form.studentNo }, { silent: true })
+    // 状态变了必须强制重拉:不重拉按钮还写着「提交认证」,用户会以为没提交上
+    await loadVerify(true)
+    // userInfo.verified 也要刷新:权限闸门读的是 userStore,不是 verifyStatus 单例。
+    // 拉取失败不影响「已提交」这个事实,不回滚成功提示。
+    try {
+      userStore.setUserInfo(await meApi())
+    } catch {
+      /* 下次进页面会重新拉 */
+    }
+    ElMessage.success(data?.verifyStatus === 1 ? '认证已通过' : '已提交，等待人工核验')
+  } catch (e) {
+    ElMessage.error(e?.message || '认证没通过，检查一下学号与学院、年级、专业是否一致')
+  } finally {
+    verifySubmitting.value = false
+  }
+}
 
 async function load() {
   const me = await meApi()

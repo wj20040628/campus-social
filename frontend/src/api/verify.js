@@ -3,7 +3,7 @@
  * ------------------------------------------------------------------
  * 契约来源:docs/api/openapi.yaml
  *   GET  /user/verify/status       当前认证状态(含 rejectReason)
- *   POST /user/verify/student-no   提交学号 + 姓名后两位,进入人工核验
+ *   POST /user/verify/student-no   提交学号,进入人工核验
  *
  * [为什么这两个接口此前全项目 0 引用]
  * 后端早就实现了,契约里也写着,但前端一处都没调 —— 于是
@@ -37,20 +37,19 @@ export function verifyStatus() {
  * 提交学号(人工核验兜底通道)。
  *
  * 两个后端约束决定了前端必须做的校验:
- *  1. **学号库级唯一**:同号已被占用返回 409 STUDENT_NO_EXISTS。
- *     被驳回后拿回原来那个号必然 409 —— 所以驳回提示必须写「换一个学号」,
- *     否则用户会以为系统坏了,反复点同一个号。
+ *  1. **学号库级唯一**:被**其他账号**占用返回 409 STUDENT_NO_EXISTS。
+ *     被驳回后原学号已释放,本人重新提交同一个号不会冲突
+ *     （唯一校验会排除自己）；改的是不是「正确的号」由六层校验判断。
  *  2. **状态 1/2 被拦**:已认证 / 审核中都不让再提交(409)。
- *     状态 3(驳回)与 0(未提交)放行 —— 这正是「改完重提」的唯一通路。
+ *     状态 3(驳回)与 0(未提交)放行 —— 这正是「重新提交」的通路。
  *
- * @param {{studentNo: string, nameTail: string}} payload
- *        studentNo 学号,nameTail 姓名后两位(如「张三」传「三」)
+ * @param {{studentNo: string}} payload
+ *        studentNo 学号(姓名后两位已不再收集)
  * @returns {Promise<{verifyStatus:number, status?:string}>}
  */
-export function submitStudentNo({ studentNo, nameTail }, opts = {}) {
+export function submitStudentNo({ studentNo }, opts = {}) {
   return request.post('/user/verify/student-no', {
     studentNo: (studentNo || '').trim(),
-    nameTail: (nameTail || '').trim(),
   }, opts)
 }
 

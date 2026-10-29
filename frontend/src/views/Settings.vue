@@ -29,8 +29,11 @@
           <button type="button" class="set-row__btn" @click="adminSheetOpen = true">
             <span class="set-row__icon"><el-icon :size="18"><Operation /></el-icon></span>
             <span class="set-row__text">
-              <span class="set-row__label">管理后台</span>
-              <span class="set-row__desc">学号核验 / 内容审核 / 公告 / 日志</span>
+              <span class="set-row__label">
+                管理后台
+                <AdminPendingBadge :count="pendingTotal" class="set-row__count" />
+              </span>
+              <span class="set-row__desc">学号核验 / 举报 / 内容审核 / 公告 / 日志</span>
             </span>
             <el-icon class="set-row__chevron"><ArrowRight /></el-icon>
           </button>
@@ -125,12 +128,55 @@
       </el-card>
 
       <ActionSheet v-model="adminSheetOpen" title="管理后台">
-        <button type="button" class="asheet__item" @click="goAdmin('/admin/verify')">学号核验</button>
-        <button type="button" class="asheet__item" @click="goAdmin('/admin/review')">内容审核</button>
+        <button
+          type="button"
+          class="asheet__item"
+          :class="{ 'is-pending': pending.summary.verifyPending > 0 }"
+          @click="goAdmin('/admin/verify')"
+        >
+          学号核验
+          <AdminPendingBadge :count="pending.summary.verifyPending" class="settings__pending" />
+        </button>
+        <button
+          type="button"
+          class="asheet__item"
+          :class="{ 'is-pending': pending.summary.reportPending > 0 }"
+          @click="goAdmin('/admin/reports')"
+        >
+          举报处置
+          <AdminPendingBadge :count="pending.summary.reportPending" class="settings__pending" />
+        </button>
+        <button
+          type="button"
+          class="asheet__item"
+          :class="{ 'is-pending': pending.summary.reviewPending > 0 }"
+          @click="goAdmin('/admin/review')"
+        >
+          内容审核
+          <AdminPendingBadge :count="pending.summary.reviewPending" class="settings__pending" />
+        </button>
+        <button
+          type="button"
+          class="asheet__item"
+          :class="{ 'is-pending': pending.summary.filePending > 0 }"
+          @click="goAdmin('/admin/files')"
+        >
+          文件审核
+          <AdminPendingBadge :count="pending.summary.filePending" class="settings__pending" />
+        </button>
+        <button type="button" class="asheet__item" @click="goAdmin('/admin/users')">用户处置</button>
         <button type="button" class="asheet__item" @click="goAdmin('/admin/announcement')">公告管理</button>
         <button type="button" class="asheet__item" @click="goAdmin('/admin/audit')">操作日志</button>
         <button type="button" class="asheet__item" @click="goAdmin('/admin/circles')">圈子处置</button>
-        <button type="button" class="asheet__item" @click="goAdmin('/admin/feedback')">意见反馈</button>
+        <button
+          type="button"
+          class="asheet__item"
+          :class="{ 'is-pending': pending.summary.feedbackPending > 0 }"
+          @click="goAdmin('/admin/feedback')"
+        >
+          意见反馈
+          <AdminPendingBadge :count="pending.summary.feedbackPending" class="settings__pending" />
+        </button>
       </ActionSheet>
 
       <!-- 我的审核记录弹层:从抽屉整体搬来,懒加载 /review/mine,拉过不重复 -->
@@ -162,14 +208,20 @@ import { useUserStore } from '@/stores/user'
 import { useSettings } from '@/composables/useSettings'
 import { useTheme } from '@/composables/useTheme'
 import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
+import { useAdminPending } from '@/composables/useAdminPending'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
+import AdminPendingBadge from '@/components/admin/AdminPendingBadge.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const { isDark, toggle: toggleTheme } = useTheme()
 const { code, studentNo, load: loadVerifyStatus } = useVerifyStatus()
 const { adminSheetOpen, goAdmin, doLogout } = useSettings()
+
+/* 管理待办:设置页是手机端管理员的一个入口,角标与抽屉/侧栏共用同一份缓存 */
+const pending = useAdminPending()
+const pendingTotal = computed(() => pending.total())
 
 /** 已认证(个人卡展示用):只认 verify_status=1,「审核中/驳回」不标已认证 */
 const verifyVerified = computed(() => code.value === VERIFY_OK)
@@ -211,6 +263,7 @@ onMounted(async () => {
   }
   // 认证状态:个人卡的「已认证」角标要用(全站单例缓存,不重复请求)
   loadVerifyStatus()
+  pending.refresh()
 })
 </script>
 

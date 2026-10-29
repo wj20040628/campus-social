@@ -8,6 +8,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.ChatGuardService;
 import com.campus.social.service.StrangerQuotaService;
+import com.campus.social.service.support.StrangerPolicy;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.ChatSendVO;
 import lombok.RequiredArgsConstructor;
@@ -26,14 +27,14 @@ import static com.campus.social.common.ResultCode.USER_NOT_VERIFIED;
 /**
  * 搭话护栏实现（F3）。
  *
- * <p>六道判定，顺序即成本序（openapi.yaml:272-278）：
+ * <p>判定顺序（2026-10-28 调整）：
  * <ol>
  *   <li>不能给自己发——纯内存比较，不查库</li>
- *   <li>发送方未通过校内认证——查 user，AC-11</li>
+ *   <li>发送方已认证且未冻结——查 user，AC-11</li>
  *   <li>双向黑名单——查 relation，命中任一方向即拒</li>
- *   <li>接收方 stranger_msg_enabled=0——已查到的 user 对象上直接读字段</li>
- *   <li>陌生人日配额——Redis 往返，前四道过了才走</li>
- *   <li>敏感词——DFA 全串扫描，最贵，放最后</li>
+ *   <li>接收方存在 + 陌生人开关——陌生人判定见 {@link StrangerPolicy}</li>
+ *   <li>敏感词——DFA 扫描，<b>必须在配额之前</b>：被拒的内容不该消耗当天的 1 条</li>
+ *   <li>陌生人日配额——Redis 往返，只有真正会落库的消息才扣</li>
  * </ol>
  *
  * <p><b>AC-06 的勘误</b>：SPEC AC-06 与 openapi:278 都写「写入 review_task」，
@@ -52,6 +53,7 @@ public class ChatGuardServiceImpl implements ChatGuardService {
     private final UserMapper userMapper;
     private final RelationMapper relationMapper;
     private final StrangerQuotaService quotaService;
+    private final StrangerPolicy strangerPolicy;
     private final SensitiveWordFilter sensitiveFilter;
     private final AuditService auditService;
 
@@ -80,28 +82,23 @@ public class ChatGuardServiceImpl implements ChatGuardService {
             throw new BusinessException(BLACKLISTED, "你与对方之间存在黑名单关系，无法发送消息");
         }
 
-        // 4. 接收方开关（AC-05）。这一道只对陌生人生效——
-        //    已是好友/已关注的人不受 stranger_msg_enabled 约束，
-        //    否则用户关了「陌生人搭话」会连正常聊天也一起关掉。
+        // 4. 接收方开关（AC-05）。只对真正的陌生人有效——
+        //    对方已经关注我/回复过我时，他已经主动开了门，不该被自己的开关挡住。
         User peer = userMapper.selectById(peerId);
         if (peer == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "对方不存在");
         }
-        boolean isStranger = relationMapper.countFollowOrFriendEitherDirection(me, peerId) == 0;
+        boolean isStranger = strangerPolicy.isStranger(me, peerId);
         if (isStranger && !Integer.valueOf(1).equals(peer.getStrangerMsgEnabled())) {
             throw new BusinessException(STRANGER_MSG_CLOSED, "对方已关闭陌生人消息，无法发送");
         }
 
-        // 5. 配额（AC-04）。新对象与同一对象是两个独立计数器，由
-        //    consumeStrangerQuota 一并处理——分开调用会出现「扣了新的没扣旧的」
-        //    或反之的半扣状态，而 ZSET 无法安全回退。
-        Integer remaining = isStranger ? quotaService.consumeStrangerQuota(me, peerId) : null;
-
-        // 6. 敏感词（AC-06）。level=2 命中即拒发。
-        //    level=1 由发送路径入库前打码（ChatServiceImpl.send → MessageContentGuard.sanitize），
-        //    本护栏只负责「拒」，替换是「放行前的改写」，两件事在两个环节。
-        //    【勘误史】此注释曾写「level=1 走替换不在此拦」，但替换从未实现——
-        //    一级词在私信原样收发半年，2026-10-24 才补上（同日补群聊零检查）。
+        /*
+         * 5. 敏感词（AC-06）。level=2 命中即拒发；level=1 由发送路径入库前打码。
+         *
+         * 放在配额之前（2026-10-28）：此前先扣额度再查词，一条被拒的脏话
+         * 会吃掉用户当天唯一的一条搭话机会。DFA 比 Redis 便宜，也更该先跑。
+         */
         if (sensitiveFilter.containsBlock(content)) {
             List<String> hits = sensitiveFilter.matchedLevel1Words(content);
             auditService.record(me, ACTION_BLOCK_SENSITIVE, "chat_message", null,
@@ -110,6 +107,12 @@ public class ChatGuardServiceImpl implements ChatGuardService {
             throw new BusinessException(SENSITIVE_WORD_BLOCKED, "内容含违规词，已拦截");
         }
 
-        return ChatSendVO.builder().isStranger(isStranger).remainingNewPeerQuota(remaining).build();
+        // 6. 配额（AC-04）。只有陌生人且消息会落库时才扣；对方关注/回复后不限制。
+        Integer remaining = isStranger ? quotaService.consumePerPeer(me, peerId) : null;
+
+        return ChatSendVO.builder()
+                .isStranger(isStranger)
+                .remainingPerPeerQuota(remaining)
+                .build();
     }
 }

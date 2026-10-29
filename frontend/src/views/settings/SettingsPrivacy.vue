@@ -7,11 +7,14 @@
         <span class="stext">
           <span class="slabel">允许陌生人给我发消息</span>
           <span class="sdesc">
-            <template v-if="canStrangerChat">
-              关闭后,未关注你的人无法主动给你发私信(你仍可主动找别人)。切换即时生效,无需点保存。
+            <template v-if="canStrangerChat && strangerMsg">
+              陌生人可以给你发私信，但同一个人一天只能发 1 条。你回复他、或者关注他之后，这条限制就解除了（互相关注则互相不限）。切换即时生效，无需点保存。
+            </template>
+            <template v-else-if="canStrangerChat">
+              关闭后，只有你关注了、或者已经回复过的人能给你发私信。切换即时生效，无需点保存。
             </template>
             <template v-else>
-              先完成校内认证,才能接收陌生人消息。认证在「编辑资料」的学号处提交,审核通过即生效。
+              先完成校内认证，才能接收陌生人消息。认证在「编辑资料」的学号处提交，审核通过即生效。
             </template>
           </span>
         </span>

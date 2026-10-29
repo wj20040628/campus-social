@@ -19,4 +19,17 @@ export function resolveThumb(url) {
   return resolveUrl(url)
 }
 
-export default { resolveUrl, resolveThumb }
+/**
+ * 视频首帧预览。在 URL 后加 #t=0.1，让浏览器加载元数据后 seek 到 0.1s 渲染一帧；
+ * 不加的话 feed 里 <video> 在点播放前是一块黑色（用户以为视频坏了）。
+ * 已带 fragment 的 URL 原样返回，避免拼出两个 #。
+ */
+export function resolveVideo(url) {
+  const u = resolveUrl(url)
+  if (!u || u.includes('#')) return u
+  // 取 1s 处而不是 0.1s:不少视频开头是黑场/淡入,0.1s 截出来仍是黑的。
+  // 新上传的视频有 poster 会直接盖住它,这里只兜底旧帖子。
+  return u + '#t=1'
+}
+
+export default { resolveUrl, resolveThumb, resolveVideo }

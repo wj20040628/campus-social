@@ -18,7 +18,9 @@ public class Notify implements Serializable {
 
     /**
      * 1被关注 2被赞 3被评 4私信 5活动 6审核中 7审核通过 8审核未通过
-     * 9被@ 10集市留言 11反馈回复
+     * 9被@ 10集市留言 11反馈回复 13文件过审 14文件驳回 15文件下架
+     * 16认证通过 17认证驳回 18举报结果 19账号封禁 20内容下架 21账号解封
+     * 22被邀请加入群聊（targetId=groupId） 23圈子被解散（targetId=circleId）
      */
     private Integer type;
 

@@ -32,6 +32,7 @@
           :busy="coverBusy"
           @pick="changeCover"
           @reset="resetCover"
+          @preview="previewCover"
           @more="openGlobalDrawer"
         />
 
@@ -43,6 +44,7 @@
           :verified="verified"
           :is-me="isMe"
           :following="!!relStatus?.following"
+          :followed-by="!!relStatus?.followedBy"
           :follow-loading="followLoading"
           :show-actions="!!myId && !isMe"
           :avatar-size="avatarSize"
@@ -52,6 +54,7 @@
           @edit="goEditProfile"
           @report="onReportClick"
           @change-avatar="changeAvatar"
+          @preview-avatar="previewAvatar"
         />
 
         <!-- 信誉条:他人=受信徽章(不受信不渲染),本人=完整信誉卡(复用设置页组件) -->
@@ -63,7 +66,7 @@
           <button type="button" class="p-blocked__undo" @click="unblock">解除拉黑</button>
         </p>
 
-        <!-- 2026-10-21：VerifyNotice 已上移到 MainLayout（全站可见），此处不再渲染 -->
+        <!-- 2026-10-27：认证提示改由全站 AuthGateSheet 在受限动作处弹出，此处不再渲染 -->
 
         <!--
           四项统计:动态 / 获赞 / 粉丝 / 关注。
@@ -146,14 +149,7 @@
       @empty-action="onRelationEmptyAction"
     />
 
-    <!-- AC-11:未认证点「发私信」的说明 -->
-    <ActionSheet v-model="verifyOpen" title="发私信">
-      <div class="vfy">
-        <p class="vfy__why">要先认证校内身份才能搭话</p>
-        <p class="vfy__how">认证只需要校园邮箱或学号，一分钟就好</p>
-        <button type="button" class="vfy__btn" @click="goVerify">去认证</button>
-      </div>
-    </ActionSheet>
+    <!-- AC-11:未认证点「发私信」由全站认证闸门统一承接(见 AuthGateSheet) -->
 
     <!-- 举报该用户 -->
     <ReportSheet
@@ -163,6 +159,9 @@
       sheet-title="举报这个用户"
       :submit-fn="submitReport"
     />
+
+    <!-- 头像 / 封面大图（2026-10-28）：两处共用同一个查看器 -->
+    <ImageViewer v-model="previewOpen" :src="previewSrc" :alt="previewAlt" />
   </div>
 </template>
 
@@ -184,7 +183,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChatLineSquare, WarningFilled, Star } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
-import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import ProfileHead from '@/components/profile/ProfileHead.vue'
 import ProfileCover from '@/components/profile/ProfileCover.vue'
 import ProfileTabs from '@/components/profile/ProfileTabs.vue'
@@ -193,17 +191,20 @@ import ProfileStats from '@/components/profile/ProfileStats.vue'
 import ProfileTrust from '@/components/profile/ProfileTrust.vue'
 import RelationSheet from '@/components/profile/RelationSheet.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
+import ImageViewer from '@/components/common/ImageViewer.vue'
 import { useProfileData } from '@/composables/useProfileData'
 import { useProfileRelations } from '@/composables/useProfileRelations'
 import { useProfileActions } from '@/composables/useProfileActions'
 import { useProfileCollections } from '@/composables/useProfileCollections'
 import { useProfileMedia } from '@/composables/useProfileMedia'
 import { useVerifyStatus } from '@/composables/useVerifyStatus'
+import { openAuthGate } from '@/composables/useAuthGate'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { submitReport } from '@/api/review'
 import { displayName } from '@/utils/mask'
+import { useImagePreview } from '@/composables/useImagePreview'
 import PostCard from '@/components/PostCard.vue'
 
 const route = useRoute()
@@ -258,8 +259,18 @@ const TABS = computed(() => (isMe.value
   : [{ name: 'posts', label: '动态' }]))
 
 const tab = ref('posts')
-const verifyOpen = ref(false)
 const reportOpen = ref(false)
+
+/* 头像 / 封面大图：用原图，缩略图放大后糊 */
+const {
+  open: previewOpen, src: previewSrc, alt: previewAlt, preview,
+} = useImagePreview()
+function previewAvatar() {
+  preview(user.value?.avatarUrl, `${displayName(user.value)}的头像`)
+}
+function previewCover() {
+  preview(user.value?.coverUrl, `${displayName(user.value)}的主页封面`)
+}
 
 /** 粉丝/关注抽屉 */
 const relationOpen = ref(false)
@@ -286,14 +297,8 @@ const avatarSize = computed(() => (isMobile.value ? 76 : 88))
 */
 const { toggleFollowAndCount, unblock, onChatClick } = useProfileActions({
   targetId, user, relStatus, toggleFollow, loadRelation,
-  onNeedVerify: () => { verifyOpen.value = true },
+  onNeedVerify: openAuthGate,
 })
-
-function goVerify() {
-  verifyOpen.value = false
-  // 认证是提交学号,学号字段在编辑资料页 /profile
-  router.push('/profile')
-}
 
 function goDetail(id) {
   router.push(`/post/${id}`)

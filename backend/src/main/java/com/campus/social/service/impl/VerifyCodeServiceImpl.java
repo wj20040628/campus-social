@@ -1,13 +1,9 @@
 package com.campus.social.service.impl;
 
-import com.campus.social.common.ResultCode;
-import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
-import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.MessageGateway;
 import com.campus.social.service.VerifyCodeService;
 import com.campus.social.util.RedisLua;
-import com.campus.social.vo.TokenPairVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -36,7 +32,6 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
 
     private final StringRedisTemplate redis;
     private final MessageGateway messageGateway;
-    private final UserMapper userMapper;
     private final RedisLua redisLua;
     private final SecureRandom random = new SecureRandom();
 
@@ -68,15 +63,9 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
         // 手机无大小写,原样。
         String norm = isEmail ? target.toLowerCase() : target;
 
-        // 硬约束 1(type=login 邮箱验证码登录):仅「已绑定安全凭证邮箱」的用户可用。
-        // 未绑定 → 直接拒绝,不发码、不计日额。这是后端强制兜底,
-        // 前端即便把 Tab2 暴露给未绑定用户也无法真正发码。
-        if ("login".equals(type)) {
-            User bound = userMapper.selectByEmail(norm);
-            if (bound == null) {
-                throw new BusinessException(EMAIL_NOT_REGISTERED, "该邮箱尚未绑定账号,无法用于验证码登录");
-            }
-        }
+        // 2026-10-27:邮箱验证码登录不再要求邮箱已注册 —— 未注册邮箱在校验码通过后
+        // 由 AuthServiceImpl.loginByCode 自动建号(不设密码),所以这里不能再拦。
+        // 发送动作本身仍受 60s 限频与每日 20 封约束。
 
         // 硬约束 2(复用未过期验证码):已有一条有效码则直接复用,
         // 不重新生成、不重发邮件、不计日额。邮箱通道消耗极小(见账号体系重构方案)。

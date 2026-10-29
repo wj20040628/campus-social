@@ -103,16 +103,18 @@ export function useProfileData(targetId, myId, dict) {
   )
 
   /**
-   * 身份行(2026-10-25 扩):校区 · 学院 · 年级 · 大几。
-   * 四段各缺省,不留下多余的「·」;大几来自 gradeStage(纯学年算术)。
+   * 身份行:校区 · 学院 · 大几。
+   *
+   * <p>不再同时显示「2023级」和「大四」——年级本身已经由
+   * {@code gradeStage(enrollYear, level)} 推导成大几,两者并列是重复信息。
+   * 大几取不到时(老数据缺入学年份)才退回年级名,避免整段消失。
    */
   const identityLine = computed(() => {
     const it = identity.value
     return [
       campusName(user.value?.campus),
       it.deptName,
-      it.gradeName,
-      it.stage,
+      it.stage || it.gradeName,
     ].filter(Boolean).join(' · ')
   })
 

@@ -42,13 +42,14 @@ const CARD_MIN_H = 360
 /**
  * 画一张分享卡片。
  *
- * @param {{kind:'post'|'mkt'|'activity', title:string, excerpt?:string,
- *          authorName?:string, topics?:string[], image?:string,
+ * @param {{kind:'post'|'mkt'|'activity'|'file', title:string, excerpt?:string,
+ *          authorName?:string, topics?:string[], image?:string, badge?:string,
  *          qrText:string, meta?:string}} opt
  *   title   卡片主文案(帖子取正文前段,活动取活动名)
  *   excerpt 副文案(集市/活动的详情摘要)
  *   image   可选封面图 url(相对 /uploads 也行,内部走 resolveUrl;
  *           加载失败(跨域/文件缺失)自动跳过,不阻塞出图)
+ *   badge   可选方形类型徽标文字(如 DOCX)，排在标题左侧；文件分享用
  *   qrText  二维码内容,调用方传 window.location.origin + 路由
  * @returns {Promise<HTMLCanvasElement>}
  */
@@ -66,11 +67,25 @@ export async function drawShareCard(opt) {
   let contentBottom = CARD_Y + CARD_TOP_PAD
   if (opt.authorName) contentBottom += 56
 
-  const titleLines = wrapLines(measure, opt.title || '', innerW, titleFont, 4)
-  contentBottom += titleLines.length * 42
+  /*
+   * 类型徽标(2026-10-28,文件分享用):左侧一个方形色块写「DOCX」，
+   * 标题排在它右边。文件卡片没有配图，靠这个色块区分「这是一份文件」
+   * 而不是一条动态。
+   */
+  const badge = String(opt.badge || '').trim().toUpperCase().slice(0, 5)
+  const BADGE = 104
+  const BADGE_GAP = 24
+  const titleX = badge ? innerX + BADGE + BADGE_GAP : innerX
+  const titleW = badge ? innerW - BADGE - BADGE_GAP : innerW
+
+  const titleLines = wrapLines(measure, opt.title || '', titleW, titleFont, 4)
+  const titleH = titleLines.length * 42
+  const rowH = badge ? Math.max(titleH, BADGE) : titleH
+  contentBottom += rowH
 
   const excerptLines = opt.excerpt ? wrapLines(measure, opt.excerpt, innerW, bodyFont, 7) : []
-  if (excerptLines.length) contentBottom += 10 + excerptLines.length * 44
+  // 与绘制段保持一致：有徽标时副行多留 24（不是 10），否则量出的高度会少 14px
+  if (excerptLines.length) contentBottom += (badge ? 24 : 10) + excerptLines.length * 44
 
   const topics = (opt.topics || []).slice(0, 3)
   if (topics.length) contentBottom += 26 + 46 + 14
@@ -127,15 +142,32 @@ export async function drawShareCard(opt) {
     y += 56
   }
 
-  ctx.font = titleFont
-  ctx.fillStyle = C.fg
-  for (const line of titleLines) {
-    ctx.fillText(line, innerX, y)
-    y += 42
+  const rowTop = y
+  if (badge) {
+    roundRect(ctx, innerX, rowTop, BADGE, BADGE, 20)
+    ctx.fillStyle = C.accentSoft
+    ctx.fill()
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.fillStyle = C.accent
+    ctx.font = '700 26px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+    ctx.fillText(badge, innerX + BADGE / 2, rowTop + BADGE / 2 + 9)
+    ctx.restore()
   }
 
+  ctx.font = titleFont
+  ctx.fillStyle = C.fg
+  // 有徽标时标题块在徽标高度内垂直居中；无徽标维持原来的顶部对齐
+  let ty = badge ? rowTop + (BADGE - titleH) / 2 + 30 : rowTop
+  for (const line of titleLines) {
+    ctx.fillText(line, titleX, ty)
+    ty += 42
+  }
+  y = rowTop + rowH
+
   if (excerptLines.length) {
-    y += 10
+    // 有徽标时多留一点间距：副行紧贴色块底部会显得挤（2026-10-28 实拍）
+    y += badge ? 24 : 10
     ctx.font = bodyFont
     ctx.fillStyle = C.fg2
     for (const line of excerptLines) {

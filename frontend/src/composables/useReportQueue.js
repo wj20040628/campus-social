@@ -117,6 +117,38 @@ export function useReportQueue(handled) {
     if (stage.value !== 'ban') return '成立并封禁'
     return banDays.value === 0 ? '永久封禁' : `封禁 ${banDays.value} 天`
   })
+  /**
+   * 这条举报有没有可下架的内容（2026-10-28）。
+   *
+   * 用户本人（1）与未上线的搭子（5）没有内容可删——后端对这两种目标
+   * 的 takedown 会回 422。按钮不出现，胜过点了才报错。
+   *
+   * 圈子（9，2026-10-29）：后端的 takedown = 解散圈子（status=1 + 帖子级联），
+   * 按钮文案在下面单独换成「解散圈子」，避免管理员以为是删一条内容。
+   */
+  const canTakedown = computed(() => [2, 3, 4, 6, 7, 8, 9].includes(current.value?.targetType))
+
+  const takedownLabel = computed(() => (current.value?.targetType === 9 ? '解散圈子' : '仅下架'))
+
+  /**
+   * 处置结论文案（2026-10-28 加，2026-10-29 从 ReportPane 移入）。
+   *
+   * status=1 不再写死「成立并封禁」——新增「仅下架」后同是 status=1，
+   * 写封禁会让管理员误以为每个成立都封了人。按 targetType 说清后果。
+   *
+   * 关键分支：status=0 但 handlerId 非空 = **已忽略**。
+   * 「忽略」按契约不改 status，只看 status 会把它标成「待处理」。
+   */
+  function verdictText(r) {
+    if (!r) return ''
+    if (r.status === 1) {
+      if (r.targetType === 1) return '举报成立，已处置该用户'
+      if (r.targetType === 9) return '举报成立，该圈子已解散'
+      return '举报成立，内容已下架'
+    }
+    if (r.status === 2) return '驳回'
+    return r.handlerId ? '忽略' : '待处理'
+  }
 
   function reasonText(t) {
     return reasonLabel(t)
@@ -221,6 +253,7 @@ export function useReportQueue(handled) {
 
     const text = {
       ban: banDays.value === 0 ? '已永久封禁该用户' : `已封禁 ${banDays.value} 天`,
+      takedown: '已下架被举报内容（未封禁）',
       reject: '举报不成立，已驳回',
       ignore: '已忽略这条举报',
     }[action]
@@ -297,6 +330,9 @@ export function useReportQueue(handled) {
     currentIndex,
     longContent,
     banLabel,
+    canTakedown,
+    takedownLabel,
+    verdictText,
     reasonText,
     load,
     loadMore,

@@ -223,7 +223,7 @@ public class ChatServiceImpl implements ChatService {
         return ChatSendVO.builder()
                 .msgId(m.getId())
                 .isStranger(guard.getIsStranger())
-                .remainingNewPeerQuota(guard.getRemainingNewPeerQuota())
+                .remainingPerPeerQuota(guard.getRemainingPerPeerQuota())
                 .content(safeContent) // 打码后文本:前端乐观气泡用它渲染
                 .build();
     }

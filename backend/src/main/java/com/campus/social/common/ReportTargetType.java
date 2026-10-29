@@ -44,4 +44,31 @@ public final class ReportTargetType {
      * 而类型编号一旦失去唯一含义，switch 里就再也说不清哪个分支对哪种对象。
      */
     public static final int MKT_ACTIVITY = 6;
+
+    /**
+     * 文件库条目（file_asset）。2026-10-27 新增。
+     *
+     * <p>处置对象是文件上传者；举报成立时把文件 status 置 3（下架），
+     * 不删除行，保留审核与申诉证据。
+     */
+    public static final int FILE = 7;
+
+    /**
+     * 群消息（group_message）。2026-10-28 新增。
+     *
+     * <p>不复用 4（私聊消息）：两张表各自自增 id，同一个 id 在两表里
+     * 指向完全不同的内容。群消息按 4 提交时，管理员会看到另一条私信的作者
+     * 与正文，封错人、删错消息都是必然。
+     */
+    public static final int GROUP_MESSAGE = 8;
+
+    /**
+     * 圈子（circle）。2026-10-29 新增。
+     *
+     * <p>自评估报告承诺「用户可对圈子发起举报」。处置对象是圈子本身：
+     * 管理员选「仅下架」= 解散圈子（status=1，圈内帖子级联 status=2），
+     * 不封圈主；选「成立并封禁」才会同时封禁圈主。归因（圈主）与摘要（圈名）
+     * 分别走 {@code selectCircleOwnerId} / {@code selectCircleSummary}。
+     */
+    public static final int CIRCLE = 9;
 }

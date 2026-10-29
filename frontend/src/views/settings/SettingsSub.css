@@ -190,6 +190,25 @@ button.srow:hover .schev {
   font-size: var(--ys-text-xs);
   color: var(--ys-meta);
 }
+/* 版本标题整行可点开/收起：抹掉按钮默认外观，箭头靠右并随状态旋转 */
+.log__meta--btn {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.log__caret {
+  margin-left: auto;
+  align-self: center;
+  color: var(--ys-meta);
+  transition: transform 0.18s ease;
+}
+.log__caret.is-open {
+  transform: rotate(90deg);
+}
 .log__list {
   list-style: none;
   margin: var(--ys-space-2) 0 0;

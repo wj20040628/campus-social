@@ -29,11 +29,11 @@ public interface ReportMapper extends BaseMapper<Report> {
      * <p>也不用 INSERT IGNORE：它会把「截断、超范围、非空约束」等真实错误
      * 一并吞掉，变成静默的数据丢失。抛出来才知道哪条举报没存进去。
      */
-    @Insert("INSERT INTO report (reporter_id, target_type, target_id, reason_type, reason_text, status) "
-            + "VALUES (#{reporterId}, #{targetType}, #{targetId}, #{reasonType}, #{reasonText}, 0)")
+    @Insert("INSERT INTO report (reporter_id, target_type, target_id, reason_type, reason_text, target_snapshot, status) "
+            + "VALUES (#{reporterId}, #{targetType}, #{targetId}, #{reasonType}, #{reasonText}, #{targetSnapshot}, 0)")
     int insertReport(@Param("reporterId") Long reporterId, @Param("targetType") int targetType,
             @Param("targetId") Long targetId, @Param("reasonType") int reasonType,
-            @Param("reasonText") String reasonText);
+            @Param("reasonText") String reasonText, @Param("targetSnapshot") String targetSnapshot);
 
     /** 查同一人对同一目标的既有举报（幂等时回显原记录） */
     @Select("SELECT * FROM report WHERE reporter_id = #{reporterId} AND target_type = #{targetType} "
@@ -156,6 +156,10 @@ public interface ReportMapper extends BaseMapper<Report> {
     @Select("SELECT content FROM chat_message WHERE id = #{id} AND is_deleted = 0")
     String selectChatMessageContent(@Param("id") Long id);
 
+    /** 群消息摘要（targetType=8）。撤回后原文仍在库里，但用户已看不到，按「已删除」处理 */
+    @Select("SELECT content FROM group_message WHERE id = #{id} AND is_deleted = 0 AND is_recalled = 0")
+    String selectGroupMessageContent(@Param("id") Long id);
+
     @Select("SELECT content FROM post WHERE id = #{id} AND is_deleted = 0")
     String selectPostContent(@Param("id") Long id);
 
@@ -189,6 +193,9 @@ public interface ReportMapper extends BaseMapper<Report> {
 
     @Select("SELECT sender_id FROM chat_message WHERE id = #{id} AND is_deleted = 0")
     Long selectChatMessageSenderId(@Param("id") Long id);
+
+    @Select("SELECT sender_id FROM group_message WHERE id = #{id} AND is_deleted = 0")
+    Long selectGroupMessageSenderId(@Param("id") Long id);
 
     /**
      * 集市活动发布者（targetType=6）。
@@ -230,7 +237,52 @@ public interface ReportMapper extends BaseMapper<Report> {
     @Update("UPDATE chat_message SET is_deleted = 1, update_time = NOW() WHERE id = #{id} AND is_deleted = 0")
     int takedownChatMessage(@Param("id") Long id);
 
+    /** 群消息下架：软删；群消息列表按 is_deleted=0 过滤，双方都看不到 */
+    @Update("UPDATE group_message SET is_deleted = 1, update_time = NOW() WHERE id = #{id} AND is_deleted = 0")
+    int takedownGroupMessage(@Param("id") Long id);
+
     /** 集市活动下架：管理端强制软删（不校验属主） */
     @Update("UPDATE mkt_activity SET soft_delete = 1 WHERE id = #{id} AND soft_delete = 0")
     int takedownMktActivity(@Param("id") Long id);
+
+    // ---- 文件库（targetType=7，2026-10-27） --------------------------------
+
+    @Select("SELECT user_id FROM file_asset WHERE id = #{id} AND is_deleted = 0")
+    Long selectFileOwnerId(@Param("id") Long id);
+
+    @Select("SELECT title FROM file_asset WHERE id = #{id} AND is_deleted = 0")
+    String selectFileSummary(@Param("id") Long id);
+
+    /** 文件下架：只认已过审，置 status=3 并留下理由 */
+    @Update("UPDATE file_asset SET status = 3, reject_reason = '举报成立，管理员下架', "
+            + "review_time = NOW(), update_time = NOW() "
+            + "WHERE id = #{id} AND status = 1 AND is_deleted = 0")
+    int takedownFile(@Param("id") Long id);
+
+    // ---- 圈子（targetType=9，2026-10-29） ----------------------------------
+
+    /**
+     * 圈子举报的归因用户（圈主）。不按 status 过滤：举报处置完成后，
+     * 管理端列表仍要靠它显示「被举报圈主」，过滤掉会让作者列变成空白。
+     */
+    @Select("SELECT owner_id FROM circle WHERE id = #{id} AND is_deleted = 0")
+    Long selectCircleOwnerId(@Param("id") Long id);
+
+    /** 圈子摘要（管理端列表用）：圈子表只有名称，直接取 name */
+    @Select("SELECT name FROM circle WHERE id = #{id} AND is_deleted = 0")
+    String selectCircleSummary(@Param("id") Long id);
+
+    /**
+     * 圈子下架：status 0→1（与封禁/解散同口径），只对正常圈生效。
+     * 与 {@code CircleAdminServiceImpl.disbandCircle} 的差别：这里不校验圈主，
+     * 由举报处置链路（已过管理员鉴权）调用。
+     */
+    @Update("UPDATE circle SET status = 1, update_time = NOW() "
+            + "WHERE id = #{id} AND is_deleted = 0 AND status = 0")
+    int takedownCircle(@Param("id") Long id);
+
+    /** 圈子下架时级联隐藏圈内帖子：status 1→2，与圈主解散同一口径 */
+    @Update("UPDATE post SET status = 2, update_time = NOW() "
+            + "WHERE circle_id = #{id} AND is_deleted = 0 AND status = 1")
+    int takedownCirclePosts(@Param("id") Long id);
 }

@@ -99,6 +99,13 @@ public final class BusinessHttpStatus {
         // 前端据此 suppressStatuses:[409] 把全局红条让给调用方翻成人话
         MAPPING.put(ResultCode.FEEDBACK_NOT_FOUND, HttpStatus.NOT_FOUND);
         MAPPING.put(ResultCode.FEEDBACK_ALREADY_HANDLED, HttpStatus.CONFLICT);
+
+        // 文件库(2026-10-27):额度类要有真实状态码,否则前端只能从 200 响应体里猜
+        MAPPING.put(ResultCode.FILE_UPLOAD_FORBIDDEN, HttpStatus.FORBIDDEN);
+        MAPPING.put(ResultCode.FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE);
+        MAPPING.put(ResultCode.FILE_TOTAL_QUOTA_EXCEEDED, HttpStatus.UNPROCESSABLE_ENTITY);
+        MAPPING.put(ResultCode.FILE_UPLOAD_DAILY_LIMIT, HttpStatus.TOO_MANY_REQUESTS);
+        MAPPING.put(ResultCode.FILE_NOT_AVAILABLE, HttpStatus.NOT_FOUND);
     }
 
     private BusinessHttpStatus() {

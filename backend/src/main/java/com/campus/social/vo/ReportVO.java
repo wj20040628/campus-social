@@ -24,7 +24,7 @@ public class ReportVO implements Serializable {
 
     private String reporterNickname;
 
-    /** 1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动 */
+    /** 1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动 7文件 */
     private Integer targetType;
 
     private Long targetId;
@@ -42,6 +42,12 @@ public class ReportVO implements Serializable {
     /** 作者昵称（与 targetAuthorId 同批解析）；查不到用户时为 null */
     private String targetAuthorNickname;
 
+    /**
+     * 举报提交时的目标快照（2026-10-29 加），已渲染成可读文本。
+     * 原内容被作者删除后，管理员仍能据此看到当时的正文/作者/媒体。
+     */
+    private String targetSnapshotText;
+
     /** 1骚扰 2广告 3色情 4诈骗 5其他 */
     private Integer reasonType;
 
@@ -55,6 +61,14 @@ public class ReportVO implements Serializable {
     private Integer status;
 
     private Long handlerId;
+
+    /**
+     * 处置备注（2026-10-28 补）。
+     *
+     * <p>ReportListVO 一直在查这一列，但 VO 没接——「已处理」列表的
+     * 「处置说明」行因此永远不渲染。管理员处置完再也查不到自己写了什么。
+     */
+    private String handleNote;
 
     private LocalDateTime handleTime;
 

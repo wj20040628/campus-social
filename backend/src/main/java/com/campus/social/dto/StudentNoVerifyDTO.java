@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-
 /**
  * 学号认证（F2 冷启动人工核验兜底）。
  *
@@ -24,13 +23,12 @@ public class StudentNoVerifyDTO {
     private String studentNo;
 
     /**
-     * 姓名后 1 到 2 位，供管理员人工比对。
+     * 姓名后 1 到 2 位（选填），供管理员人工比对。
      *
-     * <p>契约写 maxLength 4，但注释说 1 到 2 位。取 4 是为了兼容
-     * 「复姓 + 单名」这类边界（如「欧阳娜娜」的「娜娜」），
-     * 服务端只在非空时校验，不强制恰好 1-2 位。
+     * <p>2026-10-27 起不再强制填写：用户反馈这项收集没有必要，
+     * 认证主判据是学号与学校归属的六层比对。前端已移除该输入框，
+     * 这里保留字段以兼容旧客户端；为空时审计日志不写姓名后缀。
      */
-    @NotBlank(message = "请填写姓名后 1 到 2 位")
     @Size(max = 4, message = "姓名后最多 4 位")
     private String nameTail;
 }

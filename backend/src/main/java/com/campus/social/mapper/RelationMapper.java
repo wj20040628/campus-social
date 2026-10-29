@@ -59,6 +59,17 @@ public interface RelationMapper extends BaseMapper<Relation> {
     int countFollowOrFriendEitherDirection(@Param("me") long me, @Param("peer") long peer);
 
     /**
+     * peer 是否关注了我 / 是否把我加为好友（只看 peer → me 方向）。
+     *
+     * <p>搭话解锁判据（2026-10-28）：只有「对方关注我」才算对方主动开门，
+     * 「我关注对方」不能解锁——否则关注就成了免费绕过每日 1 条限制的开关。
+     */
+    @Select("SELECT COUNT(*) FROM relation "
+            + "WHERE is_deleted = 0 AND type IN (1, 2) "
+            + "  AND from_user_id = #{peer} AND to_user_id = #{me}")
+    int countPeerSideRelation(@Param("me") long me, @Param("peer") long peer);
+
+    /**
      * 批量取我已关注的 userId 子集（F11 引导批量关注用）。
      *
      * <p>为什么必须批量：引导页允许一次勾选 50 人。

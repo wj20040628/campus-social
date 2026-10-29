@@ -43,6 +43,9 @@ public class GroupServiceImpl implements GroupService {
     /** 撤回窗口(秒):与单聊 RECALL_WINDOW_SECONDS 及前端 canRecall 对齐 */
     private static final int RECALL_WINDOW_SECONDS = 120;
 
+    /** 被邀请进群的通知（2026-10-28） */
+    private static final int NOTIFY_GROUP_INVITE = 22;
+
     private final GroupMapper groupMapper;
     private final GroupMemberMapper groupMemberMapper;
     private final GroupMessageMapper groupMessageMapper;
@@ -56,6 +59,10 @@ public class GroupServiceImpl implements GroupService {
     private final UploadService uploadService;
     /** 敏感词横切(2026-10-24 补):此前群消息发送路径无任何敏感词检查 */
     private final MessageContentGuard contentGuard;
+    /** 拉人关系校验:只能邀请关注我/我关注的人,防任意 userId 拉群骚扰 */
+    private final RelationMapper relationMapper;
+    /** 新成员入群通知:至少让对方知道自己在哪个群、能自己退 */
+    private final PostNotifySupport notifySupport;
 
     @Override
     @Transactional
@@ -93,6 +100,9 @@ public class GroupServiceImpl implements GroupService {
             List<Long> toAdd = valid.stream()
                     .filter(id -> userMapper.selectById(id) != null)
                     .toList();
+            // 2026-10-28:只能拉关注我/我关注的人。此前任意 userId 都能被塞进群,
+            // 未认证账号可以建群后把陌生人批量拉进来发广告。
+            assertInvitables(ownerId, toAdd);
             // 建群时也要守上限(群主 1 人 + 本次新增),与 addMembers 的 GROUP_FULL 一致。
             // 此前建群不检查上限,能绕过 groupMaxMembers。
             if (toAdd.size() + 1 > campus.getGroupMaxMembers()) {
@@ -103,6 +113,7 @@ public class GroupServiceImpl implements GroupService {
             }
             if (!toAdd.isEmpty()) {
                 groupMapper.touchCountAndLastMsg(g.getId(), toAdd.size(), null);
+                notifyJoined(g.getId(), g.getName(), toAdd);
             }
         }
 
@@ -117,6 +128,37 @@ public class GroupServiceImpl implements GroupService {
         m.setUserId(userId);
         m.setRole(role);
         groupMemberMapper.insert(m);
+    }
+
+    /**
+     * 拉人关系校验（2026-10-28）。
+     *
+     * <p>只允许邀请「关注我的人」或「我关注的人」（type 1/2，任一方向）。
+     * 与 {@code AddMembersSheet} 的候选口径一致；API 直接传任意 userId 时，
+     * 这里是最后一道拦截。拉黑会删掉关注行，所以被拉黑的人也不会通过。
+     */
+    private void assertInvitables(long inviterId, List<Long> userIds) {
+        for (Long uid : userIds) {
+            if (relationMapper.countFollowOrFriendEitherDirection(inviterId, uid) == 0) {
+                throw new BusinessException(UNPROCESSABLE, "只能邀请关注你或你关注的人");
+            }
+        }
+    }
+
+    /**
+     * 新成员入群通知（2026-10-28）：至少让对方知道自己在哪个群、能自己退。
+     * 不阻塞入群——通知写失败不该让邀请失败，用户还能从群列表看到群。
+     */
+    private void notifyJoined(long groupId, String groupName, List<Long> userIds) {
+        for (Long uid : userIds) {
+            try {
+                notifySupport.pushSystemNotify(uid, NOTIFY_GROUP_INVITE, groupId, null,
+                        "「" + groupName + "」");
+            } catch (Exception e) {
+                log.warn("group invite notify fail: group={}, user={}, err={}",
+                        groupId, uid, e.getMessage());
+            }
+        }
     }
 
     // ---------------------------------------------------------------- 群管理(群信息头)
@@ -203,6 +245,9 @@ public class GroupServiceImpl implements GroupService {
         if (toAdd.isEmpty()) {
             return 0;
         }
+        // 2026-10-28:只能邀请关注我/我关注的人。此前任何群成员都能把任意 userId
+        // 拉进群且无通知,是「未认证 → 建群 → 批量拉陌生人」骚扰链路的最后一环。
+        assertInvitables(me, toAdd);
         // 人数上限:当前成员数 + 本次新增 不得超过 groupMaxMembers
         int now = groupMemberMapper.countByGroup(groupId);
         if (now + toAdd.size() > campus.getGroupMaxMembers()) {
@@ -212,6 +257,8 @@ public class GroupServiceImpl implements GroupService {
             insertMember(groupId, uid, 2);
         }
         groupMapper.touchCountAndLastMsg(groupId, toAdd.size(), null);
+        Group g = requireGroup(groupId);
+        notifyJoined(groupId, g.getName(), toAdd);
         log.info("group addMembers: group={} owner={} +{}", groupId, me, toAdd.size());
         return toAdd.size();
     }

@@ -63,8 +63,12 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   const historyLoading = ref(false)
   /** 陌生人消息:待回应的搭话纸条(AC-01) */
   const strangerList = ref([])
-  /** 破冰额度:今天还能主动打招呼几次(AC-04) */
-  const quotaLeft = ref(null)
+  /** 同一陌生人每天条数上限(后端配置下发,会话内提示用,不在前端写死) */
+  const perPeerLimit = ref(null)
+  /** 当前私聊对象是否仍是陌生人;null=还没拉到(不显示规则行) */
+  const peerIsStranger = ref(null)
+  /** 对当前私聊对象的当日剩余条数;非陌生人时 null(无限制) */
+  const peerRemaining = ref(null)
   /** 首屏列表加载(会话+群聊+额度三并发)是否仍在进行 */
   const initialLoading = ref(true)
 
@@ -105,17 +109,36 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   }
 
   /**
-   * 破冰额度(AC-04)。查询**不消耗额度**,所以可以随手调。
-   * 拉取失败静默保持 null,上游据此**不渲染额度条** ——
-   * 宁可没有,也不要给一个恒为 4 的假额度(用户按 4 行事结果第 5 次被拒,
-   * 会认定是 bug 而不是额度用完)。
+   * 搭话规则快照。查询**不消耗额度**，可以随手调。
+   *
+   * <p>不传 peerId 时只拿 perPeerDailyLimit（规则文案用）；
+   * 传 peerId 时拿 isStranger / remainingPerPeer（会话内提示与解锁状态用）。
+   * 拉取失败保持 null：宁可少显示一行，也不要给一个假额度。
    */
   async function loadQuota() {
     try {
       const data = await strangerQuota()
-      quotaLeft.value = data?.remainingNewPeer ?? null
+      perPeerLimit.value = data?.perPeerDailyLimit ?? null
     } catch {
-      quotaLeft.value = null
+      perPeerLimit.value = null
+    }
+  }
+
+  /** 打开私聊时拉一次「对这个人」的剩余；对方关注/回复后 isStranger=false */
+  async function loadPeerQuota(peerId) {
+    if (!peerId) {
+      peerIsStranger.value = null
+      peerRemaining.value = null
+      return
+    }
+    try {
+      const data = await strangerQuota(peerId)
+      peerIsStranger.value = data?.isStranger ?? null
+      peerRemaining.value = data?.remainingPerPeer ?? null
+      if (data?.perPeerDailyLimit != null) perPeerLimit.value = data.perPeerDailyLimit
+    } catch {
+      peerIsStranger.value = null
+      peerRemaining.value = null
     }
   }
 
@@ -215,7 +238,7 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
 
   const { doSend, canRecall, doRecall } = useChatSends({
     currentGroup, currentConv, currentKind, messages, replyToMsg,
-    fmt, scrollBottom, loadConvs, loadGroups, loadHistory, loadGroupHistory,
+    fmt, scrollBottom, loadConvs, loadGroups, loadHistory, loadGroupHistory, loadPeerQuota,
     myId: userStore.userInfo?.id,
     api: { send: sendApi, groupSend: groupSendApi, recall: recallApi, groupRecall: groupRecallApi },
   })
@@ -320,7 +343,10 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     groups,
     messages,
     strangerList,
-    quotaLeft,
+    perPeerLimit,
+    peerIsStranger,
+    peerRemaining,
+    loadPeerQuota,
     initialLoading,
     currentKind,
     currentConv,

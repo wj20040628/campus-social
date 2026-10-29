@@ -1,32 +1,5 @@
 <template>
   <div class="cl">
-    <!--
-      搭话规则 ⓘ(2026-10-25):原先是页顶常驻横幅,被用户评「难看」。
-      收进气泡挂列表容器右上角——空态(还没有会话,最需要知道规则的人)
-      与有会话时都常驻,想看的人悬停即得,不想看的人零打扰。
-      文案与 campus.daily-new-peer-limit / per-peer-daily-limit 对应。
-    -->
-    <el-tooltip placement="bottom-end" :show-after="150" content="不用加好友就能搭话：每天最多向 8 位新同学发起会话，给同一位同学每天最多发 15 条">
-      <button type="button" class="cl__rulebtn" aria-label="搭话规则说明">
-        <el-icon :size="14"><QuestionFilled /></el-icon>
-      </button>
-    </el-tooltip>
-
-    <!--
-      破冰额度条(方案 A:平时不显示,只剩 ≤2 次才出现)。
-      quota 为 null(拉取失败)时整条不渲染 —— 撒谎说「还能 4 次」比不显示更糟。
-    -->
-    <div v-if="quota !== null && quota <= 2" class="quota">
-      <span class="quota__text">
-        今天还能主动打招呼
-        <span class="quota__num ys-num">{{ quota }}</span>
-        次
-      </span>
-      <el-tooltip content="每天可向有限个新同学主动搭话，对同一陌生人也有限制" placement="top">
-        <button type="button" class="quota__why" aria-label="额度规则说明">规则</button>
-      </el-tooltip>
-    </div>
-
     <SkeletonList v-if="loading" :count="6" variant="row" />
 
     <StateBlock
@@ -249,7 +222,7 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from '@/utils/feedback'
-import { ChatDotRound, CaretBottom, QuestionFilled } from '@element-plus/icons-vue'
+import { ChatDotRound, CaretBottom } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import ChatRowSwipe from './ChatRowSwipe.vue'
@@ -259,7 +232,6 @@ const props = defineProps({
   convs: { type: Array, default: () => [] },
   groups: { type: Array, default: () => [] },
   strangerList: { type: Array, default: () => [] },
-  quota: { type: Number, default: null },
   loading: { type: Boolean, default: false },
   activeId: { type: [Number, String], default: null },
   activeKind: { type: String, default: 'dm' },

@@ -1,6 +1,7 @@
 package com.campus.social.assembler;
 
 import com.campus.social.entity.User;
+import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.UserVO;
 
 /**
@@ -82,6 +83,9 @@ public final class UserVoAssembler {
                 // 安全凭证邮箱:仅「我的资料」暴露脱敏值。他人卡片( of )不含此字段,
                 // 避免邮箱(安全凭证)出现在 Feed / 评论区 / 私聊等任何公开响应里。
                 .email(user.getEmail() == null ? null : maskUsername(user.getEmail()))
+                // 无密码账号(邮箱验证码自动建号)靠它把设置页的「修改密码」
+                // 切成「设置密码」;他人卡片不暴露此字段。
+                .passwordSet(JwtUtil.isPasswordSet(user.getPasswordHash()))
                 .build();
     }
 

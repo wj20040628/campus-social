@@ -33,11 +33,13 @@ public class CampusProperties {
      */
     private String emailDomainWhitelist = "";
 
-    /** 每天最多可向几个新对象发起搭话 */
-    private int dailyNewPeerLimit = 5;
-
-    /** 对同一陌生人每天最多发多少条 */
-    private int perPeerDailyLimit = 20;
+    /**
+     * 对同一陌生人每天最多发多少条（2026-10-28 改为 1）。
+     *
+     * <p>不再限制「每天最多向几个新对象发起」：对象数量本身不是风险，
+     * 对单个对象的骚扰频率才是。对方关注你或回复你之后解除限制。
+     */
+    private int perPeerDailyLimit = 1;
 
     /** 引导要求最少选几个标签 */
     private int onboardingMinTags = 3;
@@ -90,14 +92,6 @@ public class CampusProperties {
 
     public void setEmailDomainWhitelist(String emailDomainWhitelist) {
         this.emailDomainWhitelist = emailDomainWhitelist;
-    }
-
-    public int getDailyNewPeerLimit() {
-        return dailyNewPeerLimit;
-    }
-
-    public void setDailyNewPeerLimit(int dailyNewPeerLimit) {
-        this.dailyNewPeerLimit = dailyNewPeerLimit;
     }
 
     public int getPerPeerDailyLimit() {

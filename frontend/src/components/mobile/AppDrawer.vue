@@ -67,9 +67,15 @@
             -->
             <div v-if="userStore.isAdmin" class="adrawer__admin">
               <div class="adrawer__cap">管理</div>
-              <button type="button" class="adrawer__item" @click="adminSheetOpen = true">
+              <button
+                type="button"
+                class="adrawer__item"
+                :class="{ 'adrawer__item--pending': pendingTotal > 0 }"
+                @click="adminSheetOpen = true"
+              >
                 <span class="adrawer__ic adrawer__ic--admin"><NavIcon name="sliders" :size="15" /></span>
                 管理后台
+                <AdminPendingBadge :count="pendingTotal" class="adrawer__count" />
               </button>
             </div>
           </nav>
@@ -120,25 +126,54 @@
 
     <!-- 管理后台弹层:复用 useSettings 的 adminSheetOpen(与设置页同源) -->
     <ActionSheet v-model="adminSheetOpen" title="管理后台">
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/verify')">
+      <button
+        type="button"
+        class="asheet__item"
+        :class="{ 'is-pending': pending.summary.verifyPending > 0 }"
+        @click="goAdmin('/admin/verify')"
+      >
         学号核验
-        <UnreadDot :count="pending.summary.verifyPending" show-count noun="条待审" class="adrawer__pending" />
+        <AdminPendingBadge :count="pending.summary.verifyPending" class="adrawer__pending" />
       </button>
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/reports')">
+      <button
+        type="button"
+        class="asheet__item"
+        :class="{ 'is-pending': pending.summary.reportPending > 0 }"
+        @click="goAdmin('/admin/reports')"
+      >
         举报处置
-        <UnreadDot :count="pending.summary.reportPending" show-count noun="条待办" class="adrawer__pending" />
+        <AdminPendingBadge :count="pending.summary.reportPending" class="adrawer__pending" />
       </button>
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/review')">
+      <button
+        type="button"
+        class="asheet__item"
+        :class="{ 'is-pending': pending.summary.reviewPending > 0 }"
+        @click="goAdmin('/admin/review')"
+      >
         内容审核
-        <UnreadDot :count="pending.summary.reviewPending" show-count noun="条待办" class="adrawer__pending" />
+        <AdminPendingBadge :count="pending.summary.reviewPending" class="adrawer__pending" />
+      </button>
+      <button
+        type="button"
+        class="asheet__item"
+        :class="{ 'is-pending': pending.summary.filePending > 0 }"
+        @click="goAdmin('/admin/files')"
+      >
+        文件审核
+        <AdminPendingBadge :count="pending.summary.filePending" class="adrawer__pending" />
       </button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/users')">用户处置</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/announcement')">公告管理</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/audit')">操作日志</button>
       <button type="button" class="asheet__item" @click="goAdmin('/admin/circles')">圈子处置</button>
-      <button type="button" class="asheet__item" @click="goAdmin('/admin/feedback')">
+      <button
+        type="button"
+        class="asheet__item"
+        :class="{ 'is-pending': pending.summary.feedbackPending > 0 }"
+        @click="goAdmin('/admin/feedback')"
+      >
         意见反馈
-        <UnreadDot :count="pending.summary.feedbackPending" show-count noun="条待办" class="adrawer__pending" />
+        <AdminPendingBadge :count="pending.summary.feedbackPending" class="adrawer__pending" />
       </button>
     </ActionSheet>
 
@@ -192,6 +227,7 @@ import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import FeedbackDialog from '@/views/settings/FeedbackDialog.vue'
 import UnreadDot from '@/components/mobile/UnreadDot.vue'
 import NavIcon from '@/components/mobile/NavIcon.vue'
+import AdminPendingBadge from '@/components/admin/AdminPendingBadge.vue'
 import { useAdminPending } from '@/composables/useAdminPending'
 import { resolveThumb } from '@/utils/resolve'
 
@@ -213,12 +249,14 @@ const { adminSheetOpen, goAdmin } = useSettings()
  * 挂载时拉一次;处置动作后的强刷由各管理页自己 refresh(force) 触发。
  */
 const pending = useAdminPending()
+const pendingTotal = computed(() => pending.total())
 onMounted(() => pending.refresh())
 
 /** 导航项:有 path 的走路由,没有的走组件内动作(意见反馈是弹层不是页面) */
 const NAV_ITEMS = [
   { icon: 'bell', label: '通知', path: '/notify', unread: true },
   { icon: 'megaphone', label: '公告', path: '/announcement' },
+  { icon: 'folder', label: '文件', path: '/files' },
   { icon: 'compass', label: '发现同好', path: '/discover' },
   { icon: 'users', label: '找人', path: '/search' },
   { icon: 'message', label: '意见反馈' },

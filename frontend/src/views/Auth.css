@@ -308,3 +308,26 @@
 .legal-link:hover {
   color: var(--ys-accent-hover);
 }
+/* ==========================================================================
+   备案页脚（2026-10-28）
+   规范要求备案号在网站首页底部居中展示并带链接。登录/注册页的卡片是
+   垂直居中的，页脚放进普通流会把卡片顶上去，所以绝对定位贴页面底部；
+   内容比屏幕长时，父元素随内容增高，页脚自然落到内容之后。
+   ========================================================================== */
+.auth-page {
+  position: relative;
+  /* 本项目没有全局 border-box：不写这条，下面的 padding-bottom 会把
+     min-height:100dvh 撑成 100dvh+72px，页脚反而被推到首屏之外 */
+  box-sizing: border-box;
+  /* 给页脚留出高度（页脚约 54px + 安全区），避免最后一行内容被压住 */
+  padding-bottom: calc(72px + var(--ys-safe-bottom));
+}
+
+.auth-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--ys-space-2) + var(--ys-safe-bottom));
+  padding-left: var(--ys-gutter-phone);
+  padding-right: var(--ys-gutter-phone);
+}

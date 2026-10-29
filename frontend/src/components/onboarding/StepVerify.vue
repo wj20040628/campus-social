@@ -19,7 +19,7 @@
   -->
   <section class="sv">
     <h2 class="sv__title">完善校内身份</h2>
-    <p class="sv__sub">认证后才能发私信、建圈子、加入圈子、发布集市活动</p>
+    <p class="sv__sub">认证后才能发帖、评论、发私信、建圈子、加入圈子、发布集市活动</p>
 
     <!-- 学校归属：复用全站的 SchoolFields（学校/学院/本专科/专业/年级 五个字段） -->
     <SchoolFields v-model="identity" />
@@ -48,22 +48,6 @@
       placeholder="13~14 位学号"
     />
     <p class="sv__hint">会与你上面选的学院、本专科、专业、年级逐项比对</p>
-
-    <!--
-      姓名后 1~2 位（2026-10-26 补）：
-      后端 StudentNoVerifyDTO.nameTail 是 @NotBlank，人工核验要拿它比对。
-      没有这个输入框时点「提交认证」必然 400「请填写姓名后 1 到 2 位」。
-    -->
-    <label class="sv__label" for="sv-name-tail">姓名后 1~2 位</label>
-    <input
-      id="sv-name-tail"
-      v-model.trim="nameTail"
-      class="sv__input"
-      maxlength="4"
-      placeholder="如「三」或「娜娜」"
-      autocomplete="off"
-    />
-    <p class="sv__hint">用于管理员人工核验，不会公开展示</p>
 
     <button
       type="button"
@@ -120,7 +104,6 @@ const dict = useDictStore()
 const { load: reloadVerifyStatus } = useVerifyStatus()
 
 const studentNo = ref('')
-const nameTail = ref('')
 const savingProfile = ref(false)
 const profileSaved = ref(false)
 const submitting = ref(false)
@@ -140,14 +123,8 @@ const identityComplete = computed(() => {
   return !!(i.deptId && i.level && i.majorId && i.gradeId)
 })
 
-/** 姓名后 1~4 位（后端 @Size(max=4)，常规是 1~2 位） */
-const nameTailOk = computed(() => {
-  const v = (nameTail.value || '').trim()
-  return v.length >= 1 && v.length <= 4
-})
-
-/** 学号 13~14 位纯数字 + 姓名后 1~4 位才允许提交 */
-const canSubmit = computed(() => /^\d{13,14}$/.test(studentNo.value) && nameTailOk.value)
+/** 学号 13~14 位纯数字即可提交(姓名后缀已不再收集) */
+const canSubmit = computed(() => /^\d{13,14}$/.test(studentNo.value))
 
 /**
  * 归属一改，之前那次「已保存」就不再成立：
@@ -214,10 +191,7 @@ async function submit() {
   submitting.value = true
   error.value = ''
   try {
-    const data = await submitStudentNo({
-      studentNo: studentNo.value,
-      nameTail: nameTail.value.trim(),
-    })
+    const data = await submitStudentNo({ studentNo: studentNo.value })
     /*
      * 后端回 { verifyStatus, status }：
      *   verifyStatus === 1 已认证（autoPass 命中六层后自动通过）

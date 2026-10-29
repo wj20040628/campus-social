@@ -16,22 +16,10 @@ info:
   description: |
     ## 0. 范围声明（本轮实现 / 不实现）
 
-    - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，共 **48 个方法 / 44 条路径**。
-      （2026-10-08 补录 `/auth/*` 6 端点，此前的「41 方法 / 37 路径」把整个认证域漏在计数外。）
-      计数由 `scripts/verify-openapi.py` 实测产出，不靠人工数——
-      那份旧计数与实际差 6 条路径却没人发现，正说明手数不可信。
-    - **帖子域与评论域（13 个端点 / 10 条路径）系Phase 2 补录**（SPEC §5.0）。
-      原契约 27 个方法全是本轮新建的（举报 / 聊天 / 标签 / 公告 / 字典 / 认证 / 引导），
-      帖子域被整体遗漏。但契约号称前后端唯一准绳，漏一整个域就等于契约失效——
-      前端拿不到任何帖子接口的类型定义，这正是它 `grep parentId` 零命中的根因。
-      本次补录路径以 `PostController.java` 实测为准（**实际 13 个方法**，
-      分装在 10 条路径里：`/post/{id}` 一条承载 get+put+delete，`/post/{id}/like`
-      一条承载 post+delete，故端点数少于路径数×2）。
-      - 方法计数：13 = `/post` 1 + `/post/feed` 1 + `/post/hot` 1 + `/post/topic` 1
-        + `/post/feed/following` 1 + `/post/mine` 1 + `/post/{id}` 3 + `/post/{id}/like` 2
-        + `/post/{id}/comment` 1 + `/post/{id}/comments` 1
-      - 路径计数：10 = 上述 10 条。合计 27 + 14 = **41 个方法**（`/user/me` PUT 已在原27 内，
-        不重复计入）。
+    - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，
+      当前实测计数以 `scripts/verify-openapi.py` 为准（2026-10-27：**82 个方法 / 76 条路径**）。
+      计数不靠人工数——历史上手数与实际差 6 条路径却没人发现，正说明手数不可信。
+      帖子域与评论域已补录；`buddy_*` 端点仍仅建表不实现（见下）。
     - **`buddy_*` 端点本轮仅建表不实现，见 SPEC §2.2**。即下列 7 个端点在本文档中
       **不存在**，Phase 3 禁止实现其 Service / Controller / 页面：
       `POST /api/v1/buddy`、`GET /api/v1/buddy`、`GET /api/v1/buddy/{id}`、
@@ -137,7 +125,7 @@ info:
 
     | 新增项 | 值 | 文案 | 用到它的端点 |
     |---|---|---|---|
-    | `TOO_MANY_REQUESTS` | 429 | 操作过于频繁,请稍后再试 | `POST /chat/send`（配额超限，message 会被覆盖为「今日搭话额度已用完，明天再来」） |
+    | `TOO_MANY_REQUESTS` | 429 | 操作过于频繁,请稍后再试 | `POST /chat/send`（配额超限，message 会覆盖为具体规则：「给同一位同学每天最多发 1 条，明天再来；对方关注你或回复你后不再受限」） |
     | `USER_NOT_VERIFIED` | 1029 | 请先完成校内认证 | `POST /chat/send`、`POST /admin/announcement` |
     | `STRANGER_MSG_CLOSED` | 1030 | 对方已关闭陌生人消息 | `POST /chat/send` |
     | `ANNOUNCEMENT_NOT_FOUND` | 1031 | 公告不存在或已下架 | `GET /announcement/{id}`、`POST /announcement/{id}/read`、`PATCH /admin/announcement/{id}` |
@@ -371,6 +359,11 @@ paths:
         （它要同时支持手机号），`LoginByCodeDTO` 只收邮箱。
         两处命名不一致是后端既有实现，改动会波及已上线的前端调用，
         故在此显式标注而不是统一改名。
+
+        **未注册邮箱也能登录**：验证码校验通过后若该邮箱还没有账号，
+        后端自动创建账号（`username`/`email` 均写该邮箱，昵称 `用户+4位随机数`，
+        `password_hash` 写未设置哨兵值）并直接返回 token。登录页已没有独立注册入口。
+        账号被冻结/注销仍分别返回 1001/1002。
       requestBody:
         required: true
         content:
@@ -395,10 +388,12 @@ paths:
       tags: [auth]
       summary: 发送验证码（注册 / 登录 / 绑定）
       description: |
-        `type` 决定用途：`register` / `login` / `bind`，默认 `register`。
-        6 位数字码、5 分钟 TTL、60 秒限频、每日 10 次上限；
+        `type` 决定用途：`register` / `login` / `bind` / `setpwd` / `reset`，默认 `register`。
+        6 位数字码、5 分钟 TTL、60 秒限频、每日 20 次上限；
         取出走 Redis Lua 原子读删（**禁用 `opsForValue().getAndDelete()`**——
         Redis 5.0 会抛 `ERR unknown command GETDEL`，已踩过一次坑，见 SPEC §11）。
+
+        `type=login` 不再要求邮箱已注册——未注册邮箱在验证码通过后会自动建号。
 
         本地 profile 下 `message-gateway: dev`，码打到控制台并存 Redis，不真发信。
       requestBody:
@@ -539,14 +534,22 @@ paths:
     post:
       operationId: handleAdminReport
       tags: [admin-report]
-      summary: 处理举报（封禁 / 驳回 / 忽略）
+      summary: 处理举报（封禁 / 仅下架 / 驳回 / 忽略）
       description: |
-        处置动作三选一：
-        - `ban` 成立并封禁目标用户，`banDays` 必填（1/7/30/永久用 0 表示）
+        处置动作四选一：
+        - `ban` 成立并封禁目标用户，`banDays` 必填（1/7/30/永久用 0 表示）；
+          目标为内容时同时下架被举报内容
+        - `takedown` 成立、仅下架被举报内容，不封禁作者（2026-10-28 新增）；
+          目标为用户（`targetType=1`）或未上线的搭子（5）返回 422；
+          目标为圈子（9）时 = 解散圈子（`circle.status=1`，圈内帖子级联 `status=2`），
+          不封圈主（2026-10-29 加）
         - `reject` 驳回，举报记录置 `status = 2`
         - `ignore` 忽略，不改变 `status`，仅记录处置人与备注（用于「已阅未处置」）
 
-        `ban` 与 `reject` 需写 `audit_log`（复用现有 `AuditService`）。
+        `ban` / `takedown` / `reject` 都写 `audit_log`；`ban` 与 `takedown`
+        还写一条 `report_upheld`（信誉分计分源）。
+        处置结果通过站内通知回执：举报人收 type=18；被封禁作者收 type=19；
+        被下架内容的作者收 type=20（文件为 15，圈子被解散为 23）。`handleNote` 会展示给被处置人。
         同一举报重复处置返回 409 `CONFLICT`。
       parameters:
         - $ref: '#/components/parameters/ReportId'
@@ -801,15 +804,25 @@ paths:
         `frontend/src/api/chat.js:15` 的 `request.post('/chat/message', ...)`。
 
         护栏执行顺序（顺序不可调换，先便宜后昂贵）：
+        判定顺序（2026-10-28 改版）：
         1. 不能给自己发 —— `CHAT_SELF(1014)`
         2. 未通过校内认证不得发起搭话 —— `USER_NOT_VERIFIED(1029)`（AC-11）
         3. 黑名单双向拦截（`relation.type = 3`）—— `BLACKLISTED(1013)`
-        4. 接收方 `stranger_msg_enabled = 0` —— `STRANGER_MSG_CLOSED(1030)`（AC-05）
-        5. 陌生人日配额（Redis ZSET 滑动窗口 Lua）—— `TOO_MANY_REQUESTS(429)`（AC-04）
-        6. 敏感词过滤（复用 `SensitiveWordFilter`）—— 命中拦截并写 `review_task`（AC-06）
+        4. 接收方 `stranger_msg_enabled = 0`，**只对真正的陌生人生效**
+           —— `STRANGER_MSG_CLOSED(1030)`（AC-05）
+        5. 敏感词过滤（复用 `SensitiveWordFilter`）—— `SENSITIVE_WORD_BLOCKED(1008)`（AC-06）
+        6. 陌生人日配额（Redis ZSET 滑动窗口 Lua）—— `TOO_MANY_REQUESTS(429)`（AC-04）
 
-        配额配置进 `application.yml`，不硬编码：
-        `stranger.daily-new-peer = 5`、`stranger.per-peer-daily = 20`。
+        **敏感词刻意排在配额之前**：先扣额度再查词，一条被拒的脏话会吃掉
+        用户当天唯一的一次搭话机会。
+
+        「是否陌生人」的判据（`StrangerPolicy`）：对方关注我 / 对方回复过我 / 互关。
+        **我关注对方不解锁** —— 关注是单向动作，不能替对方表达意愿；
+        按双向判定等于给「关注」开一个免费绕过开关。
+
+        配额配置进 `application.yml`，不硬编码：`campus.per-peer-daily-limit = 1`。
+        「每天最多向 N 个新对象发起会话」已于 2026-10-28 删除：
+        对象数量不是风险，对单个对象的骚扰频率才是。
       requestBody:
         required: true
         content:
@@ -842,8 +855,9 @@ paths:
                 $ref: '#/components/schemas/ErrorBody'
         '429':
           description: |
-            429 `TOO_MANY_REQUESTS`。今日搭话额度用尽。
-            message 覆盖为「今日搭话额度已用完，明天再来」（AC-04）
+            429 `TOO_MANY_REQUESTS`。今日对同一个陌生人的条数用尽（AC-04）。
+            message 会给出具体规则与出路：
+            「给同一位同学每天最多发 1 条，明天再来；对方关注你或回复你后不再受限」。
           content:
             application/json:
               schema:
@@ -1349,6 +1363,43 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /post/feed/recommend:
+    get:
+      operationId: listRecommendFeed
+      tags: [post]
+      summary: 推荐流（共同兴趣标签等权）
+      description: |
+        排序：作者与当前登录人的共同兴趣标签数降序；同分按帖子 id 倒序。
+        登录人没有任何兴趣标签时所有得分均为 0，退化成最新流。
+
+        排除：自己、匿名帖、拉黑关系（双向）、未过审、已删除。
+        不是算法推荐，只做用户自选标签的集合交集（PRD §9 排除 AI 匹配）。
+
+        游标是 `(lastScore,lastId)` 复合值，必须成对回传；只传 id 会在同分处
+        跳页或重复。
+      parameters:
+        - name: lastScore
+          in: query
+          required: false
+          schema: { type: integer, nullable: true }
+          description: 上一页的 nextScore，首屏不传
+        - name: lastId
+          in: query
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
+          description: 上一页的 nextId，首屏不传
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
+      responses:
+        '200':
+          description: 推荐流页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendFeedResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /post/hot:
     get:
       operationId: listHotPosts
@@ -1574,6 +1625,29 @@ paths:
       responses:
         '200':
           description: 已取消点赞
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `POST_NOT_FOUND(1009)`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /post/{id}/share:
+    parameters:
+      - $ref: '#/components/parameters/PostId'
+    post:
+      operationId: sharePost
+      tags: [post]
+      summary: 分享次数 +1
+      description: |
+        每次成功保存/分享卡片后调用，打开分享面板不计数。
+        仅 `status=1` 的帖子可分享；不做人/天去重，自己重复分享也累加。
+        游客可分享卡片，但本接口需要登录，匿名分享不计数。
+      responses:
+        '200':
+          description: 已记录
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: 404 `POST_NOT_FOUND(1009)`
@@ -1963,6 +2037,66 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /user/password:
+    put:
+      operationId: changeMyPassword
+      tags: [user]
+      summary: 修改密码（凭原密码）
+      description: |
+        已设置密码的账号凭原密码改密。未设置密码的账号（邮箱验证码自动建号）
+        调用会返回 `PASSWORD_NOT_SET(1066)`，应改走 `/user/password/set`。
+        改密成功后吊销该账号全部 refresh token。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassword, newPassword]
+              properties:
+                oldPassword: { type: string, maxLength: 64 }
+                newPassword: { type: string, minLength: 6, maxLength: 64 }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /user/password/send-code:
+    post:
+      operationId: sendSetPasswordCode
+      tags: [user]
+      summary: 无密码账号发设置密码验证码
+      description: |
+        仅对 `password_hash` 仍是未设置哨兵值的账号开放。验证码发到账号已绑定的
+        邮箱，Redis type 为 `setpwd`。已设密码的账号返回 `PASSWORD_ALREADY_SET(1067)`。
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: 409 `PASSWORD_ALREADY_SET(1067)` 账号已有密码
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /user/password/set:
+    post:
+      operationId: setMyPassword
+      tags: [user]
+      summary: 无密码账号首次设置密码
+      description: |
+        校验绑定邮箱收到的 `type=setpwd` 验证码后写入新密码。
+        只接受尚未设置密码的账号；已设密码返回 `PASSWORD_ALREADY_SET(1067)`，
+        后续只能走 `PUT /user/password` 凭原密码修改。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetPasswordRequest' }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /user/school-profile:
     post:
       operationId: upsertSchoolProfile
@@ -2097,7 +2231,7 @@ paths:
     post:
       operationId: submitStudentNoVerify
       tags: [verify]
-      summary: 学号 + 姓名后两位（人工核验兜底）
+      summary: 学号认证（人工核验兜底）
       description: |
         **冷启动期的兜底路径**：校园邮箱未必人人有（部分学校邮箱未激活、
         毕业生邮箱已回收），所以必须留一条不依赖邮箱的通道。
@@ -2109,8 +2243,8 @@ paths:
         驳回置 3 并回填理由。
 
         `studentNo` 走 `user.student_no` 唯一约束，已被他人占用返回 409
-        `STUDENT_NO_EXISTS(1004)`。`nameTail` 是姓名后两位，如「张三」传「三」，
-        「欧阳娜娜」传「娜娜」。
+        `STUDENT_NO_EXISTS(1004)`。`nameTail` 是姓名后两位（选填），
+        如「张三」传「三」，「欧阳娜娜」传「娜娜」；2026-10-27 起前端不再收集。
       requestBody:
         required: true
         content:
@@ -2694,6 +2828,511 @@ paths:
                           description: 是否为当前查看者自己（未登录时恒 false）
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------------------
+  # 文件库（2026-10-27）
+  # ---------------------------------------------------------------------------
+  /files:
+    get:
+      operationId: listFiles
+      tags: [file]
+      summary: 文件库列表（全部 / 我的）
+      description: |
+        登录可见。`tab=all` 只返回已过审文件；`tab=mine` 返回自己上传的全部状态。
+        `sub=favorites` 仅对 `tab=mine` 生效，返回自己收藏的已过审文件。
+        分类筛选和搜索只作用于当前 tab。
+      parameters:
+        - name: tab
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, mine]
+            default: all
+        - name: sub
+          in: query
+          required: false
+          description: 仅 tab=mine 生效；不传等同 uploads
+          schema:
+            type: string
+            enum: [uploads, favorites]
+        - name: category
+          in: query
+          required: false
+          description: template/courseware/guide/report/exam/other
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          required: false
+          description: 标题或原文件名模糊匹配，最多 40 字
+          schema:
+            type: string
+            maxLength: 40
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [latest, hot]
+            default: latest
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 文件分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FilePageResponse' }
+        '400':
+          description: 分类不存在 / 搜索词过长
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: uploadFile
+      tags: [file]
+      summary: 上传文件（进入人工审核）
+      description: |
+        需登录、已认证、信誉分 ≥60。单文件硬上限 3MB，实际再按信誉档位收窄：
+        60–79 分 1MB、80–99 分 2MB、100 分 3MB。
+        成功即进入 `status=0` 待审，上传者可在「我的」看到，但不会出现在全部列表。
+        白名单：pdf/doc/docx/ppt/pptx/xls/xlsx/txt/md；不收 zip。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, title, category]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                  minLength: 2
+                  maxLength: 40
+                category:
+                  type: string
+                  enum: [template, courseware, guide, report, exam, other]
+                description:
+                  type: string
+                  maxLength: 100
+      responses:
+        '200':
+          description: 已提交审核
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileUploadResponse' }
+        '400':
+          description: 类型/标题/分类/文件内容与后缀不符
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 403 `FILE_UPLOAD_FORBIDDEN(1068)` 未认证或信誉分不足
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '413':
+          description: 413 `FILE_TOO_LARGE(1069)` 单文件超过当前档位
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '422':
+          description: 422 `FILE_TOTAL_QUOTA_EXCEEDED(1070)` 个人总容量已满
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '429':
+          description: 429 `FILE_UPLOAD_DAILY_LIMIT(1071)` 今日次数或待审积压达上限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /files/quota:
+    get:
+      operationId: getFileQuota
+      tags: [file]
+      summary: 当前文件额度与档位
+      responses:
+        '200':
+          description: 额度
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileQuotaResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /files/{id}:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: getFile
+      tags: [file]
+      summary: 文件详情
+      description: |
+        已过审文件所有人可见；待审/驳回/下架只有上传者本人能看。
+        已过审文件的查看会按人/天去重后计入浏览量。
+      responses:
+        '200':
+          description: 文件详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileDetailResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)` 不存在/未过审/已下架
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: deleteFile
+      tags: [file]
+      summary: 删除自己的文件
+      description: |
+        上传者本人可删除；删除立即释放容量，已过审文件的 1 分信誉加分同时失效。
+      responses:
+        '200':
+          description: 已删除
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 403 非上传者
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /files/{id}/like:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    post:
+      operationId: likeFile
+      tags: [file]
+      summary: 点赞文件
+      description: 需登录，只能点已过审文件；重复点赞幂等。
+      responses:
+        '200': { description: 已点赞 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+    delete:
+      operationId: unlikeFile
+      tags: [file]
+      summary: 取消点赞（幂等）
+      responses:
+        '200': { description: 已取消 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /files/{id}/favorite:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    post:
+      operationId: favoriteFile
+      tags: [file]
+      summary: 收藏文件
+      description: 需登录，只能收藏已过审文件；重复收藏幂等。
+      responses:
+        '200': { description: 已收藏 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+    delete:
+      operationId: unfavoriteFile
+      tags: [file]
+      summary: 取消收藏（幂等）
+      responses:
+        '200': { description: 已取消 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /files/{id}/download:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: downloadFile
+      tags: [file]
+      summary: 下载文件（免登录）
+      description: |
+        只允许已过审文件；上传者本人可预览自己的待审/驳回文件（不计下载量）。
+        游客按 IP 限流（默认 120 次/小时、1000 次/天），登录用户按 uid 限流。
+        成功返回 302 到 60 秒有效的 OSS 签名 URL；本地开发直接返回文件流。
+        响应对象元数据固定 `Content-Disposition: attachment`，不会在浏览器内联打开。
+      security: []
+      responses:
+        '302':
+          description: 302 到短时效签名 URL
+          headers:
+            Location:
+              schema:
+                type: string
+        '200':
+          description: 本地开发模式直接返回文件流
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '429':
+          description: 下载频率/日额度超限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /files/{id}/preview:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: previewFile
+      tags: [file]
+      summary: 在线预览文件（免登录）
+      description: |
+        只支持 PDF / TXT / MD；其余格式返回 422，前端应引导下载后用本地软件打开。
+        与下载同口径：已过审任何人可看，待审/驳回/下架仅上传者本人（请求需带 Authorization）。
+        预览不计下载次数，但按 IP/uid 限流；响应为 inline 文件流，不是 302。
+      security: []
+      responses:
+        '200':
+          description: 内联文件流
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            text/plain:
+              schema: { type: string }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '422':
+          description: 该格式暂不支持在线预览
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '429':
+          description: 预览频率/日额度超限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /public/files/{id}:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: getPublicFile
+      tags: [file]
+      summary: 文件公开分享页数据（免登录）
+      description: 只返回已过审文件；不返回 objectKey、驳回理由和任何用户态字段。
+      security: []
+      responses:
+        '200':
+          description: 公开文件信息
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileDetailResponse' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /admin/files:
+    get:
+      operationId: adminListFiles
+      tags: [file]
+      summary: 管理员文件审核列表
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 不传 = 全部
+          schema:
+            type: integer
+            enum: [0, 1, 2, 3]
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 40
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 文件分页
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FilePageResponse' }
+        '403':
+          description: 403 `NOT_ADMIN(1025)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/files/{id}:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: adminGetFile
+      tags: [file]
+      summary: 管理员文件详情（任意状态）
+      responses:
+        '200':
+          description: 文件详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileDetailResponse' }
+        '403':
+          description: 403 `NOT_ADMIN(1025)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /admin/files/{id}/download:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      operationId: adminDownloadFile
+      tags: [file]
+      summary: 管理员下载待审/任意状态文件
+      description: 后端读回文件流返回（不走 OSS 302），因为请求需要携带管理员 token。
+      responses:
+        '200':
+          description: 文件流（application/octet-stream）
+        '403':
+          description: 403 `NOT_ADMIN(1025)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /admin/files/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    post:
+      operationId: reviewFile
+      tags: [file]
+      summary: 通过 / 驳回文件（CAS，防并发重复处置）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FileReviewRequest' }
+      responses:
+        '200':
+          description: 已处置
+        '400':
+          description: 驳回未填理由 / 动作不合法
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '403':
+          description: 403 `NOT_ADMIN(1025)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '422':
+          description: 该文件已被其他管理员处置
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/files/{id}/takedown:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    post:
+      operationId: takedownFile
+      tags: [file]
+      summary: 下架已过审文件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FileTakedownRequest' }
+      responses:
+        '200':
+          description: 已下架
+        '400':
+          description: 理由为空或过长
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '403':
+          description: 403 `NOT_ADMIN(1025)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '404':
+          description: 404 `FILE_NOT_AVAILABLE(1072)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '422':
+          description: 只有已通过审核的文件可以下架
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
 components:
 
   # ---------------------------------------------------------------------------
@@ -2733,6 +3372,14 @@ components:
         default: 20
         minimum: 1
         maximum: 50
+    FileId:
+      name: id
+      in: path
+      required: true
+      description: 文件 id
+      schema:
+        type: integer
+        format: int64
     ReportId:
       name: id
       in: path
@@ -2862,10 +3509,16 @@ components:
         targetType:
           type: integer
           description: |
-            1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动
+            1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动 7文件 8群消息 9圈子
             - 5搭子：buddy_post 表已建但无端点，只支持驳回/忽略，封禁会回 422
             - 6集市活动：2026-10-21 新增。此前集市误用 5，导致举报能提交、管理员无法处置
-          enum: [1, 2, 3, 4, 5, 6]
+            - 7文件：2026-10-27 新增，举报成立时把 file_asset.status 置 3（下架）
+            - 8群消息：2026-10-28 新增，举报成立时把 group_message.is_deleted 置 1。
+              **不要复用 4**：chat_message 与 group_message 各自自增 id，同一个 id
+              在两表里指向完全不同的内容，复用会封错人、删错消息
+            - 9圈子：2026-10-29 新增，`takedown` = 解散圈子（circle.status=1，
+              圈内帖子级联 status=2），不封圈主；`ban` 才会同时封禁圈主
+          enum: [1, 2, 3, 4, 5, 6, 7, 8, 9]
           example: 4
         targetId:
           type: integer
@@ -2919,8 +3572,8 @@ components:
           type: string
         targetType:
           type: integer
-          enum: [1, 2, 3, 4, 5, 6]
-          description: 1用户 2帖子 3评论 4聊天消息 5搭子(未上线) 6集市活动(2026-10-21 加)
+          enum: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+          description: 1用户 2帖子 3评论 4聊天消息 5搭子(未上线) 6集市活动 7文件(2026-10-27 加) 8群消息(2026-10-28 加) 9圈子(2026-10-29 加)
         targetId:
           type: integer
           format: int64
@@ -2939,6 +3592,12 @@ components:
           type: string
           nullable: true
           description: 作者昵称,与 targetAuthorId 同批解析
+        targetSnapshotText:
+          type: string
+          nullable: true
+          description: |
+            举报提交时的目标快照(2026-10-29 加)，已渲染成可读文本（作者/时间/正文/媒体）。
+            原内容被作者删除后，管理员仍可据此核实；历史举报没有快照时为 null。
         reasonType:
           type: integer
           enum: [1, 2, 3, 4, 5]
@@ -2955,6 +3614,10 @@ components:
           type: integer
           format: int64
           nullable: true
+        handleNote:
+          type: string
+          nullable: true
+          description: 处置备注（2026-10-28 补下发）；「已处理」列表的处置说明
         handleTime:
           type: string
           format: date-time
@@ -2987,8 +3650,8 @@ components:
       properties:
         action:
           type: string
-          description: ban 成立并封禁 / reject 驳回 / ignore 忽略
-          enum: [ban, reject, ignore]
+          description: ban 成立并封禁 / takedown 成立仅下架 / reject 驳回 / ignore 忽略
+          enum: [ban, takedown, reject, ignore]
           example: ban
         banDays:
           type: integer
@@ -2997,7 +3660,7 @@ components:
         handleNote:
           type: string
           maxLength: 200
-          description: 处置备注，写入 audit_log
+          description: 处置备注，写入 audit_log；会随处置结果通知展示给被处置人
 
     ReportHandleData:
       type: object
@@ -3177,9 +3840,14 @@ components:
       type: object
       description: |
         站内通知项。`type` 取值：1被关注 2被赞 3被评 4私信 5活动
-        6审核中 7审核通过 8审核未通过 9被@ 10集市留言 11反馈回复。
-        `summary` 由后端按 type 硬拼（如「回复了你的反馈」），
-        `content` 仅 type=11 有值，存反馈回复原文。
+        6审核中 7审核通过 8审核未通过 9被@ 10集市留言 11反馈回复
+        13文件过审 14文件驳回 15文件下架 16认证通过 17认证驳回
+        18举报结果 19账号封禁 20内容下架 21账号解封 22群聊邀请。
+        `summary` 由后端按 type 硬拼（如「回复了你的反馈」）；
+        `content` 为自由文本正文：type=11 存反馈回复原文，type=17 存驳回理由，
+        type=18~21 存处置结论（含理由与解封时间，被处置人可见）。
+        type=22（2026-10-28 加）：被拉进群时由平台代发，`targetId` 是 group.id，
+        `content` 是「群名」，前端点击直接进群而不是进用户主页。
       properties:
         id:
           type: integer
@@ -3199,12 +3867,12 @@ components:
           type: integer
           format: int64
           nullable: true
-          description: 触发者 id；type=11（反馈回复）**恒为 null**，管理员身份对用户匿名
+          description: 触发者 id；type=11/18/19/20/21 **恒为 null**，处置人身份对用户匿名
         actor:
           allOf:
             - $ref: '#/components/schemas/UserVO'
           nullable: true
-          description: 触发者资料；type=11（反馈回复）**恒为 null**
+          description: 触发者资料；type=11/18/19/20/21 **恒为 null**
         summary:
           type: string
           example: 回复了你的反馈
@@ -3212,7 +3880,7 @@ components:
           type: string
           nullable: true
           maxLength: 500
-          description: 自由文本通知内容；仅 type=11（反馈回复）有值，存原文
+          description: 自由文本通知内容；type=11/17/18/19/20/21 有值，其余为 null
         isRead:
           type: boolean
         createTime:
@@ -3248,13 +3916,18 @@ components:
           format: int64
         isStranger:
           type: boolean
-          description: 本次是否属于向陌生人发起（用于前端埋点）
-        remainingNewPeerQuota:
+          description: |
+            本次是否属于向陌生人发送。false 表示对方已关注我 / 回复过我（或互关），
+            不受每日条数限制。注意「我关注对方」不算解锁。
+        remainingPerPeerQuota:
           type: integer
           nullable: true
           description: |
-            本次为向新对象发起首条时，返回剩余「新对象」额度；
-            非新对象场景为 null。前端据此刷新「还能搭话 N 人」文案
+            本次发送后**对同一陌生人**的剩余条数（规则：perPeerDailyLimit，默认 1）。
+            非陌生人场景为 null ——「没有限制」与「剩 0 条」不是一回事。
+        content:
+          type: string
+          description: 打码后入库的正文（一级敏感词已替换为 *），前端乐观气泡必须渲染这个版本
 
     ChatSendResponse:
       allOf:
@@ -3266,33 +3939,35 @@ components:
 
     StrangerQuotaData:
       type: object
-      required: [remainingNewPeer, remainingPerPeer]
+      description: |
+        搭话规则快照（2026-10-28 改版）。
+
+        规则只有一条：**对同一个陌生人每天 perPeerDailyLimit 条**。
+        「每天最多向 N 个新对象发起会话」已删除 —— 对象数量不是风险，
+        对单个对象的骚扰频率才是。对方关注我 / 回复过我之后视为已解锁。
+      required: [perPeerDailyLimit]
       properties:
-        dailyNewPeerLimit:
-          type: integer
-          description: 每日最多可向几个新对象发起，来自 application.yml
-          example: 5
-        dailyNewPeerUsed:
-          type: integer
-          example: 1
-        remainingNewPeer:
-          type: integer
-          description: 今日剩余可发起的新对象数
-          example: 4
         perPeerDailyLimit:
           type: integer
-          example: 20
+          description: 对同一陌生人每天最多几条，来自 application.yml
+          example: 1
         remainingPerPeer:
           type: integer
           nullable: true
           description: |
-            对指定 peer 的当日剩余条数。不传 peerId 时为 null，
-            因为「剩余」必须针对某个具体对象才有意义
-          example: 18
+            对指定 peer 的当日剩余条数。不传 peerId、或对方已不是陌生人时为 null，
+            因为「剩余」必须针对某个具体对象才有意义。前端不能用 0 顶替 null
+          example: 0
+        isStranger:
+          type: boolean
+          nullable: true
+          description: |
+            指定 peer 是否仍算陌生人（传 peerId 时才有值）。
+            false = 对方关注我 / 回复过我，额度不适用。
         resetAt:
           type: string
           format: date-time
-          description: 次日 00:00（Asia/Shanghai）
+          description: 次日 00:00（Asia/Shanghai），前端据此做倒计时文案
         strangerMsgEnabled:
           type: boolean
           description: 我是否接收陌生人消息。false 时前端应提示「你已关闭陌生人搭话」
@@ -3874,8 +4549,9 @@ components:
           type: boolean
           nullable: true
           description: |
-            树洞匿名帖标记。**仅创建时生效**——编辑请求里传了也会被忽略，
-            匿名身份一次定终身。匿名帖的 `PostVO.author/authorId` 恒为 null。
+            **已下线（2026-10-27）**。匿名发布入口已移除，传 `true` 会返回 400
+            「匿名发布已下线」；字段保留仅用于兼容旧客户端请求体。
+            历史匿名帖仍可按 `PostVO.anonymous=true` 只读展示。
 
     PostVO:
       type: object
@@ -3914,6 +4590,11 @@ components:
         favoriteCount:
           type: integer
           description: 收藏数（冗余列，与 likeCount 同构）
+        shareCount:
+          type: integer
+          description: |
+            分享次数。每次成功保存/分享卡片 +1，不做去重（自己重复分享也计）。
+            仅已发布帖可分享；游客分享不计数。
         commentCount: { type: integer, description: 评论数 }
         viewCount:
           type: integer
@@ -4062,6 +4743,13 @@ components:
           type: string
           nullable: true
           description: 已绑定的脱敏邮箱（如 ze***n@campus.test）。**仅本人视图**，他人卡片不含
+        passwordSet:
+          type: boolean
+          nullable: true
+          description: |
+            账号是否已设置密码。**仅本人视图**（ofPrivate）返回。
+            邮箱验证码自动建号的账号此值为 false，前端把「修改密码」
+            切换成「设置密码」，走邮箱验证码而不是原密码。
         verified:
           type: boolean
           nullable: true
@@ -4222,6 +4910,34 @@ components:
                   nullable: true
                   description: 下一页游标。**为 null 即没有更多**，前端收到就停止翻页
                 hasMore: { type: boolean }
+
+    RecommendFeedResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/RecommendFeedVO' }
+
+    RecommendFeedVO:
+      type: object
+      description: |
+        推荐流分页结果。排序键是「作者与登录人的共同兴趣标签数」，
+        同分按帖子 id 倒序，因此游标是 `(nextScore,nextId)` 复合值。
+      required: [list, hasMore]
+      properties:
+        list:
+          type: array
+          items: { $ref: '#/components/schemas/PostVO' }
+        hasMore: { type: boolean }
+        nextScore:
+          type: integer
+          nullable: true
+          description: 下一页游标：上一页末条的共同标签数。hasMore=false 时为 null
+        nextId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 下一页游标：上一页末条的帖子 id。hasMore=false 时为 null
 
     CreateCommentRequest:
       type: object
@@ -4604,7 +5320,7 @@ components:
 
     StudentNoVerifyRequest:
       type: object
-      required: [studentNo, nameTail]
+      required: [studentNo]
       properties:
         studentNo:
           type: string
@@ -4613,9 +5329,11 @@ components:
           example: '2024210123'
         nameTail:
           type: string
-          minLength: 1
           maxLength: 4
-          description: 姓名后 1 到 2 位，用于人工核验比对
+          nullable: true
+          description: |
+            姓名后 1 到 2 位（选填）。2026-10-27 起前端不再收集，
+            服务端保留字段兼容旧客户端；为空时审计日志不写姓名后缀。
           example: 三
 
     StudentNoVerifyResponse:
@@ -4889,8 +5607,11 @@ components:
     AdminVerifyPendingItem:
       type: object
       description: |
-        一条待审的学号核验。字段刻意精简（OD-19 手机审核）：
-        管理员判断真伪需要的是「学号 + 院系年级 + 昵称」，其余不下发。
+        一条待审的学号核验。字段精简到审核真正需要的那些（OD-19 手机审核）：
+        学号、院系、年级、昵称，以及 2026-10-28 补的专业/本专科与比对结果。
+        `gradeMatch` / `majorMatch` 由服务端用字典值（年级 enroll_year、
+        专业 6 位 code）与学号解析结果比对得出；任一侧缺失时为 null，
+        前端只在 false 时标红——「无法判断」不得显示成「不一致」。
       required: [userId, nickname, studentNo, dept, grade]
       properties:
         userId:
@@ -4903,6 +5624,38 @@ components:
           description: 申请人填的学号（UNIQUE，同号已被别的账号占用时提交即 409）
         dept: { type: string, description: 院系名称快照 }
         grade: { type: string, description: 年级名称快照 }
+        major:
+          type: string
+          nullable: true
+          description: 专业名称（字典 school_major.name）；字典缺行时为 null
+        level:
+          type: string
+          nullable: true
+          enum: [本科, 专科]
+          description: 本专科文案；字典缺行时为 null
+        majorCode:
+          type: string
+          nullable: true
+          description: 字典里该专业的 6 位专业码，与学号位 3-8 对比用
+        gradeEnrollYear:
+          type: integer
+          nullable: true
+          description: 字典里该年级的入学年份，与学号前两位推算的年份对比用
+        gradeMatch:
+          type: boolean
+          nullable: true
+          description: 年级是否与学号一致；null=学号解析失败或字典缺行，前端不标红
+        majorMatch:
+          type: boolean
+          nullable: true
+          description: 专业是否与学号一致；语义同 gradeMatch
+        deptMatch:
+          type: boolean
+          nullable: true
+          description: |
+            学院是否与所选专业一致（学号不含学院，学院由「专业 → 所属学院」推出，
+            比的是 user.dept_id 与 school_major.dept_id）。
+            任一侧为 null 时为 null，前端不标红。
         submittedAt:
           type: string
           format: date-time
@@ -5163,6 +5916,9 @@ components:
         feedbackPending:
           type: integer
           description: 待处理意见反馈数（feedback status=0）
+        filePending:
+          type: integer
+          description: 待审核文件数（file_asset status=0，2026-10-27 加）
 
     PendingSummaryResponse:
       allOf:
@@ -5170,6 +5926,192 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/PendingSummaryVO' }
+
+    # ---- 文件库（2026-10-27） ----------------------------------------------
+
+    FileVO:
+      type: object
+      description: |
+        文件库条目。列表、详情、管理端共用；公开分享页会清空 rejectReason 与用户态字段。
+      required: [id, title, category, ext, fileName, sizeBytes, uploaderId, status, createTime]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+          maxLength: 40
+        description:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          type: string
+          enum: [template, courseware, guide, report, exam, other]
+        ext:
+          type: string
+          example: pdf
+        fileName:
+          type: string
+          description: 原始文件名，仅展示与下载响应头使用
+        sizeBytes:
+          type: integer
+          format: int64
+        uploaderId:
+          type: integer
+          format: int64
+        uploaderNickname:
+          type: string
+        uploaderAvatar:
+          type: string
+          nullable: true
+        uploaderVerified:
+          type: boolean
+        status:
+          type: integer
+          enum: [0, 1, 2, 3]
+          description: 0待审 1通过 2驳回 3下架；公开页恒为 1
+        rejectReason:
+          type: string
+          nullable: true
+          description: 驳回/下架理由；公开页为 null
+        reviewTime:
+          type: string
+          format: date-time
+          nullable: true
+        viewCount:
+          type: integer
+        downloadCount:
+          type: integer
+        likeCount:
+          type: integer
+        favoriteCount:
+          type: integer
+        myLike:
+          type: boolean
+          description: 当前登录人是否已点赞；游客恒 false
+        myFavorite:
+          type: boolean
+          description: 当前登录人是否已收藏；游客恒 false
+        canDelete:
+          type: boolean
+          description: 当前登录人是否可删除（仅上传者）
+        createTime:
+          type: string
+          format: date-time
+
+    FilePageVO:
+      type: object
+      required: [list, total, page, size, hasMore]
+      properties:
+        list:
+          type: array
+          items: { $ref: '#/components/schemas/FileVO' }
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+        size:
+          type: integer
+        hasMore:
+          type: boolean
+
+    FileQuotaVO:
+      type: object
+      required: [score, verified, tier, singleLimitBytes, totalLimitBytes, usedBytes, canUpload]
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        verified:
+          type: boolean
+        tier:
+          type: integer
+          enum: [0, 1, 2, 3]
+          description: 0=不可上传；1/2/3 对应 1MB/5MB、2MB/10MB、3MB/15MB
+        singleLimitBytes:
+          type: integer
+          format: int64
+        totalLimitBytes:
+          type: integer
+          format: int64
+        usedBytes:
+          type: integer
+          format: int64
+          description: 待审 + 已过审文件的总字节数
+        canUpload:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+          description: 不能上传时的具体原因
+        dailyUploadRemaining:
+          type: integer
+          description: 今天还能上传几个
+        pendingCount:
+          type: integer
+          description: 当前待审文件数
+
+    FilePageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/FilePageVO' }
+
+    FileDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/FileVO' }
+
+    FileQuotaResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/FileQuotaVO' }
+
+    FileUploadResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [fileId, status]
+              properties:
+                fileId:
+                  type: integer
+                  format: int64
+                status:
+                  type: integer
+                  enum: [0]
+                  description: 上传即待审
+
+    FileReviewRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+          maxLength: 200
+          description: reject 时必填；approve 可空
+
+    FileTakedownRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
 
     TokenPairEnvelope:
       allOf:
@@ -5237,6 +6179,20 @@ components:
           description: |
             `/auth/send-code` 发出的 `type=login` 验证码
 
+    SetPasswordRequest:
+      type: object
+      required: [code, newPassword]
+      properties:
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          description: 绑定邮箱收到的 `type=setpwd` 验证码
+        newPassword:
+          type: string
+          minLength: 6
+          maxLength: 64
+          description: 新密码 6~64 位
+
     SendCodeRequest:
       type: object
       required: [target]
@@ -5248,11 +6204,12 @@ components:
           description: 收码目标，邮箱或手机号
         type:
           type: string
-          enum: [register, login, bind]
+          enum: [register, login, bind, setpwd, reset]
           default: register
           description: |
             用途。不传按 `register` 处理（DTO 字段自带默认值）。
             不同 type 是不同的 Redis 键，拿 login 的码去调注册会返回 1020。
+            `setpwd` 只用于无密码账号在登录态设置密码；`reset` 用于找回密码。
 
     RefreshRequest:
       type: object

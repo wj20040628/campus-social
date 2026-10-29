@@ -38,14 +38,18 @@
                   原兜底「用户」毫无信息量(实测:'用户 你的内容未通过审核'),
                   说清是系统自动判定,与人工审核区分。
                 -->
-                <template v-else-if="(n.type === 6 || n.type === 7 || n.type === 8) && !n.actor"><b>系统审核</b>{{ n.summary }}</template>
+                <!-- 群聊邀请（22）：平台代发，但语义是某个群邀请了你 -->
+                <template v-else-if="n.type === 22"><b>群聊邀请</b>{{ n.summary }}</template>
+                <!-- 处置结果（18-21）是平台动作，署名「系统通知」而不是「系统审核」 -->
+                <template v-else-if="n.type >= 18 && !n.actor"><b>系统通知</b>{{ n.summary }}</template>
+                <template v-else-if="(n.type === 6 || n.type === 7 || n.type === 8 || n.type >= 13) && !n.actor"><b>系统审核</b>{{ n.summary }}</template>
                 <template v-else>
                   <b>{{ n.actor ? displayName(n.actor) : '用户' }}</b>
                   {{ n.summary }}
                 </template>
               </div>
-              <!-- 反馈回复(type=11):管理员回复原文,引用块展示;点击仅标已读不跳转 -->
-              <div v-if="n.type === 11 && n.content" class="n-reply">{{ n.content }}</div>
+              <!-- 反馈回复(11)/认证驳回(17)/处置结果(18-23)/群聊邀请(22):原文或群名,引用块展示 -->
+              <div v-if="(n.type === 11 || n.type === 17 || (n.type >= 18 && n.type <= 23)) && n.content" class="n-reply">{{ n.content }}</div>
               <div class="n-time">{{ n.createTime }}</div>
             </div>
             <el-tag v-if="!n.isRead" type="danger" size="small" effect="dark" class="n-badge">新</el-tag>
@@ -123,16 +127,9 @@ function fmt(t) {
 }
 
 /**
- * 拉一页通知。
- *
- * 【2026-10-21 补错误处理】改版前这个函数没有 catch：
- *   - 失败时异常向上抛，hasMore 仍是 true
- *   - finally 里 nextTick(setupObserver) 重建 observer → 哨兵可见 → 再调 load → 再失败
- * 形成无限重试（同 useHomeFeed 的坑），且页面落在「没有新通知」空态，
- * 把**网络故障**说成了**没人通知你**。
- *
- * 现在：记录 loadFailed，连续失败 2 次就停止自动加载，
- * 由模板渲染「没加载出来 + 重试」。
+ * 拉一页通知。失败不抛：记录 loadFailed，连续失败 2 次停止自动加载，
+ * 由模板渲染「没加载出来 + 重试」。（原实现无 catch，finally 重建 observer
+ * 会形成无限重试，并把网络故障说成「没人通知你」。）
  */
 async function load() {
   if (!hasMore.value || loading.value) return
@@ -221,6 +218,28 @@ async function openAndRead(n) {
     } else if (n.type === 11) {
       // 反馈回复:管理员回复原文已在卡片内展示,点击仅标已读,不跳转任何页面
       // (显式分支:防止后续有人给 jump 加默认回首页逻辑时误伤)
+    } else if (n.type === 13) {
+      // 文件过审:跳到文件详情
+      if (n.targetId) go(`/files/${n.targetId}`)
+    } else if (n.type === 14 || n.type === 15) {
+      // 文件驳回/下架:去「我的文件」看理由
+      go('/files?tab=mine')
+    } else if (n.type === 16 || n.type === 17) {
+      // 认证结果:去编辑资料页看当前状态与驳回理由
+      go('/profile')
+    } else if (n.type === 20) {
+      // 内容下架:帖子还留着「已下架」占位页可看;评论/私信/集市没有统一落点
+      if (n.postId) go(`/post/${n.postId}`)
+    } else if (n.type === 21) {
+      // 解封:回到自己的主页,让「账号回来了」这件事有落点
+      go('/profile')
+    } else if (n.type === 22) {
+      // 群聊邀请：路由段必须是 group，写 g 会掉进私聊分支（E2E 实测）
+      if (n.targetId) go(`/chat/t/group/${n.targetId}`)
+    } else if (n.type === 23) {
+      if (n.targetId) go(`/circles/${n.targetId}`)
+    } else if (n.type >= 18) {
+      // 18 举报结果 / 19 封禁：结论已完整写在正文里，点击只标已读
     }
   }
   if (!n.isRead) {

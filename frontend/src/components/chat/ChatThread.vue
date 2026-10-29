@@ -39,6 +39,13 @@
 
     <!-- 行 3:消息列表。role=log + aria-live=polite,新消息会被读屏播报 -->
     <div ref="listEl" class="th__list" role="log" aria-live="polite" aria-label="消息列表">
+      <!-- 单聊规则行:消息流最前,即第一条消息之前(文案与数字见 ChatThreadRule) -->
+      <ChatThreadRule
+        v-if="!historyLoading && !historyError && kind !== 'group' && !hideStrangerRule"
+        :limit="perPeerLimit"
+        :remaining="perPeerRemaining"
+      />
+
       <!-- 历史加载失败:中部一行 + 重试,不整页白屏 -->
       <div v-if="historyError" class="hist-err">
         <p class="hist-err__text">消息没加载出来</p>
@@ -160,24 +167,25 @@
       @report="openReport(ctxTarget)"
     />
 
-    <!-- 举报消息：targetType=4，处置时后端软删该条（详见 ChatMsgReport.vue） -->
-    <ChatMsgReport v-model="reportOpen" :message-id="reportTargetId" />
+    <!-- 举报消息：私聊 4 / 群聊 8；group_message 与 chat_message 是两张表，id 不能混用 -->
+    <ChatMsgReport
+      v-model="reportOpen"
+      :message-id="reportTargetId"
+      :target-type="kind === 'group' ? 8 : 4"
+    />
   </div>
 </template>
 
 <script setup>
 /**
- * 消息窗(Chat.vue.md §1.2)。
- *
- * 操作入口是**长按气泡**弹 ActionSheet(§1.3)，不是常驻按钮 ——
- * 原实现给我方气泡挂撤回、给对方挂附件，两个 44px 热区会把正文宽度压到 200px 以下。
- * 长按阈值 500ms：短于此与点击/滚动冲突，长于此用户以为没响应。
- * 用 pointerdown/pointerup 而非 touchstart，桌面也能触发，开发时不必切手机。
+ * 消息窗(Chat.vue.md §1.2)。操作入口是长按气泡弹 ActionSheet(§1.3),
+ * 不是常驻按钮:两个 44px 热区会把正文压到 200px 以下。
  */
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Promotion, Close } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
+import { copyText } from '@/utils/clipboard'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useChatBlock } from '@/composables/useChatBlock'
 import { useMessageBlocks } from '@/composables/useMessageBlocks'
@@ -187,6 +195,7 @@ import GroupMenu from './GroupMenu.vue'
 import GroupAnnounce from './GroupAnnounce.vue'
 import GroupAnnounceDialog from './GroupAnnounceDialog.vue'
 import ChatThreadHeader from './ChatThreadHeader.vue'
+import ChatThreadRule from './ChatThreadRule.vue'
 import ChatBubble from './ChatBubble.vue'
 import ChatMsgSheet from './ChatMsgSheet.vue'
 import ChatMsgReport from './ChatMsgReport.vue'
@@ -203,6 +212,16 @@ const props = defineProps({
   historyError: { type: Boolean, default: false },
   /** 阻断原因:{ text, tone: 'danger'|'warning' } */
   block: { type: Object, default: null },
+  /** 陌生人每日同人条数上限(来自 /chat/stranger-quota;null=没拉到,不显示) */
+  perPeerLimit: { type: Number, default: null },
+  /**
+   * 对**当前这个人**今天还剩几条(来自 /chat/stranger-quota?peerId=)。
+   * null = 没拉到 / 对方已不是陌生人 —— 都不显示剩余数,
+   * 不能拿 0 顶替:0 会被读成「今天发不出去了」,与「不知道」是两件事。
+   */
+  perPeerRemaining: { type: Number, default: null },
+  /** 互相关注（2026-10-28）：关系已建立，不再提示陌生人条数限制 */
+  hideStrangerRule: { type: Boolean, default: false },
   sending: { type: Boolean, default: false },
   canRecall: { type: Function, default: () => false },
   // 群聊相关(GroupHead 用)
@@ -313,12 +332,8 @@ function scrollBottom() {
   el.scrollTop = el.scrollHeight
 }
 
-/**
- * ① 进会话/切会话:messages 变化即滚到最新(最下)。
- * 手机端每个会话是独立路由、ChatThread 会**重挂载** —— 必须 immediate,
- * 否则挂载时已有 messages(列表先于会话加载)不会触发,停在上部。
- * flush:'post' 保证 DOM 已更新;再 rAF 等布局稳定(scrollHeight 才准)。
- */
+// 进会话/切会话滚动到底:手机端每个会话独立路由、组件会重挂载,必须 immediate;
+// flush:'post' + rAF 等布局稳定后 scrollHeight 才准。
 watch(
   () => props.messages,
   (m) => {
@@ -342,19 +357,11 @@ function scheduleScrollBottom() {
   requestAnimationFrame(scrollBottom)
 }
 
-/*
- * ② 群信息头:桌面 + 手机都常显。
- * 早前的「下滑收起 / 上滑拉回」(headPinned / onListScroll / scroll 监听)已删除:
- * 手机端收起后群头找不回来、群管理面板又被消息盖住,统一改为恒显,
- * 群头固定在消息区上方,不再随滚动平移。
- */
+/* ② 群信息头恒显:早前的下滑收起找不回来、还会盖住群管理面板,已删除。 */
 
 /* ---------------- 长按操作表 ---------------- */
 
-/**
- * 长按的计时与 pointer 事件在 ChatBubble 内部(它自己的状态),
- * 这里只接收「长按发生了」并记住目标是哪条消息。
- */
+/** 长按的计时与 pointer 事件在 ChatBubble 内部,这里只接收「长按发生了」并记住目标 */
 function onLongPress(m) {
   sheetTarget.value = m
   sheetOpen.value = true
@@ -362,10 +369,7 @@ function onLongPress(m) {
 
 /* ---------------- 桌面右键菜单(2026-10-15 新增) ---------------- */
 
-/**
- * 开合 / 位置 / 外部点击收起都在 composable 里;
- * 开菜单时顺手关掉长按表 —— 两者互斥,同屏不能出现两个浮层。
- */
+/* 开合/位置/外部点击收起都在 composable 里;开菜单时顺手关掉长按表,两者互斥 */
 const ctx = useMessageContextMenu({
   onOpen: () => {
     sheetOpen.value = false
@@ -378,23 +382,16 @@ const ctxTarget = ctx.target
 const ctxPos = ctx.pos
 const onContextMenu = ctx.show
 
-/** 复制:项目已有 clipboard util(见 PostSheets.vue),非安全上下文走 fallback */
+/** 复制:走 utils/clipboard 的统一入口,http 源下退化到 execCommand */
 async function onCtxCopy() {
   const m = ctxTarget.value
   if (!m) return
-  try {
-    await navigator.clipboard.writeText(m.content || '')
-    ElMessage.success('已复制')
-  } catch {
-    ElMessage.warning('这个浏览器不让复制,长按消息试试')
-  }
+  const ok = await copyText(m.content || '')
+  if (ok) ElMessage.success('已复制')
+  else ElMessage.warning('这个浏览器不让复制,长按消息试试')
 }
 
-/*
- * 暴露给父组件的只有 scrollBottom —— 键盘弹起时把最新一条滚进可视区。
- * 不暴露 onPointerDown/clearPress:它们已经在模板里绑好了,
- * defineExpose 一旦多暴露就变成父子两处都在改同一状态,容易双触发。
- */
+/* 只暴露 scrollBottom(键盘弹起时滚到最新);长按相关状态不暴露,避免父子两处改同一状态 */
 defineExpose({ scrollBottom })
 </script>
 <style scoped src="./ChatThread.css"></style>

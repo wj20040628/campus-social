@@ -6,6 +6,7 @@ import com.campus.social.entity.ReviewTask;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.FeedbackMapper;
+import com.campus.social.mapper.FileAssetMapper;
 import com.campus.social.mapper.ReportMapper;
 import com.campus.social.mapper.ReviewTaskMapper;
 import com.campus.social.mapper.UserMapper;
@@ -37,8 +38,15 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final ReviewTaskMapper reviewTaskMapper;
     private final ReportMapper reportMapper;
     private final FeedbackMapper feedbackMapper;
+    private final FileAssetMapper fileAssetMapper;
     private final BanService banService;
     private final AuditService auditService;
+    /** 封禁/解封通知（2026-10-28）：用户不再只看到「账号已冻结」四个字 */
+    private final PostNotifySupport notifySupport;
+
+    /** notify.type：账号被封禁 / 账号已解封（与 ReportServiceImpl 同编号） */
+    private static final int NOTIFY_ACCOUNT_BANNED = 19;
+    private static final int NOTIFY_ACCOUNT_UNBANNED = 21;
 
     /** 圈主协审升级窗口(小时),与 ReviewServiceImpl 读同一个配置键 */
     @org.springframework.beans.factory.annotation.Value("${campus.review.owner-escalate-hours:24}")
@@ -116,6 +124,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         auditService.record(adminId, "account_ban", "user", userId,
                 (banDays == 0 ? "直接封禁(永久)" : "直接封禁 " + banDays + " 天")
                         + "，理由: " + reason, "");
+        notifySupport.pushSystemNotify(userId, NOTIFY_ACCOUNT_BANNED, 0L, null,
+                "因违反社区规范，你的账号已被"
+                        + (banDays == 0 ? "永久封禁" : "封禁 " + banDays + " 天")
+                        + (reason == null || reason.isBlank() ? "" : "。理由：" + reason.trim())
+                        + "。如有异议，可在登录页提交封禁申诉。");
         log.info("direct ban: user={}, days={}, admin={}", userId, banDays, adminId);
     }
 
@@ -132,6 +145,8 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new BusinessException(UNPROCESSABLE, "该账号不在封禁中，请刷新列表");
         }
         banService.unban(userId, adminId);
+        notifySupport.pushSystemNotify(userId, NOTIFY_ACCOUNT_UNBANNED, 0L, null,
+                "你的账号已恢复正常，可以继续发帖和搭话。如对处置有疑问，可通过「意见反馈」联系管理员。");
         log.info("manual unban: user={}, admin={}", userId, adminId);
     }
 
@@ -150,6 +165,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                         new LambdaQueryWrapper<User>().eq(User::getVerifyStatus, 2))
                 .intValue());
         vo.setFeedbackPending(feedbackMapper.countPending());
+        vo.setFilePending(fileAssetMapper.countPendingAll());
         return vo;
     }
 }

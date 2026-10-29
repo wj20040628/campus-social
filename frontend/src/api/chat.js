@@ -54,11 +54,12 @@ export function setConvPref(kind, targetId, flags = {}) {
 }
 
 /**
- * 今日剩余破冰额度(AC-04)。**不消耗额度**,只查询。
- * @param {number} [peerId] 传了才返回 remainingPerPeer(对特定对象的剩余条数)
- * @returns {{ dailyNewPeerLimit:number, dailyNewPeerUsed:number,
- *             remainingNewPeer:number, perPeerDailyLimit:number,
- *             remainingPerPeer:number|null }}
+ * 搭话额度快照(AC-04)。**不消耗额度**,只查询。
+ * 2026-10-28：对象数量不再限制，只剩「对同一陌生人每天 N 条」。
+ *
+ * @param {number} [peerId] 传了才返回 isStranger / remainingPerPeer
+ * @returns {{ perPeerDailyLimit:number, remainingPerPeer:number|null,
+ *             isStranger:boolean|null, resetAt:string, strangerMsgEnabled:boolean }}
  */
 export function strangerQuota(peerId) {
   return request.get(`/chat/stranger-quota${peerId ? `?peerId=${peerId}` : ''}`)

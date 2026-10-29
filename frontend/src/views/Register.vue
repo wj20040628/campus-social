@@ -110,7 +110,7 @@
               autocomplete="username"
               :aria-describedby="fieldErrors.studentNo ? 'studentno-err' : undefined"
             />
-            <p class="field-hint">认证后才能发私信、建圈子、加入圈子、发布集市活动</p>
+            <p class="field-hint">认证后才能发帖、评论、发私信、建圈子、加入圈子、发布集市活动</p>
             <!--
               设计 §3 错误:学号已被注册。
               除了文案还要给一个「去登录」的**内联**出口 ——
@@ -160,11 +160,7 @@
         </el-form-item>
       </el-form>
 
-      <!--
-        表单级错误(网络失败 / 服务端错误)。设计 §3 错误 4):
-        「网络好像断了,点这里重试」,「点这里」可点 ——
-        纯文本的话用户只能把整个表单重填一遍,而网络失败恰恰最不该让人重填。
-      -->
+      <!-- 表单级错误贴按钮下方、可点重试：网络失败时最不该让用户重填整表 -->
       <AuthErrorLine
         v-if="formError"
         :message="formError"
@@ -178,7 +174,6 @@
       </div>
     </div>
 
-    <!-- 协议弹窗：由勾选框里的《用户协议》/《隐私政策》链接调起 -->
     <LegalAgreementDialog ref="legalRef" />
   </div>
 </template>

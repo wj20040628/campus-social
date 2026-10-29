@@ -11,6 +11,7 @@ import com.campus.social.dto.ForgotPasswordDTO;
 import com.campus.social.dto.ResetPasswordDTO;
 import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
+import com.campus.social.dto.SetPasswordDTO;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
@@ -24,6 +25,7 @@ import com.campus.social.assembler.UserVoAssembler;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -33,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.campus.social.common.ResultCode.*;
 
@@ -60,6 +63,8 @@ public class AuthServiceImpl implements AuthService {
     private final UploadService uploadService;
     /** 注册即认证:带学号 + 归属注册时,复用存归属与六层校验逻辑,避免两套实现 */
     private final com.campus.social.service.CampusVerifyService campusVerifyService;
+    /** 封禁截止时间（2026-10-28）：登录被拒时说清「封到哪天」，不再只有一句「账号已冻结」 */
+    private final com.campus.social.service.BanService banService;
 
     /** refresh:{userId} = jti */
     private static final String REFRESH_KEY = "refresh:";
@@ -280,11 +285,22 @@ public class AuthServiceImpl implements AuthService {
         // 冻结/注销账号拒登录
         if (user.getStatus() == 1) {
             auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已冻结", null);
-            throw new BusinessException(USER_FROZEN);
+            throw frozen(user.getId());
         }
         if (user.getStatus() == 2) {
             auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已注销", null);
             throw new BusinessException(USER_CANCELLED);
+        }
+        /*
+         * 邮箱验证码自动建号没有密码(password_hash 是哨兵值)。
+         * 不能把哨兵值喂给 BCrypt(会抛 Invalid salt version),也不能计一次
+         * 「密码错误」—— 用户并没有输错密码,只是这个账号还没有密码。
+         * 明确回 1066,前端引导他去验证码登录后在账号与安全里设密。
+         */
+        if (!JwtUtil.isPasswordSet(user.getPasswordHash())) {
+            auditService.record(user.getId(), "login_fail", null, null,
+                    "identifier=" + id + ", 账号尚未设置密码", null);
+            throw new BusinessException(PASSWORD_NOT_SET);
         }
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
             auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 密码错误", null);
@@ -303,27 +319,108 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public TokenPairVO loginByCode(LoginByCodeDTO dto) {
+        String email = dto.getEmail().trim().toLowerCase();
+        if (email.length() > 64) {
+            // 与 user.username / user.email 的 VARCHAR(64) 对齐,避免建号时落成 500
+            throw new BusinessException(BAD_REQUEST, "邮箱过长");
+        }
         // 校验邮箱验证码(登录用途,一次性消费)
-        verifyCodeService.verify(dto.getEmail(), dto.getCode(), "login");
+        verifyCodeService.verify(email, dto.getCode(), "login");
 
-        // 账号体系重构:邮箱验证码登录只服务于「已绑定安全凭证邮箱」的用户,
-        // 用 email 列查询(而非原 username —— 新账号 username 已是学号)。
-        User user = userMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                        .eq(User::getEmail, dto.getEmail().trim().toLowerCase()));
+        /*
+         * 2026-10-27:验证码登录兼做注册。
+         * 未注册邮箱不再回「该邮箱尚未绑定账号」,而是直接建号并登录——
+         * 登录页已经没有独立注册入口,验证码是唯一的新用户入口。
+         * 建号不设密码,昵称给「用户+4位随机数」,后续可在设置里改。
+         */
+        User user = userMapper.selectByEmail(email);
         if (user == null) {
-            throw new BusinessException(EMAIL_NOT_REGISTERED, "该邮箱尚未绑定账号");
+            user = createEmailAccount(email);
         }
         if (user.getStatus() == 1) {
-            throw new BusinessException(USER_FROZEN);
+            throw frozen(user.getId());
         }
         if (user.getStatus() == 2) {
             throw new BusinessException(USER_CANCELLED);
         }
-        log.info("loginByCode: email={}", UserVoAssembler.maskUsername(dto.getEmail()));
+        log.info("loginByCode: email={}", UserVoAssembler.maskUsername(email));
         // 邮箱验证码登录属「免密码」,不勾记住我(默认 3d)
         return issueTokens(user, false);
+    }
+
+    /**
+     * 封禁用户的登录拒绝（2026-10-28）。
+     *
+     * <p>只回「账号已冻结」时，用户既不知道封多久、也不知道能申诉——
+     * 登录页虽然有申诉按钮，但账号为什么变成这样全靠猜。
+     * 解封时间在 Redis（BanService），永久封禁没有到期时间。
+     */
+    private BusinessException frozen(long userId) {
+        java.time.LocalDateTime until = banService.bannedUntil(userId);
+        String tail = "如有异议，可在登录页提交封禁申诉。";
+        if (until == null) {
+            return new BusinessException(USER_FROZEN, "账号已被永久封禁。" + tail);
+        }
+        return new BusinessException(USER_FROZEN, "账号已被封禁，将于 "
+                + until.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                + " 自动解封。" + tail);
+    }
+
+    /**
+     * 邮箱验证码首次登录时自动建号。
+     *
+     * <p>并发兜底:同一邮箱两封验证码几乎同时到达时,两个请求都会查到 null,
+     * 第二个 INSERT 会撞 {@code uk_user_email}/{@code uk_username}。这里捕获
+     * 唯一键冲突后回查一次 —— 对方已经建好,直接用那一行登录,不把并发变成报错。
+     *
+     * <p>已注销账号(is_deleted=1)仍占着唯一键,回查也查不到(selectByEmail 带
+     * is_deleted=0),此时给出中性文案,不再继续建号。
+     */
+    private User createEmailAccount(String email) {
+        User user = new User();
+        user.setUsername(email);
+        user.setEmail(email);
+        user.setNickname(autoNickname());
+        user.setPasswordHash(JwtUtil.PASSWORD_UNSET);
+        user.setStatus(0);
+        user.setRole(0);
+        user.setVerifyStatus(0);
+        user.setOnboardingStep(0);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            User existing = userMapper.selectByEmail(email);
+            if (existing != null) {
+                return existing;
+            }
+            throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱暂时无法用于登录,请联系管理员");
+        }
+        auditService.record(user.getId(), "register", "user", user.getId(),
+                "email=" + email + ", 邮箱验证码自动建号(未设密码)", null);
+        log.info("auto register by email code: uid={}, email={}",
+                user.getId(), UserVoAssembler.maskUsername(email));
+        return user;
+    }
+
+    /**
+     * 自动昵称：「用户」+ 6 位随机，先查重再落库。
+     *
+     * <p>2026-10-28 改：原来 4 位（1000-9999 共 9000 种）。昵称不是唯一键，
+     * 撞了不会报错，但按生日悖论注册到百来人时已有近一半概率出现同名，
+     * 新用户会看到自己和一个陌生人叫一样的名字。6 位是 90 万种，
+     * 查一次库把已被人工改过的昵称也避开；三次都撞（并发极小概率）
+     * 退化到 9 位随机，空间足够大，不再查库。
+     */
+    private String autoNickname() {
+        for (int i = 0; i < 3; i++) {
+            String candidate = "用户" + ThreadLocalRandom.current().nextInt(100000, 1000000);
+            if (userMapper.countByNickname(candidate) == 0) {
+                return candidate;
+            }
+        }
+        return "用户" + ThreadLocalRandom.current().nextInt(100000000, 1000000000);
     }
 
     @Override
@@ -373,7 +470,7 @@ public class AuthServiceImpl implements AuthService {
         // 原先只判 status==1,注销账号仍能一直 refresh 续命 —— login 拦了,refresh 没拦。
         if (user.getStatus() == 1) {
             redis.delete(REFRESH_KEY + userId);
-            throw new BusinessException(USER_FROZEN);
+            throw frozen(user.getId());
         }
         if (user.getStatus() == 2) {
             redis.delete(REFRESH_KEY + userId);
@@ -515,6 +612,10 @@ public class AuthServiceImpl implements AuthService {
         if (user == null) {
             throw new BusinessException(UNAUTHORIZED, "未登录");
         }
+        if (!JwtUtil.isPasswordSet(user.getPasswordHash())) {
+            // 自动建号还没有密码,「原密码」这一步不存在;前端应走设置密码弹层
+            throw new BusinessException(PASSWORD_NOT_SET);
+        }
         if (!JwtUtil.verifyPassword(dto.getOldPassword(), user.getPasswordHash())) {
             throw new BusinessException(BAD_REQUEST, "原密码不正确");
         }
@@ -558,6 +659,56 @@ public class AuthServiceImpl implements AuthService {
         return toVo(user);
     }
 
+    /**
+     * 给「尚未设置密码」的账号发设置密码验证码。
+     *
+     * <p>已设密码的账号必须走原密码修改,不能拿邮箱验证码绕开原密码——
+     * 邮箱只是找回通道,不是日常改密的第二把钥匙。
+     */
+    @Override
+    public String sendSetPasswordCode(long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(UNAUTHORIZED, "未登录");
+        }
+        if (JwtUtil.isPasswordSet(user.getPasswordHash())) {
+            throw new BusinessException(PASSWORD_ALREADY_SET);
+        }
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new BusinessException(EMAIL_NOT_BOUND, "该账号还没有绑定邮箱,无法设置密码");
+        }
+        return verifyCodeService.send(user.getEmail(), "setpwd");
+    }
+
+    /**
+     * 无密码账号首次设置密码:邮箱验证码 + 新密码。
+     *
+     * <p>与 {@link #changePassword} 的边界:本方法只接受
+     * {@code password_hash} 仍是哨兵值的账号;一旦设过,后续只能凭原密码修改。
+     */
+    @Override
+    @Transactional
+    public void setPassword(long userId, SetPasswordDTO dto) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(UNAUTHORIZED, "未登录");
+        }
+        if (JwtUtil.isPasswordSet(user.getPasswordHash())) {
+            throw new BusinessException(PASSWORD_ALREADY_SET);
+        }
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new BusinessException(EMAIL_NOT_BOUND, "该账号还没有绑定邮箱,无法设置密码");
+        }
+        verifyCodeService.verify(user.getEmail(), dto.getCode(), "setpwd");
+        user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
+        userMapper.updateById(user);
+        // 与改密同口径:设密后吊销其他设备的 refresh,避免旧会话长期续命
+        redis.delete(REFRESH_KEY + userId);
+        auditService.record(userId, "set_password", "user", userId,
+                "邮箱验证码首次设置密码", null);
+        log.info("setPassword: uid={}, refresh revoked", userId);
+    }
+
     @Override
     public UserVO me(long userId) {
         User user = userMapper.selectById(userId);
@@ -598,11 +749,15 @@ public class AuthServiceImpl implements AuthService {
         // 第二个分支是补的洞:学号**没变**但 verify_status=0(从未提交过核验)
         // 的用户,只判「与旧值不同」会永远走不到 apply —— 他填过一次学号、
         // 学号已落库,再点保存判定「没变化」,状态永远 0、主页永远「去认证」
-        // (WJ 实测:学号存上了,状态纹丝不动)。已认证(1)/审核中(2)不在此列,
-        // 不会被重新拉回队列。
+        // (WJ 实测:学号存上了,状态纹丝不动)。
+        //
+        // 2026-10-28 追加状态 3：驳回时 student_no 已被释放为 NULL，正常路径
+        // 一定会「不同」；但老数据里被驳回的账号仍留着旧学号，同号保存
+        // 也必须能重新提交。已认证(1)/审核中(2)不在此列，不会被重新拉回队列。
         if (studentNo != null && !studentNo.isBlank()
                 && (!studentNo.equals(user.getStudentNo())
-                    || Integer.valueOf(0).equals(user.getVerifyStatus()))) {
+                    || Integer.valueOf(0).equals(user.getVerifyStatus())
+                    || Integer.valueOf(3).equals(user.getVerifyStatus()))) {
             studentNoChangeSupport.apply(user, studentNo, oldStudentNo);
         }
         if (nickname != null)

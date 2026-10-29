@@ -1,6 +1,7 @@
 package com.campus.social.service.impl;
 
 import com.campus.social.service.MessageGateway;
+import com.campus.social.util.MailSubjects;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -109,7 +110,8 @@ public class SmtpMessageGateway implements MessageGateway {
         MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
         helper.setFrom(from);
         helper.setTo(target);
-        helper.setSubject("校园社交注册/登录验证码");
+        // 主题带码:手机通知栏不点开也能看到 6 位验证码
+        helper.setSubject(MailSubjects.withCode("", code));
         helper.setText(buildHtmlBody(code), true);
         mailSender.send(msg);
         log.info("验证码邮件投递成功: target={}", target);

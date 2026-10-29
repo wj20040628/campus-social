@@ -114,6 +114,13 @@ public class UserVO {
      */
     private Boolean emailBound;
     /**
+     * 账号是否已设置密码(仅「我的资料」ofPrivate 暴露)。
+     *
+     * <p>邮箱验证码自动建号不设密码;前端据此把「修改密码」切换成
+     * 「设置密码」,走邮箱验证码而不是原密码。他人卡片不携带此字段。
+     */
+    private Boolean passwordSet;
+    /**
      * 已绑定的脱敏邮箱(仅「我的资料」ofPrivate 暴露,如 {@code ze***n@campus.test})。
      *
      * <p><b>为什么只给脱敏值</b>:邮箱是安全凭证,即使本人也不该在任意响应里拿到

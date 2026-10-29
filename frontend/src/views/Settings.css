@@ -195,6 +195,18 @@
   color: var(--ys-accent-2);
 }
 
+/* 管理待办：有未处理时整行变红，数字角标推到行尾 */
+.asheet__item.is-pending {
+  color: var(--ys-danger);
+}
+.settings__pending {
+  margin-left: auto;
+}
+.set-row__count {
+  margin-left: var(--ys-space-2);
+  vertical-align: middle;
+}
+
 /* 审核记录弹层空态 / 加载态 */
 .review-empty {
   padding: var(--ys-space-6) var(--ys-space-4);

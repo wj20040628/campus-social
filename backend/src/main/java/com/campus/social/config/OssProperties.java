@@ -26,6 +26,15 @@ public class OssProperties {
     /** 内网域名：ECS 后端拉头 / 回调校验用，免流量费 */
     private String internalEndpoint = "oss-cn-hangzhou-internal.aliyuncs.com";
 
+    /**
+     * 下载直链用的自定义域名（CNAME 到桶，2026-10-28 备案后引入）。
+     *
+     * <p>为空时下载 302 到 {@code bucket.oss-cn-*.aliyuncs.com}，微信里点下载会弹
+     * 「即将离开微信」；配好后主机是自家域名，链接也更可信。
+     * 绑定时 OSS 控制台填的就是这个域名，HTTPS 还需要单独给它配一张证书。
+     */
+    private String customDomain = "";
+
     /** STS 扮演的 RAM 角色 ARN（oss-uploader-role） */
     private String roleArn = "";
 
@@ -103,6 +112,14 @@ public class OssProperties {
 
     public void setInternalEndpoint(String internalEndpoint) {
         this.internalEndpoint = internalEndpoint;
+    }
+
+    public String getCustomDomain() {
+        return customDomain;
+    }
+
+    public void setCustomDomain(String customDomain) {
+        this.customDomain = customDomain;
     }
 
     public String getRoleArn() {
