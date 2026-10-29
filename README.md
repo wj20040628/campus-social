@@ -2,337 +2,217 @@
 
 # 友声
 
-**嘤其鸣矣，求其友声。**  
-——《诗经 · 小雅 · 伐木》
+**嘤其鸣矣，求其友声。**<br>——《诗经 · 小雅 · 伐木》
 
-让校园里的每一次发声，都能得到回应。
+一个面向高校的校园生活社区：动态、圈子、活动、集市、私信、公告、搜索，含完整管理后台。
 
-一个为高校场景从零构建的校园生活社区：动态、圈子、活动、集市、私信、公告。
+### [🌐 yousheng8.cn](https://yousheng8.cn)
 
-### 🌐 访问地址
+[![在线](https://img.shields.io/badge/online-HTTPS-success?style=flat-square)](https://yousheng8.cn)
+[![CI](https://github.com/wj20040628/campus-social/actions/workflows/ci.yml/badge.svg)](https://github.com/wj20040628/campus-social/actions/workflows/ci.yml)
+[![version](https://img.shields.io/badge/version-1.11.2-blue?style=flat-square)](frontend/package.json)
+[![license](https://img.shields.io/badge/license-Mulan%20PSL%202.0-blue?style=flat-square)](LICENSE)
 
-## <http://yousheng8.cn>
+![Vue](https://img.shields.io/badge/Vue-3.4-42b883?logo=vuedotjs&logoColor=white&style=flat-square)
+![Vite](https://img.shields.io/badge/Vite-5.4-646cff?logo=vite&logoColor=white&style=flat-square)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-6db33f?logo=springboot&logoColor=white&style=flat-square)
+![MySQL](https://img.shields.io/badge/MySQL-8.4-4479a1?logo=mysql&logoColor=white&style=flat-square)
+![Redis](https://img.shields.io/badge/Redis-7-dc382d?logo=redis&logoColor=white&style=flat-square)
 
-![域名备案中，即将上线](https://img.shields.io/badge/%E5%9F%9F%E5%90%8D%E5%A4%87%E6%A1%88%E4%B8%AD-%E5%8D%B3%E5%B0%86%E4%B8%8A%E7%BA%BF-orange?style=for-the-badge)
-
-<sub>备案由工信部审核，通常需 5–20 个工作日；通过后自动切换 HTTPS。当前如需体验请按「快速开始」在本地运行。</sub>
-
-![Vue](https://img.shields.io/badge/Vue-3.4-42b883?logo=vuedotjs&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-5.4-646cff?logo=vite&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-6db33f?logo=springboot&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8.4-4479a1?logo=mysql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-7-dc382d?logo=redis&logoColor=white)
-![Element Plus](https://img.shields.io/badge/Element%20Plus-2.14-409eff?logo=element&logoColor=white)
-
-![门禁](https://img.shields.io/badge/门禁-11%2F11%20通过-success)
-![后端测试](https://img.shields.io/badge/mvn%20test-44%2F44%20绿-success)
-![数据表](https://img.shields.io/badge/数据表-37%20张-informational)
+![tests](https://img.shields.io/badge/mvn%20test-142%20passed-success?style=flat-square)
+![gates](https://img.shields.io/badge/gates-11%2F11-success?style=flat-square)
+![tables](https://img.shields.io/badge/schema-39%20tables-informational?style=flat-square)
 
 </div>
 
 ---
 
-## 目录
+## 它能解决什么
 
-- [这是什么](#这是什么)
-- [界面一览](#界面一览)
-- [设计稿](#设计稿)
-- [功能模块](#功能模块)
-- [技术架构](#技术架构)
-- [快速开始](#快速开始)
-- [项目结构](#项目结构)
-- [文档索引](#文档索引)
+校园社交的真正难点不在「发帖」，而在三件事：**身份不可信**（谁都能冒充学生）、**信息易刷屏**（没有治理的校园墙三个月就沦为广告板）、**内容无人管**（个人开发者没有审核团队）。友声围绕这三件事做取舍：
 
----
+| 校园里的真实场景 | 友声的做法 |
+| --- | --- |
+| 想确认对方是不是本校学生 | 邮箱验证 + 学号人工核验，认证标识贯穿发帖、评论、私信 |
+| 想找同好，不想泡在全校大群里 | **圈子**：圈主 / 圈管理 / 成员三级自治，圈内帖子与线下活动 |
+| 想约一场球，凑不齐人 | **活动**：名额上限 + 只增不超的报名，防并发超卖 |
+| 想把闲置书卖掉 | **集市**：同校范围内的二手与招募，带风险提示与投放时长 |
+| 被骚扰、被造谣 | 举报 → 管理员待办 → 下架 / 禁言 / 封禁 / 解散，全程留痕并回执举报人 |
+| 担心帖子被人扒到个人信息 | 学号、邮箱不出现在任何前台响应，脱敏收敛在唯一装配器出口 |
 
-## 这是什么
+## 界面
 
-**友声**（工程代号 `campus-social`）是一个面向高校的校园生活社区。它不试图做成另一个泛社交平台，而是**只解决校园里的具体问题**：
+> 以下为本地真实运行截图（演示数据），桌面端不是把手机界面拉宽，而是重新组织信息层级。
 
-| 校园里的真实场景         | 友声给出的答案                 |
-| ---------------- | ----------------------- |
-| 想知道学校最近发生了什么     | 首页动态 + 公告，按关注/全部双流      |
-| 想找同好，但不知道去哪找     | **圈子**：按兴趣聚合，圈内有帖子和线下活动 |
-| 想约一场球，凑不齐人       | **活动**：带名额上限的报名，防超卖     |
-| 想把闲置书卖掉          | **集市**：同校范围内的二手信息       |
-| 想问学长一个问题，不好意思公开问 | **私信**：陌生人额度限制 + 举报     |
+![圈子详情（桌面端三栏）](docs/screens/circle-detail-desktop.png)
 
----
-
-## 界面一览
-
-> 以下均为本地真实运行界面（非设计稿）。
-
-### 移动端
-
-<table>  
-<tr>  
-<td width="33%" align="center"><img src="docs/screens/home.png" alt="首页动态">   <sub><b>首页动态</b></sub></td>  
-<td width="33%" align="center"><img src="docs/screens/circles.png" alt="圈子广场">   <sub><b>圈子广场</b></sub></td>  
-<td width="33%" align="center"><img src="docs/screens/circle-detail.png" alt="圈子详情">   <sub><b>圈子详情</b></sub></td>  
-</tr>  
-<tr>  
-<td width="33%" align="center"><img src="docs/screens/circle-members.png" alt="圈子成员">   <sub><b>圈子成员</b></sub></td>  
-<td width="33%" align="center"><img src="docs/screens/activity.png" alt="活动详情">   <sub><b>活动详情</b></sub></td>  
-<td width="33%" align="center"><img src="docs/screens/mkt.png" alt="集市广场">   <sub><b>集市广场</b></sub></td>  
-</tr>  
-<tr>  
-<td width="33%" align="center"><img src="docs/screens/publish.png" alt="发动态">   <sub><b>发动态</b></sub></td>  
-<td width="33%" align="center"><img src="docs/screens/chat.png" alt="私信">   <sub><b>私信</b></sub></td>  
-<td width="33%" align="center"><img src="docs/screens/notify.png" alt="通知">   <sub><b>通知</b></sub></td>  
-</tr>  
+<table>
+<tr>
+<td width="25%" align="center"><img src="docs/screens/home.png" alt="首页动态"><br><sub><b>首页 · 关注/全部双流</b></sub></td>
+<td width="25%" align="center"><img src="docs/screens/circles.png" alt="圈子广场"><br><sub><b>圈子广场</b></sub></td>
+<td width="25%" align="center"><img src="docs/screens/post-detail-mobile.png" alt="帖子详情"><br><sub><b>帖子详情与评论</b></sub></td>
+<td width="25%" align="center"><img src="docs/screens/chat.png" alt="私信"><br><sub><b>私信会话</b></sub></td>
+</tr>
 </table>
 
-### 桌面端
-
-桌面不是把手机界面拉宽，而是**重新组织信息层级**：左侧固定导航，中间内容列，右侧信息栏。
-
-![圈子详情（桌面双栏）](docs/screens/circle-detail-desktop.png)
-
-<sub>圈子详情桌面端：主列 640px 承载内容，右栏 268px 收纳圈子概况、圈主、圈内规则 —— 这类静态元信息不该占主列的视线落点。</sub>
-
-<table>  
-<tr>  
-<td width="50%"><img src="docs/screens/home-desktop.png" alt="首页（桌面）">   <sub><b>首页 · 关注/全部双流</b></sub></td>  
-<td width="50%"><img src="docs/screens/mkt-desktop.png" alt="集市（桌面）">   <sub><b>集市 · 卡片网格</b></sub></td>  
-</tr>  
+<table>
+<tr>
+<td width="33%" align="center"><img src="docs/screens/home-desktop.png" alt="首页（桌面）"><br><sub><b>首页 · 桌面三栏</b></sub></td>
+<td width="33%" align="center"><img src="docs/screens/mkt-desktop.png" alt="集市（桌面）"><br><sub><b>集市 · 分类与剩余时间</b></sub></td>
+<td width="33%" align="center"><img src="docs/screens/admin-review.png" alt="内容审核台"><br><sub><b>内容审核台 · 机审 + 人审</b></sub></td>
+</tr>
 </table>
 
----
-
-## 设计稿
-
-每个功能在动手写代码之前，都先出了一版**可交互的 HTML 设计稿**：把布局、间距、状态、边界情况先画出来对着看，确认无误再落到 Vue 组件上。这比直接写代码快，也避免了「写完才发现方向不对」。
-
-设计稿是可直接在浏览器打开的静态 HTML（含手机/桌面双形态对比、状态枚举、落地清单），源文件在 [`docs/design/`](docs/design/)。
-
-### 圈子的两个补完
-
-<table>  
-<tr>  
-<td width="50%">  
-<img src="docs/design/shots/preview-members.png" alt="圈子成员与活动参与者">  
-   <sub><b>圈子成员 · 活动参与者</b>：成员列表从「仅圈主可见」扩展为公开页；活动从「只能报名」补上进度条与参与者名单。<a href="docs/design/preview-members.html">打开原稿 →</a></sub>  
-</td>  
-<td width="50%">  
-<img src="docs/design/shots/preview-circle-composer.png" alt="圈子发帖改造">  
-   <sub><b>圈子发帖改造</b>：常驻发帖框改成一行触发条 + 底部抽屉，把 Tab 下方最贵的视线落点还给帖子列表。<a href="docs/design/preview-circle-composer.html">打开原稿 →</a></sub>  
-</td>  
-</tr>  
-</table>
-
-### 集市
-
-<table>  
-<tr>  
-<td width="50%">  
-<img src="docs/design/shots/preview-mkt.png" alt="集市广场设计稿">  
-   <sub><b>集市广场</b><a href="docs/design/preview-mkt.html">原稿 →</a></sub>  
-</td>  
-<td width="50%">  
-<img src="docs/design/shots/preview-mkt-detail-layout.png" alt="集市详情布局">  
-   <sub><b>集市详情布局</b><a href="docs/design/preview-mkt-detail-layout.html">原稿 →</a></sub>  
-</td>  
-</tr>  
-</table>
-
-### 注册与认证
-
-<table>  
-<tr>  
-<td width="50%">  
-<img src="docs/design/shots/preview-register-verify.png" alt="注册与认证">  
-   <sub><b>注册 + 三步引导</b>：账号信息、校内身份、兴趣标签、关注推荐。<a href="docs/design/preview-register-verify.html">原稿 →</a></sub>  
-</td>  
-<td width="50%">  
-<img src="docs/design/shots/preview-register-polish.png" alt="注册页打磨">  
-   <sub><b>注册页打磨</b>：分组卡片，邮箱为必填（含验证码），学号改为可选。<a href="docs/design/preview-register-polish.html">原稿 →</a></sub>  
-</td>  
-</tr>  
-</table>
-
-### 公告
-
-<table>  
-<tr>  
-<td width="33%"><img src="docs/design/shots/preview-announcement.png" alt="公告列表">   <sub><b>公告列表</b>  
-<a href="docs/design/preview-announcement.html">原稿 →</a></sub></td>  
-<td width="33%"><img src="docs/design/shots/preview-announcement-detail.png" alt="公告详情">   <sub><b>公告详情</b>  
-<a href="docs/design/preview-announcement-detail.html">原稿 →</a></sub></td>  
-<td width="33%"><img src="docs/design/shots/preview-admin-announcement.png" alt="公告管理">   <sub><b>公告管理端</b>  
-<a href="docs/design/preview-admin-announcement.html">原稿 →</a></sub></td>  
-</tr>  
-</table>
-
-<details>
-
-<summary><b>全部 15 份设计稿</b>（点击展开）</summary>
-
-| 设计稿    | 主题         | 原稿                                                   |
-| ------ | ---------- | ---------------------------------------------------- |
-| 全局改版   | 暖米色设计系统确立  | [HTML](docs/design/preview-redesign.html)            |
-| 桌面端布局  | 三栏结构与断点    | [HTML](docs/design/preview-desktop.html)             |
-| 圈子详情   | 空态、视频提示、右栏 | [HTML](docs/design/preview-circle-detail.html)       |
-| 圈子发帖   | 触发条与抽屉     | [HTML](docs/design/preview-circle-composer.html)     |
-| 圈子成员   | 成员页与活动参与者  | [HTML](docs/design/preview-members.html)             |
-| 集市广场   | 卡片网格与筛选    | [HTML](docs/design/preview-mkt.html)                 |
-| 集市详情   | 字段层级与风险提示  | [HTML](docs/design/preview-mkt-detail.html)          |
-| 集市详情布局 | 桌面双栏重排     | [HTML](docs/design/preview-mkt-detail-layout.html)   |
-| 集市交互逻辑 | 状态机与边界态    | [HTML](docs/design/preview-mkt-logic.html)           |
-| 集市发布   | 表单与投放时长    | [HTML](docs/design/preview-mkt-publish.html)         |
-| 注册与认证  | 三步引导全流程    | [HTML](docs/design/preview-register-verify.html)     |
-| 注册页打磨  | 分组卡片方案     | [HTML](docs/design/preview-register-polish.html)     |
-| 公告列表   | 分类与置顶      | [HTML](docs/design/preview-announcement.html)        |
-| 公告详情   | 已读回执与提醒    | [HTML](docs/design/preview-announcement-detail.html) |
-| 公告管理端  | 新建、置顶、谁还没看 | [HTML](docs/design/preview-admin-announcement.html)  |
-
-> 预览图渲染脚本：[`scripts/render-design-shots.mjs`](scripts/render-design-shots.mjs)
-
-</details>
-
----
+更多截图见 [`docs/screens/`](docs/screens/)；每个功能在写代码前先出可交互 HTML 设计稿，共 15 份，源文件与渲染图在 [`docs/design/`](docs/design/)。
 
 ## 功能模块
 
-| 模块               | 说明                                       | 状态 |
-| ---------------- | ---------------------------------------- | -- |
-| **M1 账号**        | 邮箱验证码注册、JWT 双 token、refresh 吊销、学号可选、找回密码 | ✅  |
-| **M2 关注**        | 关注/取关/好友/黑名单，事务内计数 ±1，游标分页               | ✅  |
-| **M3 帖子 + Feed** | 写扩散、游标分页、图文视频、敏感词 DFA、点赞评论、热度分           | ✅  |
-| **M4 私信**        | 会话 + 消息、WS 实时推送、已读回执、陌生人额度               | ✅  |
-| **M5 通知**        | 点赞/评论/关注事件、WS 推送、未读计数                    | ✅  |
-| **M6 圈子**        | 圈主/圈管理/成员三级角色、封禁、任命、成员页                  | ✅  |
-| **M7 活动**        | 报名防超卖、名额进度、参与者名单                         | ✅  |
-| **M8 集市**        | 二手信息、风险提示、留言、投放时长、举报                     | ✅  |
-| **M9 公告**        | 分类、置顶、已读回执、提醒未读                          | ✅  |
-| **M10 管理后台**     | 举报处置、内容审核、学号核验、反馈处理、操作日志                 | ✅  |
-| **M11 搜索**       | 全文检索（中文 ngram 分词）、话题、用户                  | ✅  |
+11 个模块全部实装并上线：
 
----
+| 模块 | 说明 |
+| --- | --- |
+| **账号与身份** | 邮箱验证码注册/登录/找回密码、双令牌 + jti 滚动吊销、学号人工核验、账号信誉分 |
+| **关注关系** | 关注/取关/好友/黑名单，事务内计数增减，游标分页 |
+| **帖子与信息流** | 写扩散 + 游标分页、图文视频、DFA 敏感词分级、发布信誉闸门、点赞收藏 |
+| **私信** | 会话与消息、WebSocket 实时推送、已读回执、陌生人额度 |
+| **通知** | 点赞/评论/关注/审核结果/举报回执，实时推送与未读聚合 |
+| **圈子** | 三级角色、封禁与任命、圈内规则、成员页 |
+| **活动** | 名额上限、防超卖报名、参与者名单 |
+| **集市** | 二手与招募、风险提示、留言、投放时长、举报 |
+| **公告** | 分类、置顶、已读回执、未读提醒 |
+| **管理后台** | 举报处置、内容审核（机审 + 人审）、学号核验、用户处置、反馈、审计日志 |
+| **搜索** | 中文全文检索（ngram 分词）、话题、用户 |
 
 ## 技术架构
 
 ```mermaid
 graph LR
-    A["浏览器<br/>Vue3 + Pinia<br/>REST + WebSocket"] --> B["Spring Boot 3.2"]
-    B --> C[("MySQL 8.4<br/>37 张表")]
-    B --> D[("Redis<br/>token · 限流 · 缓存")]
-    B --> E["对象存储<br/>OSS / 本地磁盘"]
+    A["浏览器<br/>Vue 3 + Pinia<br/>REST + WebSocket"] -->|HTTPS| B["Nginx<br/>静态资源 · /api 反代 · WS 升级"]
+    B --> C["Spring Boot 3.2.5<br/>controller → service → mapper"]
+    C --> D[("MySQL 8.4<br/>39 张表")]
+    C --> E[("Redis 7<br/>令牌指纹 · 限流 · 首屏缓存")]
+    C --> F["阿里云 OSS<br/>签名直链读"]
 ```
 
-| 层   | 选型                                        | 说明                                               |
-| --- | ----------------------------------------- | ------------------------------------------------ |
-| 前端  | Vue 3.4 + Vite 5.4 + Pinia + vue-router 4 | 组合式 API，按域拆分 composable                          |
-| UI  | Element Plus 2.14（按需引入）                   | 自建暖米色 design tokens 覆盖默认主题                       |
-| 后端  | Spring Boot 3.2.5 + MyBatis-Plus 3.5.7    | 注解式 SQL，无 mapper XML                             |
-| 数据库 | MySQL 8.4                                 | 37 张表，统一 `id/create_time/update_time/is_deleted` |
-| 缓存  | Redis 7                                   | token 指纹、滑动窗口限流、首屏骨架缓存                           |
-| 实时  | Spring 原生 WebSocket                       | 双端点（chat / notify），握手 JWT 鉴权                     |
-| 鉴权  | JWT 双 token（HS512）                        | access 15min / refresh 7d，jti 指纹防重用              |
+| 层 | 选型 | 说明 |
+| --- | --- | --- |
+| 前端 | Vue 3.4 + Vite 5.4 + Pinia 2.2 + vue-router 4.4 | 组合式 API，按域拆 composable；Element Plus 2.14 按需引入 |
+| 后端 | Spring Boot 3.2.5 + MyBatis-Plus 3.5.7 | 注解式 SQL、无 mapper XML；controller 不含业务逻辑 |
+| 鉴权 | jjwt 0.12.5（HS512） | access 15 分钟 / refresh 7 天，refresh 带 jti 指纹防重用 |
+| 数据 | MySQL 8.4 LTS | `sql/schema.sql` 39 张基线表，统一 `id / create_time / update_time / is_deleted`，全文索引走 ngram（线上库另有 2 张搭子表在建，未进基线） |
+| 缓存 | Redis 7 | 令牌指纹、滑动窗口限流、首屏缓存；封禁计划不设淘汰策略 |
+| 实时 | Spring 原生 WebSocket | chat / notify 双端点，握手 JWT 鉴权，事务提交后才推送 |
+| 存储 | 阿里云 OSS | 读走短时效签名直链；写当前经服务端中转 |
 
----
+接口契约见 [`docs/api/openapi.yaml`](docs/api/openapi.yaml)（90 条路径 / 100 个操作），前端 43 条路由定义。
+
+## 工程质量
+
+个人项目最容易塌的是「没人 review」，所以把约束写成可执行的门禁：
+
+- **11 条静态门禁**：`python scripts/run-all-gates.py` —— SFC 编译零提醒、模板标识符存在性、外置样式括号平衡、composable 解构契约、未定义标识符、Token 纪律、OpenAPI 可解析与 `$ref` 零悬空、契约与 Java VO 字段一致、日期字段格式、学号解析、举报理由枚举唯一出处。
+- **32 个测试类 / 142 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
+- **持续集成**：GitHub Actions 双作业（后端容器化 MySQL/Redis 后编译测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏）。
+- **部署后冒烟**：`python scripts/smoke.py <base_url>` —— 真实 HTTP 请求验证登录、游客只读、游客写拦截、集市配额、数据清理，退出码可直接接进发布流程。
+
+> 最近一次本机实测（2026-10-29）：门禁 11/11 通过，`mvn test` 142/142 全绿；GitHub Actions 最近一次运行（2026-10-26，master）成功。
 
 ## 快速开始
 
-### 环境要求
+### 方式一：直接用线上环境
 
-- JDK 17+
-- MySQL 8.x（建库 `campus_social_v2`，跑 [`sql/schema.sql`](sql/schema.sql) —— 完整基线，37 张表一次建齐）
-- Redis 6+（默认 `127.0.0.1:6379`）
-- Node 18+
+<https://yousheng8.cn> —— 现场注册即可体验全部功能，无需安装任何东西。
 
-### 启动
+### 方式二：Docker Compose
 
 ```bash
-# 1. 配置（凭据只进 .env，源码一律 ${ENV:} 引用且默认值留空）
-cp .env.example .env      # 然后填写真值
+cp .env.example .env          # 至少填 JWT_ACCESS_SECRET / JWT_REFRESH_SECRET（各 ≥ 64 字节）
+docker compose up -d --build  # 首次构建含 Maven 编译与 Vite 构建，约 3~6 分钟
+# 打开 http://localhost
+```
 
-# 2. 后端
-cd backend && mvn spring-boot:run
+演示账号（由 `sql/seed_data.sql` 预置）：`admin@campus.test / admin123`（管理员）、`alice@campus.test / user123`（普通用户）。
+新注册需要验证码时，默认 `APP_MESSAGE_GATEWAY=dev`，验证码打印在日志里：`docker compose logs backend`。
 
-# 3. 前端
-cd frontend && npm install && npm run dev
+> Docker 编排已按容器语义准备好（初始化顺序：结构 → 学院/年级 → 专业 → 兴趣标签 → 演示数据），但尚未在 CI 中跑过，属于「可复现的参考路径」；生产环境实际采用下面的单机直装方式。
+
+### 方式三：本地起（生产同构）
+
+环境：JDK 17、Maven 3.9、Node 20+、MySQL 8.4、Redis 7。
+
+```bash
+# 1) 建库导表（schema.sql 自带建库语句）
+mysql -uroot -p < sql/schema.sql
+mysql -uroot -p campus_social_v2 < sql/fix_dict_2026-10-10.sql            # 学院/年级字典
+mysql -uroot -p campus_social_v2 < sql/migration_f12_seed_school_major.sql # 专业字典
+mysql -uroot -p campus_social_v2 < sql/fix_tags_2026-10-10.sql            # 兴趣标签
+mysql -uroot -p campus_social_v2 < sql/seed_data.sql                      # 可选：演示数据
+
+# 2) 后端：本地配置不入库，需自行创建
+#    参照 application.yml 里的 ${ENV:} 占位，在 backend/src/main/resources/ 下新建
+#    application-local.yml，填数据库/Redis 连接与两个 JWT 密钥（各 ≥ 64 字节，
+#    缺失或过短会在启动时直接抛异常，属预期的 fail-fast）
+cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=local   # :8080
+
+# 3) 前端（Vite 开发服务器把 /api 代理到 8080）
+cd frontend && npm ci && npm run dev                                 # :5173
 ```
 
 浏览器打开 <http://localhost:5173>，登录页在 `/login/form`。
 
-关键配置在 `backend/src/main/resources/application.yml`：
+## 运行现状与已知限制
 
-| 变量                                             | 说明                  |
-| ---------------------------------------------- | ------------------- |
-| `MYSQL_HOST` / `MYSQL_USER` / `MYSQL_PASSWORD` | 数据库连接               |
-| `REDIS_HOST` / `REDIS_PORT`                    | 缓存连接                |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET`     | 至少 64 字节，生产用强随机     |
-| `UPLOAD_DIR`                                   | 默认 `./uploads`，相对路径 |
-| `CORS_ALLOWED_ORIGINS`                         | 域名白名单，未配置时只放行本机开发端口 |
+线上环境：阿里云 ECS 单机直装（2 核 2G / Ubuntu 22.04 / 3Mbps），Nginx 监听 80 与 443，systemd 托管应用，MySQL 与 Redis 只监听回环，`/healthz` 对外探活。
 
-> **密钥管理约定**：凭据只进 `.env`（已 gitignore），模板 `.env.example` 只列变量名与占位说明。`application-local.yml` 中的凭据段也都是「带空默认」的引用 —— 把默认值填成真实密钥等于又把它写回源码。
+- **HTTPS**：Let's Encrypt 证书（`CN=yousheng8.cn`，有效期至 2027-01-26），80 端口 301 跳转，443 协商 HTTP/2；ICP 备案已通过（豫ICP备2026053499号）。
+- **数据备份**：systemd timer 每日 04:30 全量备份，本地留 14 天并上传 OSS `logs/db/` 异地留存，2026-10-29 做过恢复演练（41 张表逐表行数一致）。
 
-### 质量门禁
+已知限制（如实列出，也是下一步的工作项）：
 
-```bash
-python scripts/run-all-gates.py    # 11 条门禁
-cd backend && mvn test             # 44 个用例
-```
-
-门禁涵盖：单文件 400 行上限、外部 CSS 括号平衡、契约字段一致性、日期格式、学号解析、举报理由枚举与契约一致等。pre-push 钩子会自动执行，真逻辑错拦 push，环境类失败（OOM/缺命令）只告警放行。
-
----
+1. **OSS 前端直传未启用**：`/api/upload/config` 返回 `ossEnabled=false`，写入走服务端中转（读仍是签名直链）。原因是 443 站点尚未反代回调路径 `/upload/oss-callback`，回调不可达时直传会被 OSS 判失败。
+2. **静态资源未开传输压缩**：入口 JS（333,810 字节）原样下发，响应没有 `Content-Encoding`，3Mbps 带宽下影响首屏，需在 Nginx 站点配置开启 gzip/brotli。
+3. **云监控告警未配置**：仅有 `/healthz` 探活，进程被终止、磁盘写满、证书到期这类事件没有主动通知。
 
 ## 项目结构
 
 ```
-校园社交/
-├─ backend/              Spring Boot（单模块 com.campus.social）
-│  └─ src/main/java/com/campus/social/
-│     ├─ controller/     REST 接口（无业务逻辑）
-│     ├─ service/impl    业务 + @Transactional
-│     ├─ mapper/         MyBatis-Plus BaseMapper
-│     ├─ entity/ dto/ vo/ 数据模型三层
-│     ├─ config/         Jwt / Redis / MybatisPlus / WebSocket / WebMvc
-│     ├─ interceptor/    AuthInterceptor（HTTP JWT）
-│     ├─ websocket/      WsHandler + SessionManager + PushService
-│     ├─ task/           敏感词刷新 + 活动状态机
-│     └─ util/           JwtUtil + SensitiveWordFilter（DFA）
-├─ frontend/             Vue 3
-│  └─ src/
-│     ├─ api/            按域拆分的接口模块
-│     ├─ views/          页面
-│     ├─ components/     可复用组件（按域分目录）
-│     ├─ composables/    组合式逻辑
-│     ├─ stores/         Pinia（user 唯一持 token）
-│     ├─ styles/         design-tokens.css（样式真源）
-│     └─ utils/          request.js（401 刷新队列）/ ws.js（WS 单例重连）
-├─ docs/
-│  ├─ design/            设计稿 HTML + 渲染图
-│  ├─ screens/           README 用界面截图
-│  └─ api/openapi.yaml   API 契约
-├─ sql/schema.sql        37 张表完整基线
-└─ scripts/              门禁、截图、渲染脚本
+campus-social/
+├─ backend/                Spring Boot 单体（com.campus.social）
+│  └─ src/main/java/…      controller · service/impl · mapper · entity/dto/vo
+│                          config · interceptor · websocket · task · util
+├─ frontend/               Vue 3 + Vite
+│  └─ src/                 api · views · components · composables · stores · styles · utils
+├─ sql/                    schema.sql（39 张表基线）+ 增量迁移 + 演示数据
+├─ scripts/                run-all-gates.py（11 条门禁）· smoke.py（部署后冒烟）
+├─ docs/                   PRD · SPEC · ARCHITECTURE · decisions/ · api/openapi.yaml · design/
+├─ .github/workflows/      ci.yml（双作业）
+└─ docker-compose.yml      MySQL + Redis + 后端 + 前端一键起
 ```
 
----
+## 文档
 
-## 文档索引
+| 文档 | 内容 |
+| --- | --- |
+| [PRD](docs/PRD.md) | 需求、用户故事与优先级取舍 |
+| [SPEC](docs/SPEC.md) | 详细规格与验收标准 |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | 架构决策、成本估算与技术选型依据 |
+| [API 契约](docs/api/openapi.yaml) | OpenAPI 3.0，90 条路径 / 100 个操作 |
+| [部署清单](docs/DEPLOY_ECS.md) | ECS 从零部署、发布回滚与运维核查 |
+| [测试总结](docs/测试总结-2026-10-25.md) | 四层防线与缺陷分布 |
+| [ADR](docs/decisions/) | 架构决策记录 |
 
-| 文档                                   | 内容                 |
-| ------------------------------------ | ------------------ |
-| [PRD](docs/PRD.md)                   | 产品需求与用户故事          |
-| [SPEC](docs/SPEC.md)                 | 详细规格与验收标准          |
-| [ARCHITECTURE](docs/ARCHITECTURE.md) | 架构决策与成本估算          |
-| [API 契约](docs/api/openapi.yaml)      | OpenAPI 3.0，63 条路径 |
-| [部署清单](docs/DEPLOY_ECS.md)           | ECS 从零部署步骤         |
-| [推广前检查清单](docs/推广前检查清单.md)           | 上线前待办              |
-| [ADR](docs/decisions/)               | 架构决策记录             |
+## 许可证
+
+[Mulan PSL v2](LICENSE)（木兰宽松许可证，第 2 版）。
 
 ---
 
 <div align="center" markdown="1">
 
-**友声** · campus-social
-
-嘤其鸣矣，求其友声
-
-<sub>🌐 [yousheng8.cn](http://yousheng8.cn) · 域名备案中，即将上线</sub>
+<sub>
+GitHub [wj20040628/campus-social](https://github.com/wj20040628/campus-social) ·
+Gitee [wj20040628/campus-social](https://gitee.com/wj20040628/campus-social) ·
+🌐 [yousheng8.cn](https://yousheng8.cn) · 豫ICP备2026053499号
+</sub>
 
 </div>
