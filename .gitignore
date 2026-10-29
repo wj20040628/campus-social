@@ -118,3 +118,14 @@ dist_*.zip
 gui-test-screenshots/
 /docs/report-figures/
 实践考核报告*.docx
+
+# 报告截图与配图（本地产物，不入库）
+.report-shots/
+vibe_images/
+报告配图*.docx
+
+# 报告排版构建产物（本地产物，不入库）
+.report-build/
+
+# 报告构建工作区（本地产物，不入库）
+report/

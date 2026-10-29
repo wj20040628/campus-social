@@ -20,8 +20,13 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - mysql-data:/var/lib/mysql
+      # 首次启动按文件名顺序执行；字典表（学院/年级/专业/兴趣标签）必须先于演示数据，
+      # 否则注册页选不到归属、发帖选不到标签
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./sql/seed_data.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      - ./sql/fix_dict_2026-10-10.sql:/docker-entrypoint-initdb.d/02_dict_dept_grade.sql:ro
+      - ./sql/migration_f12_seed_school_major.sql:/docker-entrypoint-initdb.d/03_dict_major.sql:ro
+      - ./sql/fix_tags_2026-10-10.sql:/docker-entrypoint-initdb.d/04_dict_tags.sql:ro
+      - ./sql/seed_data.sql:/docker-entrypoint-initdb.d/05_demo_data.sql:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -76,8 +81,9 @@ services:
       # 连同 MySQL + Redis 会超过 2G 触发 swap,延迟从几十毫秒涨到几百毫秒。
       # MaxMetaspaceSize 设上限是防止它只增不减、慢慢吃满剩余内存。
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx384m -XX:MaxMetaspaceSize=192m"
-      # prod 走真实 SMTP;留空或 dev 则控制台打印验证码(仅本地用)
-      APP_MESSAGE_GATEWAY: ${APP_MESSAGE_GATEWAY:-prod}
+      # dev=验证码打印到日志（本地/答辩体验用，注册时 docker compose logs backend 取码）
+      # aliyun/prod=真实发信，需在 .env 配好邮件凭据
+      APP_MESSAGE_GATEWAY: ${APP_MESSAGE_GATEWAY:-dev}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       UPLOAD_DIR: /app/uploads

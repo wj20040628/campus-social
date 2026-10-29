@@ -12,14 +12,14 @@ COPY pom.xml .
 RUN mvn -q dependency:go-offline
 COPY src ./src
 RUN mvn -q -DskipTests package
-# 产物:target/campus-social-1.0.0.jar
+# 产物:target/campus-social.jar(pom 里 finalName=campus-social)
 
 # ---- 运行阶段 ----
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 # 上传目录:相对 /app/uploads(容器内,可挂载卷持久化)
 RUN mkdir -p /app/uploads
-COPY --from=build /app/target/campus-social-1.0.0.jar app.jar
+COPY --from=build /app/target/campus-social.jar app.jar
 
 # 启动:生产用 application.yml 的 ${ENV} 占位,变量由 compose 注入
 ENV UPLOAD_DIR=/app/uploads
