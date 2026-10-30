@@ -23,7 +23,7 @@ import java.util.UUID;
  */
 @Component
 @RequiredArgsConstructor
-public class AuthTokenSupport {
+public class TokenService {
 
     private final StringRedisTemplate redis;
 

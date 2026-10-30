@@ -11,7 +11,7 @@ import com.campus.social.service.AuditService;
 import com.campus.social.service.CampusVerifyService;
 import com.campus.social.service.RegisterService;
 import com.campus.social.service.VerifyCodeService;
-import com.campus.social.service.support.AuthTokenSupport;
+import com.campus.social.service.support.TokenService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final VerifyCodeService verifyCodeService;
     private final AuditService auditService;
     private final CampusVerifyService campusVerifyService;
-    private final AuthTokenSupport authTokenSupport;
+    private final TokenService tokenService;
 
     @Override
     @Transactional
@@ -101,7 +101,7 @@ public class RegisterServiceImpl implements RegisterService {
                 user.getId(), UserVoAssembler.maskUsername(email),
                 withStudentNo ? UserVoAssembler.maskUsername(studentNo) : "-", withStudentNo);
         // 注册默认不勾记住我（记住我是密码登录的优化项）
-        return authTokenSupport.issue(user.getId(), user.getUsername(), false);
+        return tokenService.issue(user.getId(), user.getUsername(), false);
     }
 
     @Override

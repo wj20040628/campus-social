@@ -11,7 +11,7 @@ import com.campus.social.service.BanService;
 import com.campus.social.service.LoginService;
 import com.campus.social.service.RegisterService;
 import com.campus.social.service.VerifyCodeService;
-import com.campus.social.service.support.AuthTokenSupport;
+import com.campus.social.service.support.TokenService;
 import com.campus.social.service.support.LoginLockService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
@@ -40,7 +40,7 @@ public class LoginServiceImpl implements LoginService {
     private final RegisterService registerService;
     private final VerifyCodeService verifyCodeService;
     private final LoginLockService loginLockService;
-    private final AuthTokenSupport authTokenSupport;
+    private final TokenService tokenService;
 
     @Override
     public TokenPairVO login(LoginDTO dto, String ip) {
@@ -85,7 +85,7 @@ public class LoginServiceImpl implements LoginService {
         loginLockService.clearAccount(id);
         boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
         auditService.record(user.getId(), "login", "user", user.getId(), "identifier=" + id, null);
-        return authTokenSupport.issue(user.getId(), user.getUsername(), remember);
+        return tokenService.issue(user.getId(), user.getUsername(), remember);
     }
 
     @Override
@@ -110,6 +110,6 @@ public class LoginServiceImpl implements LoginService {
             throw new BusinessException(USER_CANCELLED);
         }
         log.info("loginByCode: email={}", UserVoAssembler.maskUsername(email));
-        return authTokenSupport.issue(user.getId(), user.getUsername(), false);
+        return tokenService.issue(user.getId(), user.getUsername(), false);
     }
 }

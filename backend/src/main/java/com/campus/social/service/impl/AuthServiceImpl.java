@@ -19,7 +19,7 @@ import com.campus.social.service.RefreshTokenService;
 import com.campus.social.service.RegisterService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
-import com.campus.social.service.support.AuthTokenSupport;
+import com.campus.social.service.support.TokenService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
@@ -59,7 +59,7 @@ public class AuthServiceImpl implements AuthService {
     /** refresh 轮换与登出吊销 */
     private final RefreshTokenService refreshTokenService;
     /** Token 签发、Redis 指纹轮换与吊销，机制细节见该类的 javadoc */
-    private final AuthTokenSupport authTokenSupport;
+    private final TokenService tokenService;
 
     @Override
     @Transactional
@@ -188,7 +188,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
         // 吊销其他设备:删 Redis 指纹,旧 refresh 刷新时 CAS 失败全吊销
-        authTokenSupport.revoke(user.getId());
+        tokenService.revoke(user.getId());
         auditService.record(user.getId(), "reset_password", "user", user.getId(), "重置密码", null);
         log.info("resetPassword: uid={}", user.getId());
     }
@@ -225,7 +225,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
         // 改密即吊销全部 refresh(审查 P1-26):攻击者持有的旧 refresh 立即失效
-        authTokenSupport.revoke(userId);
+        tokenService.revoke(userId);
         auditService.record(userId, "change_password", "user", userId, "修改密码(已吊销全部 refresh token)", null);
         log.info("changePassword: uid={}, refresh revoked", userId);
     }
@@ -303,7 +303,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
         // 与改密同口径:设密后吊销其他设备的 refresh,避免旧会话长期续命
-        authTokenSupport.revoke(userId);
+        tokenService.revoke(userId);
         auditService.record(userId, "set_password", "user", userId,
                 "邮箱验证码首次设置密码", null);
         log.info("setPassword: uid={}, refresh revoked", userId);

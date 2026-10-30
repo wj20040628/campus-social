@@ -7,7 +7,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
 import com.campus.social.service.RefreshTokenService;
-import com.campus.social.service.support.AuthTokenSupport;
+import com.campus.social.service.support.TokenService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import io.jsonwebtoken.Claims;
@@ -30,7 +30,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private final UserMapper userMapper;
     private final BanService banService;
-    private final AuthTokenSupport authTokenSupport;
+    private final TokenService tokenService;
     private final AuditService auditService;
 
     @Override
@@ -48,10 +48,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         String oldJti = claims.getId();
         // 记住我保活：按旧 token 的 remember 选同 TTL 重签
         boolean remember = JwtUtil.parseRemember(claims);
-        AuthTokenSupport.RefreshTicket ticket = authTokenSupport.newRefresh(userId, remember);
+        TokenService.RefreshTicket ticket = tokenService.newRefresh(userId, remember);
 
-        int cas = authTokenSupport.rotate(
-                userId, oldJti, ticket.jti(), authTokenSupport.ttlSeconds(remember));
+        int cas = tokenService.rotate(
+                userId, oldJti, ticket.jti(), tokenService.ttlSeconds(remember));
         if (cas != 1) {
             // -1=无记录（自然过期或已登出）；0=旧 jti 不匹配（重用，已被全吊销）
             if (cas == -1) {
@@ -62,24 +62,24 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         User user = userMapper.selectById(userId);
         if (user == null) {
-            authTokenSupport.revoke(userId);
+            tokenService.revoke(userId);
             throw new BusinessException(REFRESH_TOKEN_INVALID, "用户不存在");
         }
         // 冻结与注销都必须拒绝；原先只判 status==1，注销账号仍能一直 refresh 续命
         if (user.getStatus() == 1) {
-            authTokenSupport.revoke(userId);
+            tokenService.revoke(userId);
             throw banService.frozenException(user.getId());
         }
         if (user.getStatus() == 2) {
-            authTokenSupport.revoke(userId);
+            tokenService.revoke(userId);
             throw new BusinessException(USER_CANCELLED);
         }
-        return authTokenSupport.pair(userId, user.getUsername(), ticket.token());
+        return tokenService.pair(userId, user.getUsername(), ticket.token());
     }
 
     @Override
     public void logout(long userId) {
-        authTokenSupport.revoke(userId);
+        tokenService.revoke(userId);
         log.info("logout: uid={}", userId);
         auditService.record(userId, "logout", "user", userId, "退出登录", null);
     }
