@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * scheduleCheckAfterCommit 保证,不在本测试范围。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class ReportAutoBanTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

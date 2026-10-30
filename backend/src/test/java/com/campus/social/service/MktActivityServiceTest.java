@@ -27,8 +27,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 校园限时活动集市 服务端业务规则集成测试（本地 profile,连本机 MySQL + Redis）。
- * 前置:本机 MySQL(campus_social_v2)与 Redis(6379)须已启动。
+ * 校园限时活动集市 服务端业务规则集成测试（local + test profile,连本机 MySQL + Redis）。
+ * 前置:本机 MySQL(测试库 campus_social_test)与 Redis(6379)须已启动。
  * 覆盖计划 §验证 列出的全部规则:
  *   - create 校验:标题 15–25 / 描述 1–500 / 时长 12h 上限(防篡改二次校验) / 敏感词拒收 / 分类 9 选 1
  *   - status 4 态优先级:满员 > 暂停 > 过期 > 投放中
@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   - 属主越权 403;软删详情 404
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class MktActivityServiceTest {
 
     @Autowired private MktActivityService service;

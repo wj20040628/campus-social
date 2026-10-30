@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *    所以比的是 user.dept_id 与 school_major.dept_id。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class VerifyReviewNotifyTest {
 
     @Autowired

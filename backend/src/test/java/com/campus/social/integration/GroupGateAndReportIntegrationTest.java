@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ol>
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class GroupGateAndReportIntegrationTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

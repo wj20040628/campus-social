@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 只有一个能滚动成功,其余必须抛 REFRESH_TOKEN_REUSED(验证 Phase 1.3 Lua CAS 原子性)。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class RefreshJtiConcurrencyIntegrationTest {
 
     @Autowired private AuthService authService;

@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 验证码直接写 Redis（code:register:{email}），不依赖真实发信。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class RegisterFlowTest {
 
     private static final String CODE = "654321";

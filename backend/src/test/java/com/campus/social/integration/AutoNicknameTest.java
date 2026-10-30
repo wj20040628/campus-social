@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 自己和一个陌生人同名。本用例直接走真实登录建号链路，不 mock 用户名生成。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class AutoNicknameTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 1_000_000);

@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>验证码不走真实邮件，直接写 {@code code:bind:<email>} 再调用绑定端点。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class BindEmailFlowTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

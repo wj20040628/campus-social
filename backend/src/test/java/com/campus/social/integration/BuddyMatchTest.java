@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 结果非空时 emptyHint 为 null。数据全部自播种自清理（CI 只加载 schema）。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class BuddyMatchTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * </ul>
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class CircleAdminServiceTest {
 
     @Autowired private CircleAdminService service;

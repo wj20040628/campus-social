@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 验证码直接写 Redis，不依赖真实发信。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class PasswordFlowTest {
 
     private static final String IP = "203.0.113.89";

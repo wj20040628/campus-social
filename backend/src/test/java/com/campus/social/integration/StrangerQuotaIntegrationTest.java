@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 否则同一台机器隔天再跑会读到上一次窗口里的计数。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class StrangerQuotaIntegrationTest {
 
     private static final AtomicLong SEQ = new AtomicLong(System.nanoTime() % 100_000L);

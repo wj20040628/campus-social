@@ -19,7 +19,7 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.4-4479a1?logo=mysql&logoColor=white&style=flat-square)
 ![Redis](https://img.shields.io/badge/Redis-7-dc382d?logo=redis&logoColor=white&style=flat-square)
 
-![tests](https://img.shields.io/badge/mvn%20test-142%20passed-success?style=flat-square)
+![tests](https://img.shields.io/badge/mvn%20test-163%20passed-success?style=flat-square)
 ![gates](https://img.shields.io/badge/gates-11%2F11-success?style=flat-square)
 ![tables](https://img.shields.io/badge/schema-39%20tables-informational?style=flat-square)
 
@@ -99,7 +99,7 @@ graph LR
 | 前端 | Vue 3.4 + Vite 5.4 + Pinia 2.2 + vue-router 4.4 | 组合式 API，按域拆 composable；Element Plus 2.14 按需引入 |
 | 后端 | Spring Boot 3.2.5 + MyBatis-Plus 3.5.7 | 注解式 SQL、无 mapper XML；controller 不含业务逻辑 |
 | 鉴权 | jjwt 0.12.5（HS512） | access 15 分钟 / refresh 7 天，refresh 带 jti 指纹防重用 |
-| 数据 | MySQL 8.4 LTS | `sql/schema.sql` 39 张基线表，统一 `id / create_time / update_time / is_deleted`，全文索引走 ngram（线上库另有 2 张搭子表在建，未进基线） |
+| 数据 | MySQL 8.4 LTS | `sql/schema.sql` 39 张基线表，统一 `id / create_time / update_time / is_deleted`，全文索引走 ngram（未启用的 buddy 预留表已于 2026-10-30 下线） |
 | 缓存 | Redis 7 | 令牌指纹、滑动窗口限流、首屏缓存；封禁计划不设淘汰策略 |
 | 实时 | Spring 原生 WebSocket | chat / notify 双端点，握手 JWT 鉴权，事务提交后才推送 |
 | 存储 | 阿里云 OSS | 读走短时效签名直链；写当前经服务端中转 |
@@ -111,11 +111,11 @@ graph LR
 个人项目最容易塌的是「没人 review」，所以把约束写成可执行的门禁：
 
 - **11 条静态门禁**：`python scripts/run-all-gates.py` —— SFC 编译零提醒、模板标识符存在性、外置样式括号平衡、composable 解构契约、未定义标识符、Token 纪律、OpenAPI 可解析与 `$ref` 零悬空、契约与 Java VO 字段一致、日期字段格式、学号解析、举报理由枚举唯一出处。
-- **32 个测试类 / 142 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
-- **持续集成**：GitHub Actions 双作业（后端容器化 MySQL/Redis 后编译测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏）。
+- **33 个测试类 / 163 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；测试连独立测试库 `campus_social_test`（Redis 15 号库），不写开发库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
+- **持续集成**：GitHub Actions 三作业（后端 MySQL 8.4/Redis 7 测试；后端 MySQL 8.0/Redis 6 生产版本兼容测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏）。
 - **部署后冒烟**：`python scripts/smoke.py <base_url>` —— 真实 HTTP 请求验证登录、游客只读、游客写拦截、集市配额、数据清理，退出码可直接接进发布流程。
 
-> 最近一次本机实测（2026-10-29）：门禁 11/11 通过，`mvn test` 142/142 全绿；GitHub Actions 最近一次运行（2026-10-26，master）成功。
+> 最近一次本机实测（2026-10-30）：门禁 11/11 通过，`mvn test` 163/163 全绿（独立测试库）。
 
 ## 快速开始
 
@@ -152,13 +152,16 @@ mysql -uroot -p campus_social_v2 < sql/migration_f12_seed_school_major.sql # 专
 mysql -uroot -p campus_social_v2 < sql/fix_tags_2026-10-10.sql            # 兴趣标签
 mysql -uroot -p campus_social_v2 < sql/seed_data.sql                      # 可选：演示数据
 
-# 2) 后端：本地配置不入库，需自行创建
+# 2) 集成测试独立库（测试类走 local+test 双 profile，不写开发库；Redis 用 15 号库）
+sed 's/campus_social_v2/campus_social_test/g' sql/schema.sql | mysql -uroot -p
+
+# 3) 后端：本地配置不入库，需自行创建
 #    参照 application.yml 里的 ${ENV:} 占位，在 backend/src/main/resources/ 下新建
 #    application-local.yml，填数据库/Redis 连接与两个 JWT 密钥（各 ≥ 64 字节，
 #    缺失或过短会在启动时直接抛异常，属预期的 fail-fast）
 cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=local   # :8080
 
-# 3) 前端（Vite 开发服务器把 /api 代理到 8080）
+# 4) 前端（Vite 开发服务器把 /api 代理到 8080）
 cd frontend && npm ci && npm run dev                                 # :5173
 ```
 

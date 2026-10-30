@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 自清理自播种。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class FileReportIntegrationTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

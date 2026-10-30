@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * Redis 键按测试账号前缀清理。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class LoginLockoutTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 「注册满 24 小时 + 信誉分达线」；回复已有会话/互关对话不受此限。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class ChatGuardIntegrationTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

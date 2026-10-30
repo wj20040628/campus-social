@@ -69,14 +69,15 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: 导入数据库基线
+      - name: 导入测试库基线
         run: |
-          # schema.sql 现在是完整基线(37 张表);MySQL service 已建库
-          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw --default-character-set=utf8mb4 \
-            < sql/schema.sql
+          # 集成测试跑在独立库 campus_social_test(application-test.yml),不碰开发库。
+          # schema.sql 顶部写死 campus_social_v2,替换库名后再导入。
+          sed 's/campus_social_v2/campus_social_test/g' sql/schema.sql \
+            | mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw --default-character-set=utf8mb4
           echo "表数:"
           mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw -N -e \
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='campus_social_v2';"
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='campus_social_test';"
 
       - name: 编译
         working-directory: backend
@@ -174,13 +175,14 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: 导入数据库基线
+      - name: 导入测试库基线
         run: |
-          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw --default-character-set=utf8mb4 \
-            < sql/schema.sql
+          # 与 backend 作业一致:测试库独立于开发库
+          sed 's/campus_social_v2/campus_social_test/g' sql/schema.sql \
+            | mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw --default-character-set=utf8mb4
           echo "表数:"
           mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw -N -e \
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='campus_social_v2';"
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='campus_social_test';"
 
       - name: 生产版本兼容测试
         working-directory: backend

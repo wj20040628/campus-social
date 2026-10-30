@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>用于 ProfileService 抽取前后锁定行为，种子数据自播种自清理。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class ProfileFlowTest {
 
     @Autowired

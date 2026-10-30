@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 覆盖签发 TTL 与 JwtUtil 对齐、记住我、refresh 滚动、登出与改密吊销。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class AuthTokenLifecycleTest {
 
     private static final String IP = "203.0.113.88";

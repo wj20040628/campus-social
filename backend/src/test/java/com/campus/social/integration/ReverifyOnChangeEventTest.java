@@ -13,12 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.util.Map;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -36,19 +38,27 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * <p>不再存在「六层校验硬拒」与「自动通过开关」：学校不提供学生名单，
  * 任何规则都只能判断资料自洽，不能判断身份真伪。
+ *
+ * <p>院系/年级/专业字典由本类自建自清理：测试库是新库，仓库里也没有
+ * 学校字典种子文件，不能假定字典已由人工导入（原先依赖开发库数据）。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class ReverifyOnChangeEventTest {
 
-    /** 学院 A（智慧交通与智能建造工程学院）+ 专业 081001 */
-    private static final long DEPT_A = 1L;
-    private static final long MAJOR_A = 1L;
-    private static final String CODE_A = "081001";
-    /** 学院 B（智能车辆与新能源工程学院）+ 专业 080207 */
-    private static final long DEPT_B = 2L;
-    private static final long MAJOR_B = 15L;
-    private static final String CODE_B = "080207";
+    /** 名称按运行唯一：上次异常退出残留的行不阻塞本次运行；长度须能放进 user.grade(16) */
+    private static final String SUFFIX = java.util.UUID.randomUUID().toString().substring(0, 8);
+
+    /** 学院 A（专业 081001 类） */
+    private long deptA;
+    private long majorA;
+    private String codeA;
+    /** 学院 B（专业 080207 类），用于构造「专业与学院对不上」 */
+    private long deptB;
+    private long majorB;
+    private String codeB;
+
+    private long gradeId;
 
     @Autowired
     private UserMapper userMapper;
@@ -60,15 +70,27 @@ class ReverifyOnChangeEventTest {
     private JdbcTemplate jdbc;
 
     private Long uid;
-    private Long gradeId;
 
     @BeforeEach
     void setUp() {
-        Map<String, Object> g = jdbc.queryForMap(
-                "SELECT id, enroll_year FROM school_grade WHERE enabled = 1 AND is_deleted = 0 "
-                        + "AND enroll_year = 2023 ORDER BY id LIMIT 1");
-        gradeId = ((Number) g.get("id")).longValue();
-        assertNotNull(gradeId);
+        // 两个专业码落在互不重叠的六位区间，保证 A/B 必然不同
+        codeA = String.valueOf(100000 + Math.floorMod(System.nanoTime(), 400000));
+        codeB = String.valueOf(500000 + Math.floorMod(System.nanoTime(), 400000));
+
+        deptA = insert("INSERT INTO school_dept (name, school_id, sort, enabled, is_deleted) "
+                + "VALUES (?, 1, 900, 1, 0)", "测试学院A-" + SUFFIX);
+        deptB = insert("INSERT INTO school_dept (name, school_id, sort, enabled, is_deleted) "
+                + "VALUES (?, 1, 901, 1, 0)", "测试学院B-" + SUFFIX);
+        gradeId = insert("INSERT INTO school_grade (name, enroll_year, sort, enabled, is_deleted) "
+                + "VALUES (?, 2023, 900, 1, 0)", "G-" + SUFFIX);
+        majorA = insert("INSERT INTO school_major "
+                        + "(dept_id, school_id, name, code, level, code_type, sort, enabled, is_deleted) "
+                        + "VALUES (?, 1, ?, ?, 1, 1, 900, 1, 0)",
+                deptA, "测试专业A-" + SUFFIX, codeA);
+        majorB = insert("INSERT INTO school_major "
+                        + "(dept_id, school_id, name, code, level, code_type, sort, enabled, is_deleted) "
+                        + "VALUES (?, 1, ?, ?, 1, 1, 901, 1, 0)",
+                deptB, "测试专业B-" + SUFFIX, codeB);
     }
 
     @AfterEach
@@ -77,6 +99,22 @@ class ReverifyOnChangeEventTest {
         if (uid != null) {
             jdbc.update("DELETE FROM user WHERE id = ?", uid);
         }
+        // school_major 对 school_dept 有外键，必须先删专业
+        jdbc.update("DELETE FROM school_major WHERE id IN (?, ?)", majorA, majorB);
+        jdbc.update("DELETE FROM school_grade WHERE id = ?", gradeId);
+        jdbc.update("DELETE FROM school_dept WHERE id IN (?, ?)", deptA, deptB);
+    }
+
+    private long insert(String sql, Object... args) {
+        KeyHolder keys = new GeneratedKeyHolder();
+        jdbc.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            for (int i = 0; i < args.length; i++) {
+                ps.setObject(i + 1, args[i]);
+            }
+            return ps;
+        }, keys);
+        return keys.getKey().longValue();
     }
 
     /** 年级 + 专业码 + 班号 + 层次标记 + 班内序号 */
@@ -92,9 +130,9 @@ class ReverifyOnChangeEventTest {
         u.setStudentNo(studentNo);
         u.setVerifyStatus(verifyStatus);
         u.setStatus(0);
-        u.setDeptId(DEPT_A);
+        u.setDeptId(deptA);
         u.setGradeId(gradeId);
-        u.setMajorId(MAJOR_A);
+        u.setMajorId(majorA);
         userMapper.insert(u);
         uid = u.getId();
     }
@@ -111,7 +149,7 @@ class ReverifyOnChangeEventTest {
     @Test
     void consistentStudentNo_registersImmediately() {
         seed(0, null);
-        authService.updateProfile(uid, null, null, studentNo(CODE_A, 1), null);
+        authService.updateProfile(uid, null, null, studentNo(codeA, 1), null);
         assertEquals(1, userMapper.selectById(uid).getVerifyStatus(),
                 "格式与归属一致应直接登记");
     }
@@ -120,7 +158,7 @@ class ReverifyOnChangeEventTest {
     @Test
     void inconsistentStudentNo_goesToReview() {
         seed(0, null);
-        String no = studentNo(CODE_B, 2);
+        String no = studentNo(codeB, 2);
         authService.updateProfile(uid, null, null, no, null);
 
         User after = userMapper.selectById(uid);
@@ -131,8 +169,8 @@ class ReverifyOnChangeEventTest {
     /** 已登记改归属 → 重置为未填写 */
     @Test
     void verifiedUserChangesIdentity_resets() {
-        seed(1, studentNo(CODE_A, 3));
-        campusVerifyService.saveSchoolProfile(uid, profileOf(DEPT_B, MAJOR_B));
+        seed(1, studentNo(codeA, 3));
+        campusVerifyService.saveSchoolProfile(uid, profileOf(deptB, majorB));
         assertEquals(0, userMapper.selectById(uid).getVerifyStatus(),
                 "改归属应重置校园信息状态");
     }
@@ -140,8 +178,8 @@ class ReverifyOnChangeEventTest {
     /** 已登记原样保存归属 → 状态保持 */
     @Test
     void verifiedUserSavesSameIdentity_keepsVerified() {
-        seed(1, studentNo(CODE_A, 4));
-        campusVerifyService.saveSchoolProfile(uid, profileOf(DEPT_A, MAJOR_A));
+        seed(1, studentNo(codeA, 4));
+        campusVerifyService.saveSchoolProfile(uid, profileOf(deptA, majorA));
         assertEquals(1, userMapper.selectById(uid).getVerifyStatus(),
                 "原样保存不应清掉登记状态");
     }
@@ -162,8 +200,8 @@ class ReverifyOnChangeEventTest {
     /** 已驳回 + 不一致学号重新提交 → 进核对队列 */
     @Test
     void rejectedUserResubmitsInconsistentStudentNo_requeues() {
-        seed(3, studentNo(CODE_B, 5));
-        authService.updateProfile(uid, null, null, studentNo(CODE_B, 5), null);
+        seed(3, studentNo(codeB, 5));
+        authService.updateProfile(uid, null, null, studentNo(codeB, 5), null);
         assertEquals(2, userMapper.selectById(uid).getVerifyStatus(),
                 "已驳回同号重提应进核对队列");
     }
@@ -174,7 +212,7 @@ class ReverifyOnChangeEventTest {
         seed(3, null);
         assertNull(userMapper.selectById(uid).getStudentNo());
 
-        String no = studentNo(CODE_A, 6);
+        String no = studentNo(codeA, 6);
         authService.updateProfile(uid, null, null, no, null);
 
         User after = userMapper.selectById(uid);

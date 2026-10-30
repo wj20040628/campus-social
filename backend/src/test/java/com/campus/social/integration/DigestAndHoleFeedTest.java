@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 免打扰就清空邮件订阅。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class DigestAndHoleFeedTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

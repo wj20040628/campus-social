@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 验证码直接写 Redis（code:login:{email}），不依赖真实发信。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class LoginCodeFlowTest {
 
     private static final String CODE = "123456";

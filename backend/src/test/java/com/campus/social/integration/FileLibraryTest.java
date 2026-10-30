@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 自播种自清理；上传对象写本地 upload.dir/files，经过服务删除。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class FileLibraryTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);

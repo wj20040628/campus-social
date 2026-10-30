@@ -18,14 +18,14 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 真实集成测试(连本机 MySQL + Redis,local profile)。
+ * 真实集成测试(连本机 MySQL + Redis,local + test profile)。
  * 场景:防超卖 —— capacity 有限时,并发 N 人报名,current_count 最终必 == capacity,无一人超卖。
  *
- * 前置:本机 MySQL(campus_social_v2)与 Redis(6379)须已启动。
+ * 前置:本机 MySQL(测试库 campus_social_test)与 Redis(6379)须已启动。
  * 清理:每个测试前删掉自己造的数据,避免互相污染。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class ActivitySignupConcurrencyIntegrationTest {
 
     @Autowired private ActivityService activityService;

@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 同时守住可见性：只有 status=1 的帖子能分享，否则计数会成为探测未过审帖子的旁路。
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"local", "test"})
 class PostShareCountTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);
