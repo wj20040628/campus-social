@@ -815,7 +815,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
-**告警现状（2026-10-30）**：失败告警代码已接入（`/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，钉钉/企业微信群机器人，文本消息）。Webhook URL 尚未写入，当前失败只写 `.last_failure`、`backup.log` 与 journal；配置后需要做一次真实的失败演练。
+**告警现状（2026-10-30）**：失败告警代码已接入（`/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，钉钉/企业微信群机器人，文本消息）。钉钉机器人安全设置请选「自定义关键词」并填 `友声`，告警文本已固定以「友声备份告警」开头；企业微信机器人可直接用同一 Webhook。Webhook URL 尚未写入，当前失败只写 `.last_failure`、`backup.log` 与 journal；配置后需要做一次真实的失败演练。
 
 **OSS 生命周期**：规则模板在 `deploy/oss/lifecycle-logs-db-30d.xml`（`logs/db/` 30 天删除）。ECS RAM 角色 `mail` 没有 `oss:GetBucketLifecycle` / `oss:PutBucketLifecycle` 权限，`ossutil api get-bucket-lifecycle` 实测返回 403；需在 OSS 控制台给 `yousheng-uploads` 配置同样的规则，或先给角色补 RAM 策略。
 

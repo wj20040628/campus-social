@@ -31,7 +31,7 @@ set +a
 export MYSQL_PWD="$MYSQL_PASSWORD"
 
 alert() {
-  local msg="$1"
+  local msg="友声备份告警 | $1"
   printf '%s | %s\n' "$(date '+%F %T %Z')" "$msg" > "$FAIL_MARK"
   printf '%s | %s\n' "$(date '+%F %T %Z')" "$msg" >> "$LOG"
   logger -t campus-backup "$msg" 2>/dev/null || true
