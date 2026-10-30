@@ -14,11 +14,11 @@ import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuthService;
+import com.campus.social.service.LoginService;
 import com.campus.social.service.RegisterService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
 import com.campus.social.service.support.AuthTokenSupport;
-import com.campus.social.service.support.LoginLockService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
@@ -54,12 +54,12 @@ public class AuthServiceImpl implements AuthService {
     private final UploadService uploadService;
     /** 注册与验证码自动建号 */
     private final RegisterService registerService;
+    /** 密码登录与验证码登录 */
+    private final LoginService loginService;
     /** 封禁截止时间（2026-10-28）：登录被拒时说清「封到哪天」，不再只有一句「账号已冻结」 */
     private final com.campus.social.service.BanService banService;
     /** Token 签发、Redis 指纹轮换与吊销，机制细节见该类的 javadoc */
     private final AuthTokenSupport authTokenSupport;
-    /** 账号 / IP 双维度登录失败锁定 */
-    private final LoginLockService loginLockService;
 
     @Override
     @Transactional
@@ -69,130 +69,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public TokenPairVO login(LoginDTO dto, String ip) {
-        /*
-         * 失败锁定(2026-10-25,撞库防护——外部审查抓出的缺口):
-         *   账号维度 5 次失败锁 15 分钟;IP 维度 30 次失败锁 15 分钟。
-         * 账号键只在「账号存在且密码错误」时递增——账号不存在的失败只记 IP 键,
-         * 避免不存在的账号名被滥用去误锁真实用户。经典权衡:知道账号名的人
-         * 仍可故意锁别人 15 分钟,换取撞库成本从「无限制」到「5 次/15 分钟」。
-         *
-         * 登录标识三路 OR 匹配（2026-10-21 扩展为三列）：
-         *   1) user.username  —— 老账号的旧主标识（邮箱/手机），新账号存邮箱
-         *   2) user.email     —— 新用户主路径
-         *   3) user.student_no —— 已认证用户可用学号登录
-         *
-         * 为什么加第三列：重构后 username 存邮箱，若不查 student_no，
-         * 习惯用学号登录的老用户会发现「学号登不进去了」——
-         * 他们并没有记错，是我们把入口换了。
-         *
-         * 归一化注意：学号是纯数字，toLowerCase 对它无害；
-         * 邮箱必须转小写才能与库里存的小写值匹配（注册时已统一转小写）。
-         *
-         * 统一回 WRONG_PASSWORD，不区分「账号不存在」与「密码错误」—— 防账号枚举。
-         */
-        String id = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase();
-        loginLockService.checkAccount(id);
-        loginLockService.checkIp(ip);
-        User user = userMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, id)
-                        .or()
-                        .eq(User::getEmail, id)
-                        .or()
-                        .eq(User::getStudentNo, id)
-                        // 逻辑删除的行不该能登录：MyBatis-Plus 的逻辑删除只对 selectById 生效，
-                        // 手写 Wrapper 需要显式排除，否则注销账号仍可登入
-                        .eq(User::getIsDeleted, 0));
-        if (user == null) {
-            // 审计:登录失败(账号不存在,记为系统操作)。只计 IP 维度(见方法头注释)
-            auditService.record(0L, "login_fail", null, null, "identifier=" + id + ", 账号不存在", null);
-            loginLockService.recordIpFailure(ip);
-            throw new BusinessException(WRONG_PASSWORD);
-        }
-        // 冻结/注销账号拒登录
-        if (user.getStatus() == 1) {
-            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已冻结", null);
-            throw frozen(user.getId());
-        }
-        if (user.getStatus() == 2) {
-            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已注销", null);
-            throw new BusinessException(USER_CANCELLED);
-        }
-        /*
-         * 邮箱验证码自动建号没有密码(password_hash 是哨兵值)。
-         * 不能把哨兵值喂给 BCrypt(会抛 Invalid salt version),也不能计一次
-         * 「密码错误」—— 用户并没有输错密码,只是这个账号还没有密码。
-         * 明确回 1066,前端引导他去验证码登录后在账号与安全里设密。
-         */
-        if (!JwtUtil.isPasswordSet(user.getPasswordHash())) {
-            auditService.record(user.getId(), "login_fail", null, null,
-                    "identifier=" + id + ", 账号尚未设置密码", null);
-            throw new BusinessException(PASSWORD_NOT_SET);
-        }
-        if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
-            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 密码错误", null);
-            loginLockService.recordAccountFailure(id);
-            loginLockService.recordIpFailure(ip);
-            throw new BusinessException(WRONG_PASSWORD);
-        }
-        // 登录成功:清掉该账号的失败计数(成功本身就是最可信的解锁)
-        loginLockService.clearAccount(id);
-        // 记住我:勾选 → refresh 7d,不勾 → 3d(见 refreshTtl)
-        boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
-        // 审计:登录
-        auditService.record(user.getId(), "login", "user", user.getId(),
-                "identifier=" + id, null);
-        return authTokenSupport.issue(user.getId(), user.getUsername(), remember);
+        return loginService.login(dto, ip);
     }
 
     @Override
     @Transactional
     public TokenPairVO loginByCode(LoginByCodeDTO dto) {
-        String email = dto.getEmail().trim().toLowerCase();
-        if (email.length() > 64) {
-            // 与 user.username / user.email 的 VARCHAR(64) 对齐,避免建号时落成 500
-            throw new BusinessException(BAD_REQUEST, "邮箱过长");
-        }
-        // 校验邮箱验证码(登录用途,一次性消费)
-        verifyCodeService.verify(email, dto.getCode(), "login");
-
-        /*
-         * 2026-10-27:验证码登录兼做注册。
-         * 未注册邮箱不再回「该邮箱尚未绑定账号」,而是直接建号并登录——
-         * 登录页已经没有独立注册入口,验证码是唯一的新用户入口。
-         * 建号不设密码,昵称给「用户+4位随机数」,后续可在设置里改。
-         */
-        User user = userMapper.selectByEmail(email);
-        if (user == null) {
-            user = registerService.createEmailAccount(email);
-        }
-        if (user.getStatus() == 1) {
-            throw frozen(user.getId());
-        }
-        if (user.getStatus() == 2) {
-            throw new BusinessException(USER_CANCELLED);
-        }
-        log.info("loginByCode: email={}", UserVoAssembler.maskUsername(email));
-        // 邮箱验证码登录属「免密码」,不勾记住我(默认 3d)
-        return authTokenSupport.issue(user.getId(), user.getUsername(), false);
-    }
-
-    /**
-     * 封禁用户的登录拒绝（2026-10-28）。
-     *
-     * <p>只回「账号已冻结」时，用户既不知道封多久、也不知道能申诉——
-     * 登录页虽然有申诉按钮，但账号为什么变成这样全靠猜。
-     * 解封时间在 Redis（BanService），永久封禁没有到期时间。
-     */
-    private BusinessException frozen(long userId) {
-        java.time.LocalDateTime until = banService.bannedUntil(userId);
-        String tail = "如有异议，可在登录页提交封禁申诉。";
-        if (until == null) {
-            return new BusinessException(USER_FROZEN, "账号已被永久封禁。" + tail);
-        }
-        return new BusinessException(USER_FROZEN, "账号已被封禁，将于 "
-                + until.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-                + " 自动解封。" + tail);
+        return loginService.loginByCode(dto);
     }
 
     @Override
@@ -242,7 +125,7 @@ public class AuthServiceImpl implements AuthService {
         // 原先只判 status==1,注销账号仍能一直 refresh 续命 —— login 拦了,refresh 没拦。
         if (user.getStatus() == 1) {
             authTokenSupport.revoke(userId);
-            throw frozen(user.getId());
+            throw banService.frozenException(user.getId());
         }
         if (user.getStatus() == 2) {
             authTokenSupport.revoke(userId);

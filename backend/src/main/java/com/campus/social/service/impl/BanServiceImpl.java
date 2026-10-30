@@ -1,5 +1,7 @@
 package com.campus.social.service.impl;
 
+import com.campus.social.common.ResultCode;
+import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
@@ -100,6 +102,18 @@ public class BanServiceImpl implements BanService {
             return null;
         }
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(score.longValue()), ZONE);
+    }
+
+    @Override
+    public BusinessException frozenException(long userId) {
+        LocalDateTime until = bannedUntil(userId);
+        String tail = "如有异议，可在登录页提交封禁申诉。";
+        if (until == null) {
+            return new BusinessException(ResultCode.USER_FROZEN, "账号已被永久封禁。" + tail);
+        }
+        return new BusinessException(ResultCode.USER_FROZEN, "账号已被封禁，将于 "
+                + until.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                + " 自动解封。" + tail);
     }
 
     /**

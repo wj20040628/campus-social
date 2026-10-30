@@ -1,5 +1,7 @@
 package com.campus.social.service;
 
+import com.campus.social.exception.BusinessException;
+
 import java.time.LocalDateTime;
 
 /**
@@ -47,6 +49,12 @@ public interface BanService {
 
     /** 查解封时间；永久封禁或未被封禁返回 null */
     LocalDateTime bannedUntil(long userId);
+
+    /**
+     * 构造「账号已冻结」的用户可见异常，含解封时间与申诉提示。
+     * 登录与 refresh 共用，避免两处文案漂移。
+     */
+    BusinessException frozenException(long userId);
 
     /**
      * 取出已到期的封禁计划（供定时任务调用）。
