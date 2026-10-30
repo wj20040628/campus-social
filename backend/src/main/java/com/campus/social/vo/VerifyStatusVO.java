@@ -6,39 +6,31 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 认证状态（F2）。
+ * 校园信息状态（F2，2026-10-30 降级为资料完整度）。
  *
- * <p>{@code canStrangerChat} 与 {@code canPublishAnnouncement} 两个布尔量
- * 是 AC-11 的对外表达。前端不该自己从 verifyStatus 推这两个能力：
- * 那是「业务规则在前端重写一遍」，规则一变（如以后加「认证满 7 天才能发公告」）
- * 前端就会静默出错。
+ * <p>不再下发「能不能搭话/发公告」这类能力位：校园信息不参与权限判定。
+ * 搭话看账号年龄+信誉，公告看管理员角色，均不在本 VO 里表达。
  */
 @Data
 @Builder
 public class VerifyStatusVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    /** 0未认证 1已认证 2审核中 3驳回 */
+    /** 0未填写 1已登记 2核对中 3需修改 */
     private Integer verifyStatus;
 
     private String verifyStatusText;
 
     private Long schoolId;
 
-    /** 已认证时返回学校名；未认证为 null */
+    /** 已登记时返回学校名；未填写为 null */
     private String schoolName;
 
-    /** 认证通过时间；未认证为 null */
+    /** 登记时间；未登记为 null */
     private java.time.LocalDateTime verifiedAt;
 
-    /** verifyStatus=3 时的驳回理由 */
+    /** verifyStatus=3 时的修改理由 */
     private String rejectReason;
-
-    /** 是否可发起搭话（AC-11） */
-    private Boolean canStrangerChat;
-
-    /** 是否可发布公告（AC-11） */
-    private Boolean canPublishAnnouncement;
 
     /** 引导第 1 步是否完成（dept 与 grade 均已填） */
     private Boolean profileComplete;

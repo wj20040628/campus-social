@@ -17,7 +17,7 @@
         <span class="mecard__text">
           <span class="mecard__name">{{ userStore.userInfo?.nickname || '未登录' }}</span>
           <span class="mecard__id">
-            学号:{{ studentNo || userStore.userInfo?.studentNo || '未填写' }}<template v-if="verifyVerified"> · 已认证</template>
+            学号:{{ studentNo || userStore.userInfo?.studentNo || '未填写' }}<template v-if="verifyVerified"> · 校园信息已登记</template>
           </span>
         </span>
         <el-icon class="mecard__chev"><ArrowRight /></el-icon>
@@ -33,7 +33,7 @@
                 管理后台
                 <AdminPendingBadge :count="pendingTotal" class="set-row__count" />
               </span>
-              <span class="set-row__desc">学号核验 / 举报 / 内容审核 / 公告 / 日志</span>
+              <span class="set-row__desc">校园信息核对 / 举报 / 内容审核 / 公告 / 日志</span>
             </span>
             <el-icon class="set-row__chevron"><ArrowRight /></el-icon>
           </button>
@@ -134,7 +134,7 @@
           :class="{ 'is-pending': pending.summary.verifyPending > 0 }"
           @click="goAdmin('/admin/verify')"
         >
-          学号核验
+          校园信息核对
           <AdminPendingBadge :count="pending.summary.verifyPending" class="settings__pending" />
         </button>
         <button
@@ -223,7 +223,7 @@ const { adminSheetOpen, goAdmin, doLogout } = useSettings()
 const pending = useAdminPending()
 const pendingTotal = computed(() => pending.total())
 
-/** 已认证(个人卡展示用):只认 verify_status=1,「审核中/驳回」不标已认证 */
+/** 校园信息已登记(个人卡展示用):只认 verify_status=1 */
 const verifyVerified = computed(() => code.value === VERIFY_OK)
 
 /** 头像拉取失败/无图时的首字母兜底,与 TopBar 同规则 */
@@ -261,7 +261,7 @@ onMounted(async () => {
   } catch {
     /* 未登录由路由守卫拦,这里静默 */
   }
-  // 认证状态:个人卡的「已认证」角标要用(全站单例缓存,不重复请求)
+  // 校园信息状态:个人卡的登记标记要用(全站单例缓存,不重复请求)
   loadVerifyStatus()
   pending.refresh()
 })

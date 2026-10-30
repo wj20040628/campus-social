@@ -2,18 +2,18 @@ import { ref, computed, watch, onScopeDispose } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { list as listApi, join as joinApi, createCircle as createApi, search as searchApi } from '@/api/circle'
 import { useUserStore } from '@/stores/user'
-import { isIdentityVerified } from '@/utils/mask'
-import { openAuthGate } from '@/composables/useAuthGate'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 /**
  * 圈子列表的数据与副作用(Circles.vue.md)
  * ------------------------------------------------------------------
- * 抽出来的原因:页面模板已有 110 行,再加 AC-11 判定与搜索就把门禁顶破。
+ * 抽出来的原因:页面模板已有 110 行,再加搜索与创建逻辑就把门禁顶破。
  * 逻辑本身有**两条独立的失败语义**(列表拉取失败 vs 创建失败),
  * 混在一个 try 里会写成「一失败整页空」。
  */
 export function useCircles() {
   const userStore = useUserStore()
+  const { ensureLogin } = useGuestPrompt()
 
   const circles = ref([])
   const cursor = ref(null)
@@ -112,9 +112,13 @@ export function useCircles() {
     discoverOffset.value = (discoverOffset.value + DISCOVER_BATCH) % n
   }
 
-  /** 顶栏「创建圈子」的守卫。AC-11:未认证给说明而不是沉默失败 */
+  /**
+   * 顶栏「创建圈子」的守卫。
+   * 只拦游客；账号年龄/信誉分由后端 CampusAccessService 判定，
+   * 前端不预判，避免与后端阈值漂移后把能建的人挡在门外。
+   */
   function openCreate() {
-    if (!isIdentityVerified(userStore.userInfo)) return 'need-verify'
+    if (!userStore.hasToken) return 'need-login'
     createError.value = ''
     showCreate.value = true
     return 'opened'
@@ -191,19 +195,9 @@ export function useCircles() {
   }
 
   async function joinCircle(c) {
-    /*
-     * 未认证拦截（2026-10-21 新增）。
-     *
-     * 【为什么要前端先拦】后端已挂 @RequireVerified 会回 403，
-     * 但只靠后端的话用户看到的是「请求失败」这种通用错误 ——
-     * 他不知道原因、也不知道下一步该干什么。
-     * 前端先拦能给一句具体的话，这正是 AC-19「失败必须给说法与出路」的要求。
-     *
-     * 判据用 isIdentityVerified（读后端 verified），与「创建圈子」同一把尺子 ——
-     * 两处若用不同判据，会出现「能建圈但不能加入」这种自相矛盾。
-     */
-    if (!isIdentityVerified(userStore.userInfo)) {
-      openAuthGate()
+    // 游客只读:加入圈子要账号,先弹登录提示
+    if (!userStore.hasToken) {
+      await ensureLogin('登录后才能加入圈子，现在去登录吗？')
       return
     }
     try {
@@ -250,10 +244,15 @@ export function useCircles() {
       await load()
     } catch (e) {
       // 输入的名字**保留** —— 清空等于让用户重打一遍(设计 §3)。
-      // 后端业务文案(409 撞预留名/重名、422 长度/敏感词)直接透传,
-      // 不用让用户去翻 Network 面板猜是哪条规则拦的
+      // 后端业务文案直接透传,不用让用户去翻 Network 面板猜是哪条规则拦的。
+      // 「换个名字再试」只对名字类错误(409 重名/撞预留名、422 长度/敏感词)成立;
+      // 403 是账号账龄/信誉分门槛,换名字再试是误导。
+      const status = e?.response?.status
       const msg = e?.response?.data?.message
-      createError.value = msg ? `${msg}(换个名字再试)` : '没创建成功，再点一次'
+      const renameable = status === 409 || status === 422
+      createError.value = msg
+        ? (renameable ? `${msg}(换个名字再试)` : msg)
+        : '没创建成功，再点一次'
     } finally {
       creating.value = false
     }

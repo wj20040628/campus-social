@@ -13,6 +13,7 @@
  */
 import QRCode from 'qrcode'
 import { resolveUrl } from '@/utils/resolve'
+import { roundRect, drawVideoBadge, drawVideoPlaceholder } from './shareCardDraw'
 
 const C = {
   bg: '#FBF3E9', // --ys-bg 暖米底
@@ -49,6 +50,7 @@ const CARD_MIN_H = 360
  *   excerpt 副文案(集市/活动的详情摘要)
  *   image   可选封面图 url(相对 /uploads 也行,内部走 resolveUrl;
  *           加载失败(跨域/文件缺失)自动跳过,不阻塞出图)
+ *   video   可选,true 表示这是视频帖:有封面时叠播放标识,没封面时画视频占位块
  *   badge   可选方形类型徽标文字(如 DOCX)，排在标题左侧；文件分享用
  *   qrText  二维码内容,调用方传 window.location.origin + 路由
  * @returns {Promise<HTMLCanvasElement>}
@@ -99,7 +101,11 @@ export async function drawShareCard(opt) {
       imgH = Math.min(360, Math.round(innerW * (img.height / img.width)))
     }
   }
+  const isVideo = opt.video === true
+  // 视频没封面(旧帖没 poster / 图挂了)时给一块 16:9 占位,而不是让卡片只剩文字
+  const videoBoxH = Math.round((innerW * 9) / 16)
   if (imgH) contentBottom += imgH + 20
+  else if (isVideo) contentBottom += videoBoxH + 20
 
   const cardH = Math.max(CARD_MIN_H, contentBottom + CARD_BOTTOM_PAD - CARD_Y)
   const H = CARD_Y + cardH + QR_SECTION
@@ -204,7 +210,11 @@ export async function drawShareCard(opt) {
     const fh = img.height * fillScale
     ctx.drawImage(img, innerX + (innerW - fw) / 2, y + (imgH - fh) / 2, fw, fh)
     ctx.restore()
+    if (isVideo) drawVideoBadge(ctx, innerX, y, innerW, imgH)
     y += imgH + 20
+  } else if (isVideo) {
+    drawVideoPlaceholder(ctx, innerX, y, innerW, videoBoxH)
+    y += videoBoxH + 20
   }
 
   // 底部:二维码 + 引导文案(固定在画布底,不随内容流)
@@ -299,16 +309,6 @@ function loadImageSafe(url) {
     img.onerror = () => resolve(null)
     img.src = url
   })
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
 }
 
 function hostOf(url) {

@@ -3,6 +3,8 @@ import {
   status, follow as followApi, unfollow as unfollowApi,
   followers as followersApi, following as followingApi,
 } from '@/api/relation'
+import { useUserStore } from '@/stores/user'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 /**
  * 个人主页的关注关系与粉丝 / 关注列表。
@@ -17,6 +19,8 @@ import {
  * @param {import('vue').Ref<number>} targetId 目标用户 id(路由参数)
  */
 export function useProfileRelations(targetId) {
+  const userStore = useUserStore()
+  const { ensureLogin } = useGuestPrompt()
   const relStatus = ref(null)
   const followLoading = ref(false)
 
@@ -26,6 +30,11 @@ export function useProfileRelations(targetId) {
   const loadingFollowing = ref(false)
 
   async function loadRelation() {
+    // 游客只读:关系接口要登录，跳过请求，主页头按「未关注」渲染
+    if (!userStore.hasToken) {
+      relStatus.value = null
+      return
+    }
     relStatus.value = await status(targetId.value)
   }
 
@@ -41,7 +50,7 @@ export function useProfileRelations(targetId) {
    *   会把粉丝数减 1。这是典型的沉默逻辑错误,所以用三态区分。
    */
   async function toggleFollow() {
-    if (followLoading.value) return null
+    if (!userStore.hasToken || followLoading.value) return null
     const wasFollowing = !!relStatus.value?.following
     followLoading.value = true
     relStatus.value.following = !wasFollowing
@@ -72,6 +81,7 @@ export function useProfileRelations(targetId) {
    * 进主页那一刻数据就到位,空态不再抢跑。并发去重仍靠 loading + 有缓存早退。
    */
   async function loadFollowers() {
+    if (!userStore.hasToken) return
     if (loadingFollowers.value || followers.value.length) return
     loadingFollowers.value = true
     try {
@@ -83,6 +93,7 @@ export function useProfileRelations(targetId) {
   }
 
   async function loadFollowing() {
+    if (!userStore.hasToken) return
     if (loadingFollowing.value || following.value.length) return
     loadingFollowing.value = true
     try {
@@ -118,6 +129,6 @@ export function useProfileRelations(targetId) {
     relStatus, followLoading, followers, following,
     loadingFollowers, loadingFollowing,
     loadRelation, toggleFollow, onTabChange, reset,
-    loadFollowers, loadFollowing,
+    loadFollowers, loadFollowing, ensureLogin,
   }
 }

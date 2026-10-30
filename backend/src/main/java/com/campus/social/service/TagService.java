@@ -2,7 +2,6 @@ package com.campus.social.service;
 
 import com.campus.social.entity.InterestTag;
 import com.campus.social.entity.UserTag;
-import com.campus.social.vo.TagGroupVO;
 import com.campus.social.vo.TagItemVO;
 import com.campus.social.vo.TagTreeVO;
 import com.campus.social.vo.UserTagsVO;

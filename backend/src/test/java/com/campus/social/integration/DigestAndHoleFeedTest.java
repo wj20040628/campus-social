@@ -1,9 +1,6 @@
 package com.campus.social.integration;
 
-import com.campus.social.common.CursorPage;
 import com.campus.social.controller.UserController;
-import com.campus.social.service.impl.PostFeedQueryService;
-import com.campus.social.vo.PostVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,11 +10,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 树洞 feed 过滤 + 邮件摘要偏好合并写回归（2026-10-25）。
+ * 邮件摘要偏好合并写 + 审核中帖子/评论可见性回归。
  *
  * <p>合并写是本测试的重点：user.notify_pref 现在有两个段（站内 disabled /
  * 邮件 emailDigest），两个设置页各写各的——任何一个用整列覆盖都会把对方
@@ -30,9 +26,9 @@ class DigestAndHoleFeedTest {
 
     private static final String SUFFIX = String.valueOf(System.nanoTime() % 100000);
     private static final long AUTHOR = 1L;
+    /** 审核中帖子的唯一内容标记：带 SUFFIX，cleanup 才能精确删掉本次插入的行 */
+    private static final String PENDING = "pending-hide-" + SUFFIX;
 
-    @Autowired
-    private PostFeedQueryService feedQuery;
     @Autowired
     private com.campus.social.service.PostService postService;
     @Autowired
@@ -40,25 +36,11 @@ class DigestAndHoleFeedTest {
     @Autowired
     private JdbcTemplate jdbc;
 
-    private Long anonA;
-    private Long anonB;
-    private Long plain;
     private Long digestUserId;
 
     @BeforeEach
     void seed() {
-        anonA = insertPost(1);
-        anonB = insertPost(1);
-        plain = insertPost(0);
-
         digestUserId = insertUser("digest-" + SUFFIX);
-    }
-
-    private Long insertPost(int anonymous) {
-        jdbc.update("INSERT INTO post (author_id, content, status, is_deleted, is_anonymous) "
-                + "VALUES (?, ?, 1, 0, ?)", AUTHOR, "dh" + SUFFIX, anonymous);
-        return jdbc.queryForObject("SELECT id FROM post WHERE content = ? ORDER BY id DESC LIMIT 1",
-                Long.class, "dh" + SUFFIX);
     }
 
     private Long insertUser(String username) {
@@ -70,26 +52,12 @@ class DigestAndHoleFeedTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("DELETE FROM post WHERE content = ?", "dh" + SUFFIX);
+        // 先删评论再删帖：pending-hide 的帖子与评论都不能残留
+        jdbc.update("DELETE FROM comment WHERE content = ?", "pc" + SUFFIX);
+        jdbc.update("DELETE FROM post WHERE content = ?", PENDING);
         if (digestUserId != null) {
             jdbc.update("DELETE FROM user WHERE id = ?", digestUserId);
         }
-    }
-
-    private long countMine(CursorPage<PostVO> page) {
-        return page.getList().stream().filter(p ->
-                p.getContent() != null && p.getContent().equals("dh" + SUFFIX)).count();
-    }
-
-    @Test
-    void anonymousFeedFilterReturnsOnlyHolePosts() {
-        CursorPage<PostVO> hole = feedQuery.feed(0L, null, 20, "time", "desc", null, true);
-        CursorPage<PostVO> all = feedQuery.feed(0L, null, 20, "time", "desc", null, null);
-
-        assertEquals(2, countMine(hole), "树洞过滤只回匿名帖");
-        assertTrue(hole.getList().stream().allMatch(PostVO::isAnonymous));
-        assertEquals(3, countMine(all), "不带过滤回全部(含匿名)");
-        assertFalse(all.getList().stream().allMatch(PostVO::isAnonymous));
     }
 
     @Test
@@ -116,10 +84,10 @@ class DigestAndHoleFeedTest {
     void pendingPostHiddenFromGuestAndOthers() {
         // 2026-10-25 审计修回归(外部审查抓出):「审核中」帖子对游客/无关用户必须 404
         jdbc.update("INSERT INTO post (author_id, content, status, is_deleted) "
-                + "VALUES (?, 'pending-hide', 0, 0)", AUTHOR);
+                + "VALUES (?, ?, 0, 0)", AUTHOR, PENDING);
         Long pendingId = jdbc.queryForObject(
-                "SELECT id FROM post WHERE author_id = ? AND content = 'pending-hide' ORDER BY id DESC LIMIT 1",
-                Long.class, AUTHOR);
+                "SELECT id FROM post WHERE author_id = ? AND content = ? ORDER BY id DESC LIMIT 1",
+                Long.class, AUTHOR, PENDING);
 
         try {
             postService.detail(pendingId, 0L); // 游客
@@ -135,6 +103,23 @@ class DigestAndHoleFeedTest {
         }
         // 作者本人可见(通知跳详情的路径必须仍通)
         var self = postService.detail(pendingId, AUTHOR);
-        assertEquals("pending-hide", self.getContent());
+        assertEquals(PENDING, self.getContent());
+
+        /*
+         * 2026-10-30 审计修：评论列表曾绕过帖子状态，下架/退回审核的帖子
+         * 详情已 404，评论却能按顺序 id 枚举。评论必须与详情同口径。
+         */
+        jdbc.update("INSERT INTO comment (post_id, user_id, parent_id, level, content, status, is_deleted) "
+                + "VALUES (?, ?, 0, 1, ?, 1, 0)", pendingId, AUTHOR, "pc" + SUFFIX);
+        for (long viewer : new long[]{0L, 999L}) {
+            try {
+                postService.comments(pendingId, null, 20, viewer);
+                org.junit.jupiter.api.Assertions.fail("非作者不应读到审核中帖子的评论, viewer=" + viewer);
+            } catch (com.campus.social.exception.BusinessException e) {
+                assertEquals(com.campus.social.common.ResultCode.POST_NOT_FOUND.getCode(), e.getCode());
+            }
+        }
+        assertEquals(1, postService.comments(pendingId, null, 20, AUTHOR).getList().size(),
+                "作者本人仍可看到自己帖子下的评论");
     }
 }

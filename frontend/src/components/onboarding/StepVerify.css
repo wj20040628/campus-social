@@ -24,7 +24,7 @@
   color: var(--ys-muted);
 }
 
-/* 「保存学校归属」是次要动作：描边而非实底，不与下面的「提交认证」抢 */
+/* 「保存学校归属」是次要动作：描边而非实底，不与下面的「提交校园信息」抢 */
 .sv__save {
   min-height: var(--ys-touch-min);
   margin-top: var(--ys-space-2);

@@ -1,18 +1,16 @@
 <template>
   <!--
-    学号核验审核(AdminVerify.vue)
+    校园信息核对(AdminVerify.vue)
+
+    [定位] 2026-10-30 起「通过 / 退回」只决定资料标记（1 / 3），
+    不授予或收回任何功能权限；积压不会阻塞任何用户。
 
     [为什么是独立页面而不是 AdminReview 的第四个 Tab]
     1. AdminReview.vue 已 298 行,单文件 300 行门禁只剩 2 行;
-       挂一个 Tab 至少要 +6 行(标签页、挂载点、import、切页分支),
-       而学号核验自己就要一个面板 —— 塞进去必然破门禁,
-       破门禁的代价是把现有两个域的注释砍掉。
-    2. 语义不同:那页的三个 Tab 是「举报 / 内容审核 / 已处理」,
-       全是**内容**处置;学号核验是**身份**处置。
-       放在一个叫「审核处置」的页签下,用户会以为通过的是内容而不是身份。
-    3. 契约分成两个 tag(admin-report / admin-verify)、两个权限注解
-       (AdminVerifyController 明确不打 @RequireVerified —— 管理员自己
-       很可能还没通过认证),两条链路各自独立。
+       挂一个 Tab 至少要 +6 行(标签页、挂载点、import、切页分支)。
+    2. 语义不同:那页的三个 Tab 全是**内容**处置;
+       这里核对的是资料与字典是否自洽，不是处置内容。
+    3. 契约分成两个 tag(admin-report / admin-verify)，两条链路各自独立。
 
     本页只做视图与五态。分页、乐观出栈、失败回滚全在 useVerifyQueue.js。
   -->
@@ -85,8 +83,8 @@
 
           <p class="vcard__who">
             <!--
-              昵称可点跳主页(2026-10-24 补):核验真伪的旁证是「这个人像不像本校学生」
-              ——头像/昵称风格/历史动态,此前都是纯文本,管理员得手拼 URL。
+              昵称可点跳主页：核对资料时可参照头像/昵称/历史动态，
+              此前都是纯文本,管理员得手拼 URL。
             -->
             <button
               type="button"
@@ -174,7 +172,7 @@
       <StateBlock
         v-else-if="failed"
         variant="error"
-        title="核验队列没拉出来"
+        title="核对队列没拉出来"
         description="可能是网络断了,点一下重试"
         action-label="重试"
         :icon="WarningFilled"
@@ -183,8 +181,8 @@
       <StateBlock
         v-else
         variant="empty"
-        title="没有待核验的学号"
-        description="有人提交学号后会进这里"
+        title="没有待核对的校园信息"
+        description="有人提交学号且与所选归属不一致时会进这里"
         action-label="刷新一下"
         :icon="Postcard"
         @action="load(true)"
@@ -204,7 +202,7 @@
 
 <script setup>
 /**
- * 学号核验待审列表 + 通过/驳回。
+ * 校园信息待核对列表 + 标记已登记 / 需修改。
  *
  * 分页、乐观出栈、404(已被别的设备处置)的处理都在 useVerifyQueue,
  * 本文件只负责「显示成什么样」和四态判定。

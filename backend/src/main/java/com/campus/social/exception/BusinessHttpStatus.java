@@ -41,9 +41,7 @@ public final class BusinessHttpStatus {
         MAPPING.put(ResultCode.BLACKLISTED, HttpStatus.FORBIDDEN);
         MAPPING.put(ResultCode.NOT_ADMIN, HttpStatus.FORBIDDEN);
 
-        // F2 认证类
-        MAPPING.put(ResultCode.USER_NOT_VERIFIED, HttpStatus.FORBIDDEN);
-        MAPPING.put(ResultCode.CAMPUS_EMAIL_NOT_ALLOWED, HttpStatus.UNPROCESSABLE_ENTITY);
+        // F2 校园信息类
         MAPPING.put(ResultCode.VERIFY_ALREADY_DONE, HttpStatus.CONFLICT);
         MAPPING.put(ResultCode.VERIFY_ALREADY_PENDING, HttpStatus.CONFLICT);
         MAPPING.put(ResultCode.STUDENT_NO_EXISTS, HttpStatus.CONFLICT);
@@ -55,6 +53,10 @@ public final class BusinessHttpStatus {
 
         // F3 搭话护栏
         MAPPING.put(ResultCode.STRANGER_MSG_CLOSED, HttpStatus.FORBIDDEN);
+        // 行为信任门槛：账号太新/信誉不足不是认证问题，但此刻确实不可用。
+        // 回 403 让前端按「受限」处理，而不是当成参数错误。
+        MAPPING.put(ResultCode.ACCOUNT_TOO_NEW, HttpStatus.FORBIDDEN);
+        MAPPING.put(ResultCode.CREDIT_TOO_LOW, HttpStatus.FORBIDDEN);
 
         // F5 公告
         MAPPING.put(ResultCode.ANNOUNCEMENT_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -63,7 +65,7 @@ public final class BusinessHttpStatus {
         MAPPING.put(ResultCode.REPORT_NOT_FOUND, HttpStatus.NOT_FOUND);
         MAPPING.put(ResultCode.REPORT_ALREADY_HANDLED, HttpStatus.CONFLICT);
 
-        // 验证码限频:openapi 的 /user/verify/campus-email 明确要求 429
+        // 验证码限频:注册 / 登录 / 绑定 / 设密等全部验证码接口统一 429
         MAPPING.put(ResultCode.CODE_TOO_FREQUENT, HttpStatus.TOO_MANY_REQUESTS);
         MAPPING.put(ResultCode.CODE_LIMIT_REACHED, HttpStatus.TOO_MANY_REQUESTS);
 

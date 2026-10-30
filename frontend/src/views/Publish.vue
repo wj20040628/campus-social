@@ -24,8 +24,8 @@
       未登录:不跳转、不隐藏,把正文区换成说明块。
       直接跳走会让用户以为产品坏了;给「为什么 + 怎么做」才是转化(设计 §3)。
 
-      判据是**登录**不是认证:未认证由后端 @RequireVerified 与全站认证闸门(1029)承接,
-      这里拦住的是「没登录」的人。路由层 requiresAuth 已经挡了绝大多数未登录访问,
+      判据是**登录**：注册用户即可发帖，这里拦住的是「没登录」的人。
+      路由层 requiresAuth 已经挡了绝大多数未登录访问，
       这个块是兜底 —— 比如 token 在进页面后过期,userStore 被 clear 掉。
     -->
     <StateBlock
@@ -231,19 +231,7 @@ useKeyboardViewport()
 
 const isEdit = computed(() => route.name === 'postEdit')
 
-/**
- * 发帖要求**登录 + 校内认证**（2026-10-29 起）。
- *
- * [为什么这里只判登录]
- * 认证态由后端 PostController 的 @RequireVerified 兜底。未认证用户点发布时，
- * request.js 会收到 1029 并弹出全站认证闸门（AuthGateSheet），
- * 用户在弹层里就能直接去认证 —— 比页面提前把发布按钮置灰更有指引。
- *
- * [为什么不写 verified]
- * 后端 UserVO **没有** verified 字段（只有 RecommendUserVO 有）。
- * 写 `userInfo?.verified !== false` 会得到第二个恒真判据 ——
- * 判据看着有、实际永远放行。认证判断只保留后端一处。
- */
+/** 发帖只要求登录：注册用户即可发布，不看校园信息（2026-10-30） */
 const canPublish = computed(() => !!userStore.hasToken)
 
 const topicTags = computed(() => parseTopics(topicText.value))
@@ -360,8 +348,8 @@ function goBack() {
 /**
  * 未登录时的主行动出口。
  *
- * 去登录而不是去认证:能走到这里说明是「没登录」而不是「没认证」
- * (判据见 canPublish)。跳 /onboarding 会让用户以为要先做引导才能发帖。
+ * 能走到这里说明是「没登录」(判据见 canPublish)。
+ * 跳 /onboarding 会让用户以为要先做引导才能发帖。
  *
  * 带 returnUrl:登录后要回到当前这篇草稿,否则用户填到一半的内容
  * 在路由跳转后就找不回来了。

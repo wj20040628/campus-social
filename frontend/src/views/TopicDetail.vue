@@ -29,14 +29,15 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import dayjs from 'dayjs'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import { ChatLineSquare } from '@element-plus/icons-vue'
 import { topicFeed } from '@/api/feed'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 const route = useRoute()
 const router = useRouter()
+const { ensureLogin } = useGuestPrompt()
 
 const name = ref(decodeURIComponent(route.params.name || ''))
 const posts = ref([])
@@ -96,7 +97,8 @@ function setupObserver() {
 function goDetail(id) {
   router.push(`/post/${id}`)
 }
-function goPublish() {
+async function goPublish() {
+  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？'))) return
   router.push({ path: '/publish', query: { topic: name.value } })
 }
 // 话题标签点击:切到另一个话题(同页内更新,不重建)

@@ -2,11 +2,9 @@ package com.campus.social.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.PageSize;
-import com.campus.social.common.ResultCode;
 import com.campus.social.entity.FileAsset;
 import com.campus.social.entity.FileFavorite;
 import com.campus.social.entity.Like;
-import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.FileAssetMapper;
 import com.campus.social.mapper.FileFavoriteMapper;
@@ -41,7 +39,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -102,7 +99,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public FileQuotaVO quota(long userId) {
         UserTrustStatusVO st = reviewTrustService.status(userId);
-        int tier = FileLimits.tier(st.getCreditScore(), Boolean.TRUE.equals(st.getVerified()));
+        int tier = FileLimits.tier(st.getCreditScore());
         long used = fileAssetMapper.sumActiveBytes(userId);
         int pending = fileAssetMapper.countPendingByUser(userId);
         int today = fileAssetMapper.countCreatedToday(userId);
@@ -118,9 +115,7 @@ public class FileServiceImpl implements FileService {
         vo.setDailyUploadRemaining(Math.max(0, dailyUploadLimit - today));
 
         String reason = null;
-        if (!Boolean.TRUE.equals(st.getVerified())) {
-            reason = "完成学号认证后可上传文件";
-        } else if (tier == 0) {
+        if (tier == 0) {
             reason = "信誉分达到 60 分后可上传文件";
         } else if (used >= FileLimits.totalLimitBytes(tier)) {
             reason = "文件容量已满，删除部分旧文件或提升信誉分后可继续上传";
@@ -224,12 +219,9 @@ public class FileServiceImpl implements FileService {
 
         // 先做一次不锁的快检，把绝大多数失败挡在读字节和大事务之前
         UserTrustStatusVO st = reviewTrustService.status(userId);
-        int tier = FileLimits.tier(st.getCreditScore(), Boolean.TRUE.equals(st.getVerified()));
+        int tier = FileLimits.tier(st.getCreditScore());
         if (tier == 0) {
-            throw new BusinessException(FILE_UPLOAD_FORBIDDEN,
-                    Boolean.TRUE.equals(st.getVerified())
-                            ? "信誉分达到 60 分后可上传文件"
-                            : "完成学号认证后可上传文件");
+            throw new BusinessException(FILE_UPLOAD_FORBIDDEN, "信誉分达到 60 分后可上传文件");
         }
         long singleLimit = FileLimits.singleLimitBytes(tier);
         if (file.getSize() > singleLimit) {
@@ -270,8 +262,7 @@ public class FileServiceImpl implements FileService {
                 // 锁住 user 行后再 SUM：两个并发上传不能都看到「还差 1MB」而一起通过
                 userMapper.lockById(userId);
                 UserTrustStatusVO lockedSt = reviewTrustService.status(userId);
-                int lockedTier = FileLimits.tier(lockedSt.getCreditScore(),
-                        Boolean.TRUE.equals(lockedSt.getVerified()));
+                int lockedTier = FileLimits.tier(lockedSt.getCreditScore());
                 if (lockedTier == 0) {
                     throw new BusinessException(FILE_UPLOAD_FORBIDDEN,
                             "当前信誉状态不允许上传文件");

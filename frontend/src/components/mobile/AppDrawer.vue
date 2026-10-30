@@ -22,27 +22,23 @@
             </button>
           </div>
 
-          <!-- 头部:头像 + 昵称 + 认证徽章 + 学号,点击进我的主页 -->
-          <button type="button" class="adrawer__head" @click="goHome">
+          <!-- 头部:头像 + 昵称 + 学号,点击进我的主页；游客点击去登录 -->
+          <button type="button" class="adrawer__head" @click="onHead">
             <el-avatar :size="56" :src="resolveThumb(userStore.userInfo?.avatarUrl)">
               <span v-if="!userStore.userInfo?.avatarUrl">{{ avatarFallback }}</span>
             </el-avatar>
             <span class="adrawer__headtext">
               <span class="adrawer__namerow">
-                <span class="adrawer__name">{{ userStore.userInfo?.nickname || '未登录' }}</span>
-                <span v-if="verified" class="adrawer__badge">
-                  <NavIcon name="check" :size="11" :stroke-width="2.6" />
-                  已认证
-                </span>
+                <span class="adrawer__name">{{ userStore.isGuest ? '游客' : (userStore.userInfo?.nickname || '未登录') }}</span>
               </span>
-              <span class="adrawer__id">{{ studentNoText }}</span>
+              <span class="adrawer__id">{{ userStore.isGuest ? '登录后可发帖、聊天、看通知' : studentNoText }}</span>
             </span>
             <span class="adrawer__chev" aria-hidden="true">›</span>
           </button>
 
           <nav class="adrawer__nav">
             <button
-              v-for="item in NAV_ITEMS"
+              v-for="item in navItems"
               :key="item.label"
               type="button"
               class="adrawer__item"
@@ -89,14 +85,20 @@
                 {{ modeLabel }}<span class="adrawer__cs" aria-hidden="true">›</span>
               </span>
             </button>
-            <button type="button" class="adrawer__item" @click="go('/settings')">
-              <span class="adrawer__ic"><NavIcon name="gear" /></span>
-              设置
-            </button>
-            <div class="adrawer__sep" aria-hidden="true"></div>
-            <button type="button" class="adrawer__item adrawer__item--danger" @click="onLogout">
-              <span class="adrawer__ic"><NavIcon name="logout" /></span>
-              退出登录
+            <template v-if="!userStore.isGuest">
+              <button type="button" class="adrawer__item" @click="go('/settings')">
+                <span class="adrawer__ic"><NavIcon name="gear" /></span>
+                设置
+              </button>
+              <div class="adrawer__sep" aria-hidden="true"></div>
+              <button type="button" class="adrawer__item adrawer__item--danger" @click="onLogout">
+                <span class="adrawer__ic"><NavIcon name="logout" /></span>
+                退出登录
+              </button>
+            </template>
+            <button v-else type="button" class="adrawer__item" @click="go('/login/form')">
+              <span class="adrawer__ic"><NavIcon name="user" /></span>
+              登录
             </button>
           </footer>
         </aside>
@@ -132,7 +134,7 @@
         :class="{ 'is-pending': pending.summary.verifyPending > 0 }"
         @click="goAdmin('/admin/verify')"
       >
-        学号核验
+        校园信息核对
         <AdminPendingBadge :count="pending.summary.verifyPending" class="adrawer__pending" />
       </button>
       <button
@@ -221,7 +223,7 @@ import { ref, computed, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useTheme, THEME_MODE_LABEL } from '@/composables/useTheme'
-import { useVerifyStatus, VERIFY_OK, VERIFY_PENDING } from '@/composables/useVerifyStatus'
+import { useVerifyStatus, VERIFY_PENDING } from '@/composables/useVerifyStatus'
 import { useSettings } from '@/composables/useSettings'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import FeedbackDialog from '@/views/settings/FeedbackDialog.vue'
@@ -262,6 +264,14 @@ const NAV_ITEMS = [
   { icon: 'message', label: '意见反馈' },
 ]
 
+/*
+ * 游客只保留公开入口(2026-10-30):通知/公告/文件/发现/反馈都要登录,
+ * 列出来点了也是断浏览动线;「找人」对应的 /search 对游客开放。
+ */
+const navItems = computed(() =>
+  userStore.isGuest ? NAV_ITEMS.filter((item) => item.path === '/search') : NAV_ITEMS
+)
+
 const THEME_OPTIONS = [
   { value: 'system', label: THEME_MODE_LABEL.system },
   { value: 'light', label: THEME_MODE_LABEL.light },
@@ -297,6 +307,15 @@ function goHome() {
   else close()
 }
 
+/** 抽屉头部:游客没有个人主页可去,直接引导登录 */
+function onHead() {
+  if (userStore.isGuest) {
+    go('/login/form')
+    return
+  }
+  goHome()
+}
+
 /** 退出登录:确认弹窗与真实登出都在 MainLayout.logout,这里只关闭并上抛 */
 function onLogout() {
   close()
@@ -310,22 +329,19 @@ function pickMode(value) {
 
 const themeSheetOpen = ref(false)
 
-/* ---- 学号:注册时自动填入并经校内认证,不在 /user/me 里回传,只有 verify/status 有 ---- */
+/* ---- 学号:不在 /user/me 里回传，只有 verify/status 有 ---- */
 const { code: verifyCode, studentNo, load: loadVerifyStatus } = useVerifyStatus()
 
-/** 已认证才出徽章;「审核中 / 驳回」不标已认证 */
-const verified = computed(() => verifyCode.value === VERIFY_OK)
-
 /**
- * 学号展示。三态各说各的话,不给「未填写」这种像在催用户填表的措辞:
- * - 有学号 → 直接显示(绝大多数人)
- * - 审核中 → 「学号审核中」
- * - 没填/驳回 → 「未认证」
+ * 学号展示。三态：
+ * - 有学号 → 直接显示
+ * - 核对中 → 「学号核对中」
+ * - 未填写/需修改 → 「校园信息未填写」
  */
 const studentNoText = computed(() => {
   if (studentNo.value) return `学号 ${studentNo.value}`
-  if (verifyCode.value === VERIFY_PENDING) return '学号审核中'
-  return '未认证'
+  if (verifyCode.value === VERIFY_PENDING) return '学号核对中'
+  return '校园信息未填写'
 })
 
 /* ---- 意见反馈(真表单,提交进管理员审核队列) ---- */
@@ -338,7 +354,7 @@ function openFeedback() {
 }
 
 onMounted(() => {
-  // 认证状态决定头部徽章与学号文案(单例缓存,不重复请求)
+  // 校园信息状态决定学号文案(单例缓存,不重复请求)
   loadVerifyStatus()
 })
 </script>

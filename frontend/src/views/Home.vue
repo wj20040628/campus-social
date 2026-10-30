@@ -8,11 +8,6 @@
     <div class="home-inner" :class="{ 'home-inner--wide': isWide }">
      <div class="home-main">
       <!--
-        2026-10-27:全站认证横幅已移除,受限动作处改弹 AuthGateSheet;
-        首页不再渲染任何认证提示条。
-      -->
-
-      <!--
         公告横幅已移除（2026-10-21，用户要求）。
         原注释说它是「手机端唯一能进 /announcement 的路径」—— 那个判断是错的：
         手机端顶栏有汉堡按钮，打开 AppDrawer 后「公告」就在导航里（见
@@ -22,10 +17,9 @@
 
       <!--
         ③ 首页「关注/全部/推荐」tab 包成粘性工具条 .feed-bar。
-        手机端:下滑收起(transform: translateY(-100%)),上滑拉回。
-        桌面端 feedBarHidden 恒 false,普通流。
+        游客只开放「全部」，不渲染需要身份的关注/推荐 tab。
       -->
-      <div class="feed-bar" :class="{ 'feed-bar--hidden': feedBarHidden }">
+      <div v-if="!isGuest" class="feed-bar" :class="{ 'feed-bar--hidden': feedBarHidden }">
         <!-- 关注 / 全部 / 推荐。树洞频道已下线,历史匿名帖仍在「全部」里只读展示 -->
         <el-tabs v-model="tab" class="feed-tabs">
           <el-tab-pane label="关注" name="following" />
@@ -86,7 +80,7 @@
             "
             :action-label="tab === 'following' ? '去圈子广场逛逛' : '发一条'"
             :icon="ChatLineSquare"
-            @action="tab === 'following' ? goFollow() : router.push('/publish')"
+            @action="tab === 'following' ? goFollow() : goPublish()"
           />
           <div ref="sentinelEl" class="sentinel">
             <el-text v-if="loading" type="info">加载中…</el-text>
@@ -95,7 +89,7 @@
         </template>
       </div>
      </div>
-     <HomeAside v-if="isWide" :posts="posts" class="home-aside" />
+     <HomeAside v-if="isWide && !isGuest" :posts="posts" class="home-aside" />
     </div>
 
     <!--
@@ -128,12 +122,17 @@ import { useRouter } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import HomeAside from '@/components/HomeAside.vue'
-import { ChatLineSquare, Plus, WarningFilled } from '@element-plus/icons-vue'
+import { ChatLineSquare, WarningFilled } from '@element-plus/icons-vue'
 import { useBreakpoint, BREAKPOINTS } from '@/composables/useBreakpoint'
 import { useHomeFeed } from '@/composables/useHomeFeed'
 import { useDraggableFab } from '@/composables/useDraggableFab'
+import { useUserStore } from '@/stores/user'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 const router = useRouter()
+const userStore = useUserStore()
+const isGuest = computed(() => userStore.isGuest)
+const { ensureLogin } = useGuestPrompt()
 
 /**
  * 断点:xl(1280px)是右栏的开关。小于 1280 时右栏整个不渲染(v-if),
@@ -153,6 +152,11 @@ const { fabEl, fab, handlers } = useDraggableFab()
 
 function goDetail(id) {
   router.push(`/post/${id}`)
+}
+/** 空态「发一条」:游客先弹登录提示,再进发布页 */
+async function goPublish() {
+  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？'))) return
+  router.push('/publish')
 }
 </script>
 

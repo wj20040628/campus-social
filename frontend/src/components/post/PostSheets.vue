@@ -1,9 +1,9 @@
 <template>
   <!--
-    帖子详情的三层浮层:更多操作表 / 举报 / 未认证提示
-    (PostDetail.vue.md 行 1 的「更多」+ AC-11 认证拦截)
+    帖子详情的两层浮层:更多操作表 / 举报
+    (PostDetail.vue.md 行 1 的「更多」)
 
-    抽成组件的**真实理由**:这三层共用同一个「页面级浮层组」的语义 ——
+    抽成组件的**真实理由**:这两层共用同一个「页面级浮层组」的语义 ——
     它们全部由顶栏那个「更多」按钮或它的下游触发,生命周期绑在一起,
     而且都是「先关上一层、再开下一层」的接力(openReport 就是关 more 开 report)。
     散在页面里时,接力逻辑(哪层关哪层)要跨几百行读才看得清。
@@ -22,7 +22,7 @@
     </button>
     <button type="button" class="asheet__item" @click="copyLink">复制链接</button>
     <button
-      v-if="!isAuthor && authorId"
+      v-if="!isAuthor && authorId && userStore.hasToken"
       type="button"
       class="asheet__item"
       @click="hideAuthor"
@@ -40,18 +40,6 @@
     @update:model-value="emit('update:reportOpen', $event)"
   />
 
-  <!-- AC-11:点「搭句话」而未认证时,说明原因并给出认证出口 -->
-  <ActionSheet
-    :model-value="verifyOpen"
-    title="搭句话"
-    @update:model-value="emit('update:verifyOpen', $event)"
-  >
-    <div class="vfy">
-      <p class="vfy__why">要先认证校内身份才能搭话</p>
-      <p class="vfy__how">认证只需要校园邮箱或学号，一分钟就好</p>
-      <button type="button" class="vfy__btn" @click="goVerify">去认证</button>
-    </div>
-  </ActionSheet>
 </template>
 
 <script setup>
@@ -68,11 +56,13 @@ import { submitReport } from '@/api/review'
 import { blacklist } from '@/api/relation'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const props = defineProps({
   moreOpen: { type: Boolean, default: false },
   reportOpen: { type: Boolean, default: false },
-  verifyOpen: { type: Boolean, default: false },
   postId: { type: [Number, String], default: null },
   authorId: { type: [Number, String], default: null },
   isAuthor: { type: Boolean, default: false },
@@ -81,9 +71,6 @@ const props = defineProps({
 const emit = defineEmits([
   'update:moreOpen',
   'update:reportOpen',
-  'update:verifyOpen',
-  /** 去认证 → 父组件跳 /settings(学号 + 学校归属的认证入口,不是引导页) */
-  'go-verify',
   /** 拉黑成功 → 父组件跳首页(拉黑后留在详情页没意义,用户看不到变化) */
   'author-hidden',
 ])
@@ -120,11 +107,4 @@ async function hideAuthor() {
   }
 }
 
-/** 去认证。学号核验在设置页(/settings),不是引导页——引导只填院系年级,不填学号 */
-function goVerify() {
-  emit('update:verifyOpen', false)
-  emit('go-verify')
-}
 </script>
-
-<style scoped src="./PostSheets.css"></style>

@@ -28,16 +28,13 @@
           >
             <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
             <div class="disc-row__info">
-              <div class="disc-row__name">
-                {{ displayName(u) }}
-                <el-icon v-if="u.verified" class="disc-row__badge"><Select /></el-icon>
-              </div>
+              <div class="disc-row__name">{{ displayName(u) }}</div>
               <div class="disc-row__sub">{{ [u.dept, u.grade].filter(Boolean).join(' · ') || '同校同学' }}</div>
               <div v-if="u.reason" class="disc-row__reason">{{ u.reason }}</div>
             </div>
             <!-- @click.stop:按钮点击不冒泡进整行跳主页,搭话跳 /chat 才是本意 -->
             <span class="disc-row__greet" @click.stop>
-              <GreetButton :peer-id="u.id" label="想认识" @need-verify="goVerify" />
+              <GreetButton :peer-id="u.id" label="想认识" />
             </span>
           </div>
           <StateBlock
@@ -66,10 +63,7 @@
           >
             <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
             <div class="disc-row__info">
-              <div class="disc-row__name">
-                {{ displayName(u) }}
-                <el-icon v-if="u.verified" class="disc-row__badge"><Select /></el-icon>
-              </div>
+              <div class="disc-row__name">{{ displayName(u) }}</div>
               <div class="disc-row__sub">{{ [u.dept, u.grade].filter(Boolean).join(' · ') || '同校同学' }}</div>
               <div v-if="u.reason" class="disc-row__reason">{{ u.reason }}</div>
             </div>
@@ -133,11 +127,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Select, Compass, Collection } from '@element-plus/icons-vue'
+import { Compass, Collection } from '@element-plus/icons-vue'
 import { discoverUsers, discoverCircles, buddyWeekly } from '@/api/discover'
 import { follow, unfollow } from '@/api/relation'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import GreetButton from '@/components/post/GreetButton.vue'
@@ -167,11 +161,6 @@ async function loadBuddies() {
   } finally {
     buddiesLoading.value = false
   }
-}
-
-/** 未认证点「想认识」:与 PostDetail 的 go-verify 同口径,认证入口在个人主页 */
-function goVerify() {
-  router.push('/profile')
 }
 
 async function loadUsers() {
@@ -276,9 +265,6 @@ onMounted(() => {
   font-size: var(--ys-text-base);
   font-weight: var(--ys-weight-medium);
   color: var(--ys-fg);
-}
-.disc-row__badge {
-  color: var(--ys-accent);
 }
 .disc-row__sub {
   margin-top: 2px;

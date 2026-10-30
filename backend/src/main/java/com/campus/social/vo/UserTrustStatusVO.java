@@ -6,8 +6,8 @@ import lombok.Data;
  * 发布信誉状态（GET /user/trust-status，设置页「账号与安全」的信誉卡）。
  *
  * <p><b>给清单不给公式细节</b>：这是给用户看的自省视图，不是审核规则的
- * 完整披露——四条件在这里呈现为三条清单（认证/账龄/违规记录），
- * 不暴露「变体命中恒送人审」之类的检测细节，那是要留给恶意用户的盲区。
+ * 完整披露——呈现为账龄/信誉/违规记录三条，不暴露「变体命中恒送人审」
+ * 之类的检测细节，那是要留给恶意用户的盲区。校园信息只作为资料标记展示。
  */
 @Data
 public class UserTrustStatusVO {
@@ -15,7 +15,7 @@ public class UserTrustStatusVO {
     /** 是否受信（四条件全满足）：命中 level-1 词的帖子可直接发布（展示时打码） */
     private Boolean trusted;
 
-    /** 学号认证是否通过（verify_status=1） */
+    /** 校园信息是否已登记（verify_status=1；仅资料展示，不参与权限） */
     private Boolean verified;
 
     /** 账号已注册天数（create_time 为空按 0 算） */
@@ -41,12 +41,12 @@ public class UserTrustStatusVO {
     /** 信誉记录的计算窗口(天),与 campus.review.credit-decay-days 同值 */
     private Integer creditDecayDays;
 
-    /** 可建圈子数上限(在世口径,解散释放;未认证为 0,分数档 1/2/3) */
+    /** 可建圈子数上限(在世口径,解散释放;按信誉分 1/2/3,不看校园信息) */
     private Integer circleQuota;
 
-    /** 集市同时在投上限(过期/暂停/删除释放;未认证为 0,分数档 1/2/3) */
+    /** 集市同时在投上限(过期/暂停/删除释放;按信誉分 1/2/3,不看校园信息) */
     private Integer mktQuota;
 
-    /** 每日发帖上限(未认证 3,认证 30) */
+    /** 每日发帖上限(按信誉档位 5/10/15,不看校园信息) */
     private Integer postDailyQuota;
 }

@@ -247,7 +247,7 @@ public class UserController {
 
     /**
      * 他人主页的公开信誉徽章(2026-10-25):只回「是否受信」一个布尔,
-     * false 的原因(未认证/新号/有前科)不下发——组件只渲染 true,
+     * false 的原因(新号/信誉不足/有前科)不下发——组件只渲染 true,
      * 响应本身保持模糊,无前科泄露。判定与信任闸门同源(ReviewTrustService)。
      */
     @GetMapping("/{id}/trust-badge")

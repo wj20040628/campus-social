@@ -8,7 +8,6 @@ import com.campus.social.dto.CircleBanMemberDTO;
 import com.campus.social.dto.CircleDTO;
 import com.campus.social.dto.CircleMovePostDTO;
 import com.campus.social.interceptor.AuthInterceptor;
-import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.ActivityService;
 import com.campus.social.service.CircleAdminService;
 import com.campus.social.service.CircleService;
@@ -42,12 +41,9 @@ public class CircleController {
     // ---------------- 圈子 ----------------
 
     /**
-     * 创建圈子。
-     *
-     * <p>{@code @RequireVerified}（2026-10-21 新增）：未认证用户不能创建圈子。
-     * 与「发私信」「集市发布」同属「对外主动创建设施」的动作，需先证明校内身份。
+     * 创建圈子。校园信息不参与；账号满 3 天 + 信誉 60 由
+     * {@code CircleServiceImpl} 的行为门槛兜底。
      */
-    @RequireVerified
     @PostMapping("/circle")
     public Result<Map<String, Long>> createCircle(@Valid @RequestBody CircleDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -70,13 +66,7 @@ public class CircleController {
         return Result.ok(circleService.detail(id, me != null ? me : 0));
     }
 
-    /**
-     * 加入圈子。
-     *
-     * <p>{@code @RequireVerified}（2026-10-21 新增）：圈子是校内组织，
-     * 未认证（可能是校外）的人加入与「防校外骚扰」的初衷不符。
-     */
-    @RequireVerified
+    /** 加入圈子。注册用户即可；加入是低风险消费动作，不再检查校园信息。 */
     @PostMapping("/circle/{id}/join")
     public Result<Void> join(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);

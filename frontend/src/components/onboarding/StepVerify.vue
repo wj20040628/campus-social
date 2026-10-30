@@ -1,25 +1,18 @@
 <template>
   <!--
-    引导第 1 步：学校归属 + 学号认证（2026-10-21 新增）。
+    引导第 1 步：学校归属 + 学号（可选资料，2026-10-30 调整定位）。
 
-    【为什么加这一步】改版后注册只要求邮箱，学号变成选填 ——
-    没填学号的人注册完就是「未认证」，而未认证不能发私信、建圈子、加圈子、发集市。
-    这一步就是那条「补认证」的路径。
-
-    【为什么把归属和学号放在同一步，而不是拆成两步】
-    后端 submitStudentNo 强依赖学校归属：没有院系/年级/专业就没法做六层校验
-    （学号里的年级、层次、专业编码都要与归属比对）。
-    拆成两步会让用户先选归属、再去下一步填学号，中间仍然跳不过任何东西；
-    放同一步反而能让「改归属 → 重填学号」在一个屏内完成。
+    学校归属本身仍要填：推荐同院系/同年级的人依赖它，/onboarding/complete 也要求。
+    学号是选填资料：不填不影响发帖、评论、私信、圈子、集市；
+    填了只用于与所选归属做一致性比对，结果只影响资料上的登记标记。
 
     【为什么两个按钮是两个独立动作】
-    「保存归属」调 /verify/school-profile，「提交认证」调 /verify/student-no。
-    前者即使学号没填也该能保存（用户可能只想先把归属填了），
+    「保存归属」调 /verify/school-profile，「提交校园信息」调 /verify/student-no。
     后者要求归属已存在 —— 后端会拦并返回 SCHOOL_PROFILE_INCOMPLETE。
   -->
   <section class="sv">
-    <h2 class="sv__title">完善校内身份</h2>
-    <p class="sv__sub">认证后才能发帖、评论、发私信、建圈子、加入圈子、发布集市活动</p>
+    <h2 class="sv__title">完善校园信息</h2>
+    <p class="sv__sub">学号选填，不影响发帖、评论、私信、圈子和集市；填了只是完善个人资料</p>
 
     <!-- 学校归属：复用全站的 SchoolFields（学校/学院/本专科/专业/年级 五个字段） -->
     <SchoolFields v-model="identity" />
@@ -47,7 +40,7 @@
       maxlength="14"
       placeholder="13~14 位学号"
     />
-    <p class="sv__hint">会与你上面选的学院、本专科、专业、年级逐项比对</p>
+    <p class="sv__hint">会与你选的学院、专业、年级比对：一致直接登记，不一致转人工核对</p>
 
     <button
       type="button"
@@ -55,13 +48,13 @@
       :disabled="submitting || !canSubmit"
       @click="submit"
     >
-      {{ submitting ? '校验中…' : '提交认证' }}
+      {{ submitting ? '校验中…' : '提交校园信息' }}
     </button>
 
     <p v-if="error" class="sv__err" role="alert">{{ error }}</p>
     <!--
-      申诉出口（2026-10-26 补）：学号唯一冲突(1004)与六层不过(1058)都可能是
-      "字典过期/规则误伤"，不是用户填错。没有这条出路，被挡住的真实学生只能放弃。
+      申诉出口：学号被其他账号占用(1004)时可能是本人旧账号或录入错误，
+      给一条人工申诉的通路，避免真实学生只能放弃。
       复用全站学号申诉弹层（公开端点，无需登录）。
     -->
     <p v-if="appealOpen" class="sv__appeal">
@@ -74,11 +67,10 @@
 
 <script setup>
 /**
- * 引导第 1 步：学校归属 + 学号认证。
+ * 引导第 1 步：学校归属 + 学号（可选资料）。
  *
  * 数据与提交都就近处理（不像 StepTags/StepFollow 把状态放在父组件）：
- * 这一步的「归属」与「学号」是一个整体动作，父组件不需要知道中间状态，
- * 只需要在认证成功后继续下一步。父组件通过 @verified 事件得知结果。
+ * 父组件只需要在提交成功后刷新 userInfo。父组件通过 @verified 事件得知结果。
  */
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from '@/utils/feedback'
@@ -128,8 +120,8 @@ const canSubmit = computed(() => /^\d{13,14}$/.test(studentNo.value))
 
 /**
  * 归属一改，之前那次「已保存」就不再成立：
- * 用户改完学院/专业后直接点「提交认证」会拿服务器上的旧归属去比对，
- * 结果是六层校验失败但页面看不出来是哪一步旧了。
+ * 用户改完学院/专业后直接提交学号会拿服务器上的旧归属去比对，
+ * 得出「不一致」并被转人工核对，而页面看不出是哪一步旧了。
  */
 watch(
   identity,
@@ -194,25 +186,23 @@ async function submit() {
     const data = await submitStudentNo({ studentNo: studentNo.value })
     /*
      * 后端回 { verifyStatus, status }：
-     *   verifyStatus === 1 已认证（autoPass 命中六层后自动通过）
-     *   verifyStatus === 2 审核中（未命中自动通过规则，转人工）
-     * 两种都算这一步完成 —— 审核中的用户不该被卡在引导页。
+     *   verifyStatus === 1 一致，直接登记
+     *   verifyStatus === 2 不一致，转人工核对
+     * 两种都算这一步完成 —— 核对中的用户不该被卡在引导页。
      */
     appealOpen.value = false
-    ElMessage.success(data?.verifyStatus === 1 ? '认证通过' : '已提交，等待人工核验')
+    ElMessage.success(data?.verifyStatus === 1 ? '校园信息已登记' : '已提交，等待人工核对')
     /*
-     * 认证状态是模块级单例缓存（useVerifyStatus），提交成功后必须强制重拉。
-     * 否则回到首页时仍读缓存里的 verifyStatus=0，提示条继续显示
-     * 「还没完成校内认证 / 去认证」，用户会以为刚才的提交没生效。
+     * 状态是模块级单例缓存（useVerifyStatus），提交成功后必须强制重拉，
+     * 否则回到首页仍读旧状态。
      */
     await reloadVerifyStatus(true)
     emit('verified', data)
   } catch (e) {
-    // 六层校验失败时后端只回一句「不匹配」，具体哪层不对在日志里（防规则泄露）
-    error.value = e?.message || '认证没通过，检查一下学号与上面选的是否一致'
-    // 1004 学号已被占用 / 1058 六层不过：给人工申诉出口（2026-10-26）
+    error.value = e?.message || '提交失败，学号需为 13~14 位纯数字'
+    // 1004 学号已被占用：给人工申诉出口
     const code = e?.businessCode ?? e?.response?.data?.code
-    if (code === 1004 || code === 1058) appealOpen.value = true
+    if (code === 1004) appealOpen.value = true
   } finally {
     submitting.value = false
   }

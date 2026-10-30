@@ -4,19 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.CursorPage;
 import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.entity.Comment;
-import com.campus.social.entity.Like;
 import com.campus.social.entity.Post;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.CommentMapper;
-import com.campus.social.mapper.LikeMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.support.CommentTreeAssembler;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
-import com.campus.social.vo.UserVO;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -54,11 +51,9 @@ public class CommentServiceImpl {
 
     private final PostMapper postMapper;
     private final CommentMapper commentMapper;
-    private final LikeMapper likeMapper;
     private final UserMapper userMapper;
     private final SensitiveWordFilter sensitive;
     private final ObjectMapper om;
-    private final com.campus.social.websocket.WsPushService wsPush;
     /** 通知下发复用写路径的横切能力,保证「未读数 + WS 推送」口径一致 */
     private final PostNotifySupport notifySupport;
     /** 读侧树组装：作者/被回复人/点赞态全部批量取，避免逐条查 */
@@ -207,6 +202,16 @@ public class CommentServiceImpl {
      * 一页 20 条就是 41 次查询，且条数随数据波动。
      */
     public CursorPage<CommentVO> comments(long postId, Long lastId, int size, long viewerId) {
+        /*
+         * 评论列表必须与帖子详情同口径校验（2026-10-30 审计修）：
+         * 此前只按 post_id 查评论，帖子被下架(status=2)或改回审核中(status=0)后，
+         * 详情已 404，评论却仍可按顺序 id 公开枚举——判了等于没判的又一处。
+         * 作者本人放行，与 detail 保持一致（通知跳详情的路径仍通）。
+         */
+        Post post = postMapper.selectById(postId);
+        if (post == null || (post.getStatus() != 1 && !post.getAuthorId().equals(viewerId))) {
+            throw new BusinessException(POST_NOT_FOUND, "帖子不存在");
+        }
         LambdaQueryWrapper<Comment> qw = new LambdaQueryWrapper<Comment>()
                 .eq(Comment::getPostId, postId)
                 .eq(Comment::getStatus, 1)
@@ -245,7 +250,7 @@ public class CommentServiceImpl {
     public CommentChildrenPageVO commentChildren(long postId, long commentId,
             Long lastId, int size, long viewerId) {
         Post post = postMapper.selectById(postId);
-        if (post == null || post.getStatus() != 1) {
+        if (post == null || (post.getStatus() != 1 && !post.getAuthorId().equals(viewerId))) {
             throw new BusinessException(POST_NOT_FOUND, "帖子不存在");
         }
         Comment parent = commentMapper.selectById(commentId);

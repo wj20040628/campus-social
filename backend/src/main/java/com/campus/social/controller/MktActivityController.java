@@ -6,7 +6,6 @@ import com.campus.social.dto.MktActivityDTO;
 import com.campus.social.dto.MktCommentDTO;
 import com.campus.social.dto.MktReactivDTO;
 import com.campus.social.interceptor.AuthInterceptor;
-import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.MktActivityService;
 import com.campus.social.common.Result;
 import com.campus.social.vo.MktActivityVO;
@@ -33,11 +32,9 @@ public class MktActivityController {
     /**
      * 创建一条集市活动，返回新 id。
      *
-     * <p>{@code @RequireVerified}（2026-10-21 新增）：未认证用户不能发布集市活动。
-     * 集市是「对人发起邀约并可能线下见面」的场景，是校外身份最需要被拦住的地方之一。
-     * 注意只拦 create —— 编辑/暂停/满员等后续操作是属主对自己的活动，不需要再验一次。
+     * <p>校园信息不参与；账号满 1 天 + 信誉 60 由
+     * {@code MktActivityServiceImpl} 的行为门槛兜底。
      */
-    @RequireVerified
     @PostMapping
     public Result<Long> create(@Valid @RequestBody MktActivityDTO dto, HttpServletRequest req) {
         long me = currentUserId(req);

@@ -3,8 +3,6 @@ package com.campus.social.task;
 import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.UserMapper;
-import com.campus.social.mapper.ChatConversationMapper;
-import com.campus.social.mapper.ChatMessageMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,8 +28,6 @@ public class ReconcileJob {
     private final UserMapper userMapper;
     private final PostMapper postMapper;
     private final CircleMapper circleMapper;
-    private final ChatConversationMapper convMapper;
-    private final ChatMessageMapper msgMapper;
 
     /** 每天凌晨 3 点全量对账 */
     @Scheduled(cron = "0 0 3 * * ?")

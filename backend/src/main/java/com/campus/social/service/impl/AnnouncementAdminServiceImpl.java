@@ -1,6 +1,5 @@
 package com.campus.social.service.impl;
 
-import com.campus.social.common.ResultCode;
 import com.campus.social.config.CampusProperties;
 import com.campus.social.dto.AnnouncementCreateDTO;
 import com.campus.social.dto.AnnouncementUpdateDTO;
@@ -11,6 +10,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AnnouncementAdminService;
 import com.campus.social.service.AnnouncementReachService;
 import com.campus.social.service.AuditService;
+import com.campus.social.service.RoleService;
 import com.campus.social.service.support.AnnouncementAdminListAssembler;
 import com.campus.social.vo.AdminAnnouncementPageVO;
 import com.campus.social.vo.AnnouncementPublishVO;
@@ -62,11 +62,13 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     private final WsSessionManager sessionManager;
     private final AnnouncementReachService reachService;
     private final AuditService auditService;
+    /** 公告发布只要求管理员；校园信息不参与（2026-10-30） */
+    private final RoleService roleService;
 
     @Override
     @Transactional
     public AnnouncementPublishVO create(long publisherId, AnnouncementCreateDTO dto) {
-        requireVerified(publisherId);
+        roleService.requireAdmin(publisherId);
         boolean publishNow = !Boolean.FALSE.equals(dto.getPublishNow());
         boolean top = Integer.valueOf(1).equals(dto.getIsTop());
 
@@ -110,10 +112,8 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     @Override
     @Transactional
     public AnnouncementPublishVO update(long adminId, long announcementId, AnnouncementUpdateDTO dto) {
-        // AC-11：编辑与发布同权。改完 title / content 并上架，对全校的效果与发布等价，
-        // 只拦 create 不拦 update 等于留了一条绕行路径。
-        // Controller 上已打了 @RequireVerified，这里是防绕过 Controller 直调 service 的兜底。
-        requireVerified(adminId);
+        // 编辑与发布同权；只校验管理员，校园信息不参与。
+        roleService.requireAdmin(adminId);
         Announcement a = announcementMapper.selectById(announcementId);
         if (a == null || Integer.valueOf(1).equals(a.getIsDeleted())) {
             throw new BusinessException(ANNOUNCEMENT_NOT_FOUND, "公告不存在或已删除");
@@ -219,27 +219,6 @@ public class AnnouncementAdminServiceImpl implements AnnouncementAdminService {
     }
 
     // ---------------------------------------------------------------- 私有
-
-    /**
-     * AC-11：未通过校内认证的用户不能发布 / 编辑公告。
-     *
-     * <p>放在 service 而非只靠前端隐藏按钮：按钮可以被绕过，
-     * 真正的判定必须在服务端。
-     *
-     * <p><b>与 {@code @RequireVerified} 拦截器的分工</b>：拦截器层拦的是
-     * 「HTTP 请求进来时」，本方法是「绕过 Controller 直调 service 时」的兜底。
-     * 两层并存不冲突——重复校验只是多一次主键查询，
-     * 换来「任一层失效，另一层仍然拦得住」。
-     */
-    private void requireVerified(long publisherId) {
-        var publisher = userMapper.selectById(publisherId);
-        if (publisher == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "发布人不存在");
-        }
-        if (!Integer.valueOf(1).equals(publisher.getVerifyStatus())) {
-            throw new BusinessException(ResultCode.USER_NOT_VERIFIED, "完成校内认证后才能发布公告");
-        }
-    }
 
     /** 置顶必须带到期时间。永不过期的置顶等于永久置顶，运营一旦忘改就再也下不来 */
     private LocalDateTime requireExpire(LocalDateTime topExpireTime) {

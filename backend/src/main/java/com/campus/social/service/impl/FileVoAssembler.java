@@ -80,7 +80,6 @@ public class FileVoAssembler {
             vo.setUploaderId(a.getUserId());
             vo.setUploaderNickname(u != null ? u.getNickname() : "已注销用户");
             vo.setUploaderAvatar(u != null ? u.getAvatarUrl() : null);
-            vo.setUploaderVerified(u != null && Integer.valueOf(1).equals(u.getVerifyStatus()));
             vo.setStatus(a.getStatus());
             vo.setRejectReason(publicView ? null : a.getRejectReason());
             vo.setReviewTime(publicView ? null : a.getReviewTime());

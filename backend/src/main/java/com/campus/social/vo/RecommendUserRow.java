@@ -7,10 +7,10 @@ import java.io.Serializable;
 /**
  * 推荐关注的人 —— mapper 层行投影（openapi RecommendUserItem 的超集）。
  *
- * <p>与 {@link RecommendUserVO} 分开的原因：这一层多带了 {@code score}（命中规则的原始打分）
- * 与 {@code verifyStatus}（四档枚举），它们只用于服务层生成人话理由，
- * 不该原样出现在 HTTP 响应里——把内部排序依据暴露给前端，
- * 前端就会开始依赖它渲染排序，改打分规则时就得同步改前端。
+ * <p>与 {@link RecommendUserVO} 分开的原因：这一层多带了 {@code score}（命中规则的原始打分），
+ * 它只用于服务层生成人话理由，不该原样出现在 HTTP 响应里——
+ * 把内部排序依据暴露给前端，前端就会开始依赖它渲染排序，
+ * 改打分规则时就得同步改前端。
  */
 @Data
 public class RecommendUserRow implements Serializable {
@@ -26,14 +26,11 @@ public class RecommendUserRow implements Serializable {
 
     private String grade;
 
-    /** 0未认证 1已认证 2审核中 3被拒 */
-    private Integer verifyStatus;
-
     private Integer followerCount;
 
     /** 与我的共同兴趣标签数，由一条相关子查询算出，避免服务层 N+1 */
     private Integer commonTagCount;
 
-    /** 命中规则打分（同院系 4 > 同年级 2 > 已认证 1），服务层据此生成 reason */
+    /** 命中规则打分（同院系 4 > 同年级 2），服务层据此生成 reason */
     private Integer score;
 }

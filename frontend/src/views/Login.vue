@@ -23,6 +23,8 @@
           <p class="auth-brand__name">友声</p>
           <p class="auth-brand__slogan">嘤其鸣矣，求其友声</p>
         </div>
+        <!-- 游客登录(2026-10-30):不建账号、不发 token，只读浏览；入口收在品牌行右侧 -->
+        <button type="button" class="link-btn auth-guest-link" @click="enterGuest">游客登录</button>
       </div>
 
       <!-- 自绘分段:el-tabs 的下划线与内边距是 EP 默认值,和设计 Token 对不上 -->
@@ -190,6 +192,12 @@ const codeForm = reactive({ email: '', code: '', consent: false })
 function goHome() {
   const returnUrl = route.query.returnUrl || '/'
   router.push(typeof returnUrl === 'string' ? returnUrl : '/')
+}
+
+/** 游客登录：只读浏览，不创建账号；清掉可能残留的登录态后再进首页 */
+function enterGuest() {
+  userStore.enterGuest()
+  router.push('/')
 }
 
 const {

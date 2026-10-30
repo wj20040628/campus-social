@@ -11,7 +11,7 @@ import request from '@/utils/request'
  *     按标签推圈子需后续改表,见 §6 场景2)。
  *
  * 本周搭子(2026-10-25)走专属端点 `/discover/buddy`:标签主导撮合 + 双向拉黑过滤
- * + 只推可搭话(已认证且开陌生人消息)的人,结果按 ISO 周缓存,周一换一批。
+ * + 只推开着陌生人消息的人,结果按 ISO 周缓存,周一换一批。
  */
 
 /** 按当前用户兴趣推荐的人。@returns { users: RecommendUserItem[], emptyHint } */

@@ -64,7 +64,7 @@ export function useRegisterSubmit({ form, identity, identityInvalid, userStore, 
     clearErrors()
     loading.value = true
     try {
-      // 只有填了 13/14 位学号才把归属一并提交(注册即认证);否则只注册不认证。
+      // 只有填了 13/14 位学号才把归属一并提交(用于一致性比对);否则只注册。
       // 后端 register 内部判断:带学号 + 归属则存归属并跑六层,不符整体事务回滚。
       const withProfile = !!(form.studentNo && /^\d{13,14}$/.test(form.studentNo.trim()))
       const identityPayload = withProfile ? identity.value : null
@@ -81,7 +81,7 @@ export function useRegisterSubmit({ form, identity, identityInvalid, userStore, 
         ...(withProfile ? { studentNo: form.studentNo.trim() } : {}),
         identity: identityPayload,
       })
-      // 注册即认证已把归属 + 认证一并落库,一次刷新拿到最新 userInfo(含 verified)
+      // 注册时已把归属与学号状态落库,一次刷新拿到最新 userInfo
       await userStore.fetchMe()
       ElMessage.success('注册成功')
       // AC-18:注册后进引导,不是直接进 Feed。

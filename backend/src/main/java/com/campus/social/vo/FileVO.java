@@ -37,9 +37,6 @@ public class FileVO {
 
     private String uploaderAvatar;
 
-    /** 上传者是否已认证 */
-    private Boolean uploaderVerified;
-
     /** 0待审 1通过 2驳回 3下架；公开页恒为 1 */
     private Integer status;
 

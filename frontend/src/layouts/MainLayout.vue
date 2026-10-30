@@ -33,13 +33,6 @@
           @menu="drawerOpen = true"
         />
 
-        <!--
-          2026-10-27:全站认证横幅移除。
-          未认证是常见起点,但不该在每个页面顶部常驻一条提示;
-          改成在真正受限的动作处弹「认证闸门」(见 AuthGateSheet),
-          由 request.js 的 1029 与页面主动拦截共同触发。
-        -->
-
         <main
           id="main-content"
           class="content"
@@ -102,9 +95,6 @@
       (notifyUnread)在这里,与顶栏铃铛同源不重复请求;退出登录走 logout()。
     -->
     <AppDrawer v-model="drawerOpen" :notify-unread="notifyUnread" @logout="logout" />
-
-    <!-- 全站认证闸门:1029 或页面主动拦截时打开 -->
-    <AuthGateSheet />
   </div>
 </template>
 
@@ -131,7 +121,6 @@ import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 import TabBar from '@/components/mobile/TabBar.vue'
 import AppDrawer from '@/components/mobile/AppDrawer.vue'
-import AuthGateSheet from '@/components/auth/AuthGateSheet.vue'
 import { useUserStore } from '@/stores/user'
 import { getWsClient } from '@/utils/ws'
 import * as notifyApi from '@/api/notify'

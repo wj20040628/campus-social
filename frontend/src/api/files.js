@@ -119,10 +119,6 @@ export function adminList(params = {}) {
   return request.get('/admin/files', { params: query })
 }
 
-export function adminDetail(id) {
-  return request.get(`/admin/files/${id}`)
-}
-
 export function adminReview(id, action, reason) {
   return request.post(`/admin/files/${id}/review`, { action, reason }, { silent: true })
 }
@@ -158,5 +154,5 @@ export async function adminDownloadBlob(id) {
 export default {
   list, quota, upload, detail, remove, like, unlike, favorite, unfavorite,
   publicDetail, downloadUrl, previewUrl, downloadBlob, previewBlob,
-  adminList, adminDetail, adminReview, adminTakedown, adminDownloadBlob,
+  adminList, adminReview, adminTakedown, adminDownloadBlob,
 }

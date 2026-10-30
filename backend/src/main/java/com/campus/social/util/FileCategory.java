@@ -27,8 +27,4 @@ public final class FileCategory {
     public static boolean isValid(String code) {
         return code != null && ALL.contains(code);
     }
-
-    public static List<String> all() {
-        return ALL;
-    }
 }

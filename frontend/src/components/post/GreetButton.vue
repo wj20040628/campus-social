@@ -3,17 +3,12 @@
     「搭句话」主按钮(PostDetail.vue.md §1 行 6 右)
     作者本人时**整个组件不渲染**(见 PostDetail 的 v-if)。
 
-    ## 两态,不是三态
-    1. 未认证(AC-11)→ **不隐藏按钮**,点了弹说明 + 「去认证」。
-       依据:isIdentityVerified(后端 UserVO 无 verified 字段,用空壳判据永远判不出未认证)
-    2. 正常 → 可点,跳转 Chat 并带上 peerId
+    2026-10-30：校园信息退出权限判定。按钮只拦游客；
+    账号年龄/信誉分由后端 ChatGuardServiceImpl 判定，
+    被拒时 Chat 页展示后端给出的具体原因，前端不再预判。
 
-    ## 2026-10-28 删掉了「额度用尽置灰」
-    旧逻辑读 `/chat/stranger-quota` 的账户级 `remainingNewPeer`,额度为 0 就把按钮
-    置灰成「今天到这儿」。新规则下额度是**按人**算的(对同一个人每天 1 条),
-    与「某个帖子作者」没有账户级关系 —— 拿账户级数字去置灰单个按钮,
-    会把一个还能发的人置灰成不能发。现在一律按「未知」处理:按钮可点,
-    点完由 Chat 页按 peer 判定,超限时后端用具体文案拒绝,气泡上带失败重试。
+    2026-10-28 删掉了「额度用尽置灰」：额度按人算，
+    账户级数字会把还能发的人错误置灰。
   -->
   <div class="greet">
     <button
@@ -36,7 +31,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { isIdentityVerified } from '@/utils/mask'
 
 const props = defineProps({
   /** 对方用户 id。空值(帖子作者信息缺失)时整个按钮不渲染 */
@@ -45,7 +39,7 @@ const props = defineProps({
   label: { type: String, default: '搭句话' },
 })
 
-const emit = defineEmits(['need-verify', 'error'])
+const emit = defineEmits(['need-login', 'error'])
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -53,9 +47,9 @@ const userStore = useUserStore()
 const loading = ref(false)
 
 async function onClick() {
-  // AC-11:未认证不跳转。给说明 + 出口,而不是把人丢到引导页自己猜
-  if (!isIdentityVerified(userStore.userInfo)) {
-    emit('need-verify')
+  // 游客没有身份,搭话要先登录;提示交给页面统一弹,不在按钮里放常驻说明
+  if (!userStore.hasToken) {
+    emit('need-login')
     return
   }
   loading.value = true

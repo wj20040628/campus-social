@@ -18,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 信誉分 v2 回归(2026-10-25,基准 60 + 产出加分 + 配额分档)。
  *
  * <p>分数 = 60 + min(过审帖+集市+文件, 40) − 成立举报×20 − 封禁×40,受信线 60=基准。
- * 配额:认证后按分数 60/80/100 → 圈子与集市 1/2/3,帖子 3/30。
+ * 配额按分数 60/80/100 → 圈子与集市 1/2/3，帖子 5/10/15；
+ * 2026-10-30 起校园信息不参与任何一档。
  * 自清理自播种(CI 只加载 schema)。
  */
 @SpringBootTest
@@ -81,9 +82,9 @@ class TrustBadgeTest {
 
     @Test
     void creditScoreV2BaseBonusDeductionAndQuotas() {
-        // 干净认证老号:基准 60,即受信(线=基准),配额一档
+        // 干净老号:基准 60,即受信(线=基准),配额一档
         UserTrustStatusVO clean = trustService.status(cleanUserId);
-        assertTrue(clean.getTrusted(), "基准 60=受信线,干净认证老号应受信");
+        assertTrue(clean.getTrusted(), "基准 60=受信线,干净老号应受信");
         assertEquals(60, clean.getCreditScore());
         assertEquals(1, clean.getCircleQuota());
         assertEquals(1, clean.getMktQuota());
@@ -108,12 +109,12 @@ class TrustBadgeTest {
         assertEquals(2, producer.getMktQuota());
         assertEquals(10, producer.getPostDailyQuota(), "80 分对应 10 条/日");
 
-        // 未认证:建圈/集市锁死为 0;发帖按信誉档位,基准 60 → 1 档 5 条
+        // 未填写校园信息:与已登记完全同权——基准 60 受信,配额 1 档
         UserTrustStatusVO unverified = trustService.status(unverifiedUserId);
         assertEquals(60, unverified.getCreditScore());
-        assertFalse(unverified.getTrusted());
-        assertEquals(0, unverified.getCircleQuota());
-        assertEquals(0, unverified.getMktQuota());
+        assertTrue(unverified.getTrusted(), "校园信息不参与受信判定");
+        assertEquals(1, unverified.getCircleQuota());
+        assertEquals(1, unverified.getMktQuota());
         assertEquals(5, unverified.getPostDailyQuota());
     }
 }

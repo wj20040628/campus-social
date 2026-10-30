@@ -192,15 +192,6 @@
   color: var(--ys-fg);
 }
 
-.fd__verified {
-  padding: 0 6px;
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-  font-size: 10px;
-  line-height: 17px;
-}
-
 .fd__role {
   font-size: var(--ys-text-xs);
   color: var(--ys-muted);

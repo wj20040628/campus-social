@@ -28,8 +28,4 @@ public final class FilePreview {
             default -> null;
         };
     }
-
-    public static boolean previewable(String ext) {
-        return contentType(ext) != null;
-    }
 }

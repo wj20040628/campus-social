@@ -134,9 +134,9 @@
             <span>删除</span>
           </button>
         </template>
-        <!-- 他人:搭句话主按钮。内部自己判未认证/额度用尽(设计 §3 四态)。
+        <!-- 他人:搭句话主按钮。只拦游客，年龄/信誉由后端判定。
              匿名帖没有可搭话的对象(authorId 为空),不渲染 -->
-        <GreetButton v-else-if="authorId" :peer-id="authorId" @need-verify="verifyOpen = true" />
+        <GreetButton v-else-if="authorId" :peer-id="authorId" @need-login="promptGuest('登录后才能搭话，现在去登录吗？')" />
       </div>
 
       <!-- 行 8:评论区。树在 PostComments 内部建,页面只传扁平列表 -->
@@ -164,22 +164,22 @@
         :my-id="myId"
         :reply-to="replyTo"
         :submit="postComment"
+        :guest="!userStore.hasToken"
+        @need-login="promptGuest('登录后才能评论，现在去登录吗？')"
         @cancel-reply="replyTo = null"
       />
     </template>
 
     <!--
-      浮层组(更多 / 举报 / 未认证)。三层绑在一起,接力逻辑在组件内部 ——
+      浮层组(更多 / 举报)。两层绑在一起,接力逻辑在组件内部 ——
       「关更多、开举报」这种跨层关系散在页面里要跨几百行才看得清。
     -->
     <PostSheets
       v-model:more-open="moreOpen"
       v-model:report-open="reportOpen"
-      v-model:verify-open="verifyOpen"
       :post-id="post?.id"
       :author-id="authorId"
       :is-author="isAuthor"
-      @go-verify="router.push('/profile')"
       @author-hidden="router.push('/')"
     />
 
@@ -205,6 +205,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { capCount as cap, usePostMedia } from '@/composables/usePostDetail'
 import { usePostDetailActions } from '@/composables/usePostDetailActions'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 import { displayName } from '@/utils/mask'
 import { resolveUrl } from '@/utils/resolve'
 import { shareUrl } from '@/utils/shareCard'
@@ -229,9 +230,11 @@ const userStore = useUserStore()
 const { post, comments, loading, loadFailed, authorId, topics, load, toggleLike, toggleFavorite, postComment, remove, removeComment } =
   usePostDetailActions(route, router)
 
+/** 游客点评论框/搭话:当场弹登录提示,不在页面上挂常驻说明 */
+const { ensureLogin: promptGuest } = useGuestPrompt()
+
 const moreOpen = ref(false)
 const reportOpen = ref(false)
-const verifyOpen = ref(false)
 const composerRef = ref(null)
 /** 正在回复的评论节点。由评论区 emit 上来,原样传给 CommentComposer 显示「回复 @xxx」 */
 const replyTo = ref(null)
@@ -257,13 +260,21 @@ const shareOpen = ref(false)
 const shareSpec = computed(() => {
   const p = post.value
   if (!p) return null
-  const firstImg = mediaList.value.find((m) => m.type === 'img')
+  /*
+   * 用首个媒体做封面，而不是只找图片：
+   * 纯视频帖此前 image 恒为 null，分享卡只剩文字，扫码的人看不出这是一条视频。
+   * 视频有 poster（上传时截的首帧）就画封面并叠播放标识；旧视频没有 poster
+   * 时由 shareCard 画视频占位块，仍然能表达「这是一条视频」。
+   */
+  const lead = mediaList.value[0]
+  const isVideo = lead?.type === 'video'
   return {
     kind: 'post',
     title: String(p.content || '').slice(0, 120),
     authorName: p.anonymous ? '匿名' : (p.author ? displayName(p.author) : ''),
     topics: p.topics || [],
-    image: firstImg ? resolveUrl(firstImg.url) : null,
+    image: lead ? resolveUrl(isVideo ? (lead.poster || '') : lead.url) : '',
+    video: isVideo,
     qrText: shareUrl(`/post/${p.id}`),
     fileName: `yousheng-post-${p.id}.png`,
   }
@@ -327,7 +338,11 @@ async function onDeleteComment(node) {
   await removeComment(node.id)
 }
 
-function askComment() {
+async function askComment() {
+  if (!userStore.hasToken) {
+    promptGuest('登录后才能评论，现在去登录吗？')
+    return
+  }
   replyTo.value = null
   composerRef.value?.focus()
   document.querySelector('.detail__tail')?.scrollIntoView({ behavior: 'smooth' })

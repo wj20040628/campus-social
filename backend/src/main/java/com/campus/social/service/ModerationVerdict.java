@@ -1,7 +1,5 @@
 package com.campus.social.service;
 
-import lombok.Data;
-
 /**
  * AI 机审结论。verdict 三态:
  *  - approve:机审判定合规,自动通过(人审可覆盖)

@@ -226,15 +226,6 @@
   word-break: break-all;
 }
 
-.afd__verified {
-  margin-left: 4px;
-  padding: 0 5px;
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
-  font-size: 10px;
-}
-
 .afd__desc {
   margin: 0;
   padding: var(--ys-space-3);

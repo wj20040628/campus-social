@@ -86,10 +86,7 @@
         </div>
 
         <p class="afd__fname">原文件名：{{ selected.fileName }}</p>
-        <p class="afd__uploader">
-          上传者：{{ selected.uploaderNickname }}
-          <span v-if="selected.uploaderVerified" class="afd__verified">已认证</span>
-        </p>
+        <p class="afd__uploader">上传者：{{ selected.uploaderNickname }}</p>
         <p class="afd__time">上传时间：{{ formatTime(selected.createTime) }}</p>
         <p v-if="selected.description" class="afd__desc">{{ selected.description }}</p>
         <p v-if="selected.rejectReason" class="afd__reason">理由：{{ selected.rejectReason }}</p>

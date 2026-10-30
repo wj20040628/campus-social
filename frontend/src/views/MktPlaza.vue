@@ -57,7 +57,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane label="我的发布" name="my">
+        <el-tab-pane v-if="userStore.hasToken" label="我的发布" name="my">
           <MktList
             variant="my"
             :loading="myLoading"
@@ -91,21 +91,20 @@
  * 形态差异(卡片左侧状态灯 / 右侧操作组)收在 MktList → MktCard 内部,
  * 本页只负责编排请求与两个 Tab 的独立游标。
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { Plus } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { isIdentityVerified } from '@/utils/mask'
-import { openAuthGate } from '@/composables/useAuthGate'
+import { useMktPublish } from '@/composables/useMktPublish'
 import MktList from '@/components/mkt/MktList.vue'
 import { PLAZA_FILTERS } from '@/components/mkt/mktConstants'
 import { useMktOwnerActions } from '@/composables/useMktOwnerActions'
 import * as mkt from '@/api/mkt'
 
 const router = useRouter()
-/* 未认证拦截用：判据读 userStore.userInfo.verified（见 isIdentityVerified） */
 const userStore = useUserStore()
+const { goPublish } = useMktPublish()
 
 const tab = ref('plaza')
 
@@ -225,20 +224,7 @@ async function loadMyMore() {
 /* 属主操作:成功后 reloadMy 刷新「我的发布」 */
 const { edit, toggle, full, reactivate, remove } = useMktOwnerActions(loadMy)
 
-/* ---------------- 导航 ---------------- */
-/**
- * 去发布。未认证时前端先拦（2026-10-21）。
- * 后端已挂 @RequireVerified，但等用户填完整张表单才在提交时被拒是最伤人的 ——
- * 集市表单字段多，填完才说「你得先认证」，这份输入就白费了。
- */
-function goPublish() {
-  if (!isIdentityVerified(userStore.userInfo)) {
-    openAuthGate()
-    return
-  }
-  router.push('/mkt/publish')
-}
-
+/* 发布入口的游客守卫见 useMktPublish；账号年龄/信誉分由后端判定 */
 function goDetail(id) {
   router.push(`/mkt/${id}`)
 }

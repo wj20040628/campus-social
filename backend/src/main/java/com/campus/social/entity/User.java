@@ -103,7 +103,7 @@ public class User implements Serializable {
     /** 校区 1东 2西 null未填;与院系解耦独立自选,改不触发重审(2026-10-25) */
     private Integer campus;
 
-    /** 校内认证状态:0未认证 1已认证 2审核中 3驳回(AC-11 只有 1 才可发起搭话与发公告) */
+    /** 校园信息状态:0未填写 1已登记 2核对中 3需修改(仅资料展示,不参与权限判定) */
     private Integer verifyStatus;
 
     /**

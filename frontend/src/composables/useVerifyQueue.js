@@ -1,5 +1,5 @@
 /**
- * 学号核验待审队列(AdminVerify.vue)。
+ * 校园信息核对队列(AdminVerify.vue)。
  *
  * [为什么抽出来]
  * 与 useReviewQueue 同构:游标分页 + 无限滚动 + 两个处置动作 + 乐观出栈。
@@ -140,7 +140,7 @@ function putBack(snap) {
     busy[id] = true
     try {
       await approveVerify(id)
-      ElMessage.success('已通过，TA 现在能搭话和发公告了')
+      ElMessage.success('已标记为已登记（只更新资料标记，不影响功能权限）')
       useAdminPending().refresh(true) // 队列数变了,抽屉/侧栏角标立刻跟上
     } catch (err) {
       // 已被处理:保持移除状态,不塞回去,也不报红

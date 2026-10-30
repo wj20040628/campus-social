@@ -2,6 +2,7 @@ package com.campus.social.controller;
 
 import com.campus.social.common.Result;
 import com.campus.social.service.FileService;
+import com.campus.social.util.RequestIp;
 import com.campus.social.vo.FileVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,15 +28,6 @@ public class PublicFileController {
 
     @GetMapping("/{id}")
     public Result<FileVO> detail(@PathVariable("id") long id, HttpServletRequest req) {
-        return Result.ok(fileService.publicDetail(id, clientIp(req)));
-    }
-
-    private String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String real = req.getHeader("X-Real-IP");
-        return real != null && !real.isBlank() ? real : req.getRemoteAddr();
+        return Result.ok(fileService.publicDetail(id, RequestIp.of(req)));
     }
 }

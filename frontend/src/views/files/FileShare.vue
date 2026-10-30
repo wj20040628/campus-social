@@ -51,7 +51,7 @@
         </el-avatar>
         <div class="fs__who">
           <span class="fs__name">{{ file.uploaderNickname }}</span>
-          <span class="fs__role">上传者{{ file.uploaderVerified ? ' · 已认证' : '' }}</span>
+          <span class="fs__role">上传者</span>
         </div>
       </div>
 

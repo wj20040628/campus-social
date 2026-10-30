@@ -6,14 +6,14 @@
 const adminRoutes = [
   {
     /*
-      学号核验审核。
+      校园信息核对（只影响资料标记，不影响功能权限）。
       独立页而不是 AdminReview 的第四个 Tab —— 理由写在 AdminVerify.vue
-      头部(行数门禁 + 身份处置与内容处置语义不同 + 契约分属两个 tag)。
+      头部(行数门禁 + 资料核对与内容处置语义不同 + 契约分属两个 tag)。
     */
     path: 'admin/verify',
     name: 'verify',
     component: () => import('@/views/AdminVerify.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true, title: '学号核验', back: true },
+    meta: { requiresAuth: true, requiresAdmin: true, title: '校园信息核对', back: true },
   },
   {
     /*

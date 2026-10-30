@@ -18,6 +18,7 @@ import { ref, watch, nextTick, onMounted, onActivated, onDeactivated, onBeforeUn
 import { useRouter } from 'vue-router'
 import { feed as feedApi, feedFollowing as followingApi, feedRecommend } from '@/api/feed'
 import { feedDirty } from '@/composables/useFeedRefresh'
+import { useUserStore } from '@/stores/user'
 
 /** 首页 tab 记忆:只认这三个值,脏数据/旧版本残留一律回「关注」 */
 const HOME_TAB_KEY = 'ys-home-tab'
@@ -42,8 +43,10 @@ function writeHomeTab(v) {
 
 export function useHomeFeed(isMobile) {
   const router = useRouter()
+  const userStore = useUserStore()
 
-  const tab = ref(readHomeTab()) // 刷新后留在原 tab
+  // 游客只能看「全部」：关注流是收件箱、推荐流要登录人标签，两者都依赖身份
+  const tab = ref(userStore.isGuest ? 'all' : readHomeTab())
   const posts = ref([])
   const cursor = ref(null)
   /** 推荐流专用游标:共同标签数。与 id 成对使用,缺一不可 */
@@ -202,9 +205,19 @@ export function useHomeFeed(isMobile) {
     }
   }
 
-  // tab 变化:先记下来,再重拉第一页
+  // 进入游客态时丢掉上一个登录用户缓存里的点赞/收藏态，重拉公共「全部」流
+  watch(
+    () => userStore.isGuest,
+    (guest) => {
+      if (!guest) return
+      tab.value = 'all'
+      loadFeed(true)
+    },
+  )
+
+  // tab 变化:先记下来,再重拉第一页。游客不写记忆,避免把「全部」覆盖掉登录用户的选择
   watch(tab, (v) => {
-    writeHomeTab(v)
+    if (!userStore.isGuest) writeHomeTab(v)
     loadFeed(true)
   })
 

@@ -56,6 +56,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { REPORT_REASONS } from '@/constants/reportReason'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 /** 目标类型:1用户 2帖子 3评论 4私聊消息 5搭子 6集市活动 7文件 8群消息 9圈子 */
 const TARGET = { USER: 1, POST: 2, COMMENT: 3, MESSAGE: 4, PARTNER: 5, MKT: 6, FILE: 7, GROUP_MESSAGE: 8, CIRCLE: 9 }
@@ -84,6 +85,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'done'])
+const { ensureLogin } = useGuestPrompt()
 
 const picked = ref(0)
 const reasonText = ref('')
@@ -112,6 +114,12 @@ function pick(r) {
 
 async function doSubmit() {
   if (submitting.value || !props.targetId) return
+  /*
+   * 举报入口对游客可见（帖子/活动/用户详情都是免登录页），但提交要账号。
+   * 不先拦会吃 401，而 request.js 对无 token 的 401 是静默拒绝的，
+   * 弹层里只会落下一条英文 axios 错误——看起来像举报坏了。
+   */
+  if (!(await ensureLogin('登录后才能举报，现在去登录吗？'))) return
   submitting.value = true
   error.value = ''
   try {

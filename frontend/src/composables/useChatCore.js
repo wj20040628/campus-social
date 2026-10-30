@@ -69,6 +69,8 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   const peerIsStranger = ref(null)
   /** 对当前私聊对象的当日剩余条数;非陌生人时 null(无限制) */
   const peerRemaining = ref(null)
+  /** 向当前陌生人发起搭话的门槛未达标原因;null=不受限或还没拉到 */
+  const peerBlockedReason = ref(null)
   /** 首屏列表加载(会话+群聊+额度三并发)是否仍在进行 */
   const initialLoading = ref(true)
 
@@ -129,16 +131,19 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     if (!peerId) {
       peerIsStranger.value = null
       peerRemaining.value = null
+      peerBlockedReason.value = null
       return
     }
     try {
       const data = await strangerQuota(peerId)
       peerIsStranger.value = data?.isStranger ?? null
       peerRemaining.value = data?.remainingPerPeer ?? null
+      peerBlockedReason.value = data?.initiationBlockedReason ?? null
       if (data?.perPeerDailyLimit != null) perPeerLimit.value = data.perPeerDailyLimit
     } catch {
       peerIsStranger.value = null
       peerRemaining.value = null
+      peerBlockedReason.value = null
     }
   }
 
@@ -346,6 +351,7 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     perPeerLimit,
     peerIsStranger,
     peerRemaining,
+    peerBlockedReason,
     loadPeerQuota,
     initialLoading,
     currentKind,

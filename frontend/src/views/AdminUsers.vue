@@ -94,10 +94,8 @@
                 {{ statusText(u) }}
               </span>
               <!--
-                认证状态（2026-10-28）：账号「正常」不等于「已认证」。
-                此前驳回过的用户在这一页看起来和正常人一样，
-                管理员以为出了 bug —— 其实只是这一列没显示。
-                未认证不显示，否则每个新号都挂一条灰字，噪音大于信息。
+                校园信息状态（2026-10-30 调整措辞）：账号正常不等于资料已登记。
+                未填写不显示，否则每个新号都挂一条灰字，噪音大于信息。
               -->
               <span v-if="verifyText(u)" class="uadmin__verify" :data-v="u.verifyStatus">
                 {{ verifyText(u) }}
@@ -224,14 +222,14 @@ function statusText(u) {
 }
 
 /**
- * 认证状态文案。未认证(0)返回空串——新号默认就是未认证，
- * 每行都挂一条只会让「审核中 / 已驳回」这两条真正要处理的淹在灰字里。
+ * 校园信息状态文案。未填写(0)返回空串——新号默认就是未填写，
+ * 每行都挂一条只会让「核对中 / 需修改」这两条真正要处理的淹在灰字里。
  */
 function verifyText(u) {
   switch (u.verifyStatus) {
-    case 1: return '已认证'
-    case 2: return '认证审核中'
-    case 3: return '认证被驳回'
+    case 1: return '校园信息已登记'
+    case 2: return '校园信息核对中'
+    case 3: return '校园信息需修改'
     default: return ''
   }
 }

@@ -30,9 +30,6 @@ public class RecommendUserVO implements Serializable {
 
     private String grade;
 
-    /** 是否已通过校内认证（verify_status = 1） */
-    private Boolean verified;
-
     private Integer followerCount;
 
     /** 推荐理由，直接展示 */

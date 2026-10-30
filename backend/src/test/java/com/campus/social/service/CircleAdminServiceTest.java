@@ -91,6 +91,8 @@ class CircleAdminServiceTest {
         // 配额放行:圈管理与发帖用例不关心配额(见类头注释)
         org.mockito.Mockito.when(trustService.creationQuota(org.mockito.ArgumentMatchers.anyLong())).thenReturn(3);
         org.mockito.Mockito.when(trustService.postDailyLimit(org.mockito.ArgumentMatchers.anyLong())).thenReturn(999);
+        // 2026-10-30:建圈先过行为门槛（账号年龄+信誉分），信誉分被 mock
+        org.mockito.Mockito.when(trustService.creditScore(org.mockito.ArgumentMatchers.anyLong())).thenReturn(60);
         /*
          * 平台管理员必须**真实存在**：RoleServiceImpl.isAdmin 是查库判 role==1，
          * 不是拿 id 猜的。
@@ -230,6 +232,8 @@ class CircleAdminServiceTest {
         u.setRole(role);
         u.setPasswordHash("$2a$12$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"); // NOT NULL 兜底,测试从不登录
         userMapper.insert(u);
+        // 注册满 4 天：通过建圈/发帖的行为门槛
+        jdbc.update("UPDATE user SET create_time = DATE_SUB(NOW(), INTERVAL 4 DAY) WHERE id = ?", uid);
     }
 
     private long createCircleByUser(long owner, String name) {

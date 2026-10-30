@@ -7,7 +7,6 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -95,14 +94,6 @@ public interface UserMapper extends BaseMapper<User> {
             + "update_time = NOW() WHERE id = #{userId}")
     int recomputeUnreadNotifyCount(@Param("userId") Long userId);
 
-    /** 对账:从 relation 表重算某用户的 follower_count / following_count */
-    @Update("UPDATE user u SET " +
-            "  follower_count = (SELECT COUNT(*) FROM relation r WHERE r.to_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
-            "  following_count = (SELECT COUNT(*) FROM relation r WHERE r.from_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
-            "  update_time = NOW() " +
-            "WHERE u.id = #{userId}")
-    int reconcileCounts(@Param("userId") Long userId);
-
     /** 全量对账:一次把所有用户的 follower/following 重算(凌晨跑,简单可靠) */
     @Update("UPDATE user u SET " +
             "  follower_count = (SELECT COUNT(*) FROM relation r WHERE r.to_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
@@ -133,11 +124,6 @@ public interface UserMapper extends BaseMapper<User> {
             @Param("gradeId") Long gradeId, @Param("grade") String grade,
             @Param("majorId") Long majorId);
 
-    /** 认证通过。WHERE 带 verify_status <> 1 兜住并发重复提交 */
-    @Update("UPDATE user SET verify_status = 1, update_time = NOW() "
-            + "WHERE id = #{userId} AND verify_status <> 1")
-    int markVerified(@Param("userId") Long userId);
-
     /** 提交学号认证:置 2(审核中)并落 student_no。student_no 的 UNIQUE 是主防线 */
     @Update("UPDATE user SET verify_status = 2, student_no = #{studentNo}, update_time = NOW() "
             + "WHERE id = #{userId}")
@@ -146,26 +132,6 @@ public interface UserMapper extends BaseMapper<User> {
     /** 驳回认证:置 3(被驳回)。队列就是 user 表本身,见 ARCHITECTURE §3 Q9.4 */
     @Update("UPDATE user SET verify_status = #{status}, update_time = NOW() WHERE id = #{userId}")
     int updateVerifyStatus(@Param("userId") Long userId, @Param("status") int status);
-
-    /**
-     * 驳回后改资料触发重新核验：3 → 2。
-     *
-     * <p><b>学号是入参</b>：驳回时 {@code rejectVerify} 已把 student_no 置空，
-     * 用户重新提交时必须重新填一次。同号、不同号都可以——判断「这个号对不对」
-     * 是用户和审核管理员的事，不是代码能提前替他们决定的。
-     *
-     * <p><b>WHERE 带 verify_status = 3</b>：这是本轮最要紧的边界。
-     * 没有它，已认证（1）的用户改个昵称资料就会被拉回待审队列，
-     * 而管理员一个人在校园里根本不知道有人在等他 —— 那是比死循环更糟的故障
-     * （已认证用户会突然失去发公告与搭话权限，且无提示）。
-     * 状态 0/2 也一并被这个条件挡掉：0 是「还没开始」，不该被资料改动推进；
-     * 2 已在队列里，重复推进无意义。
-     *
-     * <p>影响行数 0 = 状态不是 3（没被驳回），由 service 层据此决定要不要补审计。
-     */
-    @Update("UPDATE user SET verify_status = 2, student_no = #{studentNo}, update_time = NOW() "
-            + "WHERE id = #{userId} AND verify_status = 3")
-    int resubmitAfterReject(@Param("userId") Long userId, @Param("studentNo") String studentNo);
 
     /** 封禁/解封(举报处置 action=ban)。status:0正常 1冻结 */
     @Update("UPDATE user SET status = #{status}, update_time = NOW() WHERE id = #{userId}")
@@ -214,10 +180,9 @@ public interface UserMapper extends BaseMapper<User> {
     /**
      * 通过学号核验：2 → 1，乐观锁。
      *
-     * <p>WHERE 里带 {@code verify_status = 2} 而不是复用
-     * {@link #markVerified}（它的条件只是 {@code <> 1}，会把 0 未认证、
-     * 3 已驳回的账号也一起置成已认证）。审核端点必须只认「正在审核中」这一种输入状态，
-     * 否则一个误点就会给根本没提交过学号的人发认证。
+     * <p>WHERE 里带 {@code verify_status = 2} 而不是只判 {@code <> 1}：
+     * 审核端点必须只认「正在审核中」这一种输入状态，否则一个误点就会给
+     * 根本没提交过学号的人发认证。
      *
      * <p>影响行数 0 = 已被他人处置或状态不符，由 service 层回 404，
      * 与「乐观锁防两个管理员并发处置同一条」是同一件事。
@@ -273,7 +238,8 @@ public interface UserMapper extends BaseMapper<User> {
 
     /**
      * 推荐关注的人（确定性规则排序，PRD §9 明确排除 AI 智能匹配）。
-     * 打分：同院系 4 > 同年级 2 > 已认证 1，末位 id DESC 保证同分结果稳定、翻页不抖动。
+     * 打分：同院系 4 > 同年级 2，末位 id DESC 保证同分结果稳定、翻页不抖动。
+     * 2026-10-30 移除「已认证 +1」：校园信息不再是可公开的信用信号。
      * 「曾有互动」这一档冷启动期没有数据，降级用 follower_count 代理。
  *
      * <p>排除：自己、已关注(type=1)、已拉黑(type=3)、status!=0、管理员账号。
@@ -289,12 +255,11 @@ public interface UserMapper extends BaseMapper<User> {
      *
      * <p>{@code commonTagCount} 用一条相关子查询算出，避免在 Java 侧做 N+1。
      */
-    @Select("SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade, u.verify_status, u.follower_count, "
+    @Select("SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade, u.follower_count, "
             + "(CASE WHEN #{deptId} IS NOT NULL AND u.dept_id = #{deptId} THEN 4 "
             + "      WHEN #{deptId} IS NULL AND u.dept = #{dept} AND u.dept IS NOT NULL THEN 4 ELSE 0 END) + "
             + "(CASE WHEN #{gradeId} IS NOT NULL AND u.grade_id = #{gradeId} THEN 2 "
-            + "      WHEN #{gradeId} IS NULL AND u.grade = #{grade} AND u.grade IS NOT NULL THEN 2 ELSE 0 END) + "
-            + "(CASE WHEN u.verify_status = 1 THEN 1 ELSE 0 END) AS score, "
+            + "      WHEN #{gradeId} IS NULL AND u.grade = #{grade} AND u.grade IS NOT NULL THEN 2 ELSE 0 END) AS score, "
             + "(SELECT COUNT(*) FROM user_tag ut WHERE ut.user_id = u.id AND ut.is_deleted = 0 "
             + " AND ut.tag_id IN (SELECT tag_id FROM user_tag WHERE user_id = #{me} AND is_deleted = 0)) AS common_tag_count "
             + "FROM user u "
@@ -324,13 +289,13 @@ public interface UserMapper extends BaseMapper<User> {
      *   <li>拉黑过滤是**双向**的:推荐关注只排「我拉黑的/我关注的」,
      *       搭子会把人推向线下见面,「拉黑了我的人」出现在名单里
      *       点搭话直接 BLACKLISTED,体验更差;</li>
-     *   <li>只推 verify_status=1 且 stranger_msg_enabled=1 的人:
-     *       认证是搭话的硬门槛(ChatGuard AC-11),关了陌生人消息的人
-     *       推出来也发不进,白占名额。</li>
+     *   <li>只推开启了陌生人消息的人:关了开关的人推出来也发不进,
+     *       白占名额。2026-10-30 起不再要求校园信息——
+     *       搭话门槛已改为账号年龄 + 信誉分。</li>
      * </ul>
      */
     @Select("SELECT * FROM ("
-            + "SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade, u.verify_status, u.follower_count, "
+            + "SELECT u.id, u.nickname, u.avatar_url, u.dept, u.grade, u.follower_count, "
             + "(SELECT COUNT(*) FROM user_tag ut WHERE ut.user_id = u.id AND ut.is_deleted = 0 "
             + " AND ut.tag_id IN (SELECT tag_id FROM user_tag WHERE user_id = #{me} AND is_deleted = 0)) AS common_tag_count, "
             + "(SELECT COUNT(*) FROM user_tag ut2 WHERE ut2.user_id = u.id AND ut2.is_deleted = 0 "
@@ -341,7 +306,7 @@ public interface UserMapper extends BaseMapper<User> {
             + "        WHEN #{gradeId} IS NULL AND u.grade = #{grade} AND u.grade IS NOT NULL THEN 1 ELSE 0 END) AS score "
             + "FROM user u "
             + "WHERE u.id <> #{me} AND u.status = 0 AND u.is_deleted = 0 AND u.role = 0 AND u.school_id = #{schoolId} "
-            + "  AND u.verify_status = 1 AND u.stranger_msg_enabled = 1 "
+            + "  AND u.stranger_msg_enabled = 1 "
             + "  AND NOT EXISTS (SELECT 1 FROM relation r "
             + "                  WHERE r.type = 3 AND r.is_deleted = 0 "
             + "                    AND ((r.from_user_id = #{me} AND r.to_user_id = u.id) "

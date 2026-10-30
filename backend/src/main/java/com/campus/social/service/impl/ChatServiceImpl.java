@@ -6,7 +6,6 @@ import com.campus.social.common.CursorPage;
 import com.campus.social.entity.ChatConvPref;
 import com.campus.social.entity.ChatConversation;
 import com.campus.social.entity.ChatMessage;
-import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.ChatConversationMapper;
 import com.campus.social.mapper.ChatMessageMapper;

@@ -74,6 +74,26 @@ public class AuthInterceptor implements HandlerInterceptor {
             java.util.regex.Pattern.compile("^/files/\\d+/download$"),
             // 在线预览与下载同口径：已过审公开，未过审靠 Authorization 头识别上传者
             java.util.regex.Pattern.compile("^/files/\\d+/preview$"),
+            /*
+             * 游客只读浏览(2026-10-30):登录页「游客登录」不创建账号、不发 token，
+             * 直接用这些公开 GET 看首页/搜索/他人主页/话题。所有写操作仍要登录。
+             * 只放纯公共数据；/post/feed/following、/post/feed/recommend、
+             * /user/me 等带登录人语义的端点不在其中。
+             */
+            java.util.regex.Pattern.compile("^/post/feed$"),
+            java.util.regex.Pattern.compile("^/post/hot$"),
+            java.util.regex.Pattern.compile("^/post/topic$"),
+            java.util.regex.Pattern.compile("^/search$"),
+            java.util.regex.Pattern.compile("^/user/\\d+$"),
+            java.util.regex.Pattern.compile("^/user/\\d+/posts$"),
+            java.util.regex.Pattern.compile("^/user/\\d+/tags$"),
+            java.util.regex.Pattern.compile("^/user/\\d+/trust-badge$"),
+            // 圈子与集市同属公开浏览内容：列表/详情/圈内帖子/圈内活动只读，
+            // Controller 都走 viewer=0 的游客视角；加入/建圈/发集会等写操作不在放行之列。
+            java.util.regex.Pattern.compile("^/circle$"),
+            java.util.regex.Pattern.compile("^/circle/\\d+$"),
+            java.util.regex.Pattern.compile("^/circle/\\d+/posts$"),
+            java.util.regex.Pattern.compile("^/activity/circle$"),
     };
 
     public static final String ATTR_USER_ID = "userId";

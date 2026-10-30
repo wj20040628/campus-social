@@ -19,7 +19,6 @@ declare module 'vue' {
     AppDrawer: typeof import('./src/components/mobile/AppDrawer.vue')['default']
     AuthBlocked: typeof import('./src/components/auth/AuthBlocked.vue')['default']
     AuthErrorLine: typeof import('./src/components/auth/AuthErrorLine.vue')['default']
-    AuthGateSheet: typeof import('./src/components/auth/AuthGateSheet.vue')['default']
     BanAppealDialog: typeof import('./src/components/auth/BanAppealDialog.vue')['default']
     ChatBubble: typeof import('./src/components/chat/ChatBubble.vue')['default']
     ChatConvList: typeof import('./src/components/chat/ChatConvList.vue')['default']

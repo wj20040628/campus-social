@@ -23,7 +23,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import { ElMessage } from '@/utils/feedback'
 import { submitReport } from '@/api/review'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 

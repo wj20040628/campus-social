@@ -1,4 +1,3 @@
-import { capCount } from '@/composables/usePostDetail'
 // 判环（chainReaches）与「回复时该传什么」（rootIdOf / replySpecFor）已拆到
 // useCommentReplySpec.js —— 那两个是回复交互的领域逻辑，与树构建是两个关注点。
 // 本文件仍要用 chainReaches：挂载前确认不会形成环。
@@ -8,7 +7,7 @@ import { chainReaches } from './useCommentReplySpec'
 import { collect, normalize } from './commentNodeShape'
 // 深度常量独立成文件：本文件、useCommentReplySpec、commentNodeShape 三者共用
 // (若让后两者从本文件取会形成循环依赖)
-import { MAX_RENDER_DEPTH, MAX_VISUAL_DEPTH } from './commentDepth'
+import { MAX_RENDER_DEPTH } from './commentDepth'
 
 /**
  * 评论树(契约 `GET /post/{id}/comments` + `POST /post/{id}/comment`)
@@ -182,21 +181,6 @@ function attachByParentId(nodes) {
   roots.sort(byIdDesc)
   for (const node of nodes) node.children.sort(byIdDesc)
   return { roots, index }
-}
-
-/**
- * 计数封顶。与页面其他计数同一口径。
- * 传的是**森林里的一级条数** —— 评论数是帖子级的 `commentCount`,
- * 这里只标题「评论 N」,用一级条数会与真实总数不符,所以调用方传 post.commentCount。
- *
- * ## 为什么现在零引用
- *
- * 它只是 `capCount` 的一层包装,而 PostComments.vue 直接 import 了 `capCount`
- * (见该文件 `countText`)。两层做同一件事,留一层就够。
- * 若要删,连同下面的 capCount import 一起删。
- */
-export function commentCountText(n) {
-  return capCount(n)
 }
 
 /**

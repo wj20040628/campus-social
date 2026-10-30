@@ -112,17 +112,6 @@
   color: var(--ys-fg);
 }
 
-/* 认证徽章:口径与 ProfileHead / 设置页个人卡一致(verify_status === 1) */
-.adrawer__badge {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: var(--ys-text-xs);
-  line-height: var(--ys-lh-xs);
-  color: var(--ys-success);
-}
-
 .adrawer__id {
   display: block;
   margin-top: 3px;

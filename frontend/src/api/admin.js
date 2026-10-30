@@ -87,7 +87,7 @@ export function unbanUser(userId) {
 
 /**
  * 四条队列待办聚合(管理入口角标数据源)。
- * 举报 / 机审 / 学号核验 / 反馈,一次拉全,不必逐页巡检。
+ * 举报 / 机审 / 校园信息核对 / 反馈,一次拉全,不必逐页巡检。
  */
 export function pendingSummary() {
   return request.get('/admin/pending-summary')

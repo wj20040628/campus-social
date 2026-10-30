@@ -1,6 +1,6 @@
 <template>
   <div class="sub-inner">
-    <!-- 发布信誉卡(2026-10-24):认证/账龄/违规清单,放最上——它是这张页的「为什么」。
+    <!-- 发布信誉卡(2026-10-24):信誉分/账龄/违规清单,放最上——它是这张页的「为什么」。
          加载中/失败由卡片内部自隐藏,这里无条件挂载。 -->
     <TrustStatusCard />
 
@@ -39,7 +39,7 @@
 <script setup>
 /**
  * 账号与安全(/settings/security)。
- * - 发布信誉:TrustStatusCard,认证/账龄/违规清单(拉取成功才渲染)
+ * - 发布信誉:TrustStatusCard,信誉分/账龄/违规清单(拉取成功才渲染)
  * - 绑定邮箱:就地弹 ProfileEmailDialog(与编辑资料页同一个组件),不再跳 /profile
  * - 密码:已设密码走 PUT /user/password(原密码校验);
  *   邮箱验证码自动建号(无密码)走 POST /user/password/send-code + /set

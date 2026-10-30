@@ -340,11 +340,16 @@ campus:
   mail:
     site-base: ${CAMPUS_MAIL_SITE_BASE:http://127.0.0.1:5173}
     digest-enabled: ${CAMPUS_MAIL_DIGEST_ENABLED:true}
-  # 校园邮箱域名白名单,逗号分隔。生产用 CAMPUS_EMAIL_DOMAIN_WHITELIST 注入。
-  # 为空时所有域名都会被拒(1032),这是刻意设计:宁可不认证,不可错认证。
-  email-domain-whitelist: ${CAMPUS_EMAIL_DOMAIN_WHITELIST:}
   # F3 免好友搭话护栏（2026-10-28：不限制对象数量，只限制对同一陌生人的频率）
   per-peer-daily-limit: 1     # 对同一陌生人每天最多 1 条；对方关注/回复后解除
+  # 行为信任门槛（2026-10-30）：校园信息不再作为功能门槛，
+  # 高风险动作按「账号注册时长 + 信誉分」判定；数值可调，不必发版。
+  access-stranger-chat-min-hours: ${CAMPUS_ACCESS_STRANGER_CHAT_MIN_HOURS:24}
+  access-create-circle-min-days: ${CAMPUS_ACCESS_CREATE_CIRCLE_MIN_DAYS:3}
+  access-create-mkt-min-days: ${CAMPUS_ACCESS_CREATE_MKT_MIN_DAYS:1}
+  access-create-group-min-days: ${CAMPUS_ACCESS_CREATE_GROUP_MIN_DAYS:3}
+  access-activity-signup-min-days: ${CAMPUS_ACCESS_ACTIVITY_SIGNUP_MIN_DAYS:3}
+  access-min-credit: ${CAMPUS_ACCESS_MIN_CREDIT:60}
   # F11 引导
   onboarding-min-tags: 3
   onboarding-max-tags: 12
@@ -356,7 +361,7 @@ campus:
   # 无 AI 机审模式下的队列瘦身与快速发现,详见 ReviewTrustService / ReportFoldService。
   # ----------------------------------------------------------
   review:
-    # 受信用户账龄下限(天):已认证 + 注册满 N 天 + 信誉分≥60 的用户,
+    # 受信用户账龄下限(天):注册满 N 天 + 信誉分≥60 且无违规记录的用户,
     # level-1 敏感词直接命中可豁免送审(替换后直发,audit_log 留痕)
     trust-min-days: ${CAMPUS_REVIEW_TRUST_MIN_DAYS:14}
     # 信誉记录(产出加分与违规扣分)的计算窗口(天):窗口外不计。
@@ -370,9 +375,11 @@ campus:
     post-daily-tier1: ${CAMPUS_REVIEW_POST_DAILY_TIER1:5}
     post-daily-tier2: ${CAMPUS_REVIEW_POST_DAILY_TIER2:10}
     post-daily-tier3: ${CAMPUS_REVIEW_POST_DAILY_TIER3:15}
-    # 集中举报自动封禁:24h 内 ≥N 个已认证的独立举报人举报同一用户(含其内容)
+    # 集中举报自动封禁:24h 内 ≥N 个注册满 3 天的独立举报人举报同一用户(含其内容)
     # → 自动封禁 auto-ban-days 天,到期自动解封,管理员可提前手动解封;<=0 关闭
     auto-ban-reporters: ${CAMPUS_REVIEW_AUTO_BAN_REPORTERS:3}
+    # 举报人账号账龄下限(天):注册不满 N 天的号不计入,防批量注册刷举报
+    auto-ban-min-age-days: ${CAMPUS_REVIEW_AUTO_BAN_MIN_AGE_DAYS:3}
     auto-ban-days: ${CAMPUS_REVIEW_AUTO_BAN_DAYS:3}
     # 同一帖子的独立待处置举报人数达到阈值 → 自动折叠(出 Feed)并进人审队列。
     # 管理员在审核台 approve 即恢复、reject 维持下架;<=0 关闭本机制

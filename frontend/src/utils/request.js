@@ -2,7 +2,6 @@ import axios from 'axios'
 import { ElMessage } from '@/utils/feedback'
 import { AUTH_ERR } from '@/utils/authError'
 import { useUserStore } from '@/stores/user'
-import { openAuthGate } from '@/composables/useAuthGate'
 import router from '@/router'
 
 /**
@@ -52,18 +51,6 @@ request.interceptors.response.use(
     if (code === 200) {
       return data
     }
-    /*
-     * 1029(未认证)不是普通业务错误:全局横幅已移除,改在动作发生时
-     * 弹认证闸门。这里不再弹 red toast —— 弹层本身已经说明了原因与出路,
-     * 再叠一条 toast 是同一件事说两遍。
-     */
-    if (code === 1029) {
-      openAuthGate()
-      const err = new Error(message || '请先完成校内认证')
-      err.isBusiness = true
-      err.businessCode = code
-      return Promise.reject(err)
-    }
     // 业务错误:默认弹 toast;调用方传 silent 时由调用方自行兜底(如引导页吸底栏)
     const err = new Error(message || '操作失败')
     err.isBusiness = true
@@ -96,14 +83,6 @@ request.interceptors.response.use(
      * + 申诉按钮（登录端点本身除外，它由 useLoginSubmit 自己分类）。
      */
     const bizCode = error.response?.data?.code
-    /*
-     * 1029 走认证闸门。VerifiedInterceptor 回的是 HTTP 403 + body.code=1029,
-     * 必须放在冻结/注销判断之前:它不是账号不可用,只是还没认证。
-     */
-    if (bizCode === 1029) {
-      openAuthGate()
-      return Promise.reject(error)
-    }
     if (
       !authEndpoint &&
       status === 403 &&
@@ -173,7 +152,7 @@ request.interceptors.response.use(
      * 原样带到 error.config 上)。用法:
      *   request.post(url, body, { suppressStatuses: [404] })
      *
-     * 为什么需要:学号核验审核里 404 VERIFY_NOT_FOUND(1044) 的含义是
+     * 为什么需要:校园信息核对里 404 VERIFY_NOT_FOUND(1044) 的含义是
      * 「这条已经被别的设备处置过了」,它不是故障,处理动作是「从列表里去掉」。
      * 而全局这条红色 toast 会先弹一遍,调用方再弹一次「该申请已被处理」,
      * 管理员看到两条互相矛盾的提示。

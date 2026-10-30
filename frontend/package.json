@@ -1,6 +1,6 @@
 {
   "name": "campus-social-frontend",
-  "version": "1.11.2",
+  "version": "1.13.2",
   "private": true,
   "type": "module",
   "scripts": {

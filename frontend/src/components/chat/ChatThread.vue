@@ -31,10 +31,9 @@
       @open="announceOpen = true"
     />
 
-    <!-- 权限提示(AC-04/05/06)。三种各有具体文案,不弹 toast -->
+    <!-- 权限提示。当前只剩「群主禁言」一种，用具体文案，不弹 toast -->
     <div v-if="blockReason" class="block" :class="`block--${blockTone}`">
-      <!-- block.to = 出口(未认证→去认证):不让用户看完提示自己找路 -->
-      <p class="block__text">{{ blockReason }}<button v-if="block?.to" type="button" class="block__go" @click="router.push(block.to)">去认证</button></p>
+      <p class="block__text">{{ blockReason }}</p>
     </div>
 
     <!-- 行 3:消息列表。role=log + aria-live=polite,新消息会被读屏播报 -->
@@ -44,6 +43,7 @@
         v-if="!historyLoading && !historyError && kind !== 'group' && !hideStrangerRule"
         :limit="perPeerLimit"
         :remaining="perPeerRemaining"
+        :blocked-reason="initiationBlockedReason"
       />
 
       <!-- 历史加载失败:中部一行 + 重试,不整页白屏 -->
@@ -182,7 +182,6 @@
  * 不是常驻按钮:两个 44px 热区会把正文压到 200px 以下。
  */
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { Promotion, Close } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
 import { copyText } from '@/utils/clipboard'
@@ -220,6 +219,8 @@ const props = defineProps({
    * 不能拿 0 顶替:0 会被读成「今天发不出去了」,与「不知道」是两件事。
    */
   perPeerRemaining: { type: Number, default: null },
+  /** 账号太新 / 信誉分不足时不能发起搭话的原因；null=门槛已满足或未知 */
+  initiationBlockedReason: { type: String, default: null },
   /** 互相关注（2026-10-28）：关系已建立，不再提示陌生人条数限制 */
   hideStrangerRule: { type: Boolean, default: false },
   sending: { type: Boolean, default: false },
@@ -266,9 +267,6 @@ const draft = computed({
 })
 
 const { blockReason, blockTone } = useChatBlock(props)
-
-const router = useRouter()
-const blockTo = computed(() => props.block?.to || '')
 
 const isMobile = useIsMobile()
 

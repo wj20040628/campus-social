@@ -3,7 +3,8 @@ package com.campus.social.util;
 /**
  * 文件上传档位（2026-10-27）。
  *
- * <p>与信誉分共用同一条档位线：60 / 80 / 100。未认证或低于 60 分不可上传。
+ * <p>与信誉分共用同一条档位线：60 / 80 / 100。低于 60 分不可上传；
+ * 校园信息（verify_status）不再参与判定（2026-10-30）。
  * 单文件与总量都按档位递减，和设计评审确认的口径一致：
  * <pre>
  *   1 档 60–79：单文件 ≤1MB，总量 5MB
@@ -29,8 +30,8 @@ public final class FileLimits {
     }
 
     /** 0 = 不可上传；1/2/3 = 档位 */
-    public static int tier(int score, boolean verified) {
-        if (!verified || score < TIER1_MIN_SCORE) {
+    public static int tier(int score) {
+        if (score < TIER1_MIN_SCORE) {
             return 0;
         }
         if (score >= TIER3_MIN_SCORE) {

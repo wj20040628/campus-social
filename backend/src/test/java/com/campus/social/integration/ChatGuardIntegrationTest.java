@@ -38,6 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *       说明他自己开了门，不该再被自己的开关挡住</li>
  * </ol>
  * 外加<b>敏感词必须在配额之前</b>：一条被拒的脏话不该吃掉当天唯一的一条机会。
+ *
+ * <p>2026-10-30：校园信息退出权限判定，陌生人首条改为
+ * 「注册满 24 小时 + 信誉分达线」；回复已有会话/互关对话不受此限。
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -93,11 +96,24 @@ class ChatGuardIntegrationTest {
 
     /* ------------------------------------------------------------------ 播种 */
 
+    /** 注册满 4 天的老号：通过搭话的账号年龄门槛 */
     private Long user(int verifyStatus, int strangerMsgEnabled) {
         String name = "cg-" + verifyStatus + "-" + userIds.size() + "-" + SUFFIX + "@campus.test";
         jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
-                        + "verify_status, stranger_msg_enabled, is_deleted) VALUES (?,?,?,0,0,1,?,?,0)",
+                        + "verify_status, stranger_msg_enabled, is_deleted, create_time) "
+                        + "VALUES (?,?,?,0,0,1,?,?,0, DATE_SUB(NOW(), INTERVAL 4 DAY))",
                 name, "x", name, verifyStatus, strangerMsgEnabled);
+        Long id = jdbc.queryForObject("SELECT id FROM user WHERE username = ?", Long.class, name);
+        userIds.add(id);
+        return id;
+    }
+
+    /** 刚注册的号 */
+    private Long freshUser(int strangerMsgEnabled) {
+        String name = "cg-fresh-" + userIds.size() + "-" + SUFFIX + "@campus.test";
+        jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
+                        + "verify_status, stranger_msg_enabled, is_deleted) VALUES (?,?,?,0,0,1,0,?,0)",
+                name, "x", name, strangerMsgEnabled);
         Long id = jdbc.queryForObject("SELECT id FROM user WHERE username = ?", Long.class, name);
         userIds.add(id);
         return id;
@@ -204,13 +220,23 @@ class ChatGuardIntegrationTest {
         assertEquals(Boolean.FALSE, vo.getIsStranger());
     }
 
-    /** 未认证发送方：1047 拦在最前，不受任何关系影响 */
+    /** 新注册账号给陌生人发第一条：403 ACCOUNT_TOO_NEW，与关系无关 */
     @Test
-    void unverifiedSenderIsRejected() {
+    void brandNewSenderIsRejected() {
+        long me = freshUser(1);
+        long peer = user(1, 1);
+
+        assertCode(ResultCode.ACCOUNT_TOO_NEW, () -> guard.check(me, peer, "你好"));
+    }
+
+    /** 校园信息未填写但账号已满 24 小时：可以给陌生人发第一条（2026-10-30 起） */
+    @Test
+    void establishedUnverifiedSenderCanStartChat() {
         long me = user(0, 1);
         long peer = user(1, 1);
 
-        assertCode(ResultCode.USER_NOT_VERIFIED, () -> guard.check(me, peer, "你好"));
+        ChatSendVO vo = guard.check(me, peer, "你好");
+        assertEquals(Boolean.TRUE, vo.getIsStranger());
     }
 
     /** 黑名单（任一方向）→ 拒绝 */

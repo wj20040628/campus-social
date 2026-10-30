@@ -3,6 +3,7 @@ package com.campus.social.controller;
 import com.campus.social.common.Result;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.FileService;
+import com.campus.social.util.RequestIp;
 import com.campus.social.vo.FilePageVO;
 import com.campus.social.vo.FileQuotaVO;
 import com.campus.social.vo.FileVO;
@@ -66,7 +67,7 @@ public class FileController {
     @GetMapping("/{id}")
     public Result<FileVO> detail(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(fileService.detail(me, id, clientIp(req)));
+        return Result.ok(fileService.detail(me, id, RequestIp.of(req)));
     }
 
     @DeleteMapping("/{id}")
@@ -108,7 +109,7 @@ public class FileController {
     @GetMapping("/{id}/download")
     public ResponseEntity<?> download(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return fileService.download(id, me, clientIp(req));
+        return fileService.download(id, me, RequestIp.of(req));
     }
 
     /**
@@ -118,15 +119,6 @@ public class FileController {
     @GetMapping("/{id}/preview")
     public ResponseEntity<?> preview(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return fileService.preview(id, me, clientIp(req));
-    }
-
-    private String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String real = req.getHeader("X-Real-IP");
-        return real != null && !real.isBlank() ? real : req.getRemoteAddr();
+        return fileService.preview(id, me, RequestIp.of(req));
     }
 }

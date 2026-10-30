@@ -22,6 +22,22 @@ import request from '@/utils/request'
  */
 let refreshInflight = null
 
+/**
+ * 游客模式(2026-10-30)。
+ *
+ * 游客不创建账号、不签发 token：前端只记一个本地标记，浏览走公开 GET。
+ * 这样避免为每个访客在 user 表里造一行孤儿数据，也不会让游客出现在在线列表里。
+ * 标记只存 localStorage，登录成功(setTokens)或登出(clear)时清掉。
+ */
+const GUEST_KEY = 'ys_guest'
+function readGuest() {
+  try {
+    return localStorage.getItem(GUEST_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 /** access token 的到期时刻（epoch 秒）。三路写入：setTokens / refresh / 从 localStorage 恢复 */
 let accessExpireAt = (() => {
   /*
@@ -53,10 +69,12 @@ export const useUserStore = defineStore('user', {
         return null
       }
     })(),
+    guest: readGuest(),
   }),
 
   getters: {
     hasToken: (s) => !!s.accessToken,
+    isGuest: (s) => s.guest === true,
     nickname: (s) => s.userInfo?.nickname || s.userInfo?.username || '未登录',
     /** 是否管理员(role=1) */
     isAdmin: (s) => s.userInfo?.role === 1,
@@ -66,6 +84,9 @@ export const useUserStore = defineStore('user', {
     setTokens({ accessToken, refreshToken, accessExpireAt: expireAt }) {
       this.accessToken = accessToken
       this.refreshToken = refreshToken
+      // 登录成功即退出游客态，避免标记残留到下一次匿名浏览
+      this.guest = false
+      try { localStorage.removeItem(GUEST_KEY) } catch { /* 隐私模式忽略 */ }
       localStorage.setItem('access_token', accessToken)
       localStorage.setItem('refresh_token', refreshToken)
       /*
@@ -111,7 +132,7 @@ export const useUserStore = defineStore('user', {
       const body = { password, nickname }
       if (email && email.trim()) body.email = email.trim()
       if (emailCode && emailCode.trim()) body.emailCode = emailCode.trim()
-      // 学号选填：有值才带。空串在语义上等于「不认证」，不如干脆不发。
+      // 学号选填：有值才带。空串等于「不填」，不如干脆不发。
       if (studentNo && studentNo.trim()) body.studentNo = studentNo.trim()
       if (identity) {
         body.schoolId = identity.schoolId
@@ -186,6 +207,21 @@ export const useUserStore = defineStore('user', {
       return data
     },
 
+    /** 游客登录：清掉可能残留的登录态，只留本地游客标记，不发任何请求 */
+    enterGuest() {
+      this.accessToken = ''
+      this.refreshToken = ''
+      this.userInfo = null
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user_info')
+      localStorage.removeItem('access_expire_at')
+      accessExpireAt = 0
+      refreshInflight = null
+      this.guest = true
+      try { localStorage.setItem(GUEST_KEY, '1') } catch { /* 隐私模式忽略 */ }
+    },
+
     async logout() {
       try {
         await request.post('/auth/logout')
@@ -198,10 +234,12 @@ export const useUserStore = defineStore('user', {
       this.accessToken = ''
       this.refreshToken = ''
       this.userInfo = null
+      this.guest = false
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user_info')
       localStorage.removeItem('access_expire_at')
+      localStorage.removeItem(GUEST_KEY)
       // 内存态也要复位，否则登出后残留的到期时刻会影响下一次登录的续期判断
       accessExpireAt = 0
       refreshInflight = null

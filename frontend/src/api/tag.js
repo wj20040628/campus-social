@@ -30,7 +30,7 @@ export function replaceMine(tagIds) {
 
 /**
  * 查看他人兴趣标签。公开信息,任意登录用户可查。
- * AC-12:该页不得出现真实姓名与学号,只展示昵称+头像+认证徽章+标签。
+ * 该页不得出现真实姓名与学号,只展示昵称+头像+标签。
  */
 export function ofUser(userId) {
   return request.get(`/user/${userId}/tags`)

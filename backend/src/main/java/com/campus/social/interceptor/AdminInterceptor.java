@@ -52,7 +52,7 @@ public class AdminInterceptor implements HandlerInterceptor {
         Long me = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         if (me == null) {
             /*
-             * fail-closed（2026-10-24 对齐 VerifiedInterceptor 的同款修正）。
+             * fail-closed（2026-10-24 对齐 AuthInterceptor 的同款修正）。
              * 原实现 log.error 后 return true —— 那是 fail-open：端点声明了
              * 「必须管理员」，我们手上却没有身份信息，却选择放行。
              * 触发条件（auth 拦截器顺序被改坏 / 白名单误放行某个 /admin 端点）

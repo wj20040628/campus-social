@@ -57,7 +57,8 @@ const routes = [
         path: '',
         name: 'home',
         component: () => import('@/views/Home.vue'),
-        meta: { requiresAuth: true, title: '首页' },
+        // guest: 游客登录(只读)允许看首页「全部」流，后端已放 /post/feed 游客 GET
+        meta: { requiresAuth: true, guest: true, title: '首页' },
       },
       {
         path: 'publish',
@@ -117,13 +118,13 @@ const routes = [
           注意:ownTop 只是不渲染 TopBar,抽屉本体还在 MainLayout 里,
           通过 provide('openDrawer') 交给页面调用。
         */
-        meta: { requiresAuth: true, title: '个人主页', back: true, ownTop: true },
+        meta: { requiresAuth: true, guest: true, title: '个人主页', back: true, ownTop: true },
       },
       {
         path: 'topic/:name',
         name: 'topic',
         component: () => import('@/views/TopicDetail.vue'),
-        meta: { requiresAuth: true, title: '话题', back: true },
+        meta: { requiresAuth: true, guest: true, title: '话题', back: true },
       },
       {
         path: 'settings',
@@ -149,13 +150,13 @@ const routes = [
         name: 'circles',
         component: () => import('@/views/Circles.vue'),
         // headTitle(C20):顶栏左上角写页面名「圈子」,不写品牌「友声」
-        meta: { requiresAuth: true, title: '圈子', headTitle: '圈子' },
+        meta: { requiresAuth: true, guest: true, title: '圈子', headTitle: '圈子' },
       },
       {
         path: 'circles/:id',
         name: 'circleDetail',
         component: () => import('@/views/CircleDetail.vue'),
-        meta: { requiresAuth: true, title: '圈子详情', back: true },
+        meta: { requiresAuth: true, guest: true, title: '圈子详情', back: true },
       },
       {
         /*
@@ -182,7 +183,7 @@ const routes = [
         path: 'mkt',
         name: 'mkt',
         component: () => import('@/views/MktPlaza.vue'),
-        meta: { requiresAuth: true, title: '集市' },
+        meta: { requiresAuth: true, guest: true, title: '集市' },
       },
       {
         path: 'mkt/publish',
@@ -229,7 +230,7 @@ const routes = [
         path: 'search',
         name: 'search',
         component: () => import('@/views/Search.vue'),
-        meta: { requiresAuth: true, title: '找人', back: true },
+        meta: { requiresAuth: true, guest: true, title: '找人', back: true },
       },
 
       /* ---- 发现:按兴趣找同好 + 热门圈子(计划 §6 场景3) ---- */
@@ -330,14 +331,38 @@ const router = createRouter({
   },
 })
 
-// 全局守卫:未登录跳登录页,带 returnUrl;管理员页面校验权限
-import { ElMessage } from '@/utils/feedback'
+// 全局守卫:未登录跳登录页,带 returnUrl;游客访问登录态页面先给退路;管理员页面校验权限
+import { ElMessage, ElMessageBox } from '@/utils/feedback'
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const user = useUserStore()
 
   // 未登录 -> 登录页,带 returnUrl 便于登录后跳回
   if (to.meta.requiresAuth && !user.hasToken) {
+    // 游客只读:仅放行显式标记 guest 的路由；圈子/消息/设置等仍要求登录
+    if (user.isGuest && to.meta.guest === true) {
+      next()
+      return
+    }
+    /*
+     * 游客误入登录态页面(2026-10-30):不再直接踢去登录页 ——
+     * 那会把「随便逛逛」的浏览动线整个打断。先弹一次询问:
+     *   先逛逛 → 留在当前页(直接输 URL 进来则回落首页)
+     *   去登录 → 带 returnUrl 进登录页
+     */
+    if (user.isGuest) {
+      try {
+        await ElMessageBox.confirm('这个页面需要登录，现在去登录吗？', '登录后才能继续', {
+          type: 'info',
+          confirmButtonText: '去登录',
+          cancelButtonText: '先逛逛',
+        })
+      } catch {
+        if (from.name == null) next('/')
+        else next(false)
+        return
+      }
+    }
     next({ path: '/login/form', query: { returnUrl: to.fullPath } })
     return
   }

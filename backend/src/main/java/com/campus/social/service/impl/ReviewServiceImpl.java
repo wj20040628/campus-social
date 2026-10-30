@@ -14,9 +14,7 @@ import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.ReviewTaskMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
-import com.campus.social.service.NotifyService;
 import com.campus.social.service.RoleService;
-import com.campus.social.util.SensitiveWordFilter;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.campus.social.service.PostService;
@@ -46,13 +44,11 @@ public class ReviewServiceImpl implements ReviewService {
     private final CircleMapper circleMapper;
     private final RoleService roleService;
     private final PostService postService;
-    private final NotifyService notifyService;
     private final NotifyMapper notifyMapper;
     private final WsPushService wsPush;
     private final WsAfterCommit wsAfterCommit;
     private final AuditService auditService;
     private final ObjectMapper om;
-    private final SensitiveWordFilter sensitive;
 
     /**
      * 圈主协审升级窗口(小时,2026-10-24):圈内任务超过该时长未处理即滑入平台队列。

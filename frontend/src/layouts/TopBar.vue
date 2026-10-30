@@ -39,6 +39,17 @@
         只会撞 requiresAuth;而主动想注册的人此前在页面上找不到任何入口,
         分享落地页的转化漏斗在这里漏掉。
       -->
+      <!-- 游客态补一个搜索入口:搜索页与搜索接口本来就对游客开放,
+           不然游客在顶栏只剩「登录」,站内没有任何搜索入口 -->
+      <button
+        v-if="!userStore.hasToken"
+        type="button"
+        class="topbar__icon-btn"
+        aria-label="搜索"
+        @click="router.push('/search')"
+      >
+        <el-icon :size="22"><Search /></el-icon>
+      </button>
       <button
         v-if="!userStore.hasToken"
         type="button"
@@ -103,7 +114,7 @@
       <!--
         桌面端头像:点击打开全局导航抽屉(2026-10-18 从精简下拉菜单
         改为与手机端共用的 AppDrawer,内容与设计稿一致——头像头部卡/圈子/
-        审核记录/校内认证/意见反馈/深色开关/设置/退出全在抽屉里);
+        审核记录/校园信息/意见反馈/深色开关/设置/退出全在抽屉里);
         手机端头像放底部 TabBar「我的」,此处不渲染(桌面才显示 .topbar__avatar-wrap)。
       -->
       <div class="topbar__avatar-wrap">
@@ -159,10 +170,9 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Bell, CaretBottom, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, CaretBottom, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { resolveThumb } from '@/utils/resolve'
-import UnreadDot from '@/components/mobile/UnreadDot.vue'
 
 const props = defineProps({
   showBack: { type: Boolean, default: false },

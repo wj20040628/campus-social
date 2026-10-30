@@ -57,9 +57,9 @@
         <!-- :key 随步切换（2026-10-26 修）：跳过走 enter() 后立即 router.replace('/')，
              Transition 不含 key 时 Vue 复用旧子树，新 step 的组件可能不挂载，点击落空。 -->
         <!--
-          2026-10-21 新增第 1 步：学校归属 + 学号认证。
-          放在最前面，因为它决定后续功能可用范围（未认证不能发私信/建圈子/
-          加圈子/发集市），用户越早知道越不会在点击时被拦。
+          第 1 步：学校归属（用于同院系推荐）+ 选填学号。
+          学校归属是后续推荐与引导完成接口的必填项；
+          学号只是可选资料，不影响任何功能权限（2026-10-30）。
         -->
         <StepVerify
           v-if="step === 1"
@@ -149,7 +149,6 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from '@/utils/feedback'
 import { useUserStore } from '@/stores/user'
 import { TOTAL_STEPS, SCHOOLS } from '@/constants/schoolDict'
 import { useOnboardingData, toggleIn } from '@/composables/useOnboardingData'
@@ -197,9 +196,9 @@ const {
 /**
  * 当前步能否前进。
  *
- * 2026-10-21 三步（认证 → 标签 → 关注）：
- *   第 1 步：由 StepVerify 组件内部控制提交，外壳的「下一步」恒可用 ——
- *            用户可以不填学号直接走（那就是「先浏览、后认证」的路径）
+ * 三步（学校归属 → 标签 → 关注）：
+ *   第 1 步：由 StepVerify 组件内部控制学号提交，外壳的下一步只要求归属齐全；
+ *            学号可以不填，不影响使用
  *   第 2 步：兴趣标签需选满最少数量
  *   第 3 步：恒为 true（openapi 说 followUserIds 可为空）
  */
@@ -210,10 +209,10 @@ const identityComplete = computed(() => {
 
 const canAdvance = computed(() => {
   /*
-   * 第 1 步（认证）的「下一步」不能再恒为 true（2026-10-26 修）：
+   * 第 1 步的「下一步」不能恒为 true（2026-10-26 修）：
    * 后端 /onboarding/complete 的 deptId / gradeId / majorId 都是 @NotNull，
    * 学校归属没选完就点下一步，必然收到 400「请选择学院/年级/专业」。
-   * 学号仍然可以不填（那是「先浏览、后认证」的路径），但归属必须先齐。
+   * 学号可以不填，但归属必须先齐。
    */
   if (step.value === 1) return identityComplete.value
   if (step.value === 2) return tagIds.value.length >= minSelect.value
@@ -256,17 +255,15 @@ function finish() {
 }
 
 /**
- * 认证结果回调（2026-10-21 新增，来自 StepVerify）。
+ * 提交结果回调（来自 StepVerify）。
  *
- * 只做一件事：刷新 userInfo。
- * 因为「已认证 / 审核中」会改变全站的可用范围（提示条消失、入口解禁），
- * 而 userInfo 是那些判断的唯一来源 —— 不刷新的话用户回到首页仍看到旧状态。
+ * 只做一件事：刷新 userInfo，让资料页/个人主页及时看到新的登记状态。
  * 不在这里跳到下一步：用户可能想先改归属再重填学号，让他自己点「下一步」。
  */
 async function onVerified() {
   try {
     await userStore.fetchMe()
-    // 认证成功后后端可能补写归属/校区，回填父页面这份对象，避免下一步提交旧值
+    // 提交后后端可能补写归属/校区，回填父页面这份对象，避免下一步提交旧值
     const info = userStore.userInfo
     if (info) {
       identity.value = {
@@ -292,7 +289,7 @@ async function onVerified() {
  */
 function onPopState() {
   // 第 2/3 步允许正常返回上一步；第 1 步已提供「跳过」出口，
-  // 不再拦返回手势（2026-10-26 修）——跳过能走通，就不必把人按在认证页。
+  // 不再拦返回手势 —— 跳过能走通，就不必把人按在这一页。
   if (step.value > 1) {
     goto(step.value - 1)
   }

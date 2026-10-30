@@ -85,8 +85,8 @@ export const SCHOOL_PROFILE_PAYLOAD = {
  *
  * 注册页已经收过学校/学院/年级并落库,引导页不再重复收(问题 2 的修复):
  * 进入引导时 identity 直接从 userStore.userInfo 预填,这里只作为请求体的键名来源,
- * 避免再写一层名字映射。学号核验(studentNo/nameTail)已移出引导,
- * 改由设置页的认证入口处理。
+ * 避免再写一层名字映射。学号(studentNo/nameTail)已移出引导,
+ * 改由设置页的校园信息入口处理。
  */
 export const IDENTITY_MODEL = {
   schoolId: null,
@@ -157,56 +157,6 @@ export const FALLBACK_GRADES = ['2023', '2024', '2025', '2026']
   .map((y) => ({ id: Number(y), name: `${y}级`, enrollYear: Number(y) }))
 
 /**
- * 学号「专业大类编码」(位 3-6,4 位)→ 该大类可能归属的招生学院名。
- *
- * [重要]这是后端 {@code StudentNoAutoPassSupport.MAJOR_CLASS_TO_DEPTS} 的**前端镜像**。
- * 后端那张表是认证自动通过的权威依据(学号专业大类 vs 本人自填院系交叉校验),
- * 这里只用于注册页 validator 给一个即时软提示 —— 所以:
- *  - 一个大类可能跨多个学院,值是数组不是单值(写死单值会误伤另一个学院的真实学生);
- *  - 未收录的大类一律不拦(对应后端「未收录转人工,不猜」)。
- * 后端改这张表时,这里必须同步改一行,否则注册提示与认证口径会漂移。
- */
-export const MAJOR_CLASS_TO_DEPTS = {
-  '0809': ['人工智能学院'], // 计算机类
-  '0802': ['智能制造与电气工程学院', '智能车辆与新能源工程学院'], // 机械类
-  '0818': ['智慧交通与智能建造工程学院', '智能车辆与新能源工程学院'], // 交通运输类
-  '0810': ['智慧交通与智能建造工程学院'], // 土木类
-  '0812': ['智慧交通与智能建造工程学院'], // 测绘类
-  '0805': ['智能车辆与新能源工程学院'], // 能源动力类
-  '0806': ['智能制造与电气工程学院'], // 电气类
-  '0807': ['智能制造与电气工程学院'], // 电子信息类
-  '1201': ['数字经济与智慧管理学院'], // 管理科学与工程
-  '1202': ['数字经济与智慧管理学院'], // 工商管理
-  '1206': ['数字经济与智慧管理学院'], // 物流管理
-  '1208': ['数字经济与智慧管理学院'], // 电子商务
-  '0203': ['数字经济与智慧管理学院'], // 金融学类
-  '0305': ['马克思主义学院'], // 马克思主义理论
-  '1305': ['艺术与设计学院'], // 设计学类
-}
-
-/**
- * 学号与所选学院是否一致(注册页即时校验用)。
- *
- * 学号位布局(后端 StudentNoParser / CampusVerifyServiceImpl 同款):
- * 位 1-2 入学年 / 位 3-6 专业大类 / 位 7-8 专业位号 / 位 9-10 班级 /
- * 位 11-12 固定标识 / 最后 2 位班内排名。
- * 这里只吃位 3-6 做软提示。
- *
- * @param {string} studentNo 已通过「纯数字 + 末两位 ≤ 70」的学号
- * @param {string} [deptName] 用户选中的学院名(从字典下拉 dict.deptOptions 取)
- * @returns {boolean|null} true=一致, false=不一致, null=无法判定(学号太短/大类未收录/学院名取不到)不拦
- */
-export function matchStudentNoDept(studentNo, deptName) {
-  const s = (studentNo || '').trim()
-  if (s.length < 6) return null // 取不到位 3-6,放弃判定
-  const majorClass = s.slice(2, 6)
-  const allowed = MAJOR_CLASS_TO_DEPTS[majorClass]
-  if (!allowed) return null // 大类未收录:不猜,交后端
-  if (!deptName) return null // 学院名取不到:不拦,避免误伤
-  return allowed.includes(deptName.trim())
-}
-
-/**
  * 学号层次标记(位 11-12)与所选本专科是否一致(注册页即时校验用)。
  *
  * 学号位布局(后端 StudentNoParser / CampusVerifyServiceImpl 同款):
@@ -234,9 +184,9 @@ export function matchStudentNoLevel(studentNo, level) {
 /**
  * 引导总步数，进度条 aria-valuemax 用它。
  *
- * 2026-10-21 从 2 改成 3：新增了第 1 步「学校归属 + 学号认证」。
+ * 2026-10-21 从 2 改成 3：新增了第 1 步「学校归属 + 选填学号」。
  * 放在最前面是因为它决定后续功能的可用范围
- * （未认证不能发私信/建圈子/加圈子/发集市），
+ * （校园信息已退出权限判定，2026-10-30），
  * 用户越早知道这件事，越不会在点了「加圈子」才被拦。
  */
 export const TOTAL_STEPS = 3

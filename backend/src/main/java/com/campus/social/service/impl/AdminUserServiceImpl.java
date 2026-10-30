@@ -2,7 +2,6 @@ package com.campus.social.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.assembler.UserVoAssembler;
-import com.campus.social.entity.ReviewTask;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.FeedbackMapper;

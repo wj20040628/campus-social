@@ -1,5 +1,6 @@
 package com.campus.social.integration;
 
+import com.campus.social.common.ResultCode;
 import com.campus.social.entity.FileAsset;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.FileAssetMapper;
@@ -55,11 +56,13 @@ class FileLibraryTest {
 
     private Long userId;
     private Long unverifiedId;
+    private Long lowCreditId;
 
     @BeforeEach
     void seed() {
         userId = insertUser("file-user-" + SUFFIX, 1);
         unverifiedId = insertUser("file-unver-" + SUFFIX, 0);
+        lowCreditId = insertUser("file-low-" + SUFFIX, 0);
     }
 
     private Long insertUser(String username, int verified) {
@@ -71,7 +74,7 @@ class FileLibraryTest {
 
     @AfterEach
     void cleanup() {
-        for (Long id : List.of(userId, unverifiedId)) {
+        for (Long id : List.of(userId, unverifiedId, lowCreditId)) {
             if (id == null) continue;
             List<String> objectKeys = jdbc.queryForList(
                     "SELECT object_key FROM file_asset WHERE user_id = ? AND object_key <> ''",
@@ -84,7 +87,8 @@ class FileLibraryTest {
             jdbc.update("DELETE FROM `like` WHERE user_id = ? AND target_type = 3", id);
             jdbc.update("DELETE FROM notify WHERE user_id = ? AND type IN (13,14,15)", id);
             jdbc.update("DELETE FROM audit_log WHERE user_id = ? AND action IN "
-                    + "('file_upload','file_delete','file_approve','file_reject','file_takedown')", id);
+                    + "('file_upload','file_delete','file_approve','file_reject','file_takedown',"
+                    + "'report_upheld')", id);
             jdbc.update("DELETE FROM user WHERE id = ?", id);
         }
         Set<String> keys = redis.keys("file:view:*");
@@ -235,13 +239,27 @@ class FileLibraryTest {
         assertTrue(fileService.quota(userId).getCanUpload());
     }
 
+    /** 校园信息不再参与文件权限：未填写但信誉分达线可以上传 */
     @Test
-    void unverifiedUserCannotUpload() {
+    void campusInfoNoLongerRequiredForUpload() {
+        assertDoesNotThrow(() -> fileService.upload(unverifiedId,
+                new MockMultipartFile("file", "a.pdf", "application/pdf", PDF),
+                "未填校园信息", "other", null));
+    }
+
+    /** 信誉分低于 60 → 1068；两条成立举报把基准 60 扣到 20 */
+    @Test
+    void lowCreditUserCannotUpload() {
+        for (int i = 0; i < 2; i++) {
+            jdbc.update("INSERT INTO audit_log (user_id, action, target_type, target_id, detail) "
+                    + "VALUES (1, 'report_upheld', 'user', ?, ?)", lowCreditId, "LC" + i + SUFFIX);
+        }
+
         BusinessException e = assertThrows(BusinessException.class,
-                () -> fileService.upload(unverifiedId,
+                () -> fileService.upload(lowCreditId,
                         new MockMultipartFile("file", "a.pdf", "application/pdf", PDF),
-                        "未认证", "other", null));
-        assertEquals(1068, e.getCode());
+                        "低信誉", "other", null));
+        assertEquals(ResultCode.FILE_UPLOAD_FORBIDDEN.getCode(), e.getCode());
     }
 
     private long upload(String title, String category) {

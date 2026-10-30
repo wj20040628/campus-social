@@ -87,7 +87,7 @@
  * 否则会出现「组件自己把 joined 改了、父组件的 canCreate 却还按旧值算」。
  */
 import { computed, ref } from 'vue'
-import { CircleCheck, Setting } from '@element-plus/icons-vue'
+import { Setting } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 import { submitReport } from '@/api/review'

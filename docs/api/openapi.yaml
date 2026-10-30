@@ -42,8 +42,8 @@ info:
       静默忽略会让调用方以为写入成功、实际数据未落库，
       这类「以为成功」的失败比直接报错难查得多。
     - **`POST /api/v1/admin/announcement` 与 `PATCH /api/v1/admin/announcement/{id}`
-      额外要求「已通过校内认证」**（AC-11）：除管理员权限外，还需 `verify_status = 1`，
-      否则 403 `USER_NOT_VERIFIED(1029)`。
+      只要求管理员角色**（`role = 1`）。2026-10-30 起校园信息（`verify_status`）
+      不再参与任何功能权限判定，公告发布/编辑不再要求它。
       **为什么编辑与发布同权**：编辑能改 title / content，改完立即推给全校在线用户，
       效果与发布等价；只拦发布不拦编辑，等于留了一条绕行路径。
       读类端点（`GET /admin/announcement`、`GET /admin/announcement/{id}/unread-users`、
@@ -112,24 +112,22 @@ info:
     | USER_CANCELLED | 1002 | 403 |
     | BLACKLISTED | 1013 | 403 |
     | NOT_ADMIN | 1025 | 403 |
-    | USER_NOT_VERIFIED（新增） | 1029 | 403 |
     | STRANGER_MSG_CLOSED（新增） | 1030 | 403 |
     | ANNOUNCEMENT_NOT_FOUND（新增） | 1031 | 404 |
-    | CAMPUS_EMAIL_NOT_ALLOWED（新增） | 1032 | 422 |
     | 其余 1xxx | — | 200（不变） |
 
     ## 5. 本轮需新增的 ResultCode 枚举项
 
-    现有 `ResultCode.java` 共 54 项，缺以下 5 个语义。除 `TOO_MANY_REQUESTS` 用 HTTP 码段
+    现有 `ResultCode.java` 共 54 项，缺以下语义。除 `TOO_MANY_REQUESTS` 用 HTTP 码段
     （枚举内本就混排 4xx 与 1xxx），其余接续 1xxx 段从 1029 起编号（现最大为 GROUP_NAME_EMPTY 1028）。
 
     | 新增项 | 值 | 文案 | 用到它的端点 |
     |---|---|---|---|
     | `TOO_MANY_REQUESTS` | 429 | 操作过于频繁,请稍后再试 | `POST /chat/send`（配额超限，message 会覆盖为具体规则：「给同一位同学每天最多发 1 条，明天再来；对方关注你或回复你后不再受限」） |
-    | `USER_NOT_VERIFIED` | 1029 | 请先完成校内认证 | `POST /chat/send`、`POST /admin/announcement` |
+    | `ACCOUNT_TOO_NEW` | 1073 | 账号注册时间不足 | 搭话 / 建圈 / 建群 / 拉人 / 集市发布 / 活动报名 |
+    | `CREDIT_TOO_LOW` | 1074 | 信誉分不足 | 同上 |
     | `STRANGER_MSG_CLOSED` | 1030 | 对方已关闭陌生人消息 | `POST /chat/send` |
     | `ANNOUNCEMENT_NOT_FOUND` | 1031 | 公告不存在或已下架 | `GET /announcement/{id}`、`POST /announcement/{id}/read`、`PATCH /admin/announcement/{id}` |
-    | `CAMPUS_EMAIL_NOT_ALLOWED` | 1032 | 该邮箱域名不是受信任的校园邮箱 | `POST /user/verify/campus-email` |
 
     凡是「校验不通过但语义已有现成码」的场景，**一律复用不新增**，例如：
     敏感词拦截用 `SENSITIVE_WORD_BLOCKED(1008)`、标签超 8 个用
@@ -198,24 +196,19 @@ tags:
 paths:
 
   # ===========================================================================
-  # §5.4.1 F2 学号核验审核（管理员）
+  # §5.4.1 校园信息核对（管理员）
   #
-  # ★ Phase 2 补录，2026-10-09。为什么必须有：实测确认「浙江理工大学不给
-  #   学生开通邮箱账号」（邮箱系统存在但账号从未发放），校园邮箱认证对
-  #   全体学生不可用，学号核验成为唯一认证通道。而它此前只有提交端点、
-  #   没有审核端点 —— 提交后 verify_status 永远停在 2（审核中），无人能批，
-  #   所有用户过不了 AC-11，搭话/公告全废。这是上线阻塞项。
-  #
-  #   审核数据来源：user 表 verify_status=2 的行（student_no 列 + UNIQUE 防重），
-  #   姓名后两位在 audit_log（migration 未增补 name_tail 列，见 ARCHITECTURE §3）。
-  #   管理员凭学号格式 + 院系年级人工判断真伪（MVP 阶段管理员即站长本人）。
+  # 2026-10-30 起定位为「可选资料核对」：队列是 user 表 verify_status=2 的行，
+  # 通过/退回只改资料标记，不授予或收回任何功能权限。
+  # 学号与所选院系/年级/专业的一致性由 StudentNoConsistencyChecker 自动比对，
+  # 对不上的才进队列。学校不提供学生名单，核对结论不能作为身份证明。
   # ===========================================================================
 
   /admin/verify/pending:
     get:
       operationId: listPendingVerify
       tags: [admin-verify]
-      summary: 学号核验待审列表（管理员）
+      summary: 校园信息待核对列表（管理员）
       description: |
         查 `verify_status = 2`（审核中）的用户，按提交时间倒序，游标分页。
         进入即 `roleService.requireAdmin(userId)`，非管理员 403 `NOT_ADMIN`（AC-20）。
@@ -225,7 +218,7 @@ paths:
         - $ref: '#/components/parameters/Size'
       responses:
         '200':
-          description: 待审学号核验游标分页
+          description: 待核对校园信息游标分页
           content:
             application/json:
               schema:
@@ -238,11 +231,11 @@ paths:
     post:
       operationId: approveVerify
       tags: [admin-verify]
-      summary: 通过学号核验
+      summary: 标记校园信息已登记
       description: |
-        `verify_status` 2→1（已认证），写 audit_log（actor=管理员）。
+        `verify_status` 2→1（已登记），写 audit_log（actor=管理员）。
         目标不存在或状态非 2 时 404 `VERIFY_NOT_FOUND(1044)`。
-        通过后用户即获得 AC-11 全部能力（搭话/发公告）。
+        **只更新资料标记，不授予任何功能权限**（2026-10-30）。
       parameters:
         - name: userId
           in: path
@@ -804,12 +797,14 @@ paths:
         `frontend/src/api/chat.js:15` 的 `request.post('/chat/message', ...)`。
 
         护栏执行顺序（顺序不可调换，先便宜后昂贵）：
-        判定顺序（2026-10-28 改版）：
+        判定顺序（2026-10-30 改版）：
         1. 不能给自己发 —— `CHAT_SELF(1014)`
-        2. 未通过校内认证不得发起搭话 —— `USER_NOT_VERIFIED(1029)`（AC-11）
-        3. 黑名单双向拦截（`relation.type = 3`）—— `BLACKLISTED(1013)`
-        4. 接收方 `stranger_msg_enabled = 0`，**只对真正的陌生人生效**
+        2. 黑名单双向拦截（`relation.type = 3`）—— `BLACKLISTED(1013)`
+        3. 接收方 `stranger_msg_enabled = 0`，**只对真正的陌生人生效**
            —— `STRANGER_MSG_CLOSED(1030)`（AC-05）
+        4. 陌生人首次搭话的行为门槛：账号注册满 24 小时且信誉分达到 60
+           —— `ACCOUNT_TOO_NEW(1073)` / `CREDIT_TOO_LOW(1074)`
+           （回复已有会话、互相关注后的对话不受此限；校园信息不再参与）
         5. 敏感词过滤（复用 `SensitiveWordFilter`）—— `SENSITIVE_WORD_BLOCKED(1008)`（AC-06）
         6. 陌生人日配额（Redis ZSET 滑动窗口 Lua）—— `TOO_MANY_REQUESTS(429)`（AC-04）
 
@@ -840,8 +835,9 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
           description: |
-            403。取值为 `BLACKLISTED(1013)` 双向黑名单、`USER_NOT_VERIFIED(1029)` 未认证、
-            `STRANGER_MSG_CLOSED(1030)` 对方已关闭陌生人消息、`USER_FROZEN(1001)` 账号冻结
+            403。取值为 `BLACKLISTED(1013)` 双向黑名单、`ACCOUNT_TOO_NEW(1073)` 账号太新、
+            `CREDIT_TOO_LOW(1074)` 信誉分不足、`STRANGER_MSG_CLOSED(1030)` 对方已关闭陌生人消息、
+            `USER_FROZEN(1001)` 账号冻结
           content:
             application/json:
               schema:
@@ -1021,7 +1017,7 @@ paths:
         并通过 `WsPushService` 向**当前在线**用户推一条轻量提示（`notify.type = 6 公告`，
         内容为标题 + id）。**不给全员写 notify 行**（SPEC §6.3：写入放大 1 万倍）。
 
-        发布方必须已通过校内认证，否则 403 `USER_NOT_VERIFIED`（AC-11）。
+        发布方必须是管理员（`role = 1`）；校园信息不参与公告权限（2026-10-30）。
       requestBody:
         required: true
         content:
@@ -2142,109 +2138,25 @@ paths:
         '422': { $ref: '#/components/responses/Unprocessable' }
         '500': { $ref: '#/components/responses/InternalError' }
 
-  /user/verify/campus-email:
-    post:
-      operationId: sendCampusEmailCode
-      tags: [verify]
-      summary: 发起校园邮箱验证码
-      description: |
-        先做域名白名单校验（白名单来自 `application.yml` 的
-        `campus.email-domain-whitelist`，逗号分隔，如 `mail.xxx.edu.cn,xxx.edu.cn`），
-        不在名单内直接 422 `CAMPUS_EMAIL_NOT_ALLOWED`，**不写 Redis、不发信**
-        —— 否则任意字符串会成为 Redis key 并被送去真实 SMTP 通道。
-
-        通过白名单后**完整复用现有 `VerifyCodeServiceImpl.send(target, type)`**，
-        `type` 传 `campus`。不新开辟验证码通道：邮箱通道（QQ SMTP）、
-        6 位码、5 分钟 TTL、60s 限频、每日 10 次上限、原子读删 Lua 全部现成。
-        超限返回 429（底层是 `CODE_TOO_FREQUENT(1021)` / `CODE_LIMIT_REACHED(1022)`，
-        由 HTTP 映射表转成 429）。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CampusEmailSendRequest'
-      responses:
-        '200':
-          description: 验证码已发送
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MessageResponse'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '409':
-          description: 409 `CONFLICT` 该账号已完成校内认证，无需重复认证
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorBody'
-        '422':
-          description: 422 `CAMPUS_EMAIL_NOT_ALLOWED(1032)` 邮箱域名不在校园白名单
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorBody'
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalError' }
-
-  /user/verify/campus-email/confirm:
-    post:
-      operationId: confirmCampusEmailCode
-      tags: [verify]
-      summary: 确认校园邮箱验证码
-      description: |
-        复用 `VerifyCodeServiceImpl.verify(target, code, "campus")`。
-        校验通过后把 `user.verify_status` 置 1（已认证），写 `school_id`。
-        原子读删走 `VerifyCodeServiceImpl.java:102-105` 的 Lua 脚本，
-        **禁止改用 `opsForValue().getAndDelete()`**（Redis 5.0 会抛 `ERR unknown command`，
-        已踩过一次坑，SPEC §11 第 1 条）。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CampusEmailConfirmRequest'
-      responses:
-        '200':
-          description: 认证结果
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VerifyStatusResponse'
-        '400':
-          description: 400 `CODE_INVALID(1020)` 验证码错误或已过期
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorBody'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '409':
-          description: 409 `CONFLICT` 该账号已完成校内认证
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorBody'
-        '500': { $ref: '#/components/responses/InternalError' }
-
   /user/verify/student-no:
     post:
       operationId: submitStudentNoVerify
       tags: [verify]
-      summary: 学号认证（人工核验兜底）
+      summary: 提交学号（可选资料）
       description: |
-        **冷启动期的兜底路径**：校园邮箱未必人人有（部分学校邮箱未激活、
-        毕业生邮箱已回收），所以必须留一条不依赖邮箱的通道。
+        2026-10-30 起学号是**可选资料**，不影响任何功能权限。
 
-        提交后不直接认证，而是 `user.verify_status` 置 2（审核中），
-        同时往现有 `review_task` 表插一条由管理员人工核验的任务，
-        **不新建审核机制**（复用 `ReviewService`，与 G1 举报同一条流）。
-        管理员在手机端（OD-19）通过后由后台把 `verify_status` 置 1，
-        驳回置 3 并回填理由。
+        只做三件事：
+        1. 格式必须是 13~14 位纯数字，否则 422 `STUDENT_NO_MISMATCH(1058)`；
+        2. `student_no` 唯一，已被他人占用返回 409 `STUDENT_NO_EXISTS(1004)`；
+        3. 与用户已选的年级/专业做一致性比对：
+           一致 → `verify_status = 1`（已登记，直接返回）；
+           不一致 → `verify_status = 2`（核对中，等管理员处理），**不拒绝提交**。
 
-        `studentNo` 走 `user.student_no` 唯一约束，已被他人占用返回 409
-        `STUDENT_NO_EXISTS(1004)`。`nameTail` 是姓名后两位（选填），
-        如「张三」传「三」，「欧阳娜娜」传「娜娜」；2026-10-27 起前端不再收集。
+        队列就是 user 表本身（`verify_status = 2`），不新建审核任务表。
+        管理员在手机端（OD-19）通过后置 1，退回置 3 并回填理由。
+
+        `nameTail` 是姓名后两位（选填），2026-10-27 起前端不再收集。
       requestBody:
         required: true
         content:
@@ -2253,7 +2165,7 @@ paths:
               $ref: '#/components/schemas/StudentNoVerifyRequest'
       responses:
         '200':
-          description: 已提交，进入人工核验
+          description: 已登记（verifyStatus=1）或已提交待核对（verifyStatus=2）
           content:
             application/json:
               schema:
@@ -2261,7 +2173,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409':
-          description: 409。已认证 / 已在审核中 / `STUDENT_NO_EXISTS(1004)` 学号已被使用
+          description: 409。已登记 / 已在核对中 / `STUDENT_NO_EXISTS(1004)` 学号已被使用
           content:
             application/json:
               schema:
@@ -2273,11 +2185,11 @@ paths:
     get:
       operationId: getVerifyStatus
       tags: [verify]
-      summary: 当前认证状态
+      summary: 当前校园信息状态
       description: |
-        前端据 `canStrangerChat` / `canPublishAnnouncement` 决定是否禁用入口，
-        不再在每个页面各写一遍判断（AC-11 的统一拦截口径，见 ARCHITECTURE §3 Q9）。
-        未认证时不返回任何真实姓名或学号字段（AC-12）。
+        2026-10-30 起只表示可选资料的登记状态，**不承载任何功能权限**；
+        功能门槛由后端按账号年龄 + 信誉分判定。
+        不返回任何真实姓名或学号字段给他人（仅本人可取回学号）。
       responses:
         '200':
           description: 认证状态快照
@@ -2364,9 +2276,8 @@ paths:
         确定性规则排序，优先级从高到低：
         1. 同院系（**`user.dept_id` 相等**）
         2. 同年级（**`user.grade_id` 相等**）
-        3. 已通过校内认证（`verify_status = 1`）
-        4. 曾有互动（近 7 天有发帖或评论，`post` / `comment` 表存在记录）
-        5. `follower_count` 降序
+        3. `follower_count` 降序
+        （2026-10-30 移除「已认证 +1」：校园信息不再作为公开信用信号）
 
         排除自己、已关注的、已拉黑的、`status != 0` 的账号。
         单校 MVP 下 `school_id` 恒为 1，该维度不参与排序但写进 SQL 以便后续扩校。
@@ -2409,13 +2320,13 @@ paths:
            且 `common_tag_count = 0` 的人不进名单——搭子的本质是兴趣撮合，
            没共同兴趣的人留给「推荐关注」场景；
         2. **拉黑双向过滤**：我拉黑的、拉黑我的都不出现（推荐关注只单向过滤）；
-        3. **只推可搭话的人**：`verify_status = 1` 且 `stranger_msg_enabled = 1`，
+        3. **只推可搭话的人**：`stranger_msg_enabled = 1`，
            否则点「想认识」直接被 ChatGuard 拒，白占名额。
 
         结果**按 ISO 周缓存**（Redis `buddy:week:{uid}:{周}`，TTL 8 天）：
         同一周内每次进发现页是同一批人，周一自然换一批。
-        登录即可浏览（不要求已认证）；点「想认识」走 `POST /chat/send`，
-        认证门槛由搭话链路（`@RequireVerified` + ChatGuard）自行拦截。
+        登录即可浏览；点「想认识」走 `POST /chat/send`，
+        账号注册时长与信誉分门槛由 ChatGuard 把关。
       parameters:
         - name: size
           in: query
@@ -3971,6 +3882,14 @@ components:
         strangerMsgEnabled:
           type: boolean
           description: 我是否接收陌生人消息。false 时前端应提示「你已关闭陌生人搭话」
+        initiationBlockedReason:
+          type: string
+          nullable: true
+          description: |
+            向指定陌生人发起搭话的行为门槛未达标原因（账号注册未满 24 小时 /
+            信誉分低于 60 / 账号状态异常）。null 表示可发起；
+            不传 peerId 或对方已不是陌生人时不返回。
+            前端拿到非空值时应整条替换额度提示，不要再显示「今天还剩 N 条」。
 
     StrangerQuotaResponse:
       allOf:
@@ -4092,9 +4011,6 @@ components:
         avatarUrl:
           type: string
           nullable: true
-        verified:
-          type: boolean
-          description: 是否已通过校内认证（AC-12：认证徽章只展示到这一层）
         schoolName:
           type: string
           nullable: true
@@ -4754,15 +4670,11 @@ components:
           type: boolean
           nullable: true
           description: |
-            **是否已通过校内认证**。AC-12 的认证徽章判据，前端直接用这个字段，
-            不要从「是否填了院系 / 年级」反推。
-
-            **为什么必须由服务端给**：填写院系与通过认证是两个独立事实——
-            用户可以在引导第 1 步填完院系却从未提交邮箱验证码。
-            前端反推会在这种情况下显示「已认证」，等于伪造身份声明。
-
-            只给两态不给四态：审核中（2）/ 被拒（3）属于「我的认证进度」，
-            由 `GET /user/verify/status` 的 `verifyStatus` 承担。
+            **校园信息是否已登记**（verify_status = 1）。
+            2026-10-30 起只表示资料填写状态，**不参与任何权限判定**，
+            也不得作为公开身份徽章——学校不提供学生名单，系统无法证明
+            「某人是某校学生」，把该字段当信用背书属于过度声明。
+            功能门槛由账号年龄 + 信誉分判定（CampusAccessService）。
             在此再放一份四态字段，两处口径一旦漂移就会让徽章显示错误状态。
 
             为 null 时按未认证处理。
@@ -5295,29 +5207,6 @@ components:
                   type: string
                   format: date-time
 
-    CampusEmailSendRequest:
-      type: object
-      required: [email]
-      properties:
-        email:
-          type: string
-          format: email
-          maxLength: 128
-          example: 2024210123@mail.example.edu.cn
-
-    CampusEmailConfirmRequest:
-      type: object
-      required: [email, code]
-      properties:
-        email:
-          type: string
-          format: email
-          maxLength: 128
-        code:
-          type: string
-          pattern: '^\d{6}$'
-          example: '483920'
-
     StudentNoVerifyRequest:
       type: object
       required: [studentNo]
@@ -5360,11 +5249,11 @@ components:
 
     VerifyStatusData:
       type: object
-      required: [verifyStatus, canStrangerChat, canPublishAnnouncement]
+      required: [verifyStatus, profileComplete]
       properties:
         verifyStatus:
           type: integer
-          description: 0未认证 1已认证 2审核中 3驳回
+          description: 0未填写 1已登记 2核对中 3需修改（仅资料标记，不影响功能）
           enum: [0, 1, 2, 3]
         verifyStatusText:
           type: string
@@ -5384,12 +5273,6 @@ components:
           type: string
           nullable: true
           description: verifyStatus=3 时的驳回理由
-        canStrangerChat:
-          type: boolean
-          description: 是否可发起搭话。verifyStatus=1 才为 true（AC-11）
-        canPublishAnnouncement:
-          type: boolean
-          description: 是否可发布公告。verifyStatus=1 才为 true（AC-11）
         profileComplete:
           type: boolean
           description: 引导第 1 步是否完成（dept 与 grade 均已填）
@@ -5488,7 +5371,7 @@ components:
 
     RecommendUserItem:
       type: object
-      required: [id, nickname, verified, reason]
+      required: [id, nickname, reason]
       properties:
         id:
           type: integer
@@ -5504,9 +5387,6 @@ components:
         grade:
           type: string
           nullable: true
-        verified:
-          type: boolean
-          description: 是否已通过校内认证
         followerCount:
           type: integer
         reason:
@@ -5965,8 +5845,6 @@ components:
         uploaderAvatar:
           type: string
           nullable: true
-        uploaderVerified:
-          type: boolean
         status:
           type: integer
           enum: [0, 1, 2, 3]

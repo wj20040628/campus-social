@@ -63,7 +63,7 @@ public class PostWriteService {
     private final com.campus.social.service.CircleAdminService circleAdminService;
     /** 审核信任闸门(2026-10-24):level-1 直接命中的受信用户豁免送审 */
     private final ReviewTrustService trustService;
-    /** 发帖日配额(2026-10-25):未认证 3/日,认证 30/日,Redis 自然日分桶 */
+    /** 发帖日配额:按信誉档位 5/10/15 条/日(2026-10-30 起不再看校园信息),Redis 自然日分桶 */
     private final org.springframework.data.redis.core.StringRedisTemplate redis;
 
     @Transactional
@@ -105,7 +105,7 @@ public class PostWriteService {
         /*
          * 日配额(2026-10-25 审计修):挪到**全部**可失败校验(parseMedia/
          * 圈成员)之后——此前放在它们前面,选错圈子(403)或 media 格式错(400)
-         * 的失败请求也会烧掉当日额度,未认证用户 3 条/日失败两次就没得发。
+         * 的失败请求也会烧掉当日额度,低配额用户失败两次就没得发。
          * INCR 仍在插入前:原子自增保证并发下也不会超发。
          */
         guardDailyQuota(authorId);

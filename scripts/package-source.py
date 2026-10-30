@@ -24,7 +24,7 @@ INCLUDE_FILES = ['backend/pom.xml', 'backend/Dockerfile', 'frontend/index.html',
 # 目录名/文件名/后缀黑名单——依赖、产物、真实上传数据、IDE 与临时脚本
 EXCLUDE_DIR_NAMES = {'node_modules', 'target', 'dist', 'uploads', '__pycache__', '.idea', '.vscode',
                      '.git', '.e2e-env', '.e2e-shots', '.design-shots', '.report-build', '.report-shots',
-                     'report', 'gui-test-screenshots', 'vibe_images', 'screens', 'design', 'report-figures',
+                     'report', 'gui-test-screenshots', 'vibe_images', 'design', 'report-figures',
                      '.claude', '.workbuddy'}
 EXCLUDE_NAMES = {'application-local.yml', 'cp.txt'}
 EXCLUDE_SUFFIXES = ('.docx', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.jar', '.war',
@@ -35,11 +35,14 @@ EXCLUDE_PATTERNS = (re.compile(r'^vite\.config\.js\.timestamp-'), re.compile(r'^
 LOCAL_YML = os.path.join(ROOT, 'backend', 'src', 'main', 'resources', 'application-local.yml')
 
 
-def excluded(name):
+def excluded(name, rel=''):
     if name in EXCLUDE_NAMES:
         return True
+    rel = rel.replace(os.sep, '/')
     if name.endswith(EXCLUDE_SUFFIXES):
-        return True
+        # README 的界面截图必须随包，否则包内 README 全是裂图
+        if not (rel.startswith('docs/screens/') and name.lower().endswith('.png')):
+            return True
     return any(p.search(name) for p in EXCLUDE_PATTERNS)
 
 
@@ -50,10 +53,12 @@ def walk(rel_dir):
     for dirpath, dirnames, filenames in os.walk(base):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIR_NAMES]
         for f in filenames:
-            if excluded(f):
+            rel = os.path.join(dirpath, f)
+            rel = os.path.relpath(rel, ROOT).replace(os.sep, '/')
+            if excluded(f, rel):
                 continue
             full = os.path.join(dirpath, f)
-            yield full, os.path.relpath(full, ROOT).replace(os.sep, '/')
+            yield full, rel
 
 
 def real_secrets():
@@ -78,7 +83,7 @@ def main():
             files[rel] = full
     for f in INCLUDE_FILES:
         full = os.path.join(ROOT, f.replace('/', os.sep))
-        if os.path.isfile(full) and not excluded(os.path.basename(f)):
+        if os.path.isfile(full) and not excluded(os.path.basename(f), f):
             files[f] = full
 
     secrets = real_secrets()

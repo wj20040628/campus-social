@@ -16,11 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>此前发现页直接复用 /onboarding/recommend-* 两个端点(api/discover.js 的
  * 注释里预留了这条扩展缝:「后端补 /discover 专属端点后,只改本文件」)。
- * 搭子匹配的口径与推荐关注不同(标签主导 + 双向拉黑 + 认证/陌生人开关过滤),
+ * 搭子匹配的口径与推荐关注不同(标签主导 + 双向拉黑 + 陌生人开关过滤),
  * 值得一个独立端点;发现页其余两个 tab 继续复用 onboarding 端点不动。
  *
- * <p>登录即可浏览(不挂 @RequireVerified):看推荐无门槛,
- * 「想认识」搭话时 GreetButton / ChatGuard 自有认证拦截。
+ * <p>登录即可浏览:看推荐无门槛,
+ * 「想认识」搭话时 ChatGuard 按账号注册时长与信誉分把关。
  */
 @RestController
 @RequestMapping("/discover")

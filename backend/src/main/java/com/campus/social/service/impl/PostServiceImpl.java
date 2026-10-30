@@ -9,19 +9,13 @@ import com.campus.social.entity.*;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.*;
 import com.campus.social.service.PostService;
-import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
 import com.campus.social.vo.PostVO;
-import com.campus.social.vo.UserVO;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,7 +53,6 @@ public class PostServiceImpl implements PostService {
     private final CommentMapper commentMapper;
     private final LikeMapper likeMapper;
     private final PostFavoriteMapper favoriteMapper;
-    private final UserMapper userMapper;
     private final NotifyMapper notifyMapper;
     private final PostNotifySupport notifySupport;
     private final com.campus.social.service.AuditService auditService;

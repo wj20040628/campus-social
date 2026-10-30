@@ -1,6 +1,5 @@
 package com.campus.social.service.impl;
 
-import com.campus.social.common.ResultCode;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;

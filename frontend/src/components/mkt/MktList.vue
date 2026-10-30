@@ -69,7 +69,7 @@
  * 追加后由页面把新的整份列表传回来。这样本组件永远只有一份数据源。
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { Plus, WarningFilled, OfficeBuilding, Tickets } from '@element-plus/icons-vue'
+import { WarningFilled, OfficeBuilding, Tickets } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import MktCard from './MktCard.vue'
 import MktCardSkeleton from './MktCardSkeleton.vue'

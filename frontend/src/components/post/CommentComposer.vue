@@ -12,7 +12,7 @@
     ## 发送失败必须保留草稿
     用户写了一百多字,点发送,网络断了,草稿被清空 —— 这是评论区最伤人的一种失败。
   -->
-  <div class="cc">
+  <div class="cc" @mousedown.capture="onGuestPress">
     <!--
       回复态提示条(契约 CreateCommentDTO 的 parentId / level / replyToUserId)
       「回复 @李四」+ 一个可点的 ×。不发 @ 提及 —— 回复某人 ≠ @ 某人:
@@ -93,7 +93,7 @@ import { Close } from '@element-plus/icons-vue'
 import { useMention } from '@/composables/useMention'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 
 const MAX_LEN = 2000
@@ -114,9 +114,11 @@ const props = defineProps({
    * 回复与 @ 是两套通知通道,混在一起会给同一个人发两条红点。
    */
   replyTo: { type: Object, default: null },
+  /** 游客态:拦下输入区点击,由父组件弹登录提示 */
+  guest: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['cancel-reply'])
+const emit = defineEmits(['cancel-reply', 'need-login'])
 
 const text = ref('')
 const error = ref('')
@@ -132,6 +134,13 @@ const {
 useKeyboardViewport()
 
 const canSend = computed(() => text.value.trim().length > 0 && !sending.value)
+
+/** 游客点输入区:拦下聚焦(不弹键盘),把登录提示交给父组件 */
+function onGuestPress(e) {
+  if (!props.guest) return
+  e.preventDefault()
+  emit('need-login')
+}
 
 const replyName = computed(() => {
   const u = props.replyTo?.user
@@ -173,6 +182,10 @@ watch(
  * @returns {Promise<boolean>} 是否发送成功
  */
 async function send() {
+  if (props.guest) {
+    emit('need-login')
+    return false
+  }
   if (!canSend.value) return false
   sending.value = true
   error.value = ''

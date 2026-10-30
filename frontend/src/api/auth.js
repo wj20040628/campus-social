@@ -24,7 +24,7 @@ export function register(payload) {
   if (emailCode && emailCode.trim()) body.emailCode = emailCode.trim()
   // 学号选填：有值才带
   if (studentNo && studentNo.trim()) body.studentNo = studentNo.trim()
-  // 注册即认证：填了学号才把学校归属一并提交；否则只注册不认证
+  // 填了学号才把学校归属一并提交（用于一致性比对）；否则只注册
   if (identity && identity.schoolId !== undefined) {
     body.schoolId = identity.schoolId
     body.campus = identity.campus ?? null
@@ -50,7 +50,7 @@ export function resetPassword(account, code, newPassword) {
 }
 
 /**
- * 学号认证申诉(2026-10-19):公开端点,无需登录 token。
+ * 学号问题申诉(2026-10-19):公开端点,无需登录 token。
  * 提交方是「被六层校验挡下、注册没成功」的人(无账号 / 无 token),
  * 所以走 /auth/appeal-student-no 而非需登录的 /feedback。
  * silent:true → 全局拦截器不弹 toast,成功/失败回执全在弹层内联处理。
@@ -63,7 +63,7 @@ export function appealStudentNo({ studentNo, email, note }) {
 /**
  * 封禁申诉（2026-10-26）：账号被冻结、登录不进来，只能走公开端点。
  * 邮箱必填、学号选填（封禁用户可能没填过学号）。
- * 与认证申诉共用 feedback 队列，服务端用「【封禁申诉】」前缀区分类型。
+ * 与学号申诉共用 feedback 队列，服务端用「【封禁申诉】」前缀区分类型。
  */
 export function appealBan({ email, studentNo, note }, opts = {}) {
   return request.post('/auth/appeal-ban', { email, studentNo, note }, { silent: true, ...opts })
@@ -102,7 +102,7 @@ export function me() {
 }
 
 /**
- * 发布信誉清单(2026-10-24):认证/账龄/违规记录 + 是否受信。
+ * 发布信誉清单(2026-10-24):信誉分/账龄/违规记录 + 是否受信。
  * 设置页「账号与安全」的信誉卡用;与发帖信任闸门同一套判定。
  */
 export function trustStatus() {
@@ -115,7 +115,7 @@ export function userCard(id) {
 
 /**
  * 他人主页的公开信誉徽章(2026-10-25):只回「是否受信」一个布尔。
- * false 的原因刻意不下发(未认证/新号/有前科不可区分),前端对 false 不渲染。
+ * false 的原因刻意不下发(新号/信誉不足/有前科不可区分),前端对 false 不渲染。
  * 本人视角的完整清单走 trustStatus()。
  */
 export function trustBadge(id) {

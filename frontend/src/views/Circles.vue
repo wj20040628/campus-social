@@ -248,9 +248,10 @@ import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import CircleRow from '@/components/common/CircleRow.vue'
 import { useCircles } from '@/composables/useCircles'
-import { openAuthGate } from '@/composables/useAuthGate'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 const router = useRouter()
+const { ensureLogin } = useGuestPrompt()
 
 const {
   circles, hasMore, loading, loadFailed, loaded, total,
@@ -285,9 +286,12 @@ function setupObserver() {
   observer.observe(el)
 }
 
-/** AC-11:未认证时弹全站认证闸门,不直接开抽屉 */
-function onCreateClick() {
-  if (openCreate() === 'need-verify') openAuthGate()
+/** 游客先去登录；已登录直接开抽屉，账号年龄/信誉分由后端判定 */
+async function onCreateClick() {
+  const r = openCreate()
+  if (r === 'need-login') {
+    await ensureLogin('登录后才能创建圈子，现在去登录吗？')
+  }
 }
 
 function goDetail(id) {

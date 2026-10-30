@@ -52,6 +52,7 @@
           :block="block"
           :per-peer-limit="perPeerLimit"
           :per-peer-remaining="peerRemaining"
+          :initiation-blocked-reason="peerBlockedReason"
           :hide-stranger-rule="peerIsStranger !== true"
           :sending="sending"
           :can-recall="canRecall"
@@ -105,7 +106,6 @@ import { ref, computed, watch, nextTick, inject, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useIsMobile } from '@/composables/useBreakpoint'
-import { useVerifyStatus, VERIFY_OK } from '@/composables/useVerifyStatus'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
 import { useChatCore } from '@/composables/useChatCore'
 import { useChatComposer } from '@/composables/useChatComposer'
@@ -159,7 +159,7 @@ onMounted(() => {
  * 写 `core.convs.value` 在模板里能跑但极易漏掉 .value(漏了就永远渲染空)。
  */
 const {
-  convs, groups, strangerList, perPeerLimit, peerIsStranger, peerRemaining, loadPeerQuota,
+  convs, groups, strangerList, perPeerLimit, peerIsStranger, peerRemaining, peerBlockedReason, loadPeerQuota,
   messages, replyToMsg, currentKind, currentConvId, currentConv,
   groupInfo, mutedMe, currentGroup,
   historyLoading, historyError, headTitle, hasActive, canRecall,
@@ -209,31 +209,13 @@ const isThreadRoute = computed(() => route.name === 'chatThread')
  * 就是提示(见 StrangerQuotaServiceImpl / StrangerPolicy)。这里只保留
  * **前端确定**的阻断:
  *   - 群禁言(群聊 + mutedMe) → 后端 GROUP_MUTED(1046) 兜底
- *   - 未认证 → 前端确定,给「去认证」出口
+ *
+ * 2026-10-30 起不再按校园信息阻断私聊/群聊：
+ * 陌生人首条由后端按账号年龄 + 信誉分判定，群成员发消息不受此限。
  */
-const { code: verifyCode, profileComplete } = useVerifyStatus()
-
-/** 已经填过学校归属的人，「去认证」直接去编辑资料页的学号框，不再走整套引导 */
-const verifyEntry = computed(() => (profileComplete.value ? '/profile' : '/onboarding'))
-
 const block = computed(() => {
-  // 群禁言优先显示(更具体):群聊且我被禁言
   if (currentKind.value === 'group' && mutedMe.value) {
     return { text: '你已被群主禁言,无法发言', tone: 'danger' }
-  }
-  /*
-   * 未认证阻断(2026-10-28 扩到群聊):私聊与群聊发消息后端都要求认证
-   * (ChatGuard AC-11 / GroupController @RequireVerified)。此前群聊被排除在
-   * 拦截之外，未认证用户可以在群里正常发言，等于从侧门绕开了私聊限制。
-   */
-  if (verifyCode.value !== VERIFY_OK) {
-    return {
-      text: currentKind.value === 'group'
-        ? '完成校内认证后才能发群消息'
-        : '完成校内认证后才能发私信',
-      tone: 'danger',
-      to: verifyEntry.value,
-    }
   }
   return null
 })

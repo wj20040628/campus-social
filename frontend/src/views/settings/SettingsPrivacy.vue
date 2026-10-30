@@ -7,21 +7,18 @@
         <span class="stext">
           <span class="slabel">允许陌生人给我发消息</span>
           <span class="sdesc">
-            <template v-if="canStrangerChat && strangerMsg">
+            <template v-if="strangerMsg">
               陌生人可以给你发私信，但同一个人一天只能发 1 条。你回复他、或者关注他之后，这条限制就解除了（互相关注则互相不限）。切换即时生效，无需点保存。
             </template>
-            <template v-else-if="canStrangerChat">
-              关闭后，只有你关注了、或者已经回复过的人能给你发私信。切换即时生效，无需点保存。
-            </template>
             <template v-else>
-              先完成校内认证，才能接收陌生人消息。认证在「编辑资料」的学号处提交，审核通过即生效。
+              关闭后，只有你关注了、或者已经回复过的人能给你发私信。切换即时生效，无需点保存。
             </template>
           </span>
         </span>
         <el-switch
           v-model="strangerMsg"
           :loading="strangerSaving"
-          :disabled="!canStrangerChat || strangerSaving"
+          :disabled="strangerSaving"
           @change="onStrangerMsgChange"
         />
       </div>
@@ -65,12 +62,10 @@ import { ChatDotRound, UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
 import { me as meApi, setStrangerMsg } from '@/api/auth'
 import { blacklistList, unblacklist } from '@/api/relation'
-import { useVerifyStatus } from '@/composables/useVerifyStatus'
 
 /* ---- 陌生人消息开关(与旧设置页同逻辑) ---- */
 const strangerMsg = ref(true)
 const strangerSaving = ref(false)
-const { canStrangerChat, load: loadVerifyStatus } = useVerifyStatus()
 
 async function onStrangerMsgChange(val) {
   strangerSaving.value = true
@@ -111,8 +106,6 @@ async function unblockUser(u) {
 
 onMounted(() => {
   loadBlacklist()
-  // 认证能力位:canStrangerChat 决定开关可不可用(未认证置灰)
-  loadVerifyStatus()
   // 开关初值与旧设置页同源:/user/me 的 strangerMsgEnabled
   meApi()
     .then((me) => {

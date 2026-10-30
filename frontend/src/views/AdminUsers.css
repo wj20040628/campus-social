@@ -173,7 +173,7 @@
   color: var(--ys-muted);
 }
 
-/* 右列：账号状态在上、认证状态在下，两行右对齐 */
+/* 右列：账号状态在上、校园信息状态在下，两行右对齐 */
 .uadmin__right {
   display: flex;
   flex: none;

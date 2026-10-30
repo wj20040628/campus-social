@@ -26,10 +26,6 @@
         <span class="tcard__text">{{ badRecord ? '违规记录已扣分' : '无违规记录' }}</span>
         <Tip content="被举报且管理员判定成立，每次 −20 分；被封禁一次 −40 分。多发优质内容可以把分赚回来，30 天后记录不再计" />
       </li>
-      <li v-if="!verified" class="tcard__item" data-state="bad">
-        <span class="tcard__text">未完成学号认证</span>
-        <Tip content="认证后才能建圈子和发集市活动，每天发动态的上限也从 3 条提高到 30 条" />
-      </li>
     </ul>
 
     <!-- 配额:数字配全称量词,让人不用猜 -->
@@ -72,12 +68,11 @@ const status = ref(null)
 const loaded = ref(false)
 
 const trusted = computed(() => status.value?.trusted === true)
-const verified = computed(() => status.value?.verified === true)
 const badRecord = computed(() => status.value?.hasBadRecord === true)
 const bonus = computed(() => Number(status.value?.creditBonus ?? 0))
 const circleQuota = computed(() => Number(status.value?.circleQuota ?? 0))
 const mktQuota = computed(() => Number(status.value?.mktQuota ?? 0))
-const postDaily = computed(() => Number(status.value?.postDailyQuota ?? 3))
+const postDaily = computed(() => Number(status.value?.postDailyQuota ?? 5))
 const score = computed(() => {
   const s = status.value?.creditScore
   return s == null ? null : Number(s)

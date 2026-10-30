@@ -186,7 +186,7 @@ const categoryLabel = computed(() => CATEGORY[ann.value?.category] || '通知')
  * publisher.schoolName —— 已认证发布人的公告会显示「黄河交通学院」。
  * 本平台是毕业设计原型、与学校无隶属关系（legalDocs 有明确免责声明），
  * 公告上挂具体校名等于替学校背书，所以整块移除，不再显示任何发布方身份。
- * 后端也同步把 AnnouncementPublisherVO.schoolName 恒置为 null。
+ * 后端也已删除 AnnouncementPublisherVO.schoolName 字段（2026-10-30）。
  */
 
 /**

@@ -13,8 +13,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * 相同逻辑，审计日志又到处传 null——自评估报告承诺 audit_log 含 IP，
  * 抽查时那一列却是空的。这里收成一份，审计在调用方没传 IP 时自动补齐。
  *
- * <p>信任口径：只信任 Nginx 追加的 XFF。若将来把 8080 直接暴露公网，
- * 客户端可伪造该头——目前安全组只开 80/443，8080 仅本机监听。
+ * <p>信任口径：Nginx 用 {@code proxy_set_header X-Real-IP $remote_addr} 覆写该头，
+ * 客户端伪造无效，所以优先读 X-Real-IP。{@code $proxy_add_x_forwarded_for} 会把
+ * 真实来源**追加在 XFF 末尾**，而第一段是客户端自带、可任意伪造的 ——
+ * 之前取第一段等于让攻击者随意换 IP，绕过登录失败锁定与游客下载限额（2026-10-30 修）。
  */
 public final class RequestIp {
 
@@ -25,13 +27,15 @@ public final class RequestIp {
         if (req == null) {
             return null;
         }
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
         String real = req.getHeader("X-Real-IP");
         if (real != null && !real.isBlank()) {
             return real.trim();
+        }
+        String xff = req.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            // 没有 X-Real-IP 时取最后一段（Nginx 追加的真实来源），不是第一段
+            String[] parts = xff.split(",");
+            return parts[parts.length - 1].trim();
         }
         return req.getRemoteAddr();
     }

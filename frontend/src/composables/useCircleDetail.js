@@ -20,8 +20,10 @@ import {
   circlePosts,
   activitiesByCircle,
 } from '@/api/circle'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 export function useCircleDetail(circleId) {
+  const { ensureLogin } = useGuestPrompt()
   const circle = ref(null)
   const posts = ref([])
   const activities = ref([])
@@ -95,6 +97,8 @@ export function useCircleDetail(circleId) {
   }
 
   async function join() {
+    // 游客只读:加入要账号,先弹登录提示,不直接发请求吃 401
+    if (!(await ensureLogin('登录后才能加入圈子，现在去登录吗？'))) return
     joining.value = true
     try {
       await joinApi(circleId.value)

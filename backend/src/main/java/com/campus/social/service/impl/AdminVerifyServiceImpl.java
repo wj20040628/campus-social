@@ -20,30 +20,35 @@ import java.util.List;
 import static com.campus.social.common.ResultCode.VERIFY_NOT_FOUND;
 
 /**
- * 学号核验审核实现（上线阻塞项）。
+ * 校园信息核对队列实现。
  *
- * <p><b>为什么这个域必须存在</b>：学校不给学生开邮箱账号（实测结论），
- * 校园邮箱认证对全体学生不可用，学号核验是唯一的认证通道。
- * 而提交端点 {@code POST /verify/student-no} 把状态置 2 之后
- * <b>没有任何端点能把它推进到 1</b>——所有用户永久卡在「审核中」，
- * 过不了 AC-11，搭话与公告全线瘫痪。这是上线阻塞，不是体验优化。
+ * <p><b>定位（2026-10-30 起）</b>：这里的「通过 / 拒绝」只决定
+ * {@code verify_status} 是 1 还是 3，<b>不再授予或收回任何功能</b>。
+ * 权限门槛已改由 {@code CampusAccessService} 按账号年龄与信誉分判定，
+ * 因此本队列积压不会导致任何人无法发帖、搭话或建圈。
  *
- * <p><b>队列就是 user 表本身</b>：不为审核新建表。
+ * <p><b>队列就是 user 表本身</b>：不为核对新建表。
  * {@code verify_status = 2} 的行天然构成待审队列，
  * 新建一张 review 表要同步维护两张表的状态一致性，
  * 而「谁提交了学号」这个问题 user 表已经回答过了。
+ *
+ * <p><b>为什么还要人工核对</b>：学号与所选年级/专业的一致性
+ * 由 {@link com.campus.social.service.support.StudentNoConsistencyChecker}
+ * 自动比对，对不上的才进队列。学校不提供学生名单，
+ * 所以这里核对的是「与字典能否对上」，而不是「这个人是否真是该校学生」——
+ * 结论只用于资料展示，不能被当作身份证明。
  *
  * <p><b>审批动作名不可自造</b>：{@code verify_approve} 与 {@code verify_reject}
  * 是 {@code CampusVerifyServiceImpl} 里 {@code verifiedAt()} 与
  * {@code rejectReason()} 反查 audit_log 时用的键。
  * 写成别的名字，用户在 {@code GET /user/verify/status} 里就永远看不到
- * 驳回理由和认证时间——而那正是他判断「我该改哪里」的唯一依据。
+ * 驳回理由和登记时间。
  *
  * <p><b>学号解析结果不参与审批</b>：{@link StudentNoParser} 的输出只挂在
  * {@code AdminVerifyPendingItemVO.studentNoParsed} 上供展示，
  * approve / reject 两个方法都不读它。解析规则是从 5 个样本反推的、
  * 尚未在全校学号上验证过，若拿它当审批依据，规则一旦与真实编码不符
- * 就会系统性拒掉某一届学生——那比不给解析功能严重得多。
+ * 就会系统性拒掉某一届学生。
  */
 @Slf4j
 @Service
@@ -54,7 +59,7 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
     private static final String ACTION_VERIFY_PASS = "verify_approve";
     private static final String ACTION_VERIFY_REJECT = "verify_reject";
 
-    /** 通知类型：16 认证通过 / 17 认证未通过（驳回理由放 content） */
+    /** 通知类型：16 校园信息已登记 / 17 校园信息需修改（理由放 content） */
     private static final int NOTIFY_VERIFY_PASS = 16;
     private static final int NOTIFY_VERIFY_REJECT = 17;
 
@@ -86,7 +91,7 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
     @Transactional
     public void approve(long adminId, long userId) {
         // 拦截器的 @RequireAdmin 只覆盖 HTTP 入口；
-        // 这里是防「绕过 Controller 直调 service」的兜底，与公告的 requireVerified 同口径
+        // 这里是防「绕过 Controller 直调 service」的兜底
         roleService.requireAdmin(adminId);
         User target = requirePending(userId);
 
@@ -94,10 +99,10 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
         if (affected == 0) {
             // 前一个判据已确认状态是 2，走到这里只可能是另一个管理员刚处置过。
             // 回 404 让它刷新列表，而不是静默成功——静默成功会让他以为批过了
-            throw new BusinessException(VERIFY_NOT_FOUND, "该学号核验申请不存在或已不在审核中");
+            throw new BusinessException(VERIFY_NOT_FOUND, "该校园信息核对申请不存在或已不在核对中");
         }
         auditService.record(adminId, ACTION_VERIFY_PASS, "user", userId,
-                "渠道:学号核验 学号:" + nullToEmpty(target.getStudentNo()), "");
+                "渠道:校园信息 学号:" + nullToEmpty(target.getStudentNo()), "");
         // 通过也要通知：此前用户只能自己进「编辑资料」猜结果
         notifySupport.pushVerifyResult(userId, NOTIFY_VERIFY_PASS, null);
         log.info("verify approved: user={}, admin={}", userId, adminId);
@@ -111,7 +116,7 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
 
         int affected = userMapper.rejectVerify(userId);
         if (affected == 0) {
-            throw new BusinessException(VERIFY_NOT_FOUND, "该学号核验申请不存在或已不在审核中");
+            throw new BusinessException(VERIFY_NOT_FOUND, "该校园信息核对申请不存在或已不在核对中");
         }
         // detail 直接存 reason 原串：status() 的 rejectReason() 读的就是 detail，
         // 拼前缀会让用户看到「驳回理由: xxx」这种二次包装的文案
@@ -186,10 +191,10 @@ public class AdminVerifyServiceImpl implements AdminVerifyService {
     private User requirePending(long userId) {
         User target = userMapper.selectById(userId);
         if (target == null) {
-            throw new BusinessException(VERIFY_NOT_FOUND, "该学号核验申请不存在或已不在审核中");
+            throw new BusinessException(VERIFY_NOT_FOUND, "该校园信息核对申请不存在或已不在核对中");
         }
         if (!Integer.valueOf(VERIFY_PENDING).equals(target.getVerifyStatus())) {
-            throw new BusinessException(VERIFY_NOT_FOUND, "该学号核验申请不存在或已不在审核中");
+            throw new BusinessException(VERIFY_NOT_FOUND, "该校园信息核对申请不存在或已不在核对中");
         }
         return target;
     }

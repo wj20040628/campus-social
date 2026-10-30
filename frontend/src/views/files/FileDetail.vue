@@ -103,7 +103,6 @@
         <div class="fd__who">
           <div class="fd__whorow">
             <span class="fd__name">{{ detail.uploaderNickname }}</span>
-            <span v-if="detail.uploaderVerified" class="fd__verified">已认证</span>
           </div>
           <span class="fd__role">上传者</span>
         </div>

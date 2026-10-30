@@ -103,14 +103,6 @@ public interface ReportMapper extends BaseMapper<Report> {
     int countPendingReporters(@Param("targetType") int targetType, @Param("targetId") Long targetId);
 
     /**
-     * 「举报用户且成立」的次数（2026-10-24 加，ReviewTrustService 前科判定用）。
-     * target_type=1 时 target_id 就是被举报的 userId，走 idx_target 索引。
-     */
-    @Select("SELECT COUNT(*) FROM report "
-            + "WHERE target_type = 1 AND target_id = #{userId} AND status = 1 AND is_deleted = 0")
-    int countUpheldUserReports(@Param("userId") long userId);
-
-    /**
      * 近 N 小时的全部举报（2026-10-25 加，自动封禁计数用）。
      * 量级假设：校园单日举报是十级；拉回 Java 侧做「目标归因到同一人」的
      * 分组——这个归因要查四种内容表，放 SQL 里是四路 JOIN 的维护灾难。

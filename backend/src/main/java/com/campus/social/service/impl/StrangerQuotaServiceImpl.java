@@ -6,6 +6,7 @@ import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.StrangerQuotaService;
+import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.service.support.StrangerPolicy;
 import com.campus.social.util.RedisLua;
 import com.campus.social.vo.StrangerQuotaVO;
@@ -42,6 +43,7 @@ public class StrangerQuotaServiceImpl implements StrangerQuotaService {
     private final UserMapper userMapper;
     private final CampusProperties campus;
     private final StrangerPolicy strangerPolicy;
+    private final CampusAccessService access;
 
     @Override
     public int consumePerPeer(long userId, long peerId) {
@@ -86,12 +88,16 @@ public class StrangerQuotaServiceImpl implements StrangerQuotaService {
         User me = userMapper.selectById(userId);
         boolean enabled = me == null || Integer.valueOf(1).equals(me.getStrangerMsgEnabled());
 
+        // 行为门槛不满足时提前给出原因,避免前端先显示「还剩 1 条」再被发送打回
+        String blockedReason = Boolean.TRUE.equals(isStranger) ? access.strangerChatBlockReason(me) : null;
+
         return StrangerQuotaVO.builder()
                 .perPeerDailyLimit(campus.getPerPeerDailyLimit())
                 .remainingPerPeer(remainingPerPeer)
                 .isStranger(isStranger)
                 .resetAt(now.toLocalDate().plusDays(1).atStartOfDay())
                 .strangerMsgEnabled(enabled)
+                .initiationBlockedReason(blockedReason)
                 .build();
     }
 

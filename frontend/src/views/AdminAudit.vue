@@ -249,7 +249,6 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import StateBlock from '@/components/common/StateBlock.vue'
 import AdminDenied from '@/components/common/AdminDenied.vue'
@@ -258,7 +257,7 @@ import { ArrowLeft, Close, Files, Filter, WarningFilled } from '@element-plus/ic
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 
 const router = useRouter()
 const isMobile = useIsMobile()

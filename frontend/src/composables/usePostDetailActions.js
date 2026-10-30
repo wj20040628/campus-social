@@ -3,13 +3,13 @@ import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { buildCommentForest } from '@/composables/useCommentTree'
 import { replySpecFor } from '@/composables/useCommentReplySpec'
-import { useUserStore } from '@/stores/user'
 import {
   detail, like, unlike, deletePost, deleteComment as deleteCommentApi,
   favorite as favoriteApi, unfavorite as unfavoriteApi,
   comments as commentsApi, comment as commentApi,
 } from '@/api/feed'
 import { markFeedDirty } from '@/composables/useFeedRefresh'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 /**
  * 帖子详情页的**有副作用**那一半(PostDetail.vue.md)
@@ -31,30 +31,11 @@ export function usePostDetailActions(route, router) {
   const loading = ref(true)
   const loadFailed = ref(false)
 
-  const userStore = useUserStore()
+  const { ensureLogin: promptLogin } = useGuestPrompt()
 
-  /**
-   * 游客点互动的引导(2026-10-25)。
-   *
-   * 详情页是分享落地页,游客扫码进来就能看到点赞/收藏按钮。不放拦截的话,
-   * 点下去是 401 → request.js 走 refresh 失败 → 全局登出流程踢去登录页,
-   * 像出了故障。改为点之前先弹说明框,愿意登录就带 returnUrl 跳过去。
-   *
-   * @returns {Promise<boolean>} true = 已登录可继续;false = 游客(已弹框,本次动作终止)
-   */
-  async function ensureLogin() {
-    if (userStore.hasToken) return true
-    try {
-      await ElMessageBox.confirm(
-        '登录之后才能点赞和收藏，现在去登录吗？',
-        '登录后可点赞',
-        { type: 'info', confirmButtonText: '去登录', cancelButtonText: '先逛逛' },
-      )
-    } catch {
-      return false
-    }
-    router.push({ path: '/login/form', query: { returnUrl: route.fullPath } })
-    return false
+  /** 详情页游客点点赞/收藏:先弹说明,愿意登录再带 returnUrl 跳转 */
+  function ensureLogin() {
+    return promptLogin('登录之后才能点赞和收藏，现在去登录吗？')
   }
 
   async function load() {

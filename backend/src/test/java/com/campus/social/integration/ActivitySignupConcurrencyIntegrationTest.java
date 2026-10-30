@@ -35,6 +35,28 @@ class ActivitySignupConcurrencyIntegrationTest {
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private final long circleless = -1L; // 无圈子活动
+    private final List<Long> seededUserIds = new ArrayList<>();
+
+    /** 报名前置：账号需存在且注册满 3 天（2026-10-30 行为门槛） */
+    private void seedUsers(int count) {
+        String suffix = String.valueOf(System.nanoTime() % 100000);
+        for (int i = 0; i < count; i++) {
+            String name = "act-" + i + "-" + suffix + "@campus.test";
+            jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
+                            + "verify_status, stranger_msg_enabled, is_deleted, create_time) "
+                            + "VALUES (?,?,?,0,0,1,0,1,0, DATE_SUB(NOW(), INTERVAL 4 DAY))",
+                    name, "x", name);
+            seededUserIds.add(jdbc.queryForObject(
+                    "SELECT id FROM user WHERE username = ?", Long.class, name));
+        }
+    }
+
+    private void cleanupUsers() {
+        for (Long id : seededUserIds) {
+            jdbc.update("DELETE FROM user WHERE id = ?", id);
+        }
+        seededUserIds.clear();
+    }
 
     /**
      * 尽力清理,失败不影响断言。两个 @Test 各自在 finally 里调本方法(传自己造的活动 id)。
@@ -71,6 +93,7 @@ class ActivitySignupConcurrencyIntegrationTest {
         final int CAPACITY = 5;
         final int CONCURRENT = 30;                 // 远超名额
         final long ACTIVITY = createActivity(CAPACITY);
+        seedUsers(CONCURRENT);
         try {
             ExecutorService pool = Executors.newFixedThreadPool(CONCURRENT);
             List<Future<Boolean>> futures = new ArrayList<>();
@@ -78,7 +101,7 @@ class ActivitySignupConcurrencyIntegrationTest {
             CountDownLatch finished = new CountDownLatch(CONCURRENT);
 
             for (int i = 0; i < CONCURRENT; i++) {
-                final long userId = 1_000_000L + i;
+                final long userId = seededUserIds.get(i);
                 futures.add(pool.submit(() -> {
                     startGate.await();
                     try {
@@ -107,6 +130,7 @@ class ActivitySignupConcurrencyIntegrationTest {
             assertTrue(after.getCurrentCount() <= CAPACITY, "绝不允许 current_count > capacity");
         } finally {
             cleanup(ACTIVITY);
+            cleanupUsers();
         }
     }
 
@@ -114,11 +138,12 @@ class ActivitySignupConcurrencyIntegrationTest {
     void concurrentSignin_unlimitedCapacity_neverFails() throws Exception {
         final int CONCURRENT = 20;
         final long ACTIVITY = createActivity(0);    // 0 = 不限额
+        seedUsers(CONCURRENT);
         try {
             ExecutorService pool = Executors.newFixedThreadPool(CONCURRENT);
             List<Future<Boolean>> futures = new ArrayList<>();
             for (int i = 0; i < CONCURRENT; i++) {
-                final long userId = 2_000_000L + i;
+                final long userId = seededUserIds.get(i);
                 futures.add(pool.submit(() -> {
                     activityService.signup(ACTIVITY, userId);
                     return true;
@@ -139,6 +164,7 @@ class ActivitySignupConcurrencyIntegrationTest {
             assertEquals(0, after.getStatus().intValue(), "不限额永不翻 1");
         } finally {
             cleanup(ACTIVITY);
+            cleanupUsers();
         }
     }
 }

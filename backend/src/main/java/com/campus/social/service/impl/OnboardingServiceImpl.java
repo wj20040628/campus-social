@@ -3,7 +3,6 @@ package com.campus.social.service.impl;
 import com.campus.social.config.CampusProperties;
 import com.campus.social.common.ResultCode;
 import com.campus.social.dto.OnboardingCompleteDTO;
-import com.campus.social.entity.Circle;
 import com.campus.social.entity.SchoolDept;
 import com.campus.social.entity.SchoolGrade;
 import com.campus.social.entity.SchoolMajor;
@@ -51,10 +50,6 @@ public class OnboardingServiceImpl implements OnboardingService {
     /** 打分位掩码：用于把 score 反解成「命中了哪几条规则」，从而生成可展示的理由 */
     private static final int BIT_DEPT = 4;
     private static final int BIT_GRADE = 2;
-    private static final int BIT_VERIFIED = 1;
-
-    /** verify_status = 1 */
-    private static final int VERIFY_OK = 1;
 
     private final UserMapper userMapper;
     private final UserTagMapper userTagMapper;
@@ -173,7 +168,6 @@ public class OnboardingServiceImpl implements OnboardingService {
                     .avatarUrl(row.getAvatarUrl())
                     .dept(row.getDept())
                     .grade(row.getGrade())
-                    .verified(Integer.valueOf(VERIFY_OK).equals(row.getVerifyStatus()))
                     .followerCount(row.getFollowerCount())
                     .reason(buildReason(row, me))
                     .commonTagCount(row.getCommonTagCount())
@@ -277,8 +271,6 @@ public class OnboardingServiceImpl implements OnboardingService {
             sb.append("同院系 · ").append(row.getDept());
         } else if ((score & BIT_GRADE) == BIT_GRADE) {
             sb.append("同年级 · ").append(row.getGrade());
-        } else if ((score & BIT_VERIFIED) == BIT_VERIFIED) {
-            sb.append("已通过校内认证");
         } else {
             sb.append("本校活跃同学");
         }

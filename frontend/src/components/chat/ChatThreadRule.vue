@@ -11,8 +11,15 @@
 
     `remaining` 来自 /chat/stranger-quota?peerId=,null 表示没拉到 ——
     此时只说规则、不报剩余数,不要拿 0 顶替(「不知道」≠「用完了」)。
+
+    2026-10-30:账号注册时长 / 信誉分不达标时,后端在同一接口返回
+    `initiationBlockedReason`。此时额度没有意义(发了也会被拒),整行改显示原因。
   -->
-  <p v-if="limit" class="th__rule">
+  <p v-if="blockedReason" class="th__rule">
+    <span class="th__rule__main">{{ blockedReason }}</span>
+    <span v-if="limit" class="th__rule__sub">对方关注你、或回复过你之后，这条限制就解除了</span>
+  </p>
+  <p v-else-if="limit" class="th__rule">
     <span class="th__rule__main">陌生人之间，一天最多给同一个人发 <span class="ys-num">{{ limit }}</span> 条</span>
     <span v-if="remaining > 0" class="th__rule__left">今天还剩 <span class="ys-num">{{ remaining }}</span> 条</span>
     <span v-else-if="remaining === 0" class="th__rule__left">今天这条已经发了</span>
@@ -26,6 +33,8 @@ defineProps({
   limit: { type: Number, default: null },
   /** 对当前这个人今天还剩几条;null = 没拉到,不显示剩余数 */
   remaining: { type: Number, default: null },
+  /** 账号太新 / 信誉分不足时不能发起搭话的原因;非空时整行改显示它 */
+  blockedReason: { type: String, default: null },
 })
 </script>
 

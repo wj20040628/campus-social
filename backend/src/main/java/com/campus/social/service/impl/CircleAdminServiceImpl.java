@@ -2,7 +2,6 @@ package com.campus.social.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.CursorPage;
-import com.campus.social.common.ResultCode;
 import com.campus.social.dto.ReservedNameDTO;
 import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.entity.Circle;
@@ -123,13 +122,6 @@ public class CircleAdminServiceImpl implements CircleAdminService {
         }
         // ban_until 为空=长期;否则到点(含边界)即自动解除
         return row.getBanUntil() == null || !row.getBanUntil().isBefore(LocalDateTime.now());
-    }
-
-    /** 拦截点统一抛 CIRCLE_MEMBER_BANNED(1055)。 */
-    private void assertNotBanned(long circleId, long me) {
-        if (isBanned(circleId, me)) {
-            throw new BusinessException(CIRCLE_MEMBER_BANNED, "你已被圈主/圈管理封禁,无法在此圈子操作");
-        }
     }
 
     // ============================================================ 帖子处置

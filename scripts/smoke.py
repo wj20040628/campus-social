@@ -14,9 +14,9 @@
 
 断言项(每项对应一个曾经真实出过事的故事,别随手删):
   1 login                登录拿到 token(账号体系活着)
-  2 anon-create          匿名发帖成功(树洞:is_anonymous 列存在=新 schema 已应用)
-  3 anon-strip           匿名帖 author/authorId 不下发(脱敏出口活着)
-  4 guest-post-detail    游客读帖子详情 200(分享落地页放行活着)
+  2 post-create          普通发帖成功(写链路活着)
+  3 guest-post-detail    游客读帖子详情 200(分享落地页放行活着)
+  4 guest-comments       游客读评论 200(评论读链路活着)
   5 guest-write-blocked  游客点赞 401(写操作没被误放行)
   6 discover-buddy       搭子接口 200(新端点活着)
   7 mkt-quota-blocked    集市第 2 条在投被 1065 拦(配额检查真在跑,
@@ -84,18 +84,15 @@ check('login', st == 200 and tok, f'status={st}')
 
 pid = None
 if tok:
-    # 2. 匿名发帖(含 is_anonymous 列的写入)
-    st, r = call('POST', '/post', tok, {'content': 'smoke 匿名冒烟帖', 'anonymous': True})
+    # 2. 普通发帖(匿名发布已下线,冒烟只验证正常写链路)
+    st, r = call('POST', '/post', tok, {'content': 'smoke 冒烟帖(即删)'})
     pid = r.get('data', {}).get('postId')
-    check('anon-create', st == 200 and pid, f'status={st} pid={pid}')
+    check('post-create', st == 200 and pid, f'status={st} pid={pid}')
 
-    # 3. 匿名脱敏(游客视角同时验证)
     if pid:
-        st, r = call('GET', f'/post/{pid}')
-        d = r.get('data', {})
-        check('anon-strip', st == 200 and d.get('author') is None
-              and d.get('authorId') is None and d.get('anonymous') is True,
-              f'status={st} authorId={d.get("authorId")}')
+        # 3. 游客读详情
+        st, _ = call('GET', f'/post/{pid}')
+        check('guest-post-detail', st == 200, f'status={st}')
 
         # 4. 游客读评论
         st, _ = call('GET', f'/post/{pid}/comments')

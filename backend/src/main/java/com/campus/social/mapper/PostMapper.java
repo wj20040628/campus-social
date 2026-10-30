@@ -44,17 +44,12 @@ public interface PostMapper extends BaseMapper<Post> {
     @Update("UPDATE post SET share_count = share_count + 1, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
     int incrementShareCount(@Param("postId") Long postId);
 
-    @Update("UPDATE post SET hot_score = #{hotScore}, update_time = NOW() WHERE id = #{postId} AND is_deleted = 0")
-    int updateHotScore(@Param("postId") Long postId, @Param("hotScore") double hotScore);
-
     /**
      * 热度分增量(2026-10-23 加,审查 P1-15):数据库侧自增/自减,绝不读-改-写。
      *
      * <p>旧写法是「查出来 +1.0 再绝对值写回」:并发点赞 N 次只有 1-2 次增量真正落地,
      * 且与走 {@code col = col ± 1} 的 like_count 必然发散(热度对不上点赞数)。
      * GREATEST(0, ...) 防减到负数(取消点赞比点赞多时)。
-     *
-     * <p>绝对值写回版 {@link #updateHotScore} 保留给 ReconcileJob 全量重算用。
      */
     @Update("UPDATE post SET hot_score = GREATEST(0, hot_score + #{delta}), update_time = NOW() "
             + "WHERE id = #{postId} AND is_deleted = 0")

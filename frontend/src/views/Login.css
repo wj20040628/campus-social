@@ -4,3 +4,18 @@
   同时在文件头留一条指针:改登录/注册的公共样式只改 Auth.css 一处。
 */
 @import './Auth.css';
+
+/*
+ * 游客登录(2026-10-30)：品牌行右侧的小文字入口，不加解释、不做成大按钮。
+ * 放在 Login.css 而不是 Login.vue 内联 scoped：Login.vue 已接近 400 行门禁。
+ */
+.auth-guest-link {
+  flex: none;
+  margin-left: auto;
+  padding: 4px 2px;
+  color: var(--ys-muted);
+}
+
+.auth-guest-link:hover {
+  color: var(--ys-accent);
+}

@@ -14,7 +14,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { adminReports, handleReport } from '@/api/review'
-import { REASON_TEXT as REASON_TEXT_SRC, reasonLabel } from '@/constants/reportReason'
+import { reasonLabel } from '@/constants/reportReason'
 import { useUndoWindow } from '@/composables/useUndoWindow'
 import { useAdminPending } from '@/composables/useAdminPending'
 

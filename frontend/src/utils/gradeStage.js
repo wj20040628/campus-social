@@ -27,15 +27,3 @@ export function gradeStage(enrollYear, level, now = new Date()) {
   if (stage > maxStage) return '已毕业'
   return '大' + (CN_NUM[stage] || stage)
 }
-
-/**
- * 年级展示组合:"2023级 · 大四" / "2023级 · 已毕业" / "2023级"(信息不足只显原名)。
- * @param {string} gradeName 年级名称(如 "2023级")
- * @param {number|null} enrollYear 入学年
- * @param {number|null} level 1本科 2专科
- */
-export function gradeDisplay(gradeName, enrollYear, level) {
-  const stage = gradeStage(enrollYear, level)
-  if (!gradeName) return stage
-  return stage ? `${gradeName} · ${stage}` : gradeName
-}

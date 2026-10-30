@@ -8,6 +8,7 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.*;
 import com.campus.social.service.CircleService;
 import com.campus.social.service.CircleAdminService;
+import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.vo.CircleVO;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
@@ -41,11 +42,14 @@ public class CircleServiceImpl implements CircleService {
     private final PostVoAssembler postVoAssembler;
     /** 建圈配额(2026-10-25):信誉分档 1/2/3,解散释放名额 */
     private final ReviewTrustService trustService;
+    /** 行为信任门槛：账号满 3 天 + 信誉 60（校园信息不参与） */
+    private final CampusAccessService access;
 
     @Override
     @Transactional
     public long createCircle(long owner, CircleDTO dto) {
-        // 配额在名字校验之前:额度不够时用户改名字也没用,先把结论给出来
+        // 行为门槛在配额之前：账号太新/信誉不足时，改名字也没用，先把结论给出来
+        access.requireCreateCircle(owner);
         int quota = trustService.creationQuota(owner);
         if (quota <= 0 || circleMapper.countActiveOwnedBy(owner) >= quota) {
             throw new BusinessException(CIRCLE_LIMIT_REACHED,

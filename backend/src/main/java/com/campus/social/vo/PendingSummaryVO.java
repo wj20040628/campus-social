@@ -19,7 +19,7 @@ public class PendingSummaryVO {
     /** 待人审机审任务数（review_task status=0） */
     private Integer reviewPending;
 
-    /** 待审核学号核验数（user verify_status=2） */
+    /** 待核对的校园信息数（user verify_status=2；仅资料展示，不影响功能权限） */
     private Integer verifyPending;
 
     /** 待处理意见反馈数（feedback status=0） */

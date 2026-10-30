@@ -3,8 +3,6 @@ package com.campus.social.service.impl;
 import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.common.ResultCode;
 import com.campus.social.config.CampusProperties;
-import com.campus.social.dto.CampusEmailConfirmDTO;
-import com.campus.social.dto.CampusEmailSendDTO;
 import com.campus.social.dto.SchoolProfileDTO;
 import com.campus.social.dto.StudentNoVerifyDTO;
 import com.campus.social.entity.AuditLog;
@@ -18,51 +16,44 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.CampusVerifyService;
 import com.campus.social.service.DictService;
-import com.campus.social.service.VerifyCodeService;
-import com.campus.social.service.support.StudentNoAutoPassSupport;
-import com.campus.social.service.support.StudentNoProfileValidator;
+import com.campus.social.service.support.StudentNoConsistencyChecker;
 import com.campus.social.vo.SchoolProfileVO;
-import com.campus.social.vo.StudentNoParsedVO;
 import com.campus.social.vo.StudentNoVerifyVO;
 import com.campus.social.vo.VerifyStatusVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
-import static com.campus.social.common.ResultCode.BAD_REQUEST;
-import static com.campus.social.common.ResultCode.CAMPUS_EMAIL_NOT_ALLOWED;
-import static com.campus.social.common.ResultCode.CONFLICT;
 import static com.campus.social.common.ResultCode.SCHOOL_PROFILE_INCOMPLETE;
 import static com.campus.social.common.ResultCode.STUDENT_NO_EXISTS;
+import static com.campus.social.common.ResultCode.STUDENT_NO_MISMATCH;
 import static com.campus.social.common.ResultCode.UNPROCESSABLE;
 import static com.campus.social.common.ResultCode.VERIFY_ALREADY_DONE;
 import static com.campus.social.common.ResultCode.VERIFY_ALREADY_PENDING;
 
 /**
- * 校内认证实现（F2）。
+ * 校园信息登记实现。
  *
- * <p><b>校验顺序不可调换</b>（ARCHITECTURE §3 Q9.2）：先判域名白名单，
- * 再写 Redis，再调 SMTP。否则任意邮箱地址会成为 Redis key 并被送去真实邮件通道，
- * 白名单就形同虚设。
+ * <p><b>2026-10-30 起不再是权限门槛</b>：这里写入的 {@code verify_status}
+ * 只表示「校园信息是否登记 / 是否与字典一致」，不参与发帖、搭话、建圈、
+ * 集市发布等任何权限判定（门槛见 {@code CampusAccessService}）。
+ * 学校不提供学生名单，本系统无法证明「某人是某校学生」，
+ * 因此不把它当身份认证对外宣传。
+ *
+ * <p><b>2026-10-30 同步删除校园邮箱验证码路径</b>：学生没有学校发放的
+ * 校园邮箱，现有邮箱是 QQ / 网易等个人邮箱，域名白名单只会误伤。
+ * 校园信息只保留学号一致性比对 + 管理员人工核对。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CampusVerifyServiceImpl implements CampusVerifyService {
 
-    /** 验证码用途分桶。与 register / login / bind 并列，互不干扰 */
-    private static final String CODE_TYPE = "campus";
-
     /** 审计动作名 */
-    private static final String ACTION_EMAIL_BOUND = "campus_email_bound";
     private static final String ACTION_STUDENT_NO_SUBMIT = "verify_student_no_submit";
     private static final String ACTION_VERIFY_PASS = "verify_approve";
 
@@ -77,20 +68,13 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
     /** 人工核验预期时长（小时），返回给前端做文案 */
     private static final int REVIEW_ESTIMATED_HOURS = 24;
 
-    /** 邮箱绑定占位键的后缀。带 userId 使其可反查归属 */
-    private static final String EMAIL_BIND_KEY = "campus:email:";
-
     private final UserMapper userMapper;
     private final AuditLogMapper auditLogMapper;
-    private final VerifyCodeService verifyCodeService;
     private final AuditService auditService;
     private final DictService dictService;
     private final CampusProperties campus;
-    /** 自动通过判定。与设置页改学号(StudentNoChangeSupport)共用同一把尺子 */
-    private final StudentNoAutoPassSupport autoPass;
-    /** 六层硬校验：与 PUT /user/me 改学号共用同一把尺子 */
-    private final StudentNoProfileValidator studentNoValidator;
-    private final StringRedisTemplate redis;
+    /** 一致性检查：只决定直接登记还是转管理员核对，不拒绝用户 */
+    private final StudentNoConsistencyChecker consistency;
 
     @Override
     @Transactional
@@ -109,13 +93,15 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         // 「学院与专业对不上」的脏数据，后续学号专业码校验也会失真。
         SchoolMajor major = dictService.requireSelectableMajor(dto.getMajorId(), dept.getId());
         /*
-         * 改即重审·归属侧(2026-10-24):归属与学号在六层校验里是一套绑定凭证,
-         * 已认证(1)/审核中(2)的用户改了学院/年级/专业,旧背书对新组合不再成立 ——
-         * 状态退回未认证(0),由用户带新归属重新提交学号核验
-         * (编辑页「填学号保存=提交核验」的既有链路,无需额外入口)。
+         * 改归属即重置登记状态(2026-10-24 起,2026-10-30 调整措辞):
+         * 学号一致性是相对学院/年级/专业比对的,归属变了旧结论对新组合不再成立,
+         * 因此把状态退回未填写(0),由用户按新归属重新提交学号。
          *
-         * 只在**归属真的变了**时重置:原样保存不该把认证弄丢。
-         * 审核中(2)改归属同样退回:管理员不该审一个新旧混合的组合。
+         * 只在**归属真的变了**时重置:原样保存不该把登记状态清掉。
+         * 核对中(2)改归属同样退回:管理员不该核对一个新旧混合的组合。
+         *
+         * 注意这只影响本人资料上的标记,不影响任何功能——
+         * 校园信息已退出权限判定。
          */
         User owner = userMapper.selectById(userId);
         boolean identityChanged = owner != null
@@ -127,13 +113,13 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         if (identityChanged) {
             userMapper.updateVerifyStatus(userId, VERIFY_NONE);
             auditService.record(userId, "verify_reset_by_profile_change", "user", userId,
-                    "已认证/审核中用户修改学校归属,认证状态重置为未认证(改即重审)", "");
+                    "已登记/核对中用户修改学校归属,校园信息状态重置为未填写", "");
             log.info("verify reset by school-profile change: user={}", userId);
         }
         /*
          * 校区(2026-10-25):1=东 2=西,可选。与院系完全解耦(东西校区都有全部院系),
-         * **刻意不进 identityChanged 判定**——校区不是学号六层校验的绑定凭证,
-         * 换校区不改变「这所学校这个专业这个人」的核验链,不该把认证踢掉。
+         * **刻意不进 identityChanged 判定**——校区不参与学号一致性比对,
+         * 换校区不该把登记状态清掉。
          */
         Integer campusVal = dto.getCampus();
         if (campusVal != null && campusVal != 1 && campusVal != 2) {
@@ -160,85 +146,40 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
     }
 
     @Override
-    public String sendCampusEmailCode(long userId, CampusEmailSendDTO dto) {
-        User me = requireUser(userId);
-        if (Integer.valueOf(VERIFY_OK).equals(me.getVerifyStatus())) {
-            throw new BusinessException(VERIFY_ALREADY_DONE, "你已完成校内认证，无需重复认证");
-        }
-
-        String email = normalize(dto.getEmail());
-        requireCampusDomain(email);
-        return verifyCodeService.send(email, CODE_TYPE);
-    }
-
-    @Override
-    @Transactional
-    public VerifyStatusVO confirmCampusEmail(long userId, CampusEmailConfirmDTO dto) {
-        User me = requireUser(userId);
-        if (Integer.valueOf(VERIFY_OK).equals(me.getVerifyStatus())) {
-            throw new BusinessException(VERIFY_ALREADY_DONE, "你已完成校内认证，无需重复认证");
-        }
-
-        String email = normalize(dto.getEmail());
-        // 确认时再判一次白名单：发送与确认之间配置可能已改，
-        // 且确认是真正生效的那一步，判定必须落在这里
-        requireCampusDomain(email);
-
-        // 一次性消费：verify() 内部走 Lua 原子读删，同一码并发多次只有一次能过
-        verifyCodeService.verify(email, dto.getCode(), CODE_TYPE);
-
-        // 防「一个校园邮箱认证多个账号」（ARCHITECTURE §3 Q9.4）：
-        // setIfAbsent 抢占，键里带 userId 使其可反查归属。
-        // Redis 无持久化保证，最坏情况是重启后多重复绑定几次——
-        // 校园邮箱本身有获取门槛，这个残余风险可接受。
-        String bindKey = EMAIL_BIND_KEY + email;
-        String existing = redis.opsForValue().get(bindKey);
-        if (existing != null && !String.valueOf(userId).equals(existing)) {
-            throw new BusinessException(CONFLICT, "该校园邮箱已绑定其他账号");
-        }
-        Boolean bound = redis.opsForValue().setIfAbsent(bindKey, String.valueOf(userId));
-        if (!Boolean.TRUE.equals(bound) && !String.valueOf(userId).equals(existing)) {
-            throw new BusinessException(CONFLICT, "该校园邮箱已绑定其他账号");
-        }
-
-        userMapper.markVerified(userId);
-        auditService.record(userId, ACTION_EMAIL_BOUND, "user", userId, "email:" + email, "");
-        auditService.record(userId, ACTION_VERIFY_PASS, "user", userId, "渠道:校园邮箱", "");
-        log.info("campus email verified: user={}, email={}", userId, UserVoAssembler.maskUsername(email));
-        return status(userId);
-    }
-
-    @Override
     @Transactional
     public StudentNoVerifyVO submitStudentNo(long userId, StudentNoVerifyDTO dto) {
         User me = requireUser(userId);
         if (Integer.valueOf(VERIFY_OK).equals(me.getVerifyStatus())) {
-            throw new BusinessException(VERIFY_ALREADY_DONE, "你已完成校内认证，无需重复认证");
+            throw new BusinessException(VERIFY_ALREADY_DONE, "校园信息已登记，无需重复提交");
         }
         if (Integer.valueOf(VERIFY_PENDING).equals(me.getVerifyStatus())) {
-            throw new BusinessException(VERIFY_ALREADY_PENDING, "你的学号认证正在人工核验中，请耐心等待");
+            throw new BusinessException(VERIFY_ALREADY_PENDING, "校园信息正在核对中，请耐心等待");
         }
 
-        // school profile 是引导第 1 步，先于认证完成：
-        // 没有院系年级，管理员核验时无从判断这个学号是不是本人的。
+        // school profile 是引导第 1 步，先于学号提交完成：
+        // 没有院系年级，就无法把学号里的年级/专业码与所选归属做一致性比对。
         // 判据是 id 或名称任一存在——字典化之前注册的老用户只有名称，
         // 若只判 id 会把他们永远拦在门外，且没有任何提示。
         if (!dictService.hasDept(me) || !dictService.hasGrade(me)) {
             throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE, "请先填写学校院系与年级");
         }
         if (me.getMajorId() == null) {
-            // 引导第 1 步要求同时填学院/本专科/年级/专业,六层的专业编码匹配强依赖 majorId。
-            // 老用户字典化前只有名称没有 id,若缺 id 先挡回去,不要带着空专业进六层比对。
+            // 引导第 1 步要求同时填学院/本专科/年级/专业,专业编码比对依赖 majorId。
+            // 老用户字典化前只有名称没有 id,若缺 id 先挡回去,不要带着空专业进比对。
             throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE, "请先填写专业");
         }
 
         String studentNo = dto.getStudentNo().trim();
         String nameTail = dto.getNameTail() == null ? "" : dto.getNameTail().trim();
 
-        // 六层硬校验:纯数字 / 长度 / 年级 / 层次 / 专业编码 / 班内序号。
-        // 任一不过直接拒绝,不再转人工——否则「学院乱选+学号不符」的脏数据
-        // 会进人工队列浪费审核时间。归属在上方已确认填写,这里拿实体做交叉比对。
-        studentNoValidator.validate(studentNo, me);
+        /*
+         * 2026-10-30：只拦格式与重复，不再拿年级/层次/专业编码硬拒。
+         * 校园信息已经不是权限门槛，规则误判不该让用户连资料都存不上；
+         * 一致性结果只决定「直接登记」还是「进管理员核对队列」。
+         */
+        if (!studentNo.matches("\\d{13,14}")) {
+            throw new BusinessException(STUDENT_NO_MISMATCH, "学号需为 13~14 位数字");
+        }
 
         // student_no 是 UNIQUE，主防线：同一学号不能被两个账号提交
         try {
@@ -251,19 +192,18 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
         // 记在 audit_log：多态、只增不删，供管理员比对
         auditService.record(userId, ACTION_STUDENT_NO_SUBMIT, "user", userId,
                 "学号:" + studentNo + (nameTail.isEmpty() ? "" : " 姓名后缀:" + nameTail), "");
-        log.info("student no submitted: user={}, studentNo={}", userId, UserVoAssembler.maskUsername(studentNo));
+        log.info("student info submitted: user={}, studentNo={}", userId, UserVoAssembler.maskUsername(studentNo));
 
         /*
-         * 自动通过(格式 + 院系交叉校验都过):不再让真实用户排队等人工。
-         * 先落待审再立刻置已认证 —— approveVerify 的 WHERE 只认状态 2,
-         * 走状态机才与管理员手动通过留下同样的审计与状态轨迹。
+         * 一致 → 直接置 1（已登记）；不一致 → 留在 2（核对中）由管理员看。
+         * 两条路径都不影响任何功能，只影响本人设置页的标记。
          */
-        if (autoPass.canAutoPass(studentNo, me)) {
+        if (consistency.matches(studentNo, me)) {
             int affected = userMapper.approveVerify(userId);
             if (affected > 0) {
                 auditService.record(userId, ACTION_VERIFY_AUTO_APPROVE, "user", userId,
-                        "学号:" + studentNo + " 渠道:自动通过(格式与院系交叉校验一致)", "");
-                log.info("student no auto approved: user={}, studentNo={}", userId, UserVoAssembler.maskUsername(studentNo));
+                        "学号:" + studentNo + " 渠道:格式与院系一致，直接登记", "");
+                log.info("campus info registered: user={}, studentNo={}", userId, UserVoAssembler.maskUsername(studentNo));
                 return StudentNoVerifyVO.builder()
                         .verifyStatus(VERIFY_OK)
                         .autoApproved(true)
@@ -287,13 +227,10 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
                 .verifyStatus(verifyStatus)
                 .verifyStatusText(verifyStatusText(verifyStatus))
                 .schoolId(me.getSchoolId())
-                // 未认证不挂学校名：避免运营号冒充校方权威（AC-12 同理）
-                .schoolName(verified ? campus.getSchoolName() : null)
+                // 没填学校就不挂校名；已填则回显，与登记状态无关
+                .schoolName(me.getSchoolId() == null ? null : campus.getSchoolName())
                 .verifiedAt(verified ? verifiedAt(userId, me) : null)
                 .rejectReason(verifyStatus == 3 ? rejectReason(userId) : null)
-                // AC-11：两个能力都由认证状态派生，不在前端重写这套规则
-                .canStrangerChat(verified)
-                .canPublishAnnouncement(verified)
                 .profileComplete(dictService.hasDept(me) && dictService.hasGrade(me))
                 // 本人学号:设置页靠它回填学号框 —— 否则回填为空、框里只剩
                 // placeholder,用户以为「学号已经有了」直接点保存,实际提交的是
@@ -316,48 +253,11 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
     }
 
     /**
-     * 域名白名单判定。
-     *
-     * <p>白名单为空时全部拒绝（1032）：宁可不认证，不可错认证——
-     * 错认证会让任何人在校园里冒充本校学生，而这是这个功能唯一不能出的错。
-     */
-    private void requireCampusDomain(String email) {
-        int at = email.lastIndexOf('@');
-        String domain = at < 0 ? "" : email.substring(at + 1);
-        Set<String> whitelist = campus.resolveEmailDomains();
-        if (whitelist.isEmpty()) {
-            log.warn("campus email domain whitelist is empty, reject all. email={}", UserVoAssembler.maskUsername(email));
-            throw new BusinessException(CAMPUS_EMAIL_NOT_ALLOWED,
-                    "尚未配置校园邮箱域名白名单，暂时无法用邮箱认证");
-        }
-        // 逐段匹配：白名单配 mail.xxx.edu.cn 时，xxx.edu.cn 的子域也认
-        for (String allowed : whitelist) {
-            if (domain.equals(allowed) || domain.endsWith("." + allowed)) {
-                return;
-            }
-        }
-        /*
-         * email 脱敏、domain 不脱敏（2026-10-21）。
-         * 域名本身不是个人敏感信息，而且它是排查「哪家学校的邮箱被拒」的唯一线索 ——
-         * 把它打码等于把这条日志最有用的部分删掉。
-         * （前一步的批量替换误伤了 domain，这里改回来。）
-         */
-        log.info("campus email domain rejected: email={}, domain={}",
-                UserVoAssembler.maskUsername(email), domain);
-        throw new BusinessException(CAMPUS_EMAIL_NOT_ALLOWED, "该邮箱域名不是受信任的校园邮箱");
-    }
-
-    /** 邮箱统一小写：域名大小写不敏感，不统一会让 abc@X.edu 与 abc@x.edu 变成两个键 */
-    private String normalize(String email) {
-        return email == null ? null : email.trim().toLowerCase();
-    }
-
-    /**
-     * 认证通过时间。
+     * 校园信息登记时间。
      *
      * <p>{@code user} 表没有 {@code verified_at} 列（migration_v1.sql 第 4 节未增补），
      * 改从 {@code audit_log} 的 {@code verify_approve} 记录反查。
-     * 查不到时回退到 {@code update_time}：用户表在认证那一刻也更新过，
+     * 查不到时回退到 {@code update_time}：用户表在登记那一刻也更新过，
      * 虽不精确（后续改资料也会刷新），但好过返回 null 让前端显示「未知」。
      */
     private LocalDateTime verifiedAt(long userId, User me) {
@@ -376,10 +276,10 @@ public class CampusVerifyServiceImpl implements CampusVerifyService {
 
     private String verifyStatusText(int status) {
         return switch (status) {
-            case VERIFY_OK -> "已认证";
-            case VERIFY_PENDING -> "审核中";
-            case 3 -> "认证被驳回";
-            default -> "未认证";
+            case VERIFY_OK -> "校园信息已登记";
+            case VERIFY_PENDING -> "校园信息核对中";
+            case 3 -> "校园信息需修改";
+            default -> "校园信息未填写";
         };
     }
 

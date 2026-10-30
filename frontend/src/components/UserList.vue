@@ -40,7 +40,7 @@
 import { useRouter } from 'vue-router'
 import { User } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import StateBlock from '@/components/common/StateBlock.vue'
 
 const router = useRouter()

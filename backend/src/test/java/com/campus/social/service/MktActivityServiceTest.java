@@ -59,6 +59,11 @@ class MktActivityServiceTest {
     void stubQuota() {
         org.mockito.Mockito.when(trustService.creationQuota(org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(3);
+        // 2026-10-30:create 先过行为门槛（账号年龄+信誉分），trustService 被 mock
+        org.mockito.Mockito.when(trustService.creditScore(org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(60);
+        ensureUser(OWNER);
+        ensureUser(OTHER);
     }
 
     /** 造数用的固定 user_id(清理时一起删,避免污染真实数据) */
@@ -151,7 +156,10 @@ class MktActivityServiceTest {
         u.setUsername("mkt_test_" + uid);
         u.setNickname("集市测试" + uid);
         u.setRole(0);
+        u.setPasswordHash("x");
         userMapper.insert(u);
+        // 注册满 4 天：通过发布集市的行为门槛
+        jdbc.update("UPDATE user SET create_time = DATE_SUB(NOW(), INTERVAL 4 DAY) WHERE id = ?", uid);
         return u;
     }
 

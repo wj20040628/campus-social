@@ -130,7 +130,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { WarningFilled, Loading } from '@element-plus/icons-vue'
-import { SCHOOLS, IDENTITY_MODEL, LEVEL_OPTIONS, DICT_FIELDS, CAMPUS_OPTIONS } from '@/constants/schoolDict'
+import { SCHOOLS, IDENTITY_MODEL, LEVEL_OPTIONS, CAMPUS_OPTIONS } from '@/constants/schoolDict'
 import { useDictStore } from '@/stores/dict'
 
 const props = defineProps({

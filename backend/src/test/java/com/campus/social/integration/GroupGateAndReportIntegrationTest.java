@@ -2,11 +2,9 @@ package com.campus.social.integration;
 
 import com.campus.social.common.ReportTargetType;
 import com.campus.social.common.ResultCode;
-import com.campus.social.controller.GroupController;
 import com.campus.social.dto.ReportHandleDTO;
 import com.campus.social.dto.ReportSubmitDTO;
 import com.campus.social.exception.BusinessException;
-import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.GroupService;
 import com.campus.social.service.ReportService;
 import com.campus.social.vo.ReportHandleVO;
@@ -28,15 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 群聊认证门槛 + 拉人关系限制 + 群消息举报（2026-10-28）。
+ * 群聊行为门槛 + 拉人关系限制 + 群消息举报。
  *
  * <p>三件事各对应一条真实的绕过路径：
  * <ol>
- *   <li>群聊此前<b>完全没挂 {@code @RequireVerified}</b>：未认证用户建群、拉人、
- *       发群消息全通，「未认证不能发私信」从侧门整个失效。这里用反射锁住注解——
- *       注解被谁顺手删掉时测试会红，而不是等到线上发现有人绕过认证。</li>
- *   <li>拉人此前<b>没有任何关系校验</b>：任意群成员可以把任意 userId 塞进群且对方
- *       毫不知情，形成「建群 → 批量拉陌生人 → 发广告」的骚扰链路。</li>
+ *   <li>建群/拉人有账号年龄门槛：2026-10-30 起校园信息退出权限判定，
+ *       改为「注册满 3 天 + 信誉分达线」。这里锁住新号不能建群，
+ *       防止「注册即建群 → 批量拉陌生人 → 发广告」的骚扰链路。</li>
+ *   <li>拉人必须存在关注关系：任意群成员把任意 userId 塞进群且对方
+ *       毫不知情，会形成同样的骚扰链路。</li>
  *   <li>群消息举报用 {@code targetType=8}，<b>不能复用 4</b>：两张表各自自增 id，
  *       同一个 id 在私信表与群消息表里指向完全不同的内容，复用会封错人。</li>
  * </ol>
@@ -84,11 +82,24 @@ class GroupGateAndReportIntegrationTest {
         userIds.clear();
     }
 
+    /** 注册满 4 天的老号：通过建群/拉人的账号年龄门槛 */
     private Long user(int verifyStatus) {
         String name = "gg-" + verifyStatus + "-" + userIds.size() + "-" + SUFFIX + "@campus.test";
         jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
-                        + "verify_status, stranger_msg_enabled, is_deleted) VALUES (?,?,?,0,0,1,?,1,0)",
+                        + "verify_status, stranger_msg_enabled, is_deleted, create_time) "
+                        + "VALUES (?,?,?,0,0,1,?,1,0, DATE_SUB(NOW(), INTERVAL 4 DAY))",
                 name, "x", name, verifyStatus);
+        Long id = jdbc.queryForObject("SELECT id FROM user WHERE username = ?", Long.class, name);
+        userIds.add(id);
+        return id;
+    }
+
+    /** 刚注册的号 */
+    private Long freshUser() {
+        String name = "gg-fresh-" + userIds.size() + "-" + SUFFIX + "@campus.test";
+        jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
+                        + "verify_status, stranger_msg_enabled, is_deleted) VALUES (?,?,?,0,0,1,0,1,0)",
+                name, "x", name);
         Long id = jdbc.queryForObject("SELECT id FROM user WHERE username = ?", Long.class, name);
         userIds.add(id);
         return id;
@@ -110,22 +121,25 @@ class GroupGateAndReportIntegrationTest {
                 Integer.class, userId, type);
     }
 
-    /* ------------------------------------------------- 1. 认证门槛（注解级） */
+    /* ------------------------------------------------- 1. 行为门槛（账号年龄） */
 
+    /** 新号建群 → 403 ACCOUNT_TOO_NEW；注册满 3 天后才放行 */
     @Test
-    void groupWriteEndpointsRequireVerified() throws Exception {
-        assertTrue(GroupController.class.getMethod("create", java.util.Map.class,
-                        jakarta.servlet.http.HttpServletRequest.class)
-                .isAnnotationPresent(RequireVerified.class),
-                "建群必须要求校内认证");
-        assertTrue(GroupController.class.getMethod("sendMessage", long.class, java.util.Map.class,
-                        jakarta.servlet.http.HttpServletRequest.class)
-                .isAnnotationPresent(RequireVerified.class),
-                "发群消息必须要求校内认证");
-        assertTrue(GroupController.class.getMethod("addMembers", long.class, java.util.Map.class,
-                        jakarta.servlet.http.HttpServletRequest.class)
-                .isAnnotationPresent(RequireVerified.class),
-                "拉人必须要求校内认证");
+    void brandNewAccountCannotCreateGroup() {
+        long fresh = freshUser();
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> groupService.createGroup(fresh, "新号群-" + SUFFIX, null, List.of()));
+        assertEquals(ResultCode.ACCOUNT_TOO_NEW.getCode(), ex.getCode(),
+                "注册不足 3 天的账号不能建群");
+        assertTrue(ex.getMessage().contains("注册满 3 天"), ex.getMessage());
+    }
+
+    /** 老号不依赖校园信息即可建群：verify_status=0 也能成功 */
+    @Test
+    void establishedUnverifiedUserCanCreateGroup() {
+        long owner = user(0);
+        long gid = group(owner);
+        assertNotNull(gid);
     }
 
     /* ------------------------------------------------- 2. 拉人关系限制 */

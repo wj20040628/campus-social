@@ -70,7 +70,6 @@ public final class AnnouncementAdminListAssembler {
                 .id(row.getPublisherId())
                 .nickname(row.getPublisherNickname())
                 .avatarUrl(row.getPublisherAvatar())
-                .verified(Integer.valueOf(1).equals(row.getPublisherVerify()))
                 .build();
     }
 

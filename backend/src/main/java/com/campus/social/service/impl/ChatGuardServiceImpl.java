@@ -8,6 +8,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.ChatGuardService;
 import com.campus.social.service.StrangerQuotaService;
+import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.service.support.StrangerPolicy;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.ChatSendVO;
@@ -22,17 +23,18 @@ import static com.campus.social.common.ResultCode.CHAT_SELF;
 import static com.campus.social.common.ResultCode.SENSITIVE_WORD_BLOCKED;
 import static com.campus.social.common.ResultCode.STRANGER_MSG_CLOSED;
 import static com.campus.social.common.ResultCode.USER_FROZEN;
-import static com.campus.social.common.ResultCode.USER_NOT_VERIFIED;
 
 /**
  * 搭话护栏实现（F3）。
  *
- * <p>判定顺序（2026-10-28 调整）：
+ * <p>判定顺序（2026-10-30 调整）：
  * <ol>
  *   <li>不能给自己发——纯内存比较，不查库</li>
- *   <li>发送方已认证且未冻结——查 user，AC-11</li>
+ *   <li>发送方存在且未冻结——查 user</li>
  *   <li>双向黑名单——查 relation，命中任一方向即拒</li>
  *   <li>接收方存在 + 陌生人开关——陌生人判定见 {@link StrangerPolicy}</li>
+ *   <li>仅对陌生人检查行为门槛：账号满 24 小时 + 信誉 60；
+ *       回复已有会话/互关不设门槛</li>
  *   <li>敏感词——DFA 扫描，<b>必须在配额之前</b>：被拒的内容不该消耗当天的 1 条</li>
  *   <li>陌生人日配额——Redis 往返，只有真正会落库的消息才扣</li>
  * </ol>
@@ -56,6 +58,8 @@ public class ChatGuardServiceImpl implements ChatGuardService {
     private final StrangerPolicy strangerPolicy;
     private final SensitiveWordFilter sensitiveFilter;
     private final AuditService auditService;
+    /** 行为信任门槛：账号满 24 小时 + 信誉 60 才能主动搭话 */
+    private final CampusAccessService access;
 
     @Override
     public ChatSendVO check(long me, long peerId, String content) {
@@ -64,17 +68,14 @@ public class ChatGuardServiceImpl implements ChatGuardService {
             throw new BusinessException(CHAT_SELF, "不能给自己发消息");
         }
 
-        // 2. 发送方须已通过校内认证（AC-11）。顺带拦掉冻结账号——
-        //    已冻结用户不该还能对外发消息，但 status 与 verifyStatus 是两列，要分开判。
+        // 2. 发送方存在且未被冻结。校园信息不参与判定（2026-10-30）：
+        //    回复已有会话、互关后的对话都不该被一条不可核验的资料挡住。
         User meUser = userMapper.selectById(me);
         if (meUser == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "发送方不存在");
         }
         if (Integer.valueOf(1).equals(meUser.getStatus())) {
             throw new BusinessException(USER_FROZEN, "账号已冻结，无法发送消息");
-        }
-        if (!Integer.valueOf(1).equals(meUser.getVerifyStatus())) {
-            throw new BusinessException(USER_NOT_VERIFIED, "完成校内认证后才能发起搭话");
         }
 
         // 3. 双向黑名单。拉黑是单向动作，只查一个方向等于没护栏。
@@ -91,6 +92,14 @@ public class ChatGuardServiceImpl implements ChatGuardService {
         boolean isStranger = strangerPolicy.isStranger(me, peerId);
         if (isStranger && !Integer.valueOf(1).equals(peer.getStrangerMsgEnabled())) {
             throw new BusinessException(STRANGER_MSG_CLOSED, "对方已关闭陌生人消息，无法发送");
+        }
+        /*
+         * 只有「主动找陌生人」才需要行为门槛（2026-10-30）。
+         * 已有会话 / 互关 / 对方关注我 / 对方回复过我 → isStranger=false，
+         * 直接放行；回复别人不该被账号年龄卡住。
+         */
+        if (isStranger) {
+            access.requireStrangerChat(meUser, "发起搭话");
         }
 
         /*

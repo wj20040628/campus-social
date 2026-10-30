@@ -48,8 +48,8 @@
               />
             </div>
             <div class="sp-row">
-              <span class="sp-row__label">学号</span>
-              <el-input v-model="form.studentNo" placeholder="如 2024001234" maxlength="32" />
+              <span class="sp-row__label">学号（选填）</span>
+              <el-input v-model="form.studentNo" placeholder="选填，如 2024001234" maxlength="32" />
             </div>
             <!-- 邮箱:已绑定显示脱敏值;未绑定给「去绑定」入口,跳账号与安全 -->
             <div class="sp-row">
@@ -70,13 +70,11 @@
         <section class="sp-group">
           <h2 class="sp-group__label">学校信息</h2>
           <!--
-            改即重审警示(2026-10-25 从基本信息卡挪来):它警告的两个字段
-            (学号在学校卡/归属在下面的选择器)是**一套绑定凭证**,改任一边都
-            使旧认证失效重新核验。原来挂在学号输入框下,用户在下一张卡改院系时
-            根本看不到。事前说清,别让用户保存完才发现被"踢出"认证。
+            改归属会重置资料状态：学号一致性是相对学院/年级/专业比对的，
+            归属变了旧结论不再成立。只影响资料标记，不影响任何功能。
           -->
           <p v-if="verifyGuarded" class="sp-reverify-note">
-            你已提交过认证:修改学号或学校归属会取消当前认证状态，需重新核验
+            你已提交过校园信息：修改学号或学校归属会重置登记状态，需重新提交（不影响任何功能）
           </p>
           <div class="sp-card sp-card--school">
             <SchoolFields v-model="identity" :invalid="identityInvalid" />
@@ -89,12 +87,9 @@
             <span>{{ verifyTip.text }}</span>
           </p>
           <!--
-            提交认证 / 重新提交认证（2026-10-28）。
-            走 POST /user/verify/student-no，与引导页 StepVerify 是**同一个端点**：
-            这条端点的六层校验与自动通过判据是一套；若这里另走 PUT /user/me
-            顺带触发重提，两条路的判据会各说各话（同一学号引导页秒过、设置页排队）。
-            审核中(2)/已认证(1)不显示按钮 —— verifyTip 已经把状态说清楚了，
-            再给一个点不动的按钮只是让人反复试。
+            提交校园信息（2026-10-30 起为可选资料）。
+            走 POST /user/verify/student-no，与引导页 StepVerify 是同一个端点。
+            核对中(2)/已登记(1)不显示按钮 —— verifyTip 已说明状态。
           -->
           <div v-if="canSubmitVerify" class="sp-verify-act">
             <button
@@ -103,10 +98,10 @@
               :disabled="verifySubmitting || !studentNoValid"
               @click="submitVerify"
             >
-              {{ verifySubmitting ? '提交中…' : verifyRejected ? '重新提交认证' : '提交认证' }}
+              {{ verifySubmitting ? '提交中…' : verifyRejected ? '重新提交校园信息' : '提交校园信息' }}
             </button>
             <p class="sp-verify-hint">
-              会与你上面选的学院、本专科、专业、年级逐项比对；学号需 13~14 位纯数字
+              会与你选的学院、本专科、专业、年级比对；一致直接登记，不一致转人工核对。学号需 13~14 位纯数字
             </p>
           </div>
         </section>
@@ -197,14 +192,14 @@ const identityDirty = computed(() =>
   || identity.value.majorId !== identityOriginal.value.majorId,
 )
 
-/** 认证状态提示行的文案与主色(映射逻辑见 useVerifyTip) */
+/** 校园信息提示行的文案与主色(映射逻辑见 useVerifyTip) */
 const { verifyTip } = useVerifyTip()
-/* 已认证(1)/审核中(2):这两态下改学号或归属会触发"改即重审" */
+/* 已登记(1)/核对中(2):改学号或归属会重置资料状态 */
 const verifyGuarded = computed(() => verifyCode.value === 1 || verifyCode.value === 2)
 
-/* ---- 提交认证(2026-10-28) ---- */
+/* ---- 提交校园信息 ---- */
 const verifySubmitting = ref(false)
-/** 0 未认证 / 3 已驳回:这两态才给提交入口;null(没拉到)按未知处理,不给 */
+/** 0 未填写 / 3 需修改:这两态才给提交入口;null(没拉到)按未知处理,不给 */
 const canSubmitVerify = computed(
   () => verifyCode.value === 0 || verifyCode.value === 3,
 )
@@ -213,11 +208,10 @@ const verifyRejected = computed(() => verifyCode.value === 3)
 const studentNoValid = computed(() => /^\d{13,14}$/.test(form.studentNo || ''))
 
 /**
- * 提交学号认证。
+ * 提交学号。
  *
- * 归属有改动先落库:submitStudentNo 拿**库里**的院系/年级/专业做六层比对,
- * 页面上的新归属还没保存,用它去比旧值必然对不上(1058),
- * 而错误文案只说「信息不符」,用户看不出是哪一步旧了。
+ * 归属有改动先落库：submitStudentNo 拿**库里**的院系/年级/专业做一致性比对，
+ * 页面上的新归属还没保存，用它去比会得出「不一致」并转人工核对。
  */
 async function submitVerify() {
   if (verifySubmitting.value || !studentNoValid.value) return
@@ -228,18 +222,18 @@ async function submitVerify() {
   verifySubmitting.value = true
   try {
     const data = await submitStudentNo({ studentNo: form.studentNo }, { silent: true })
-    // 状态变了必须强制重拉:不重拉按钮还写着「提交认证」,用户会以为没提交上
+    // 状态变了必须强制重拉:不重拉按钮还写着「提交校园信息」,用户会以为没提交上
     await loadVerify(true)
-    // userInfo.verified 也要刷新:权限闸门读的是 userStore,不是 verifyStatus 单例。
+    // userInfo.verified 也要刷新：资料页/个人主页的展示读的是 userStore。
     // 拉取失败不影响「已提交」这个事实,不回滚成功提示。
     try {
       userStore.setUserInfo(await meApi())
     } catch {
       /* 下次进页面会重新拉 */
     }
-    ElMessage.success(data?.verifyStatus === 1 ? '认证已通过' : '已提交，等待人工核验')
+    ElMessage.success(data?.verifyStatus === 1 ? '校园信息已登记' : '已提交，等待人工核对')
   } catch (e) {
-    ElMessage.error(e?.message || '认证没通过，检查一下学号与学院、年级、专业是否一致')
+    ElMessage.error(e?.message || '提交失败，学号需为 13~14 位纯数字')
   } finally {
     verifySubmitting.value = false
   }
@@ -255,7 +249,7 @@ async function load() {
     const vs = await loadVerify()
     studentNo = vs?.studentNo || ''
   } catch {
-    /* 认证状态拉不到不影响其它字段 */
+    /* 校园信息状态拉不到不影响其它字段 */
   }
   form.studentNo = studentNo
   form.avatarUrl = me.avatarUrl || ''

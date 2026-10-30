@@ -30,27 +30,33 @@
         <el-icon><OfficeBuilding /></el-icon>
         <span>集市</span>
       </el-menu-item>
-      <el-menu-item index="/files">
+      <el-menu-item v-if="!userStore.isGuest" index="/files">
         <el-icon><FolderOpened /></el-icon>
         <span>文件</span>
       </el-menu-item>
 
-      <el-menu-item index="__grp_mine__" disabled class="side__grp">我的</el-menu-item>
-      <el-menu-item index="/chat">
-        <el-icon><ChatDotRound /></el-icon>
-        <span>消息</span>
-        <!-- 未读角标：桌面端此前完全没有这个数字，必须点进去才知道有几条 -->
-        <span v-if="chatUnread > 0" class="side__badge ys-num">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
-      </el-menu-item>
-      <el-menu-item index="/notify">
-        <el-icon><Bell /></el-icon>
-        <span>通知</span>
-        <span v-if="notifyUnread > 0" class="side__badge ys-num">{{ notifyUnread > 99 ? '99+' : notifyUnread }}</span>
-      </el-menu-item>
-      <el-menu-item index="/announcement">
-        <el-icon><Promotion /></el-icon>
-        <span>公告</span>
-      </el-menu-item>
+      <!--
+        游客态(2026-10-30):「我的」整组(消息/通知/公告)全部要求登录,
+        留着只会让游客点一次被踢一次。登录用户照旧显示。
+      -->
+      <template v-if="!userStore.isGuest">
+        <el-menu-item index="__grp_mine__" disabled class="side__grp">我的</el-menu-item>
+        <el-menu-item index="/chat">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>消息</span>
+          <!-- 未读角标：桌面端此前完全没有这个数字，必须点进去才知道有几条 -->
+          <span v-if="chatUnread > 0" class="side__badge ys-num">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
+        </el-menu-item>
+        <el-menu-item index="/notify">
+          <el-icon><Bell /></el-icon>
+          <span>通知</span>
+          <span v-if="notifyUnread > 0" class="side__badge ys-num">{{ notifyUnread > 99 ? '99+' : notifyUnread }}</span>
+        </el-menu-item>
+        <el-menu-item index="/announcement">
+          <el-icon><Promotion /></el-icon>
+          <span>公告</span>
+        </el-menu-item>
+      </template>
 
       <!--
         「发现」已从桌面左栏移除(2026-10-19):顶栏已有「找人」入口(/search),
@@ -75,16 +81,15 @@
           <AdminPendingBadge :count="pendingTotal" class="side__sub-badge" />
         </template>
         <!--
-          学号核验排第一,不是按字母也不是按开发顺序:
-          认证是其他一切能力的前置(没过认证的用户不能搭话、不能发公告),
-          一堆人卡在「审核中」时它是管理员唯一有盼头的那件事。
+          校园信息核对排第一：2026-10-30 起积压不阻塞任何功能，
+          但提交了资料的用户仍在等一个结果，先处理体验更好。
         -->
         <el-menu-item
           index="/admin/verify"
           :class="{ 'is-pending': pending.summary.verifyPending > 0 }"
         >
           <el-icon><Postcard /></el-icon>
-          <span>学号核验</span>
+          <span>校园信息核对</span>
           <AdminPendingBadge :count="pending.summary.verifyPending" class="side__pending" />
         </el-menu-item>
         <!-- 举报有时效,排最前(2026-10-25 举报拆独立页后与机审分开计数) -->

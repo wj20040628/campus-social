@@ -66,7 +66,7 @@ const props = defineProps({
   title: { type: String, default: '' },
   /** 面板高度。70vh 用于「谁还没看」这类长名单 */
   height: { type: String, default: '' },
-  /** 底部取消文案。默认「取消」,认证闸门用「先逛逛」 */
+  /** 底部取消文案。默认「取消」 */
   cancelText: { type: String, default: '取消' },
 })
 

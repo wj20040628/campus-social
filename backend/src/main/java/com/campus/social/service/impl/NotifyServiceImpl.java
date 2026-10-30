@@ -113,8 +113,8 @@ public class NotifyServiceImpl implements NotifyService {
             case 13: return "你的文件已通过审核";
             case 14: return "你的文件未通过审核";
             case 15: return "你的文件已被下架";
-            case 16: return "你的校内认证已通过";
-            case 17: return "你的校内认证未通过";
+            case 16: return "你的校园信息已登记";
+            case 17: return "你的校园信息需要修改";
             // 举报与处置结果（2026-10-28）：18 举报人 / 19 封禁 / 20 内容下架 / 21 解封
             case 18: return "你举报的内容有结果了";
             case 19: return "你的账号已被暂停使用";

@@ -55,7 +55,4 @@ public class AnnouncementRow implements Serializable {
     private String publisherNickname;
 
     private String publisherAvatar;
-
-    /** 发布人的认证状态：0未认证 1已认证 2审核中 3被拒 */
-    private Integer publisherVerify;
 }

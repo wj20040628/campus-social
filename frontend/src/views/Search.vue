@@ -39,7 +39,7 @@
         <template v-else>
           <div v-if="tab === 'posts'" class="res-list">
             <PostCard v-for="p in results.posts || []" :key="p.id" :post="p" @click="router.push(`/post/${p.id}`)" />
-            <StateBlock v-if="!(results.posts || []).length" variant="empty" title="没有匹配的帖子" description="换个词试试,或者直接发一条这个话题的" action-label="去发一条" :icon="Search" @action="router.push('/publish')" />
+            <StateBlock v-if="!(results.posts || []).length" variant="empty" title="没有匹配的帖子" description="换个词试试,或者直接发一条这个话题的" action-label="去发一条" :icon="Search" @action="goPublish" />
           </div>
 
           <div v-else-if="tab === 'users'" class="res-list">
@@ -92,14 +92,16 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search as searchApi } from '@/api/circle'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import PostCard from '@/components/PostCard.vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import { Search, User, Collection } from '@element-plus/icons-vue'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 const route = useRoute()
 const router = useRouter()
+const { ensureLogin } = useGuestPrompt()
 const q = ref('')
 const tab = ref('posts')
 const searched = ref(false)
@@ -118,6 +120,12 @@ async function doSearch() {
     searched.value = true
     searching.value = false
   }
+}
+
+/** 「去发一条」:游客先弹登录提示,避免直接撞上路由守卫的静默跳转 */
+async function goPublish() {
+  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？'))) return
+  router.push('/publish')
 }
 
 /** 「没有匹配的用户」空态的出口:清空关键词重新搜,而不是让用户自己找输入框 */

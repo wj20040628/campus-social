@@ -48,7 +48,7 @@
                   {{ n.summary }}
                 </template>
               </div>
-              <!-- 反馈回复(11)/认证驳回(17)/处置结果(18-23)/群聊邀请(22):原文或群名,引用块展示 -->
+              <!-- 反馈回复(11)/校园信息需修改(17)/处置结果(18-23)/群聊邀请(22):原文或群名,引用块展示 -->
               <div v-if="(n.type === 11 || n.type === 17 || (n.type >= 18 && n.type <= 23)) && n.content" class="n-reply">{{ n.content }}</div>
               <div class="n-time">{{ n.createTime }}</div>
             </div>
@@ -93,7 +93,7 @@ import { getWsClient } from '@/utils/ws'
 import StateBlock from '@/components/common/StateBlock.vue'
 import { Bell, Service, WarningFilled } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 
@@ -225,7 +225,7 @@ async function openAndRead(n) {
       // 文件驳回/下架:去「我的文件」看理由
       go('/files?tab=mine')
     } else if (n.type === 16 || n.type === 17) {
-      // 认证结果:去编辑资料页看当前状态与驳回理由
+      // 校园信息结果:去编辑资料页看当前状态与退回理由
       go('/profile')
     } else if (n.type === 20) {
       // 内容下架:帖子还留着「已下架」占位页可看;评论/私信/集市没有统一落点

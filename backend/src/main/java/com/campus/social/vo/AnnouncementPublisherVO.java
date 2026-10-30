@@ -8,8 +8,9 @@ import java.io.Serializable;
 /**
  * 公告发布人（F5）。
  *
- * <p>{@code schoolName} 只在已认证时返回（AC-12）：
- * 未认证时挂一个学校名是伪造权威，校方账号必须走认证才有这个标识。
+ * <p>2026-10-30 起不再下发 {@code verified} / {@code schoolName}：
+ * 校园信息只是个人资料，不能被当作公开发布方的身份背书。
+ * 公告权限由管理员角色决定，不由校园信息决定。
  */
 @Data
 @Builder
@@ -21,10 +22,4 @@ public class AnnouncementPublisherVO implements Serializable {
     private String nickname;
 
     private String avatarUrl;
-
-    /** 是否已通过校内认证（AC-12） */
-    private Boolean verified;
-
-    /** 已认证时返回学校名；未认证为 null */
-    private String schoolName;
 }

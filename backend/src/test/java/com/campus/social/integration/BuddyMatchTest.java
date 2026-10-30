@@ -50,7 +50,8 @@ class BuddyMatchTest {
     void seed() {
         tagId = insertTag();
         meId = insertUser("buddy-me-" + SUFFIX, 0);
-        buddyId = insertUser("buddy-hit-" + SUFFIX, 1);
+        // 命中者也不填校园信息：搭子推荐不再以 verify_status=1 为前置
+        buddyId = insertUser("buddy-hit-" + SUFFIX, 0);
         noTagUserId = insertUser("buddy-notag-" + SUFFIX, 1);
         blockedMeId = insertUser("buddy-blockedme-" + SUFFIX, 1);
 
@@ -110,7 +111,7 @@ class BuddyMatchTest {
 
         RecommendUserVO hit = vo.getUsers().stream()
                 .filter(u -> u.getId().equals(buddyId)).findFirst().orElse(null);
-        assertTrue(hit != null, "共享标签且认证开陌生人消息的人应被推荐");
+        assertTrue(hit != null, "共享标签且开着陌生人消息的人应被推荐（不看校园信息）");
         assertTrue(hit.getReason().contains("都喜欢 1 个标签"), "理由应标签主导: " + hit.getReason());
 
         assertFalse(vo.getUsers().stream().anyMatch(u -> u.getId().equals(noTagUserId)),

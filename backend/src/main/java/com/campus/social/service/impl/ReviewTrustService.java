@@ -34,15 +34,16 @@ import java.time.LocalDateTime;
  *   <li><b>待审举报不扣分</b>（防集中举报刷分），扣分只认管理员判成立；</li>
  * </ul>
  *
- * <h2>发布配额（分数的兑现，2026-10-27 统一档位）</h2>
+ * <h2>发布配额（分数的兑现，2026-10-30 去认证化）</h2>
  * <table border=1>
- *   <tr><th></th><th>未认证</th><th>认证 60–79</th><th>80–99</th><th>100</th></tr>
- *   <tr><th>建圈(在世)</th><td>✗</td><td>1</td><td>2</td><td>3</td></tr>
- *   <tr><th>集市在投</th><td>✗</td><td>1</td><td>2</td><td>3</td></tr>
- *   <tr><th>发帖/日</th><td colspan=2>5</td><td>10</td><td>15</td></tr>
- *   <tr><th>文件额度</th><td>✗</td><td>1MB/5MB</td><td>2MB/10MB</td><td>3MB/15MB</td></tr>
+ *   <tr><th></th><th>任何注册用户 60–79</th><th>80–99</th><th>100</th></tr>
+ *   <tr><th>建圈(在世)</th><td>1</td><td>2</td><td>3</td></tr>
+ *   <tr><th>集市在投</th><td>1</td><td>2</td><td>3</td></tr>
+ *   <tr><th>发帖/日</th><td>5</td><td>10</td><td>15</td></tr>
+ *   <tr><th>文件额度</th><td>1MB/5MB</td><td>2MB/10MB</td><td>3MB/15MB</td></tr>
  * </table>
  * 文件额度由 {@link FileLimits} 统一持有，上传校验与前端提示同源。
+ * 校园信息（verify_status）只用于资料展示，不再参与这里的任何一档。
  *
  * <p><b>调用频率</b>：发帖命中/发集市/建圈/设置页各一次，四次索引查询
  * 在校园量级是毫秒级，不做缓存。
@@ -128,26 +129,42 @@ public class ReviewTrustService {
         vo.setCreditScore(score);
         vo.setCreditBonus(bonus);
         vo.setCreditDecayDays(creditDecayDays);
-        int tier = verified ? quotaTier(score) : 0;
+        // 2026-10-30：校园信息不再决定配额；建圈/集市/文件都只看信誉分。
+        int tier = quotaTier(score);
         vo.setCircleQuota(tier);
         vo.setMktQuota(tier);
-        // 发帖日额与 guardDailyQuota 同源：按信誉档位，不看认证状态（2026-10-28）
-        vo.setPostDailyQuota(switch (quotaTier(score)) {
+        // 发帖日额与 guardDailyQuota 同源：按信誉档位，不看校园信息（2026-10-28）
+        vo.setPostDailyQuota(switch (tier) {
             case 3 -> postDailyTier3;
             case 2 -> postDailyTier2;
             default -> postDailyTier1;
         });
-        vo.setTrusted(u != null && verified && ageDays >= minDays && score >= TRUST_SCORE_MIN);
+        // 受信只反映账号成熟度与行为记录，不再要求校园信息。
+        vo.setTrusted(u != null && ageDays >= minDays && score >= TRUST_SCORE_MIN && !badRecord);
         return vo;
     }
 
     /** 建圈/集市在投配额（检查点直取,不走完整 status） */
     public int creationQuota(long userId) {
         User u = userMapper.selectById(userId);
-        if (u == null || !Integer.valueOf(1).equals(u.getVerifyStatus())) {
+        if (u == null) {
             return 0;
         }
         return quotaTier(scoreOf(userId, u));
+    }
+
+    /** 供行为门槛复用：只算信誉分，不组装整张卡 */
+    public int creditScore(long userId) {
+        User u = userMapper.selectById(userId);
+        if (u == null) {
+            return SCORE_BASE;
+        }
+        return scoreOf(userId, u);
+    }
+
+    /** 配额分档：60/80/100 → 1/2/3。调用方已通过行为门槛时可复用同一分数 */
+    public int quotaTierForScore(int score) {
+        return quotaTier(score);
     }
 
     /** 发帖日额（PostWriteService 的 Redis 计数上限） */

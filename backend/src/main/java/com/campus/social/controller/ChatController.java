@@ -6,7 +6,6 @@ import com.campus.social.common.Result;
 import com.campus.social.dto.ChatPrefDTO;
 import com.campus.social.dto.ChatSendDTO;
 import com.campus.social.interceptor.AuthInterceptor;
-import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.ChatConvPrefService;
 import com.campus.social.service.ChatService;
 import com.campus.social.service.StrangerQuotaService;
@@ -61,15 +60,10 @@ public class ChatController {
      * 否则这一轮发版会直接把发消息功能打挂。
      */
     /**
-     * {@code @RequireVerified}（2026-10-21 新增）：未认证用户不能发起搭话。
-     *
-     * <p>业务层 {@code ChatGuardServiceImpl} 里本来就有同样的判断，
-     * 这里再加一层注解不是重复 —— 那一层顺带管黑名单/额度/陌生人开关，
-     * 混在一处会让「未认证」这条规则埋在一堆校验里，
-     * 而注解写在端点上，「这个接口需要认证」是一眼可见的事实。
-     * 两层都保留：注解负责快速短路（不查库不建会话），业务层负责完整护栏。
+     * 发送消息。2026-10-30 起不再要求校园信息：
+     * 已有会话/互关可直接回复；仅「主动找陌生人」由
+     * {@code ChatGuardServiceImpl} 检查账号满 24 小时 + 信誉 60。
      */
-    @RequireVerified
     @PostMapping({"/send", "/message"})
     public Result<ChatSendVO> send(@Valid @RequestBody ChatSendDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);

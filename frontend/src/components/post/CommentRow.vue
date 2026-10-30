@@ -135,7 +135,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { splitComment } from '@/composables/usePostDetail'
 import { MAX_RENDER_DEPTH, MAX_VISUAL_DEPTH } from '@/composables/commentDepth'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 
 /** 子评论超过这个数才默认折叠 */

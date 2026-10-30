@@ -46,7 +46,7 @@
             <p class="md__pub-name">{{ act.nickname || '匿名' }}</p>
             <p class="md__pub-sub">{{ publishedText }}</p>
           </div>
-          <!-- 点进主页能看到这人的历史活动与认证，是判断可信度的主要依据 -->
+          <!-- 点进主页能看到这人的历史活动与资料，是判断可信度的主要依据 -->
           <RouterLink v-if="act.userId" :to="`/user/${act.userId}`" class="md__pub-more">
             主页 ›
           </RouterLink>
@@ -147,6 +147,7 @@
           :loading="commentsLoading"
           :my-id="myId"
           :submit-comment="onCommentSubmit"
+          :guest="!userStore.hasToken"
           @report-comment="openCommentReport"
         />
 
@@ -237,7 +238,7 @@ import ReportSheet from '@/components/post/ReportSheet.vue'
 import ShareCardSheet from '@/components/share/ShareCardSheet.vue'
 import { shareUrl } from '@/utils/shareCard'
 import { useRemainingCountdown } from '@/composables/useRemainingCountdown'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 import { submitReport } from '@/api/review'
 import * as mkt from '@/api/mkt'
 

@@ -80,11 +80,3 @@ export function startTokenRenew() {
     if (document.visibilityState === 'visible') tick()
   })
 }
-
-/** 停止（登出 / 测试用）。 */
-export function stopTokenRenew() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
-}

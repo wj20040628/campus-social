@@ -6,7 +6,6 @@ import com.campus.social.common.Result;
 import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.dto.CreatePostDTO;
 import com.campus.social.interceptor.AuthInterceptor;
-import com.campus.social.interceptor.RequireVerified;
 import com.campus.social.service.PostService;
 import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
@@ -30,11 +29,9 @@ public class PostController {
     /**
      * 发动态。
      *
-     * <p>{@code @RequireVerified}（2026-10-29）：自评估报告承诺「校内认证通过后
-     * 才开放发帖」。私信/群聊/建群/文件上传此前已有门槛，发帖与评论是最后
-     * 两个漏口——未认证账号可以发帖，与报告对不上。认证前仍可浏览、点赞。
+     * <p>2026-10-30：校园信息退出权限判定，注册用户即可发帖；
+     * 频率与每日额度仍由 PostWriteService / 信誉档位兜底。
      */
-    @RequireVerified
     @PostMapping
     public Result<Map<String, Long>> create(@Valid @RequestBody CreatePostDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -42,13 +39,7 @@ public class PostController {
         return Result.ok(Map.of("postId", id));
     }
 
-    /**
-     * 编辑动态(仅作者)。
-     *
-     * <p>与发帖同一条认证门槛：编辑也是把内容重新发布出去，
-     * 只拦创建不拦编辑，等于留了一个「先让认证用户代发、再由未认证账号改」的口子。
-     */
-    @RequireVerified
+    /** 编辑动态(仅作者)。与发帖同权，不再检查校园信息。 */
     @PutMapping("/{id}")
     public Result<com.campus.social.vo.PostVO> edit(@PathVariable("id") long id,
             @Valid @RequestBody CreatePostDTO dto, HttpServletRequest req) {
@@ -82,7 +73,8 @@ public class PostController {
             @RequestParam(value = "anonymous", required = false) Boolean anonymous,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.feed(me, lastId, PageSize.clamp(size), by, order, topic, anonymous));
+        // 游客只读:viewerId=0 是公共视角(liked/favorited 恒 false),不按登录人过滤
+        return Result.ok(postService.feed(me != null ? me : 0L, lastId, PageSize.clamp(size), by, order, topic, anonymous));
     }
 
     /** 推荐流:共同兴趣标签等权排序,同分新帖优先;无标签用户退化为最新 */
@@ -211,8 +203,7 @@ public class PostController {
         return Result.ok(postService.likedPosts(me, me, lastId, PageSize.clamp(size)));
     }
 
-    /** 评论（与发帖同一认证门槛；删除自己的评论不受限） */
-    @RequireVerified
+    /** 评论（注册即可；删除自己的评论不受限） */
     @PostMapping("/{id}/comment")
     public Result<Map<String, Long>> comment(@PathVariable("id") long id,
                                               @Valid @RequestBody CreateCommentDTO dto,

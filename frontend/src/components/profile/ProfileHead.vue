@@ -2,7 +2,7 @@
   <!--
     个人主页身份头(2026-10-18 hero 化,参考小红书):
     上一行是父级的装饰带(.p-cover),头像用负 margin 叠上去(白描边);
-    昵称+认证徽章同行,操作按钮独立成行放信息块下方 ——
+    昵称独立一行,操作按钮独立成行放信息块下方 ——
     不再挤在头像右侧(原布局按钮多时右侧溢出,手机上更是放不下三个)。
     emits/props 与旧版完全一致,父级无需改动交互接线。
   -->
@@ -52,14 +52,10 @@
         <div class="p-name-row">
           <span class="p-name">{{ displayName(user) }}</span>
           <!--
-            认证徽章(AC-12):判据由父级传入 —— 后端 UserVO 的 verified,
-            各处自己推断会误判(历史事故见 useProfileData.js 注释)。
+            2026-10-30：公开页不再展示「已认证 / 未认证」徽章。
+            学校不提供学生名单，校园信息无法证明身份，公开挂徽章
+            等于把用户自填资料包装成信用背书。
           -->
-          <span v-if="verified" class="p-badge">
-            <CircleCheck class="p-badge__icon" aria-hidden="true" />
-            已认证<template v-if="user.schoolName"> · {{ user.schoolName }}</template>
-          </span>
-          <span v-else class="p-badge p-badge--off">未认证</span>
         </div>
         <div v-if="identity.deptName || identity.gradeName" class="p-sub">
           {{ identityLine }}
@@ -85,7 +81,7 @@
         <p v-else class="p-bio p-bio--empty">这家伙很懒，什么都没有留下</p>
 
         <router-link v-if="isMe && !verified" to="/profile" class="p-verify-link">
-          去认证
+          完善校园信息（可选）
         </router-link>
       </div>
     </div>
@@ -106,10 +102,6 @@
       >
         <el-icon v-if="!mutual"><Plus /></el-icon> {{ followLabel }}
       </el-button>
-      <!--
-        AC-11:未认证**不置灰也不隐藏**,点了弹说明 + 认证出口(设计 §3)。
-        与 PostDetail 的「搭句话」是同一套未认证处理。
-      -->
       <el-button class="p-act" @click="$emit('chat')">
         <el-icon><ChatDotRound /></el-icon> 发私信
       </el-button>
@@ -135,22 +127,22 @@
 <script setup>
 /**
  * 身份头。**纯展示 + 抛事件**:关注与私信的真实行为在 Profile.vue,
- * 因为它们要联动粉丝计数、未认证弹窗与路由,放进子组件会多一层双向耦合。
+ * 因为它们要联动粉丝计数与路由,放进子组件会多一层双向耦合。
  * 本人视角的操作入口在全局抽屉(2026-10-20 移除主页上的编辑/设置按钮),
  * 空介绍的「点击添加介绍」仍走 edit 事件进编辑页。
  */
-import { CircleCheck, ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
+import { ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import { displayName } from '@/utils/mask'
-import { resolveUrl, resolveThumb } from '@/utils/resolve'
+import { resolveThumb } from '@/utils/resolve'
 
 const props = defineProps({
   user: { type: Object, required: true },
   /** 学院 · 年级名称(父级已做三级兜底) */
   identity: { type: Object, default: () => ({}) },
   identityLine: { type: String, default: '' },
-  /** AC-12 判据,由父级传入(不自行推断) */
+  /** 校园信息是否已登记：只决定本人是否显示「完善」入口，不再公开成徽章 */
   verified: { type: Boolean, default: false },
   isMe: { type: Boolean, default: false },
   following: { type: Boolean, default: false },

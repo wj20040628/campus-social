@@ -144,6 +144,7 @@ import ShareCardSheet from '@/components/share/ShareCardSheet.vue'
 import { shareUrl } from '@/utils/shareCard'
 import { resolveThumb } from '@/utils/resolve'
 import { useUserStore } from '@/stores/user'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 import {
   activityDetail,
   activitySignups,
@@ -155,6 +156,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const { ensureLogin } = useGuestPrompt()
 const myId = computed(() => userStore.userInfo?.id)
 const act = ref(null)
 const signing = ref(false)
@@ -243,6 +245,9 @@ async function load() {
 }
 
 async function onSignup() {
+  // 活动详情对游客开放（扫码落地页），但报名是写操作：先提示登录，
+  // 否则 401 被 request.js 静默吞掉，按钮看起来像坏了。
+  if (!(await ensureLogin('登录后才能报名活动，现在去登录吗？'))) return
   signing.value = true
   try {
     await signupApi(route.params.id)

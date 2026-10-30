@@ -9,6 +9,7 @@ import com.campus.social.mapper.*;
 import com.campus.social.service.ChatConvPrefService;
 import com.campus.social.service.GroupService;
 import com.campus.social.service.UploadService;
+import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.vo.GroupMemberInfoVO;
 import com.campus.social.vo.GroupMessageVO;
 import com.campus.social.vo.GroupVO;
@@ -63,6 +64,8 @@ public class GroupServiceImpl implements GroupService {
     private final RelationMapper relationMapper;
     /** 新成员入群通知:至少让对方知道自己在哪个群、能自己退 */
     private final PostNotifySupport notifySupport;
+    /** 行为信任门槛：建群/拉人需账号满 3 天 + 信誉 60（校园信息不参与） */
+    private final CampusAccessService access;
 
     @Override
     @Transactional
@@ -74,6 +77,7 @@ public class GroupServiceImpl implements GroupService {
         if (owner == null || owner.getStatus() == 1) {
             throw new BusinessException(USER_CANCELLED);
         }
+        access.requireCreateGroup(ownerId, "创建群聊");
 
         Group g = new Group();
         g.setName(name.trim());
@@ -101,7 +105,7 @@ public class GroupServiceImpl implements GroupService {
                     .filter(id -> userMapper.selectById(id) != null)
                     .toList();
             // 2026-10-28:只能拉关注我/我关注的人。此前任意 userId 都能被塞进群,
-            // 未认证账号可以建群后把陌生人批量拉进来发广告。
+            // 新账号可以建群后把陌生人批量拉进来发广告。
             assertInvitables(ownerId, toAdd);
             // 建群时也要守上限(群主 1 人 + 本次新增),与 addMembers 的 GROUP_FULL 一致。
             // 此前建群不检查上限,能绕过 groupMaxMembers。
@@ -226,6 +230,7 @@ public class GroupServiceImpl implements GroupService {
         // 拉人对所有群成员开放(不只是群主):我是群成员即可。
         // 与踢人/改名/公告/转让/退群区分 —— 那些仍限群主,见 assertOwner。
         assertMember(groupId, me);
+        access.requireCreateGroup(me, "邀请成员");
         if (userIds == null || userIds.isEmpty()) {
             return 0;
         }
@@ -246,7 +251,7 @@ public class GroupServiceImpl implements GroupService {
             return 0;
         }
         // 2026-10-28:只能邀请关注我/我关注的人。此前任何群成员都能把任意 userId
-        // 拉进群且无通知,是「未认证 → 建群 → 批量拉陌生人」骚扰链路的最后一环。
+        // 拉进群且无通知,是「新号建群 → 批量拉陌生人」骚扰链路的最后一环。
         assertInvitables(me, toAdd);
         // 人数上限:当前成员数 + 本次新增 不得超过 groupMaxMembers
         int now = groupMemberMapper.countByGroup(groupId);

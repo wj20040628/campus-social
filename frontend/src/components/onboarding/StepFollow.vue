@@ -26,10 +26,7 @@
         <li v-for="u in users" :key="u.id" class="step3__row">
           <span class="step3__avatar" aria-hidden="true">{{ u.nickname.slice(0, 1) }}</span>
           <span class="step3__info">
-            <span class="step3__name">
-              {{ clip(u.nickname) }}
-              <VerifiedShield v-if="u.verified" :size="14" class="step3__verified" />
-            </span>
+            <span class="step3__name">{{ clip(u.nickname) }}</span>
             <span class="step3__meta">{{ clip(u.reason) }}</span>
           </span>
           <button
@@ -82,7 +79,6 @@
  * 只有一组为空时,那一组降级为一行文字,另一组照常显示 5 条。
  */
 import { computed } from 'vue'
-import VerifiedShield from '@/icons/VerifiedShield.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 
 const props = defineProps({
@@ -208,11 +204,6 @@ function clip(text, len = 12) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.step3__verified {
-  flex: none;
-  color: var(--ys-accent);
 }
 
 .step3__meta {

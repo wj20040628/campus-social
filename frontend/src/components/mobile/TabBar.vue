@@ -29,8 +29,10 @@
 /**
  * 移动端底部主导航(mobile-shell.md §2)
  *
- * 五个入口:首页 / 圈子 / 集市 / 消息 / 我的 —— **五项等权**。
- * 发帖入口不在此:两端都走顶栏「+」,TabBar 5 项锁定不可增减。
+ * 登录用户五个入口:首页 / 圈子 / 集市 / 消息 / 我的 —— **五项等权**。
+ * 游客态只保留首页 / 圈子 / 集市三个公开入口,消息与我的都要求登录,
+ * 留在底栏只会点了就断浏览动线(2026-10-30)。
+ * 发帖入口不在此:两端都走顶栏「+」,登录用户的 5 项固定不增减。
  *
  * [2026-10-20 改版] 去掉了中间「集市」的凸起圆钮,理由三条:
  * ① 凸起钮等于把「集市」抬成比首页更重的入口,但它不是主路径;
@@ -70,15 +72,25 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const items = computed(() => {
+  /*
+   * 游客只保留公开浏览入口(2026-10-30 修)。
+   * 「消息」「我的」都要求登录:游客点了会撞路由守卫,弹登录提示或跳登录页,
+   * 留一个点了就断浏览动线的按钮没有意义。登录用户仍固定 5 项。
+   */
+  const publicItems = [
+    { path: '/', label: '首页', icon: 'home', ariaLabel: '首页', badge: 0 },
+    { path: '/circles', label: '圈子', icon: 'board', ariaLabel: '圈子列表', badge: 0 },
+    { path: '/mkt', label: '集市', icon: 'bag', ariaLabel: '集市活动广场', badge: 0 },
+  ]
+  if (userStore.isGuest) return publicItems
+
   // 「我的」跳转个人主页 /user/:id。userInfo 是异步 fetchMe 的,未就绪时
   // id 为空 —— 此时给兜底 /settings,避免渲染出 /user/undefined 触发白屏
   // (TopBar.vue:141-146 已踩过这个 <Transition> patch parentNode 为 null 的坑)。
   // userInfo 就绪后 computed 自动重算,path 纠正为真实 /user/{id},无需手动刷新。
   const meId = userStore.userInfo?.id
   return [
-    { path: '/', label: '首页', icon: 'home', ariaLabel: '首页', badge: 0 },
-    { path: '/circles', label: '圈子', icon: 'board', ariaLabel: '圈子列表', badge: 0 },
-    { path: '/mkt', label: '集市', icon: 'bag', ariaLabel: '集市活动广场', badge: 0 },
+    ...publicItems,
     { path: '/chat', label: '消息', icon: 'bubble', ariaLabel: '消息与纸条', badge: props.paperCount },
     { path: meId ? `/user/${meId}` : '/settings', label: '我的', icon: 'user', ariaLabel: '我的主页', badge: 0 },
   ]

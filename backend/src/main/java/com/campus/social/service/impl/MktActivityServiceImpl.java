@@ -13,6 +13,7 @@ import com.campus.social.mapper.MktActivityMapper;
 import com.campus.social.mapper.MktCommentMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.MktActivityService;
+import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.util.MktRateLimiter;
 import com.campus.social.vo.MktActivityVO;
 import com.campus.social.vo.MktCommentVO;
@@ -61,6 +62,8 @@ public class MktActivityServiceImpl implements MktActivityService {
     private final PostNotifySupport postNotifySupport;
     /** 在投配额(2026-10-25):信誉分档 1/2/3,过期/暂停/删除释放名额 */
     private final ReviewTrustService trustService;
+    /** 行为信任门槛：账号满 1 天 + 信誉 60（校园信息不参与） */
+    private final CampusAccessService access;
 
     // ---------------------------------------------------------------- create
 
@@ -68,7 +71,9 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Transactional
     public Long create(long userId, MktActivityDTO dto) {
         rateLimiter.guardPublish(userId);
-        // 在投配额:与频率限流互补(429 管太快,这里管太多)。认证门槛由 @RequireVerified 拦
+        // 行为门槛：账号满 1 天 + 信誉 60；校园信息不参与（2026-10-30）
+        access.requireCreateMkt(userId);
+        // 在投配额:与频率限流互补(429 管太快,这里管太多)
         guardActiveQuota(userId, false, null, "发布");
 
         validateCategory(dto.getCategory());

@@ -49,12 +49,11 @@ export const AUDIT_ACTIONS = [
   { v: 'cancel_signup', l: '取消报名', t: 'warning' },
   // 关系
   { v: 'blacklist', l: '拉黑', t: 'danger' },
-  // 校内认证
-  { v: 'verify_approve', l: '认证通过', t: 'success' },
-  { v: 'verify_reject', l: '认证驳回', t: 'danger' },
-  { v: 'verify_student_no_submit', l: '提交学号认证', t: 'info' },
-  { v: 'verify_auto_approve', l: '学号自动通过', t: 'success' },
-  { v: 'campus_email_bound', l: '校园邮箱绑定', t: 'info' },
+  // 校园信息
+  { v: 'verify_approve', l: '校园信息已登记', t: 'success' },
+  { v: 'verify_reject', l: '校园信息需修改', t: 'danger' },
+  { v: 'verify_student_no_submit', l: '提交学号资料', t: 'info' },
+  { v: 'verify_auto_approve', l: '学号与归属一致，自动登记', t: 'success' },
   // 举报
   { v: 'report_ban', l: '举报封禁', t: 'danger' },
   { v: 'report_reject', l: '举报驳回', t: 'info' },

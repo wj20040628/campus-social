@@ -250,7 +250,6 @@ Environment=ALIYUN_DM_FROM_ADDRESS=system@yousheng8.cn
 # 校园参数
 Environment=CAMPUS_SCHOOL_NAME=黄河交通学院
 Environment=CAMPUS_SCHOOL_ID=1
-Environment=CAMPUS_EMAIL_DOMAIN_WHITELIST=填校园邮箱域名,多个逗号分隔
 
 # AI 机审：生产默认关，转人工兜底（不填 LLM_API_KEY 也不崩）
 Environment=LLM_ENABLED=false
@@ -482,17 +481,22 @@ cp /opt/campus/campus-social.jar /opt/campus/backup/campus-social.jar.$TS
 mv /opt/campus/web /opt/campus/web.bak_$TS
 mkdir -p /opt/campus/web && cd /opt/campus/incoming
 unzip -q dist_YYYYMMDD_vN.zip -d /opt/campus/web
+
+# 必须先停服务再覆盖 jar：JVM 运行中替换 jar，旧进程关闭时
+# 会因 classloader 读不到 logback 类而在 error.log 刷 NoClassDefFoundError（不影响新进程，但会污染日志）
+systemctl stop campus
 cp campus-social.jar /opt/campus/campus-social.jar
 
-# 4. 若这次改了表，先导入 migration 再重启（顺序不能反：新代码依赖新列）
+# 4. 若这次改了表，先导入 migration 再启动（顺序不能反：新代码依赖新列）
 mysql -ucampus -p campus_social_v2 < migration_n1_file_library.sql
 mysql -ucampus -p campus_social_v2 < migration_n2_post_share_count.sql
 
-systemctl restart campus
-journalctl -u campus --since "5 min ago" | grep -E "Started CampusSocialApplication|ERROR"
+systemctl start campus
 
-# 5. 探活 + 清暂存
-curl -s localhost:8080/actuator/health
+# 5. 探活 + 清暂存（日志由 systemd 重定向到 app.log/error.log，不在 journalctl）
+for i in $(seq 1 30); do sleep 3; curl -fsS --max-time 3 localhost:8080/actuator/health && break; done
+tail -n 80 /opt/campus/app.log | grep -E "Started CampusSocialApplication|ERROR"
+tail -n 20 /opt/campus/error.log
 rm -f /opt/campus/incoming/*
 ```
 
@@ -697,7 +701,32 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-生产在 **1.11.2**（2026-10-29 13:35 部署，前端入口 `index-Uno-rceA.js`）。1.11.2 只换前端，未重启后端：
+生产在 **1.13.1**（2026-10-30 通过宝塔上传部署包执行，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
+
+- **删除校园邮箱验证码整条链路**：学生没有学校发放的校园邮箱，按域名白名单放行只会误伤；学号核验与管理员人工核对保留。
+- **游客导航修复**：底栏、侧栏、抽屉不再显示消息/我的/通知/公告/文件等登录入口；误入登录态页面先给「先逛逛」退路。
+- 公网已验证：`/healthz` UP，游客 feed/热门/圈子/集市/用户卡 200，`/files`、`/chat/conversations`、`/announcement/list` 401，`POST /api/verify/campus-email` 后端 404（旧端点确已移除）。
+- 无数据库结构变更。备份由部署包内 `deploy.sh` 生成：`backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
+- **打包注意**：jar 必须 `mvn clean package`。只把 `application-local.yml` 移出 resources 再 `package`，`target/classes` 里的旧配置仍会被打进 jar（2026-10-30 实际踩到）。
+
+**待部署 1.13.2（热修包已生成）**：前端入口 `index-kJtT8_w_.js`，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`（md5 `e5c7b067…`）。内容：
+评论列表跟随帖子状态（下架/退回审核的帖子评论不再可按 id 读取）、游客报名/举报先提示登录、游客不再看到拉黑入口、
+IP 取值优先 `X-Real-IP`（否则取 XFF 最后一段，防伪造绕过登录锁定与游客下载限额）。
+
+上一版 1.13.0（2026-10-30 16:36 部署，前端入口 `index-zDQwAFBK.js`，jar md5 `7296bb5c…`）：
+
+- **认证退出权限判定**：注册即可发帖、评论、点赞收藏、加入圈子、回复私信与群聊，不再要求先完成校内认证。
+- **行为信任门槛**：陌生人搭话、建圈、建群/邀请、圈子活动报名、集市发布改按账号注册时长 + 信誉分（≥60）判定；阈值在 `application.yml` 的 `campus.access-*`。
+- **校园信息降为可选资料**：学号只校验 13–14 位格式与唯一性；与院系/年级/专业一致时自动登记，不一致转人工核对，不再直接拒绝。
+- **公开页去徽标**：主页、公告、文件、推荐同学不再显示认证状态或学校名；前端删除认证弹层与「去认证」按钮。
+- **会话提示**：发不出搭话时直接显示真实原因（账号太新 / 信誉分不足），不再先显示「今天还剩 1 条」再被拒。
+- 无数据库结构变更，本次未执行迁移 SQL。
+- 备份：`backup/campus-social.jar.20261030_163621`、`web.bak_20261030_163621`。
+
+上一版 1.12.1（2026-10-30 11:46，前端入口 `index-B_-uSOMu.js`，jar md5 `88334596…`）：
+游客可读范围扩大、游客登录、视频分享卡封面。
+
+1.11.2（2026-10-29 13:35，前端入口 `index-Uno-rceA.js`）只换前端，未重启后端：
 
 - **视频封面**：上传时用 canvas 从本地文件截帧（0.5s / 25% / 50% 取最亮，跳过黑场），作为图片上传后写进 `media` JSON 的 `poster`；
   首页/详情/预览统一走 `PostVideo.vue`，旧帖无 poster 时 `#t=1` 兜底。**1.11.2 之前上传的视频没有 poster，需重新上传一次才有封面。**
@@ -713,7 +742,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 > 1.11.0（12:48）已包含：举报快照 `report.target_snapshot`、上传上限 25MB/30MB/32m、公网 `/healthz`、
 > JVM 384m、Redis 128M、swappiness=10。相关备份见 20261029_124726 / nginx-default.bak_20261029_124637。
 
-本地与线上同版本，无待发内容。尚未做的两项：Swap 仍为 `/www/swap` 1G、云监控站点任务需在控制台手工建（13.2）。
+线上为 1.13.1；本地已构建 1.13.2 热修包，待上传部署。尚未做的两项：Swap 仍为 `/www/swap` 1G、云监控站点任务需在控制台手工建（13.2）。
 
 ---
 

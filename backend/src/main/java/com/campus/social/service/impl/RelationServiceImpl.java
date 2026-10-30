@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.CursorPage;
 
 import com.campus.social.entity.Relation;
-import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.RelationMapper;
 import com.campus.social.mapper.UserMapper;

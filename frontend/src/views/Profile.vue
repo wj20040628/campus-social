@@ -66,8 +66,6 @@
           <button type="button" class="p-blocked__undo" @click="unblock">解除拉黑</button>
         </p>
 
-        <!-- 2026-10-27：认证提示改由全站 AuthGateSheet 在受限动作处弹出，此处不再渲染 -->
-
         <!--
           四项统计:动态 / 获赞 / 粉丝 / 关注。
           粉丝与关注改为可点,点了拉起列表抽屉 —— 原来这两项占着内容 Tab 的两格,
@@ -149,8 +147,6 @@
       @empty-action="onRelationEmptyAction"
     />
 
-    <!-- AC-11:未认证点「发私信」由全站认证闸门统一承接(见 AuthGateSheet) -->
-
     <!-- 举报该用户 -->
     <ReportSheet
       v-model="reportOpen"
@@ -197,8 +193,6 @@ import { useProfileRelations } from '@/composables/useProfileRelations'
 import { useProfileActions } from '@/composables/useProfileActions'
 import { useProfileCollections } from '@/composables/useProfileCollections'
 import { useProfileMedia } from '@/composables/useProfileMedia'
-import { useVerifyStatus } from '@/composables/useVerifyStatus'
-import { openAuthGate } from '@/composables/useAuthGate'
 import { useUserStore } from '@/stores/user'
 import { useDictStore } from '@/stores/dict'
 import { useIsMobile } from '@/composables/useBreakpoint'
@@ -243,7 +237,7 @@ const { avatarBusy, coverBusy, hasCover, coverStyle, changeAvatar, changeCover, 
 const {
   relStatus, followLoading, followers, following,
   loadingFollowers, loadingFollowing,
-  loadRelation, toggleFollow, loadFollowers, loadFollowing,
+  loadRelation, toggleFollow, loadFollowers, loadFollowing, ensureLogin,
 } = useProfileRelations(targetId)
 
 /**
@@ -282,9 +276,6 @@ const {
   loadFavorites, loadLiked, reset: resetCollections,
 } = useProfileCollections(isMe)
 
-// 本人主页才拉认证状态:看别人的主页时拉了也白拉(还多一跳)
-const { load: loadVerifyStatus } = useVerifyStatus()
-
 /**
  * el-avatar 的 :size 是属性,媒体查询改不动(设计 §7)。
  * 移动端 76(封面 260 下压 40 的视觉平衡)/ 桌面端 88。
@@ -297,7 +288,6 @@ const avatarSize = computed(() => (isMobile.value ? 76 : 88))
 */
 const { toggleFollowAndCount, unblock, onChatClick } = useProfileActions({
   targetId, user, relStatus, toggleFollow, loadRelation,
-  onNeedVerify: openAuthGate,
 })
 
 function goDetail(id) {
@@ -358,8 +348,9 @@ function reloadCurrent() {
   }
 }
 
-/** 打开粉丝/关注抽屉(从统计行点进来) */
-function openRelation(name) {
+/** 打开粉丝/关注抽屉(从统计行点进来)。游客点击弹登录提示,不做静默跳转 */
+async function openRelation(name) {
+  if (!(await ensureLogin('登录后才能查看关注和粉丝，现在去登录吗？'))) return
   relationTab.value = name
   relationOpen.value = true
   // 进主页已预拉过,这里补一次是为了「列表曾经失败」时用户再点还能重试
@@ -386,8 +377,6 @@ watch(targetId, () => {
 
 onMounted(async () => {
   // 字典与资料并发拉,不串行 —— 串行会让首屏多等一个往返。
-  // 认证状态一并并发:只在本人主页拉(看别人主页时这条提示不出现)
-  if (isMe.value) loadVerifyStatus()
   await Promise.all([dict.ensureLoaded(), load(), loadRelation().catch(() => {})])
   // 粉丝/关注列表进主页就预拉(和头部计数同源),消除「点数字才拉、空态抢跑」的时序竞态
   loadFollowers()

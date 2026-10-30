@@ -1,8 +1,6 @@
 package com.campus.social.controller;
 
 import com.campus.social.common.Result;
-import com.campus.social.dto.CampusEmailConfirmDTO;
-import com.campus.social.dto.CampusEmailSendDTO;
 import com.campus.social.dto.SchoolProfileDTO;
 import com.campus.social.dto.StudentNoVerifyDTO;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -19,11 +17,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 校内认证（F2）。
+ * 校园信息（F2）。
+ *
+ * <p>2026-10-30 起定位为<b>可选资料</b>：填写与否不影响发帖、搭话、建圈等
+ * 任何功能；学校不提供学生名单，这里也不对外宣称「已认证身份」。
  *
  * <p>挂在 {@code /user} 下而非独立 {@code /verify} 前缀：
- * 这五个动作都是「改我的资料」，与 {@code /user/me} 同属一个资源，
+ * 这三个动作都是「改我的资料」，与 {@code /user/me} 同属一个资源，
  * 拆到另一个前缀只会让前端多记一条路由。
+ *
+ * <p>2026-10-30 删除校园邮箱验证码路径：学生没有学校发放的校园邮箱，
+ * 现有邮箱是 QQ / 网易等个人邮箱，按域名白名单放行只会误伤。
  *
  * <p>本类<b>不</b>加类级 {@code @RequireAdmin}——全部是「我自己」的读写。
  */
@@ -46,27 +50,8 @@ public class UserVerifyController {
     }
 
     /**
-     * 发起校园邮箱验证码。
-     *
-     * <p>校验顺序：先判域名白名单，再写 Redis、再调 SMTP
-     * （ARCHITECTURE §3 Q9.2）。否则任意邮箱都会成为 Redis key 并被送进真实邮件通道。
+     * 提交学号：格式与归属一致则直接登记，否则进核对队列（verify_status=2）
      */
-    @PostMapping("/verify/campus-email")
-    public Result<String> sendCampusEmail(@Valid @RequestBody CampusEmailSendDTO dto,
-            HttpServletRequest req) {
-        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(campusVerifyService.sendCampusEmailCode(me, dto));
-    }
-
-    /** 确认校园邮箱验证码，通过后立即认证 */
-    @PostMapping("/verify/campus-email/confirm")
-    public Result<VerifyStatusVO> confirmCampusEmail(@Valid @RequestBody CampusEmailConfirmDTO dto,
-            HttpServletRequest req) {
-        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(campusVerifyService.confirmCampusEmail(me, dto));
-    }
-
-    /** 提交学号认证，进人工核验队列（队列即 user 表 verify_status=2） */
     @PostMapping("/verify/student-no")
     public Result<StudentNoVerifyVO> submitStudentNo(@Valid @RequestBody StudentNoVerifyDTO dto,
             HttpServletRequest req) {
@@ -74,7 +59,7 @@ public class UserVerifyController {
         return Result.ok(campusVerifyService.submitStudentNo(me, dto));
     }
 
-    /** 当前认证状态。AC-11 的两个能力布尔量由此下发，前端不自行推导 */
+    /** 当前校园信息状态。只用于资料页展示，不承载任何功能权限 */
     @GetMapping("/verify/status")
     public Result<VerifyStatusVO> status(HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);

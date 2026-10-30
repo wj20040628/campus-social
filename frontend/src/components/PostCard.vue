@@ -113,13 +113,13 @@ import { displayName } from '@/utils/mask'
 import { relTime } from '@/utils/relTime'
 import { resolveUrl, resolveThumb } from '@/utils/resolve'
 import PostVideo from '@/components/post/PostVideo.vue'
-import { like, unlike, favorite, unfavorite } from '@/api/feed'
-import { ElMessage } from '@/utils/feedback'
+import { usePostCardActions } from '@/composables/usePostCardActions'
 
 const props = defineProps({ post: { type: Object, required: true } })
 defineEmits(['click', 'topic'])
 
 const router = useRouter()
+const { toggleLike, toggleFavorite } = usePostCardActions(props.post)
 
 /**
  * 加载失败的图片下标集合（2026-10-21）。
@@ -161,44 +161,6 @@ function goTopic(name) { router.push(`/topic/${encodeURIComponent(name)}`) }
 /** 圈子标签直接进圈 —— 标签既然给出了圈名，就必须能点进那个圈 */
 function goCircle() {
   if (props.post.circleId) router.push(`/circles/${props.post.circleId}`)
-}
-
-/** feed 内直接点赞。乐观更新 + 失败回滚,与 usePostDetailActions.toggleLike 同逻辑:
- *  回滚恢复改之前的旧值,不做「减一」推算 —— 后端可能有并发点赞,真值以服务端为准 */
-async function toggleLike() {
-  const wasLiked = !!props.post.liked
-  const wasCount = Number(props.post.likeCount) || 0
-  props.post.liked = !wasLiked
-  props.post.likeCount = Math.max(0, wasCount + (wasLiked ? -1 : 1))
-  try {
-    if (wasLiked) await unlike(props.post.id)
-    else await like(props.post.id)
-  } catch {
-    props.post.liked = wasLiked
-    props.post.likeCount = wasCount
-    ElMessage.error('没点上,网络好像断了')
-  }
-}
-
-/**
- * 收藏/取消收藏。与 toggleLike 完全同构:乐观更新 + 失败回滚到改之前的旧值。
- *
- * 回滚用「旧值」而不是「减一」:后端可能同时有别人在点,
- * 减一推算出来的数未必等于数据库真值,回滚必须回到自己改之前看到的那个数。
- */
-async function toggleFavorite() {
-  const wasFav = !!props.post.favorited
-  const wasCount = Number(props.post.favoriteCount) || 0
-  props.post.favorited = !wasFav
-  props.post.favoriteCount = Math.max(0, wasCount + (wasFav ? -1 : 1))
-  try {
-    if (wasFav) await unfavorite(props.post.id)
-    else await favorite(props.post.id)
-  } catch {
-    props.post.favorited = wasFav
-    props.post.favoriteCount = wasCount
-    ElMessage.error('没收藏上,网络好像断了')
-  }
 }
 
 const mediaList = computed(() => {

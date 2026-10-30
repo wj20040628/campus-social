@@ -28,7 +28,7 @@ public interface AnnouncementAdminService {
     /**
      * 「谁还没看」名单（AC-10）。
      *
-     * <p>只允许发布方本人且已认证时调用，权限判定在 controller 之外的 service 层做，
+     * <p>只允许发布方本人或管理员调用，权限判定在 controller 之外的 service 层做，
      * 不能只靠前端藏入口。
      */
     UnreadUserPageVO unreadUsers(long adminId, long announcementId, Long cursor, int size);

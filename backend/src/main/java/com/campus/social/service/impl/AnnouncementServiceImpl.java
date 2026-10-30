@@ -129,8 +129,9 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                 .isRead(mine != null)
                 .readTime(read == null ? null : read.getReadTime())
                 .publisher(toPublisher(row))
-                // AC-10：只有「自己是发布方 且 已认证」才给未读名单入口
-                .canViewUnreadList(isPublisher && Integer.valueOf(1).equals(row.getPublisherVerify()))
+                // AC-10：发布方本人才能看未读名单。发布权限已限定管理员角色，
+                // 不再叠加校园信息条件
+                .canViewUnreadList(isPublisher)
                 .build();
     }
 
@@ -257,25 +258,10 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     }
 
     private AnnouncementPublisherVO toPublisher(AnnouncementRow row) {
-        boolean verified = Integer.valueOf(1).equals(row.getPublisherVerify());
         return AnnouncementPublisherVO.builder()
                 .id(row.getPublisherId())
                 .nickname(row.getPublisherNickname())
                 .avatarUrl(row.getPublisherAvatar())
-                .verified(verified)
-                /*
-                 * 2026-10-21：公告不再下发学校名。
-                 *
-                 * 原来这里是 `verified ? campus.getSchoolName() : null` ——
-                 * 已认证发布人的公告会带上「黄河交通学院」这个具体校名，
-                 * 而本平台是毕业设计原型（见 legalDocs 里的免责声明：
-                 * 「不属于黄河交通学院官方平台，与学校无任何隶属关系」）。
-                 * 公告上挂具体校名等于替学校背书，与那条免责声明直接冲突。
-                 *
-                 * 现在恒为 null：公告的权威性由 verified 标记与「官方公告」
-                 * 这个产品定位表达，不需要（也不应该）借用具体校名。
-                 */
-                .schoolName(null)
                 .build();
     }
 }

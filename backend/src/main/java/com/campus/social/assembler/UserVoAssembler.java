@@ -18,9 +18,10 @@ import com.campus.social.vo.UserVO;
  *       后果：任何人只要能加载 Feed、评论区、通知、私聊，就能拿到全校师生的
  *       完整邮箱与手机号。字段注释写了不等于做了——脱敏逻辑只存在于一份实现里，
  *       剩下 13 份都当它不存在。</li>
- *   <li><b>AC-12 徽章口径漂移（已修）</b>：{@code verified} 曾只有 1/14 处填写，
+ *   <li><b>徽章口径漂移（已修）</b>：{@code verified} 曾只有 1/14 处填写，
  *       最严重的是 {@code PostVoAssembler}——它装配所有 Feed 与帖子详情的作者卡，
- *       导致已认证用户的帖子在界面上显示"未认证"。</li>
+ *       导致已登记校园信息的用户在界面上显示"未登记"。
+ *       2026-10-30 起该字段不再作公开徽章，仅本人资料页使用。</li>
  * </ol>
  *
  * <p>两个出口的差别只在<b>私密字段</b>，不在公开字段：
@@ -128,8 +129,8 @@ public final class UserVoAssembler {
                 .gradeId(user.getGradeId())
                 .majorId(user.getMajorId())
                 .campus(user.getCampus())
-                // AC-12 徽章判据。必须由服务端给——前端从「是否填了院系」反推
-                // 是在伪造身份声明，用户可以在填完院系后从未提交过邮箱验证码。
+                // 校园信息是否已登记。仅资料展示，不再作为公开徽章；
+                // 判定只应由服务端给出，前端不得用「是否填了院系」反推。
                 .verified(Integer.valueOf(1).equals(user.getVerifyStatus()))
                 .joinedCircleCount(user.getJoinedCircleCount())
                 // 是否已绑定安全凭证邮箱(学号主账号体系)。仅「我的资料」消费,

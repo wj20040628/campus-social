@@ -15,6 +15,7 @@ import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.CircleMemberMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.ActivityService;
+import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.vo.ActivitySignupVO;
 import com.campus.social.vo.ActivityVO;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,8 @@ public class ActivityServiceImpl implements ActivityService {
     private final com.campus.social.service.AuditService auditService;
     private final PostNotifySupport postNotifySupport;
     private final UserMapper userMapper;
+    /** 行为信任门槛：报名线下活动需账号满 3 天 + 信誉 60 */
+    private final CampusAccessService access;
 
     @Override
     @Transactional
@@ -142,6 +145,8 @@ public class ActivityServiceImpl implements ActivityService {
     @Override
     @Transactional
     public void signup(long activityId, long userId) {
+        // 线下见面类动作：账号满 3 天 + 信誉 60；校园信息不参与（2026-10-30）
+        access.requireActivitySignup(userId);
         Activity a = activityMapper.selectById(activityId);
         if (a == null) {
             throw new BusinessException(NOT_FOUND, "活动不存在");

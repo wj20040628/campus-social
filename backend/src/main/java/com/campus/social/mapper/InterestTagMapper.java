@@ -12,14 +12,6 @@ import java.util.List;
 public interface InterestTagMapper extends BaseMapper<InterestTag> {
 
     /**
-     * 原子增减使用计数,防并发丢失。
-     * 绝不读改写——「先 select 再 set」在并发下必然丢计数。
-     */
-    @Update("UPDATE interest_tag SET use_count = GREATEST(0, use_count + #{delta}), update_time = NOW() "
-            + "WHERE id = #{tagId}")
-    int adjustUseCount(@Param("tagId") Long tagId, @Param("delta") int delta);
-
-    /**
      * 批量增减,用于标签全量覆盖时一次性对齐计数。
      *
      * <p>单条 UPDATE 带 IN 列表,比循环单条快一个数量级。

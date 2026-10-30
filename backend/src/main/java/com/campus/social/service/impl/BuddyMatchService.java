@@ -74,7 +74,6 @@ public class BuddyMatchService {
                 .avatarUrl(row.getAvatarUrl())
                 .dept(row.getDept())
                 .grade(row.getGrade())
-                .verified(Integer.valueOf(1).equals(row.getVerifyStatus()))
                 .followerCount(row.getFollowerCount())
                 .reason(buildReason(row))
                 .commonTagCount(row.getCommonTagCount())

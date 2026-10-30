@@ -22,8 +22,7 @@ public interface AnnouncementMapper extends BaseMapper<Announcement> {
     String COLUMNS = "SELECT a.id, a.title, a.content, a.category, a.publisher_id, a.school_id, "
             + "a.is_top, a.top_expire_time, a.status, a.publish_time, a.read_count, "
             + "a.create_time, a.update_time, "
-            + "u.nickname AS publisher_nickname, u.avatar_url AS publisher_avatar, "
-            + "u.verify_status AS publisher_verify "
+            + "u.nickname AS publisher_nickname, u.avatar_url AS publisher_avatar "
             + "FROM announcement a LEFT JOIN user u ON u.id = a.publisher_id ";
 
     /** 前台可见性：已发布、未删、同校 */
@@ -97,9 +96,4 @@ public interface AnnouncementMapper extends BaseMapper<Announcement> {
     /** 某公告当前的已读用户 id（用于在线提醒范围判定） */
     @Select("SELECT user_id FROM announcement_read WHERE announcement_id = #{announcementId} AND is_deleted = 0")
     List<Long> selectReadUserIds(@Param("announcementId") Long announcementId);
-
-    /** 置顶到期兜底：把已过期但 is_top 仍为 1 的记录落回 0（查询时过滤已生效，此处做数据归位） */
-    @Update("UPDATE announcement SET is_top = 0, top_expire_time = NULL, update_time = NOW() "
-            + "WHERE is_top = 1 AND top_expire_time IS NOT NULL AND top_expire_time <= NOW()")
-    int expireTopMarks();
 }

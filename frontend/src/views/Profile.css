@@ -106,44 +106,6 @@
   background: var(--ys-danger-soft);
 }
 
-/* ---------------- 未认证说明(点发私信时) ---------------- */
-.vfy {
-  padding: var(--ys-space-4);
-}
-
-.vfy__why {
-  margin: 0 0 var(--ys-space-2);
-  font-size: var(--ys-text-lg);
-  line-height: var(--ys-lh-lg);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg);
-}
-
-.vfy__how {
-  margin: 0 0 var(--ys-space-4);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  color: var(--ys-muted);
-}
-
-.vfy__btn {
-  width: 100%;
-  min-height: var(--ys-touch-min);
-  border: 1px solid var(--ys-accent);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-accent);
-  color: var(--ys-accent-on);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-base);
-  font-weight: var(--ys-weight-medium);
-  cursor: pointer;
-  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.vfy__btn:hover {
-  background: var(--ys-accent-hover);
-}
-
 /* ---------------- 桌面端(≥1024px) ----------------
  * 内容列 960px 居中;动态双列瀑布流(CSS columns)。
  * 桌面端不做通栏:文字行长超过约 100 字符会明显降低可读性。

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,18 +24,18 @@ import java.util.Set;
  * 举报集中自动封禁（2026-10-25，众包风控的「止血」半件套）。
  *
  * <p><b>机制</b>：一个用户（含其名下内容，归因见 {@link ReportTargetResolver}）
- * 在 24 小时内被 ≥ N 个**已认证**的独立举报人举报（待审或成立均计）时，
+ * 在 24 小时内被 ≥ N 个**账号已满 M 天**的独立举报人举报（待审或成立均计）时，
  * 立即自动封禁 D 天。违规扩散的止血从「管理员下次巡检」提前到
  * 「第 N 个举报人点下去的那一秒」；到期由 BanExpireJob 自动解封。
  *
  * <p><b>三道防滥用护栏（缺一不可，别拆）</b>：
  * <ol>
- *   <li>举报人必须 verify_status=1——未认证账号不计入封禁线，动员小号
- *       刷举报的成本从「注册邮箱」抬到「过学号核验」；</li>
+ *   <li>举报人账号必须满 M 天（默认 3）——新注册账号不计入封禁线。
+ *       2026-10-30 起校园信息不再作为门槛，刷举报的成本改由「邮箱 + 账号年龄」承担；</li>
  *   <li>封的是**限期**（默认 3 天）不是永久——被恶意集中举报的无辜用户
  *       三天后自动恢复，管理员复核也可随时手动解封；</li>
  *   <li>DISTINCT reporter + uk_report + 24h 滑窗——同一人重复举报天然去重，
- *       过窗即清零，想再触发需要新的独立认证举报人。</li>
+ *       过窗即清零，想再触发需要新的独立成熟账号。</li>
  * </ol>
  *
  * <p><b>与 ReportFoldService 的分工</b>：折叠管「内容」（帖子出 Feed 进人审，
@@ -58,9 +59,13 @@ public class ReportAutoBanService {
     /** 自动封禁也要告知本人（2026-10-28）：封完不吭声，用户只会以为账号坏了 */
     private final PostNotifySupport notifySupport;
 
-    /** 24h 内独立已认证举报人阈值；<=0 视为关闭本机制 */
+    /** 24h 内独立成熟举报人阈值；<=0 视为关闭本机制 */
     @Value("${campus.review.auto-ban-reporters:3}")
     private int threshold;
+
+    /** 举报人账号最少注册天数（防小号刷举报） */
+    @Value("${campus.review.auto-ban-min-age-days:3}")
+    private int minAgeDays;
 
     /** 自动封禁天数（限期,到期自动解封;管理员可提前手动解封） */
     @Value("${campus.review.auto-ban-days:3}")
@@ -125,20 +130,21 @@ public class ReportAutoBanService {
         }
 
         Set<Long> reporters = collectCountableReporters(targetUser);
-        int verifiedCount = countVerified(reporters);
-        if (verifiedCount < threshold) {
+        int establishedCount = countEstablished(reporters);
+        if (establishedCount < threshold) {
             return;
         }
 
         banService.ban(targetUser, banDays);
         auditService.recordSystem(AUDIT_AUTO_BAN, "user", targetUser,
-                "24h 内 " + verifiedCount + " 名已认证用户举报(阈值 " + threshold
-                        + "),自动封禁 " + banDays + " 天,到期自动解封,请复核");
+                "24h 内 " + establishedCount + " 名注册满 " + minAgeDays + " 天的用户举报(阈值 "
+                        + threshold + "),自动封禁 " + banDays + " 天,到期自动解封,请复核");
         notifySupport.pushSystemNotify(targetUser, 19, 0L, null,
-                "因 24 小时内多名已认证同学举报，你的账号被临时封禁 " + banDays + " 天，到期后自动解封。"
+                "因 24 小时内多名注册满 " + minAgeDays + " 天的用户举报，你的账号被临时封禁 "
+                        + banDays + " 天，到期后自动解封。"
                         + "如属误判，可在登录页提交封禁申诉，管理员会尽快复核。");
-        log.info("user auto-banned by concentrated reports: user={}, verifiedReporters={}, threshold={}, days={}",
-                targetUser, verifiedCount, threshold, banDays);
+        log.info("user auto-banned by concentrated reports: user={}, establishedReporters={}, threshold={}, days={}",
+                targetUser, establishedCount, threshold, banDays);
     }
 
     /**
@@ -164,13 +170,21 @@ public class ReportAutoBanService {
         return byTarget.getOrDefault(targetUser, Set.of());
     }
 
-    private int countVerified(Set<Long> reporters) {
+    /**
+     * 只统计「账号满 minAgeDays 天且状态正常」的举报人。
+     * 校园信息不参与——它不可核验，不能作为防刷举报的依据。
+     */
+    private int countEstablished(Set<Long> reporters) {
         if (reporters.isEmpty()) {
             return 0;
         }
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(minAgeDays);
         int n = 0;
         for (User u : userMapper.selectBatchIds(reporters)) {
-            if (Integer.valueOf(1).equals(u.getVerifyStatus())) {
+            if (!Integer.valueOf(0).equals(u.getStatus())) {
+                continue;
+            }
+            if (u.getCreateTime() != null && !u.getCreateTime().isAfter(cutoff)) {
                 n++;
             }
         }

@@ -32,4 +32,10 @@ public class StrangerQuotaVO {
 
     /** 我是否接收陌生人消息。false 时前端应提示「你已关闭陌生人搭话」 */
     private Boolean strangerMsgEnabled;
+
+    /**
+     * 向陌生人发起搭话的行为门槛未达标原因（账号太新 / 信誉分不足 / 账号状态异常）。
+     * null 表示可以发起；非陌生人不返回（对方已关注或回复过，不受门槛限制）。
+     */
+    private String initiationBlockedReason;
 }

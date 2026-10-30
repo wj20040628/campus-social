@@ -21,7 +21,8 @@ import static org.mockito.Mockito.verify;
  *
  * <p>自评估报告写的是「audit_log（操作人、动作、对象、详情、IP、时间）」，
  * 但改造前登录与管理员处置一律传 null/""，整列为空。这里锁住补全规则：
- * 调用方没传就从当前请求取（XFF 第一段），显式传入则不覆盖，无请求上下文保持 null。
+ * 调用方没传就从当前请求取（优先 X-Real-IP，没有则取 XFF 最后一段），
+ * 显式传入则不覆盖，无请求上下文保持 null。
  */
 class AuditIpTest {
 
@@ -37,12 +38,25 @@ class AuditIpTest {
     @Test
     void fillsIpFromRequestWhenCallerPassesNull() {
         MockHttpServletRequest req = new MockHttpServletRequest();
+        // 第一段是客户端可伪造的；Nginx 把真实来源追加在最后
         req.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
         bind(req);
 
         service.record(1L, "login", "user", 1L, "identifier=x", null);
 
-        assertEquals("203.0.113.9", captured().getIp(), "应取 XFF 第一段");
+        assertEquals("10.0.0.1", captured().getIp(), "应取 XFF 最后一段（Nginx 追加的真实来源）");
+    }
+
+    @Test
+    void prefersRealIpHeader() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
+        req.addHeader("X-Real-IP", "198.51.100.7");
+        bind(req);
+
+        service.record(1L, "login", "user", 1L, "identifier=x", null);
+
+        assertEquals("198.51.100.7", captured().getIp(), "X-Real-IP 由 Nginx 覆写，优先采用");
     }
 
     @Test

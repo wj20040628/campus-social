@@ -7,15 +7,12 @@
  * useProfileRelations 里,这里只做页面侧的联动与跳转。
  */
 import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
-import { isIdentityVerified } from '@/utils/mask'
 import { unblacklist } from '@/api/relation'
 
 export function useProfileActions({
-  targetId, user, relStatus, toggleFollow, loadRelation, onNeedVerify,
+  targetId, user, relStatus, toggleFollow, loadRelation,
 }) {
   const router = useRouter()
-  const userStore = useUserStore()
 
   /**
    * 关注按钮 + 粉丝数联动。
@@ -46,12 +43,12 @@ export function useProfileActions({
     }
   }
 
-  /** AC-11:未认证不跳私信,给说明与出口 */
+  /**
+   * 点头像旁的「发私信」。
+   * 不再在前端校验校园信息：陌生人首条由后端 ChatGuardServiceImpl
+   * 按账号年龄 + 信誉分判定，被拒时由请求层展示具体原因。
+   */
   function onChatClick() {
-    if (!isIdentityVerified(userStore.userInfo)) {
-      onNeedVerify()
-      return
-    }
     router.push(`/chat?to=${targetId.value}`)
   }
 

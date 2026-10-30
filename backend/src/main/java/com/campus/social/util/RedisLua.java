@@ -1,7 +1,6 @@
 package com.campus.social.util;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
@@ -83,16 +82,6 @@ public class RedisLua {
                     + "return 0",
             Long.class);
 
-    // ---------------------------------------------------------------- 脚本 5
-
-    /** 脚本 5：分布式锁释放（check-and-del，防止误删他人持有的锁） */
-    private static final RedisScript<Long> RELEASE_LOCK = RedisScript.of(
-            "if redis.call('GET', KEYS[1]) == ARGV[1] then "
-                    + "  return redis.call('DEL', KEYS[1]) "
-                    + "end "
-                    + "return 0",
-            Long.class);
-
     // ---------------------------------------------------------------- 只读计数
 
     /**
@@ -149,11 +138,5 @@ public class RedisLua {
     public long windowCount(String windowKey, long leftBoundMs) {
         Long r = redis.execute(WINDOW_COUNT, List.of(windowKey), String.valueOf(leftBoundMs));
         return r == null ? 0L : r;
-    }
-
-    /** 释放分布式锁：令牌不匹配则不删（防误删他人锁） */
-    public boolean releaseLock(String lockKey, String token) {
-        Long r = redis.execute(RELEASE_LOCK, List.of(lockKey), token);
-        return r != null && r > 0;
     }
 }

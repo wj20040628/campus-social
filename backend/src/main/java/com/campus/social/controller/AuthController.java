@@ -13,6 +13,7 @@ import com.campus.social.dto.StudentNoAppealDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.service.AuthService;
 import com.campus.social.service.FeedbackService;
+import com.campus.social.util.RequestIp;
 import com.campus.social.vo.FeedbackSubmitVO;
 import com.campus.social.vo.TokenPairVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -63,17 +64,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public Result<TokenPairVO> login(@Valid @RequestBody LoginDTO dto, HttpServletRequest req) {
-        return Result.ok(authService.login(dto, clientIp(req)));
-    }
-
-    /** 失败锁定的维度:优先代理头(部署在 Nginx 后),无则回源地址 */
-    private String clientIp(HttpServletRequest req) {
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String real = req.getHeader("X-Real-IP");
-        return real != null && !real.isBlank() ? real : req.getRemoteAddr();
+        return Result.ok(authService.login(dto, RequestIp.of(req)));
     }
 
     /** 邮箱验证码登录(免密码) */

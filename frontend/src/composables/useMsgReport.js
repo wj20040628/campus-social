@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 
 /**
  * 举报「某条聊天消息」的状态与提交（2026-10-21）。

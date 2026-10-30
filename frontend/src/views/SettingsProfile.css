@@ -193,7 +193,7 @@
 .sp-note--ok { color: var(--ys-success); }
 .sp-note--warn { color: var(--ys-accent-2); }
 
-/* ---------- 认证状态行 ---------- */
+/* ---------- 校园信息状态行 ---------- */
 .sp-verify {
   display: flex;
   align-items: center;
@@ -206,7 +206,7 @@
 
 .sp-verify--warn { color: var(--ys-accent-2); }
 
-/* ---------- 提交认证按钮(未认证 / 已驳回才出现) ---------- */
+/* ---------- 提交校园信息按钮(未填写 / 需修改才出现) ---------- */
 .sp-verify-act {
   display: flex;
   flex-direction: column;

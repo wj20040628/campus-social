@@ -7,7 +7,6 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 import java.util.List;
 
 @Mapper
@@ -44,10 +43,4 @@ public interface UserTagMapper extends BaseMapper<UserTag> {
             + "<foreach collection='userIds' item='u' open='(' separator=',' close=')'>#{u}</foreach>"
             + "</script>")
     List<UserTag> selectByUserIds(@Param("userIds") List<Long> userIds);
-
-    /** 与我标签重合的用户数(推荐关注的人打分用,单条 SQL 表达,不做算法) */
-    @Select("SELECT COUNT(DISTINCT t2.user_id) FROM user_tag t1 "
-            + "JOIN user_tag t2 ON t1.tag_id = t2.tag_id "
-            + "WHERE t1.user_id = #{me} AND t2.user_id <> #{me} AND t1.is_deleted = 0 AND t2.is_deleted = 0")
-    int countUsersSharingTags(@Param("me") Long me);
 }

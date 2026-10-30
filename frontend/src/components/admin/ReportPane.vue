@@ -250,7 +250,6 @@ import { ElMessage } from '@/utils/feedback'
 import { useReportQueue, BAN_DAY_OPTIONS } from '@/composables/useReportQueue'
 import { useReviewHotkeys } from '@/composables/useReviewHotkeys'
 import { useIsMobile } from '@/composables/useBreakpoint'
-import { reasonLabel } from '@/constants/reportReason'
 import StateBlock from '@/components/common/StateBlock.vue'
 import ReportTargetInfo from '@/components/admin/ReportTargetInfo.vue'
 

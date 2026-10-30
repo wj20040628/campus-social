@@ -119,13 +119,10 @@ export function useProfileData(targetId, myId, dict) {
   })
 
   /**
-   * AC-12 徽章判据。**直接用后端下发的 user.verified**(按 verify_status 计算,
-   * /user/me 与 /user/{id} 均正确填充)。
+   * 校园信息是否已登记。**直接用后端下发的 user.verified**。
    *
-   * 早前的漂移史:徽章写 user.verified 恒假(后端当时没填),改成
-   * 「有 dept/grade 名就算认证」后徽章亮了 —— 但那会把字典化之前填过
-   * 自由文本院系的老用户误判成已认证(WJ 实测:verify_status=0 却亮徽章,
-   * 发私信被护栏拦下,用户以为「这号已经认证了」)。后端字段补齐后判据归位。
+   * 2026-10-30 起不再公开成徽章，只用于本人主页的「完善校园信息（可选）」入口；
+   * 功能权限与该字段无关。
    */
   const verified = computed(() => user.value?.verified === true)
 

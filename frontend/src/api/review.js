@@ -124,10 +124,10 @@ export function handleReport(id, body) {
   return request.post(`/admin/reports/${id}/handle`, body)
 }
 
-/* ---------------- 学号核验审核(管理员,上线阻塞项) ---------------- */
+/* ---------------- 校园信息核对(管理员) ---------------- */
 
 /**
- * 待审学号核验列表(游标分页)。
+ * 待核对的校园信息列表(游标分页)。
  *
  * 契约 openapi.yaml:218 `/admin/verify/pending`,游标语义与机审队列不同:
  * 这里是 `cursor` + 响应里的 `nextCursor`,机审队列是 `lastId`。
@@ -148,7 +148,7 @@ export function pendingVerify(cursor, size = 20) {
 }
 
 /**
- * 通过学号核验(verify_status 2 → 1)。
+ * 标记校园信息已登记(verify_status 2 → 1)，只影响资料标记。
  *
  * `suppressStatuses: [404]` 见 utils/request.js:
  * 404 VERIFY_NOT_FOUND(1044) 表示「这条已被别的设备处置过」,
@@ -162,7 +162,7 @@ export function approveVerify(userId) {
 }
 
 /**
- * 驳回学号核验(verify_status 2 → 3)。
+ * 标记校园信息需修改(verify_status 2 → 3)，只影响资料标记。
  *
  * reason 契约上限 200 字、必填(openapi §AdminVerifyRejectRequest)。
  * 上限不在前端截断 —— 输入框 maxlength=200 已经卡住,再截一次会让管理员

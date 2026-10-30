@@ -3,9 +3,6 @@ package com.campus.social.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
-
 /**
  * 校园信息与陌生人搭话护栏配置（SPEC §5.1 / ARCHITECTURE §3 Q9）。
  *
@@ -26,12 +23,6 @@ public class CampusProperties {
      * 到真要开第二个学校时，只改这一处配置即可，不必翻遍所有 SQL 找硬编码的 1。
      */
     private long schoolId = 1L;
-
-    /**
-     * 校园邮箱域名白名单，逗号分隔（如 {@code mail.xxx.edu.cn,xxx.edu.cn}）。
-     * 不进数据库：白名单是部署级配置，改一次的频率远低于建表 + 缓存 + 刷新接口的成本。
-     */
-    private String emailDomainWhitelist = "";
 
     /**
      * 对同一陌生人每天最多发多少条（2026-10-28 改为 1）。
@@ -57,18 +48,18 @@ public class CampusProperties {
     private int groupMaxMembers = 500;
 
     /**
-     * 学号「自动通过」开关:格式校验 + 院系交叉校验都通过时直接置已认证,
-     * 不进人工队列。
+     * 行为信任门槛（2026-10-30）。
      *
-     * <p><b>默认关(2026-10-23 改,审查 P0-11)</b>:交叉校验的比对基准
-     * deptId 由用户自己在 saveSchoolProfile 填写,专业编码又可从公开端点
-     * /dict/majors/all 拿到 —— 攻击者自选院系后按规则拼学号即可自证通过,
-     * 认证体系可被绕穿(认证徽章、陌生人搭话、发布公告权限全部连带失守)。
-     * 默认人工;确信场景下用 app.campus.auto-approve-student-no=true 显式打开,
-     * 且叠加不可自证的独立证据(外部学籍表/教务接口/校园邮箱域内验证)之前,
-     * 不建议再默认开。自动通过的每条仍落 audit_log 供事后抽查。
+     * <p>校园信息不再作为功能门槛后，陌生人搭话、建圈、建群、集市发布
+     * 改由「账号注册时间 + 信誉分」判定。阈值放配置而不是写死：
+     * 上线后按举报率调整，不必重新发版。
      */
-    private boolean autoApproveStudentNo = false;
+    private int accessStrangerChatMinHours = 24;
+    private int accessCreateCircleMinDays = 3;
+    private int accessCreateMktMinDays = 1;
+    private int accessCreateGroupMinDays = 3;
+    private int accessActivitySignupMinDays = 3;
+    private int accessMinCredit = 60;
 
     public String getSchoolName() {
         return schoolName;
@@ -84,14 +75,6 @@ public class CampusProperties {
 
     public void setSchoolId(long schoolId) {
         this.schoolId = schoolId;
-    }
-
-    public String getEmailDomainWhitelist() {
-        return emailDomainWhitelist;
-    }
-
-    public void setEmailDomainWhitelist(String emailDomainWhitelist) {
-        this.emailDomainWhitelist = emailDomainWhitelist;
     }
 
     public int getPerPeerDailyLimit() {
@@ -134,26 +117,51 @@ public class CampusProperties {
         this.groupMaxMembers = groupMaxMembers;
     }
 
-    public boolean isAutoApproveStudentNo() {
-        return autoApproveStudentNo;
+    public int getAccessStrangerChatMinHours() {
+        return accessStrangerChatMinHours;
     }
 
-    public void setAutoApproveStudentNo(boolean autoApproveStudentNo) {
-        this.autoApproveStudentNo = autoApproveStudentNo;
+    public void setAccessStrangerChatMinHours(int accessStrangerChatMinHours) {
+        this.accessStrangerChatMinHours = accessStrangerChatMinHours;
     }
 
-    /** 解析域名白名单为小写 Set，便于大小写不敏感匹配 */
-    public Set<String> resolveEmailDomains() {
-        Set<String> set = new LinkedHashSet<>();
-        if (emailDomainWhitelist == null || emailDomainWhitelist.isBlank()) {
-            return set;
-        }
-        for (String s : emailDomainWhitelist.split(",")) {
-            String t = s.trim().toLowerCase();
-            if (!t.isEmpty()) {
-                set.add(t);
-            }
-        }
-        return set;
+    public int getAccessCreateCircleMinDays() {
+        return accessCreateCircleMinDays;
+    }
+
+    public void setAccessCreateCircleMinDays(int accessCreateCircleMinDays) {
+        this.accessCreateCircleMinDays = accessCreateCircleMinDays;
+    }
+
+    public int getAccessCreateMktMinDays() {
+        return accessCreateMktMinDays;
+    }
+
+    public void setAccessCreateMktMinDays(int accessCreateMktMinDays) {
+        this.accessCreateMktMinDays = accessCreateMktMinDays;
+    }
+
+    public int getAccessCreateGroupMinDays() {
+        return accessCreateGroupMinDays;
+    }
+
+    public void setAccessCreateGroupMinDays(int accessCreateGroupMinDays) {
+        this.accessCreateGroupMinDays = accessCreateGroupMinDays;
+    }
+
+    public int getAccessActivitySignupMinDays() {
+        return accessActivitySignupMinDays;
+    }
+
+    public void setAccessActivitySignupMinDays(int accessActivitySignupMinDays) {
+        this.accessActivitySignupMinDays = accessActivitySignupMinDays;
+    }
+
+    public int getAccessMinCredit() {
+        return accessMinCredit;
+    }
+
+    public void setAccessMinCredit(int accessMinCredit) {
+        this.accessMinCredit = accessMinCredit;
     }
 }

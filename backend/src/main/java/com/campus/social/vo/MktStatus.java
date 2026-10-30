@@ -1,7 +1,5 @@
 package com.campus.social.vo;
 
-import lombok.Data;
-
 /**
  * 集市活动状态（「我的发布」4 态）。
  * 由服务端按固定优先级推导，前端不再自行判断。

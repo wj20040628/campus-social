@@ -23,7 +23,7 @@
         v-if="isMobile"
         type="button"
         class="mkc__write"
-        @click="openSheet"
+        @click="onWrite"
       >
         {{ list.length ? '写留言' : '写第一条' }}
       </button>
@@ -145,7 +145,10 @@ import { Close } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import { resolveThumb } from '@/utils/resolve'
 import { useIsMobile } from '@/composables/useBreakpoint'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 import MktCommentSkeleton from './MktCommentSkeleton.vue'
+
+const { ensureLogin } = useGuestPrompt()
 
 const props = defineProps({
   /** 已加载的留言列表(页面通过游标追加后整份回传) */
@@ -158,6 +161,8 @@ const props = defineProps({
    * 成功 toast 与列表刷新由父组件负责,本组件只管输入态。
    */
   submitComment: { type: Function, required: true },
+  /** 游客态:点击写留言/提交时先弹登录提示，不直接发请求 */
+  guest: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['report-comment'])
@@ -178,6 +183,15 @@ function openSheet() {
    * 结果输入框被顶上屏幕外。
    */
   nextTick(() => setTimeout(() => sheetInput.value?.focus(), 260))
+}
+
+/** 游客一点写留言就先提示登录，不开抽屉、不弹键盘 */
+async function onWrite() {
+  if (props.guest) {
+    await ensureLogin('登录后才能留言，现在去登录吗？')
+    return
+  }
+  openSheet()
 }
 
 function closeSheet() {
@@ -205,6 +219,10 @@ function fmtTime(t) {
  * 现在 await 真接口 Promise:错误抛到这里展示,成功 toast 与刷新归父组件。
  */
 async function submit() {
+  if (props.guest) {
+    await ensureLogin('登录后才能留言，现在去登录吗？')
+    return
+  }
   const text = draft.value.trim()
   if (!text || submitting.value) return
   submitting.value = true

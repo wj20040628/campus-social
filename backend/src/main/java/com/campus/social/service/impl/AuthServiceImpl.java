@@ -155,7 +155,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱已注册");
         }
 
-        // 学号选填：填了才查重、才认证
+        // 学号选填：填了才查重、才做一致性比对
         String studentNo = dto.getStudentNo() == null ? "" : dto.getStudentNo().trim();
         boolean withStudentNo = !studentNo.isEmpty();
         if (withStudentNo) {
@@ -181,9 +181,10 @@ public class AuthServiceImpl implements AuthService {
         userMapper.insert(user);
 
         /*
-         * 注册即认证（快速路径）：填了学号就一次性存归属并跑六层校验。
-         * 六层不过 / 学号被占用 → 抛异常，整体事务回滚，用户不落库（干净失败）。
-         * 学号为空则只注册、不认证、不存归属 —— verify_status 保持默认 0（未认证）。
+         * 注册时带学号：一次性存归属并做一致性比对。
+         * 学号被占用 / 格式不合法（DTO Pattern 已拦）→ 抛异常，整体回滚。
+         * 一致性不匹配不阻断注册：状态置 2（核对中），由管理员后续处理。
+         * 学号为空则只注册、不存归属 —— verify_status 保持默认 0（未填写）。
          */
         if (withStudentNo) {
             if (dto.getDeptId() == null || dto.getGradeId() == null || dto.getMajorId() == null) {
@@ -758,7 +759,7 @@ public class AuthServiceImpl implements AuthService {
                 && (!studentNo.equals(user.getStudentNo())
                     || Integer.valueOf(0).equals(user.getVerifyStatus())
                     || Integer.valueOf(3).equals(user.getVerifyStatus()))) {
-            studentNoChangeSupport.apply(user, studentNo, oldStudentNo);
+            studentNoChangeSupport.apply(user, studentNo);
         }
         if (nickname != null)
             user.setNickname(nickname);

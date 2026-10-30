@@ -48,7 +48,7 @@ export function useOnboardingFlow(deps) {
   /**
    * 主按钮文案。
    *
-   * 2026-10-21 步数从 2 改 3（新增第 1 步认证），所以「最后一步」从 2 变成 3。
+   * 2026-10-21 步数从 2 改 3（新增第 1 步学校归属），所以「最后一步」从 2 变成 3。
    * 最后一步的文案是「进友声」而不是「完成」：这一步的语义是
    * 「你可以开始用了」，不是「你提交了一份表单」（§1.3）。
    */
@@ -121,13 +121,13 @@ export function useOnboardingFlow(deps) {
       await persist()
       /*
        * 三步步进（2026-10-21 从两步改三步）：
-       *   1 学号认证 → 2 兴趣标签 → 3 关注/圈子 → 进首页
+       *   1 学校归属（学号选填）→ 2 兴趣标签 → 3 关注/圈子 → 进首页
        *
-       * 第 1 步的认证本身由 StepVerify 组件内部完成（它直接调 /verify/student-no），
+       * 第 1 步的学号提交由 StepVerify 组件内部完成（它直接调 /verify/student-no），
        * 这里 persist() 只是把归属一并落到 onboarding 的口径里，然后推进。
        */
       if (deps.step.value === 1) {
-        // 第 1 步（认证）提交后进第 2 步，需要先有标签数据
+        // 第 1 步（学校归属）提交后进第 2 步，需要先有标签数据
         deps.goto(2)
         deps.loadTags()
       } else if (deps.step.value === 2) {

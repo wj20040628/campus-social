@@ -64,10 +64,11 @@ public class RegisterDTO {
     private String nickname;
 
     /**
-     * 学号：<b>选填</b>。填了就走六层校验、立即认证；不填则注册为未认证。
+     * 学号：<b>选填</b>。填了做格式唯一性与归属一致性检查：
+     * 一致直接登记，不一致转人工核对；不填则保持未填写。
      *
-     * <p>去掉 {@code @NotBlank} 只留 Pattern：空值应当合法（那是「先注册、后认证」的路径），
-     * 但一旦填了就必须是 13~14 位纯数字，否则连六层校验都进不去。
+     * <p>去掉 {@code @NotBlank} 只留 Pattern：空值应当合法，
+     * 但一旦填了就必须是 13~14 位纯数字。
      */
     @Pattern(regexp = "^$|^\\d{13,14}$", message = "学号需为 13~14 位数字")
     private String studentNo;

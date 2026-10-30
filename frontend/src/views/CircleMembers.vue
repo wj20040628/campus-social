@@ -78,7 +78,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { WarningFilled, User } from '@element-plus/icons-vue'
-import { ElMessage } from '@/utils/feedback'
 import { circleMembers } from '@/api/circle'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
@@ -118,19 +117,8 @@ async function load() {
   }
 }
 
-/**
- * 私信某个成员。
- *
- * 未认证用户点「私信」会被后端 @RequireVerified 拦成 403，
- * 但那时用户只看到一句通用错误、不知道下一步。所以这里先探一下本地
- * userInfo 的 verified，给一句具体的话。
- */
+/** 私信某个成员。账号年龄/信誉分由后端判定，前端不再预拦 */
 function goChat(m) {
-  const me = JSON.parse(localStorage.getItem('user_info') || '{}')
-  if (me?.verified !== true) {
-    ElMessage.warning('完成校内认证后才能发私信')
-    return
-  }
   router.push(`/chat/t/dm/${m.userId}`)
 }
 

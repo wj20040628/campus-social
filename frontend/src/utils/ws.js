@@ -1,6 +1,5 @@
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from '@/utils/feedback'
-import dayjs from 'dayjs'
 
 /**
  * WebSocket 单例封装（支持同时维护多条连接，每条对应一个 endpoint）

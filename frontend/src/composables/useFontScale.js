@@ -16,7 +16,7 @@
  * 达标(WCAG 1.4.4 只要求 200% 缩放,三档足够);三档选项也更符合
  * 「设置项」的心智,滑杆是调试工具不是设置。
  */
-import { computed, readonly, ref } from 'vue'
+import { readonly, ref } from 'vue'
 
 const STORAGE_KEY = 'ys-font-scale'
 const VALUES = ['standard', 'large', 'xlarge']
