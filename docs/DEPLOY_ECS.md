@@ -719,7 +719,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 - 源码：`22c0608` + 版本元数据提交，标签 `v1.13.2`；`frontend/package.json` 与 `package-lock.json` 均为 1.13.2。
 - 本地库：已备份到 `.e2e-env/backup/campus_social_v2_20261030_freeze.sql.gz`，恢复演练 41/41 表一致。
-- 前端：`npm ci` 成功；11 条门禁 0 失败；构建入口 `index-kJtT8_w_.js` 与线上一致；首屏 JS gzip 174 KB（预算 300 KB）。
+- 前端：`npm ci` 成功；11 条门禁 0 失败；构建入口 `index-kJtT8_w_.js` 与线上一致；首屏 JS gzip 174 KB（预算 300 KB）。（该次为原工作树同路径复核；跨路径/换行差异见下方「构建可复现性复核」。）
 - 后端：`mvn clean test` 142/142；`mvn clean package` 成功；jar 743 个条目，与线上 jar 逐文件内容一致，无 `application-local.yml`。
 - 重建 jar 本机启动验证：`/actuator/health` UP，游客 `/post/feed` 200，`/user/me` 401，`/dict/school` 200，`/v3/api-docs` 404（Swagger 关闭）。
 - 部署包：197 个条目、无反斜杠路径；jar MD5 与包 MD5 均与冻结记录一致；成功与健康检查失败两种回滚模拟均通过（失败时旧 jar 与 web 恢复）。
@@ -727,6 +727,22 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - 应用版本唯一来源为 `frontend/package.json` = 1.13.2；后端 Maven 坐标仍为 1.0.0，保持与已上线 jar 相同的构建配方。
 - 2026-10-30 运维补强：生产备份已恢复为 systemd 成功并做 41 表恢复演练；Nginx 补 gzip、`/upload/` 回调与 `/assets/` 缓存，回写 `deploy/nginx/production.conf`；备份脚本与 systemd 单元回写 `deploy/ops/`、`deploy/systemd/`。
 - 剩余：站点拨测（2026-10-30 用户决定不做）；主机告警规则已确认启用（2026-10-30 控制台列表可见「友声-ECS主机资源告警」）。OSS 生命周期已于 2026-10-30 控制台配置完成。
+
+**构建可复现性复核（2026-10-30 追加）**
+
+在 `v1.13.2` 标签的干净工作树重建前端时发现：入口得到 `index-CQC_s0Tq.js`，与线上 `index-kJtT8_w_.js` 不一致。逐文件比对确认代码语义一致，差异只在 Vue 作用域样式 ID（`data-v-*`）：
+
+- 线上 144 个 ID 中，122 个对应 LF 源码、21 个对应 CRLF 源码——发布时工作树是混合换行状态；
+- 该 ID 默认算法是 `sha256(相对路径 + 源文件内容)`，换行符不同即改变 ID，进而级联改变全部 chunk 哈希；
+- 因此 `v1.13.2` 的线上前端产物无法由统一检出的仓库字节级复现（语义一致，哈希不一致）。
+
+修复（master，2026-10-30）：
+
+- `frontend/vite.config.js` 固定 `componentIdGenerator: 'filepath'`，作用域 ID 只按相对路径生成；
+- `backend/pom.xml` 固定 `project.build.outputTimestamp`，并新增 `.gitattributes` 统一 `backend/src/main/resources/**` 为 LF；
+- 验证：LF/CRLF 两种检出、两个不同路径构建，190 个前端产物逐字节一致（入口 `index-B9VD8-hD.js`）；后端连续两次 `mvn clean package` 的 jar md5 相同（`e702cfab61bea2adf1b6e52196225697`）；
+- `v1.13.2` 线上前端仍是修复前产物；需重建并重新部署后，线上才与仓库构建字节一致；
+- 生产部署脚本归档：`deploy/production/deploy-1.13.2.sh`（1.13.2 实际使用版本；新版本需同步更新 jar md5 与入口校验值）。
 
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
 

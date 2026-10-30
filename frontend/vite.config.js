@@ -9,7 +9,8 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    vue(),
+    // 作用域样式 ID 只按相对路径生成，避免换行符/空白差异改变 data-v-* 与产物哈希
+    vue({ features: { componentIdGenerator: 'filepath' } }),
     // 浏览器 Vue DevTools 扩展的数据源:dev 期起后,Chrome/Edge F12 的 Vue 标签
     // 可「点页面上的元素 → 跳源码组件」/「选组件 → 高亮 DOM」。只注入 dev,不进 build。
     vueDevTools(),

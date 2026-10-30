@@ -23,6 +23,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.build.outputTimestamp>2026-10-30T11:51:00Z</project.build.outputTimestamp>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <jjwt.version>0.12.5</jjwt.version>
         <hutool.version>5.8.27</hutool.version>

@@ -1,0 +1,2 @@
+# 资源文件统一 LF，配合 pom 的 outputTimestamp 保证 jar 字节可复现
+backend/src/main/resources/** text eol=lf
