@@ -15,6 +15,7 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuthService;
 import com.campus.social.service.LoginService;
+import com.campus.social.service.RefreshTokenService;
 import com.campus.social.service.RegisterService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
@@ -23,7 +24,6 @@ import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.assembler.UserVoAssembler;
-import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,8 +56,8 @@ public class AuthServiceImpl implements AuthService {
     private final RegisterService registerService;
     /** 密码登录与验证码登录 */
     private final LoginService loginService;
-    /** 封禁截止时间（2026-10-28）：登录被拒时说清「封到哪天」，不再只有一句「账号已冻结」 */
-    private final com.campus.social.service.BanService banService;
+    /** refresh 轮换与登出吊销 */
+    private final RefreshTokenService refreshTokenService;
     /** Token 签发、Redis 指纹轮换与吊销，机制细节见该类的 javadoc */
     private final AuthTokenSupport authTokenSupport;
 
@@ -85,61 +85,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public TokenPairVO refresh(RefreshDTO dto) {
-        Claims claims = JwtUtil.parseRefresh(dto.getRefreshToken());
-        if (claims == null) {
-            throw new BusinessException(REFRESH_TOKEN_INVALID);
-        }
-        Long userId;
-        try {
-            userId = Long.parseLong(claims.getSubject());
-        } catch (NumberFormatException e) {
-            throw new BusinessException(REFRESH_TOKEN_INVALID);
-        }
-        String oldJti = claims.getId();
-        // 记住我保活:按旧 token 的 remember 选同 TTL 重签,否则「记住我」会在
-        // 首次静默刷新后悄悄失效(用户明明勾了 7 天,刷一次又变 3 天)。
-        boolean remember = JwtUtil.parseRemember(claims);
-        // 签新 refresh(新 jti),先不写 Redis
-        AuthTokenSupport.RefreshTicket ticket = authTokenSupport.newRefresh(userId, remember);
-
-        // 原子 CAS:旧 jti 匹配才滚动写入新 jti(杜绝并发同 jti 双花绕过 rotation)
-        // TTL 必须与签发 token 的 TTL 一致(勾选记住我=7d,否则 3d)
-        int cas = authTokenSupport.rotate(
-                userId, oldJti, ticket.jti(), authTokenSupport.ttlSeconds(remember));
-        if (cas != 1) {
-            // -1:无记录(refresh token 自然过期/已登出)→ 正常失效,重新登录即可
-            //  0:旧 jti 不匹配(重用攻击,已被 DEL 全吊销)→ 安全事件
-            if (cas == -1) {
-                throw new BusinessException(REFRESH_TOKEN_INVALID, "refresh token 已失效,请重新登录");
-            }
-            throw new BusinessException(REFRESH_TOKEN_REUSED, "refresh token 已被吊销,请重新登录");
-        }
-
-        // CAS 通过后校验账号状态
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            authTokenSupport.revoke(userId);
-            throw new BusinessException(REFRESH_TOKEN_INVALID, "用户不存在");
-        }
-        // 冻结(1)与注销(2)都必须拒绝(2026-10-23 修,审查 P1-3):
-        // 原先只判 status==1,注销账号仍能一直 refresh 续命 —— login 拦了,refresh 没拦。
-        if (user.getStatus() == 1) {
-            authTokenSupport.revoke(userId);
-            throw banService.frozenException(user.getId());
-        }
-        if (user.getStatus() == 2) {
-            authTokenSupport.revoke(userId);
-            throw new BusinessException(USER_CANCELLED);
-        }
-        return authTokenSupport.pair(userId, user.getUsername(), ticket.token());
+        return refreshTokenService.refresh(dto);
     }
 
     @Override
     public void logout(long userId) {
-        authTokenSupport.revoke(userId);
-        log.info("logout: uid={}", userId);
-        // 审计:登出
-        auditService.record(userId, "logout", "user", userId, "退出登录", null);
+        refreshTokenService.logout(userId);
     }
 
     // ----------------------------------------------------------------
