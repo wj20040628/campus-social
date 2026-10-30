@@ -57,12 +57,14 @@ class FileLibraryTest {
     private Long userId;
     private Long unverifiedId;
     private Long lowCreditId;
+    private Long otherId;
 
     @BeforeEach
     void seed() {
         userId = insertUser("file-user-" + SUFFIX, 1);
         unverifiedId = insertUser("file-unver-" + SUFFIX, 0);
         lowCreditId = insertUser("file-low-" + SUFFIX, 0);
+        otherId = insertUser("file-other-" + SUFFIX, 1);
     }
 
     private Long insertUser(String username, int verified) {
@@ -74,7 +76,7 @@ class FileLibraryTest {
 
     @AfterEach
     void cleanup() {
-        for (Long id : List.of(userId, unverifiedId, lowCreditId)) {
+        for (Long id : List.of(userId, unverifiedId, lowCreditId, otherId)) {
             if (id == null) continue;
             List<String> objectKeys = jdbc.queryForList(
                     "SELECT object_key FROM file_asset WHERE user_id = ? AND object_key <> ''",
@@ -260,6 +262,45 @@ class FileLibraryTest {
                         new MockMultipartFile("file", "a.pdf", "application/pdf", PDF),
                         "低信誉", "other", null));
         assertEquals(ResultCode.FILE_UPLOAD_FORBIDDEN.getCode(), e.getCode());
+    }
+
+    @Test
+    void pendingDetailHiddenFromOthers() {
+        long fileId = upload("待审详情", "other");
+
+        BusinessException hidden = assertThrows(BusinessException.class,
+                () -> fileService.detail(otherId, fileId, "127.0.0.1"));
+        assertEquals(1072, hidden.getCode(), "待审文件对他人不可见");
+
+        adminFileService.review(1L, fileId, "approve", null);
+        assertTrue(fileService.detail(otherId, fileId, "127.0.0.1").getTitle().contains("待审详情"));
+    }
+
+    @Test
+    void deleteOnlyByOwnerAndCleansRelations() {
+        long fileId = upload("删除权限", "other");
+        adminFileService.review(1L, fileId, "approve", null);
+        fileService.like(otherId, fileId);
+        fileService.favorite(otherId, fileId);
+
+        BusinessException forbidden = assertThrows(BusinessException.class,
+                () -> fileService.delete(otherId, fileId));
+        assertEquals(ResultCode.FORBIDDEN.getCode(), forbidden.getCode());
+        assertEquals(1, activeAssetCount(fileId), "他人删除失败，记录必须保留");
+
+        fileService.delete(userId, fileId);
+        assertEquals(0, activeAssetCount(fileId));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM `like` WHERE target_type = 3 AND target_id = ?", Integer.class, fileId),
+                "删除应清掉点赞关系");
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM file_favorite WHERE file_id = ?", Integer.class, fileId),
+                "删除应清掉收藏关系");
+    }
+
+    private int activeAssetCount(long fileId) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM file_asset WHERE id = ? AND is_deleted = 0", Integer.class, fileId);
     }
 
     private long upload(String title, String category) {
