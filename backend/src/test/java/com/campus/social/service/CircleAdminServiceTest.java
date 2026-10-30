@@ -474,6 +474,42 @@ class CircleAdminServiceTest {
         assertEquals(Integer.valueOf(0), c.getStatus(), "解封 status=0");
     }
 
+    @Test
+    void unbanMember_clearsBan() {
+        service.banMember(circleId, member, null, creator);
+        assertTrue(service.isBanned(circleId, member), "封禁后 isBanned=true");
+
+        service.unbanMember(circleId, member, creator);
+        assertFalse(service.isBanned(circleId, member), "解禁后 isBanned=false");
+        assertEquals(Integer.valueOf(0), memberRow(circleId, member).getBanStatus(), "ban_status 归零");
+    }
+
+    @Test
+    void disbandByCreatorThenRestoreByAdminCascadesPosts() {
+        service.disbandCircle(circleId, creator);
+        assertEquals(Integer.valueOf(1), circleMapper.selectById(circleId).getStatus(), "解散后 status=1");
+        assertEquals(Integer.valueOf(2), reloadPost(postA).getStatus(), "圈内帖子级联下架");
+        assertEquals(Integer.valueOf(2), reloadPost(postB).getStatus(), "圈内帖子级联下架");
+
+        service.restoreCircle(circleId, adminUser);
+        assertEquals(Integer.valueOf(0), circleMapper.selectById(circleId).getStatus(), "恢复后 status=0");
+        assertEquals(Integer.valueOf(1), reloadPost(postA).getStatus(), "帖子对称恢复");
+        assertEquals(Integer.valueOf(1), reloadPost(postB).getStatus(), "帖子对称恢复");
+    }
+
+    @Test
+    void listForAdmin_includesBannedCircleAndRequiresAdmin() {
+        service.banCircle(circleId, adminUser);
+        var page = service.listForAdmin(null, 100, adminUser);
+        assertTrue(page.getList().stream()
+                        .anyMatch(c -> c.getId() == circleId && Integer.valueOf(1).equals(c.getStatus())),
+                "管理列表应包含已封禁圈子");
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.listForAdmin(null, 100, creator));
+        assertEquals(ResultCode.NOT_ADMIN.getCode(), ex.getCode(), "非管理员不能看管理列表");
+    }
+
     /* ---------------- 官方名保护:建圈拦截 ---------------- */
 
     @Test
