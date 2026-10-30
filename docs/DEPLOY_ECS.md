@@ -701,17 +701,20 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-生产在 **1.13.1**（2026-10-30 通过宝塔上传部署包执行，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
+生产在 **1.13.2**（2026-10-30 部署，前端入口 `index-kJtT8_w_.js`，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`）：
+
+- **评论列表跟随帖子状态**：下架/退回审核的帖子，评论不再能按 id 读取（作者本人放行，与详情同口径）。
+- **游客动作提示**：活动报名、举报先弹「登录后才能…」，不再点了没反应；游客也不再看到「不看这个作者」入口。
+- **IP 取值防伪造**：优先 Nginx 覆写的 `X-Real-IP`，否则取 XFF 最后一段；用于登录失败锁定、游客下载限额与审计 IP。
+- 公网已验证（2026-10-30）：`/healthz` UP；首页入口 `index-kJtT8_w_.js`；游客 feed 200、`/user/me` 401、`POST /auth/campus-email/send` 404；不存在帖子的详情与评论均返回 1009（评论接口新增的帖子校验已生效，据此确认后端也是 1.13.2）。
+- 无数据库结构变更。备份由部署包内 `deploy.sh` 生成：`backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
+- **打包注意**：jar 必须 `mvn clean package`。只把 `application-local.yml` 移出 resources 再 `package`，`target/classes` 里的旧配置仍会被打进 jar（2026-10-30 实际踩到）。
+
+上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
 
 - **删除校园邮箱验证码整条链路**：学生没有学校发放的校园邮箱，按域名白名单放行只会误伤；学号核验与管理员人工核对保留。
 - **游客导航修复**：底栏、侧栏、抽屉不再显示消息/我的/通知/公告/文件等登录入口；误入登录态页面先给「先逛逛」退路。
 - 公网已验证：`/healthz` UP，游客 feed/热门/圈子/集市/用户卡 200，`/files`、`/chat/conversations`、`/announcement/list` 401，`POST /api/verify/campus-email` 后端 404（旧端点确已移除）。
-- 无数据库结构变更。备份由部署包内 `deploy.sh` 生成：`backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
-- **打包注意**：jar 必须 `mvn clean package`。只把 `application-local.yml` 移出 resources 再 `package`，`target/classes` 里的旧配置仍会被打进 jar（2026-10-30 实际踩到）。
-
-**待部署 1.13.2（热修包已生成）**：前端入口 `index-kJtT8_w_.js`，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`（md5 `e5c7b067…`）。内容：
-评论列表跟随帖子状态（下架/退回审核的帖子评论不再可按 id 读取）、游客报名/举报先提示登录、游客不再看到拉黑入口、
-IP 取值优先 `X-Real-IP`（否则取 XFF 最后一段，防伪造绕过登录锁定与游客下载限额）。
 
 上一版 1.13.0（2026-10-30 16:36 部署，前端入口 `index-zDQwAFBK.js`，jar md5 `7296bb5c…`）：
 
@@ -742,7 +745,7 @@ IP 取值优先 `X-Real-IP`（否则取 XFF 最后一段，防伪造绕过登录
 > 1.11.0（12:48）已包含：举报快照 `report.target_snapshot`、上传上限 25MB/30MB/32m、公网 `/healthz`、
 > JVM 384m、Redis 128M、swappiness=10。相关备份见 20261029_124726 / nginx-default.bak_20261029_124637。
 
-线上为 1.13.1；本地已构建 1.13.2 热修包，待上传部署。尚未做的两项：Swap 仍为 `/www/swap` 1G、云监控站点任务需在控制台手工建（13.2）。
+线上为 1.13.2。尚未做的两项：Swap 仍为 `/www/swap` 1G、云监控站点任务需在控制台手工建（13.2）。
 
 ---
 
