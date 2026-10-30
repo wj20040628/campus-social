@@ -187,6 +187,16 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- 本地配置只用于开发/测试，绝不进发布 jar（含数据库口令与云 AK） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>application-local.yml</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

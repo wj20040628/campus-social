@@ -713,7 +713,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - **IP 取值防伪造**：优先 Nginx 覆写的 `X-Real-IP`，否则取 XFF 最后一段；用于登录失败锁定、游客下载限额与审计 IP。
 - 公网已验证（2026-10-30）：`/healthz` UP；首页入口 `index-kJtT8_w_.js`；游客 feed 200、`/user/me` 401、`POST /auth/campus-email/send` 404；不存在帖子的详情与评论均返回 1009（评论接口新增的帖子校验已生效，据此确认后端也是 1.13.2）。
 - 无数据库结构变更。备份由部署包内 `deploy.sh` 生成：`backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
-- **打包注意**：jar 必须 `mvn clean package`。只把 `application-local.yml` 移出 resources 再 `package`，`target/classes` 里的旧配置仍会被打进 jar（2026-10-30 实际踩到）。
+- **打包注意**：`mvn clean package` 已通过 `maven-jar-plugin` 排除 `application-local.yml`（2026-10-30 修）；发布前仍用 `unzip -l target/campus-social.jar | grep application-local` 自检，结果应为空。
 
 **1.13.2 基线复核（2026-10-30，本地）**
 
