@@ -710,6 +710,17 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - 无数据库结构变更。备份由部署包内 `deploy.sh` 生成：`backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
 - **打包注意**：jar 必须 `mvn clean package`。只把 `application-local.yml` 移出 resources 再 `package`，`target/classes` 里的旧配置仍会被打进 jar（2026-10-30 实际踩到）。
 
+**1.13.2 基线复核（2026-10-30，本地）**
+
+- 源码：`22c0608` + 版本元数据提交，标签 `v1.13.2`；`frontend/package.json` 与 `package-lock.json` 均为 1.13.2。
+- 本地库：已备份到 `.e2e-env/backup/campus_social_v2_20261030_freeze.sql.gz`，恢复演练 41/41 表一致。
+- 前端：`npm ci` 成功；11 条门禁 0 失败；构建入口 `index-kJtT8_w_.js` 与线上一致；首屏 JS gzip 174 KB（预算 300 KB）。
+- 后端：`mvn clean test` 142/142；`mvn clean package` 成功；jar 743 个条目，与线上 jar 逐文件内容一致，无 `application-local.yml`。
+- 部署包：197 个条目、无反斜杠路径；jar MD5 与包 MD5 均与冻结记录一致；成功与健康检查失败两种回滚模拟均通过（失败时旧 jar 与 web 恢复）。
+- 已知脚本瑕疵：回滚时 `web.bak_*` 会被移回 `web/`，脚本仍打印「备份仍保留 web.bak_*」，该提示不准确；不影响恢复结果，留待下一版修正。
+- 应用版本唯一来源为 `frontend/package.json` = 1.13.2；后端 Maven 坐标仍为 1.0.0，保持与已上线 jar 相同的构建配方。
+- 未在本次执行：生产库备份、OSS 异地文件检查与生命周期、云监控告警、线上 Nginx 对齐，均需服务器或阿里云控制台权限。
+
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
 
 - **删除校园邮箱验证码整条链路**：学生没有学校发放的校园邮箱，按域名白名单放行只会误伤；学号核验与管理员人工核对保留。
