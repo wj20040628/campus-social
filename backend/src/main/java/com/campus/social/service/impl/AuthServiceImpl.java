@@ -19,6 +19,7 @@ import com.campus.social.service.AuthService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
 import com.campus.social.service.support.AuthTokenSupport;
+import com.campus.social.service.support.LoginLockService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
@@ -27,7 +28,6 @@ import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +50,6 @@ import static com.campus.social.common.ResultCode.*;
 public class AuthServiceImpl implements AuthService {
 
     private final UserMapper userMapper;
-    private final StringRedisTemplate redis;
     private final VerifyCodeService verifyCodeService;
     private final com.campus.social.service.AuditService auditService;
     /** 改学号的唯一校验与核验状态迁移，见该类的javadoc（本轮修的死循环） */
@@ -63,6 +62,8 @@ public class AuthServiceImpl implements AuthService {
     private final com.campus.social.service.BanService banService;
     /** Token 签发、Redis 指纹轮换与吊销，机制细节见该类的 javadoc */
     private final AuthTokenSupport authTokenSupport;
+    /** 账号 / IP 双维度登录失败锁定 */
+    private final LoginLockService loginLockService;
 
     @Override
     @Transactional
@@ -156,27 +157,6 @@ public class AuthServiceImpl implements AuthService {
         return authTokenSupport.issue(user.getId(), user.getUsername(), false);
     }
 
-    /** 登录失败锁定:账号维度 5 次 / IP 维度 30 次,均 15 分钟窗口 */
-    private static final int FAIL_LIMIT_ACCOUNT = 5;
-    private static final int FAIL_LIMIT_IP = 30;
-    private static final java.time.Duration FAIL_TTL = java.time.Duration.ofMinutes(15);
-
-    /** 达到阈值即抛 429 */
-    private void throwIfLocked(String key, int limit, String message) {
-        String v = redis.opsForValue().get(key);
-        if (v != null && Long.parseLong(v) >= limit) {
-            throw new BusinessException(TOO_MANY_REQUESTS, message);
-        }
-    }
-
-    /** 记一次失败;first 时是本次窗口第一条,顺手设 TTL */
-    private void recordFailure(String key, boolean first) {
-        Long n = redis.opsForValue().increment(key);
-        if (n != null && n == 1) {
-            redis.expire(key, FAIL_TTL);
-        }
-    }
-
     @Override
     public TokenPairVO login(LoginDTO dto, String ip) {
         /*
@@ -201,10 +181,8 @@ public class AuthServiceImpl implements AuthService {
          * 统一回 WRONG_PASSWORD，不区分「账号不存在」与「密码错误」—— 防账号枚举。
          */
         String id = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase();
-        String accountKey = "login:fail:u:" + id;
-        String ipKey = "login:fail:ip:" + (ip == null || ip.isBlank() ? "unknown" : ip);
-        throwIfLocked(accountKey, FAIL_LIMIT_ACCOUNT, "该账号失败次数过多,请 15 分钟后再试");
-        throwIfLocked(ipKey, FAIL_LIMIT_IP, "当前网络登录失败过多,请 15 分钟后再试");
+        loginLockService.checkAccount(id);
+        loginLockService.checkIp(ip);
         User user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
                         .eq(User::getUsername, id)
@@ -218,7 +196,7 @@ public class AuthServiceImpl implements AuthService {
         if (user == null) {
             // 审计:登录失败(账号不存在,记为系统操作)。只计 IP 维度(见方法头注释)
             auditService.record(0L, "login_fail", null, null, "identifier=" + id + ", 账号不存在", null);
-            recordFailure(ipKey, false);
+            loginLockService.recordIpFailure(ip);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 冻结/注销账号拒登录
@@ -243,12 +221,12 @@ public class AuthServiceImpl implements AuthService {
         }
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
             auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 密码错误", null);
-            recordFailure(accountKey, true);
-            recordFailure(ipKey, false);
+            loginLockService.recordAccountFailure(id);
+            loginLockService.recordIpFailure(ip);
             throw new BusinessException(WRONG_PASSWORD);
         }
         // 登录成功:清掉该账号的失败计数(成功本身就是最可信的解锁)
-        redis.delete(accountKey);
+        loginLockService.clearAccount(id);
         // 记住我:勾选 → refresh 7d,不勾 → 3d(见 refreshTtl)
         boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
         // 审计:登录
