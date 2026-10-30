@@ -18,6 +18,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuthService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
+import com.campus.social.service.support.AuthTokenSupport;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import com.campus.social.vo.UserVO;
@@ -27,14 +28,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.campus.social.common.ResultCode.*;
@@ -65,66 +61,8 @@ public class AuthServiceImpl implements AuthService {
     private final com.campus.social.service.CampusVerifyService campusVerifyService;
     /** 封禁截止时间（2026-10-28）：登录被拒时说清「封到哪天」，不再只有一句「账号已冻结」 */
     private final com.campus.social.service.BanService banService;
-
-    /** refresh:{userId} = jti */
-    private static final String REFRESH_KEY = "refresh:";
-
-    /** 与 JwtConfig 的 access-ttl-millis(900000ms=15min)保持一致 */
-    private static final long ACCESS_TTL_SECONDS = 15 * 60;
-
-    /**
-     * refresh 默认有效期(不勾记住我)= 3d,与 JwtConfig 的 refresh-ttl-millis 对齐。
-     * 勾选记住我 = 7d,见 {@link #refreshTtl(boolean)}。
-     *
-     * <p>Redis key 的过期时间必须与 JwtUtil 签发的 token 过期时间完全一致,
-     * 否则会出现「token 还有效但 Redis 指纹已过期」或反过来的错位。
-     * 这里直接读 JwtUtil 暴露的毫秒值做单一来源,杜绝两处各写死导致漂移。
-     */
-    private static Duration refreshTtl(boolean remember) {
-        long ms = remember ? JwtUtil.getRememberTtlMillis() : JwtUtil.getRefreshTtlMillis();
-        return Duration.ofMillis(ms);
-    }
-
-    /**
-     * 原子 CAS:读 refresh:{uid} 的旧 jti,与新 jti 比对。
-     * - 匹配:写新 jti + 刷新 TTL,返回 1(滚动成功)
-     * - 不匹配(重用攻击):删 key,返回 0(全吊销)
-     * - 无记录:返回 -1(需重新登录)
-     * 用 Lua 保证读-判-写在一个原子步骤内,杜绝并发同 jti 双花绕过 rotation。
-     *
-     * @param ttlSeconds 写入新 jti 的过期秒数,必须与签发 token 的 TTL 一致
-     *                   (勾选记住我=7d,否则 3d),否则 Redis 指纹与 token 会错位。
-     */
-    private static final RedisScript<Long> REFRESH_CAS_SCRIPT;
-
-    static {
-        String lua =
-                "local cur = redis.call('GET', KEYS[1])\n" +
-                "if cur == false then return -1 end\n" +
-                "if cur ~= ARGV[1] then\n" +
-                "  redis.call('DEL', KEYS[1])\n" +
-                "  return 0\n" +
-                "end\n" +
-                "redis.call('SET', KEYS[1], ARGV[2], 'EX', tonumber(ARGV[3]))\n" +
-                "return 1";
-        REFRESH_CAS_SCRIPT = new DefaultRedisScript<>(lua, Long.class);
-    }
-
-    /**
-     * 校验旧 jti,匹配则滚动写入 newJti。
-     *
-     * @return 1=滚动成功;0=旧 jti 不匹配(重用攻击,已全吊销);-1=无记录(key 自然过期或从未写过)
-     */
-    private int rotateRefreshJti(long userId, String oldJti, String newJti, long ttlSeconds) {
-        Long result = redis.execute(
-                REFRESH_CAS_SCRIPT,
-                List.of(REFRESH_KEY + userId),
-                oldJti, newJti, String.valueOf(ttlSeconds));
-        if (result == null) {
-            return -1;
-        }
-        return result.intValue();
-    }
+    /** Token 签发、Redis 指纹轮换与吊销，机制细节见该类的 javadoc */
+    private final AuthTokenSupport authTokenSupport;
 
     @Override
     @Transactional
@@ -215,7 +153,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getId(), UserVoAssembler.maskUsername(email),
                 withStudentNo ? UserVoAssembler.maskUsername(studentNo) : "-", withStudentNo);
         // 注册默认不勾记住我(记住我是密码登录的优化项)
-        return issueTokens(user, false);
+        return authTokenSupport.issue(user.getId(), user.getUsername(), false);
     }
 
     /** 登录失败锁定:账号维度 5 次 / IP 维度 30 次,均 15 分钟窗口 */
@@ -316,7 +254,7 @@ public class AuthServiceImpl implements AuthService {
         // 审计:登录
         auditService.record(user.getId(), "login", "user", user.getId(),
                 "identifier=" + id, null);
-        return issueTokens(user, remember);
+        return authTokenSupport.issue(user.getId(), user.getUsername(), remember);
     }
 
     @Override
@@ -348,7 +286,7 @@ public class AuthServiceImpl implements AuthService {
         }
         log.info("loginByCode: email={}", UserVoAssembler.maskUsername(email));
         // 邮箱验证码登录属「免密码」,不勾记住我(默认 3d)
-        return issueTokens(user, false);
+        return authTokenSupport.issue(user.getId(), user.getUsername(), false);
     }
 
     /**
@@ -446,12 +384,12 @@ public class AuthServiceImpl implements AuthService {
         // 首次静默刷新后悄悄失效(用户明明勾了 7 天,刷一次又变 3 天)。
         boolean remember = JwtUtil.parseRemember(claims);
         // 签新 refresh(新 jti),先不写 Redis
-        String newJti = UUID.randomUUID().toString().replace("-", "");
-        String newRefresh = JwtUtil.issueRefresh(userId, newJti, remember);
+        AuthTokenSupport.RefreshTicket ticket = authTokenSupport.newRefresh(userId, remember);
 
         // 原子 CAS:旧 jti 匹配才滚动写入新 jti(杜绝并发同 jti 双花绕过 rotation)
         // TTL 必须与签发 token 的 TTL 一致(勾选记住我=7d,否则 3d)
-        int cas = rotateRefreshJti(userId, oldJti, newJti, refreshTtl(remember).getSeconds());
+        int cas = authTokenSupport.rotate(
+                userId, oldJti, ticket.jti(), authTokenSupport.ttlSeconds(remember));
         if (cas != 1) {
             // -1:无记录(refresh token 自然过期/已登出)→ 正常失效,重新登录即可
             //  0:旧 jti 不匹配(重用攻击,已被 DEL 全吊销)→ 安全事件
@@ -464,31 +402,25 @@ public class AuthServiceImpl implements AuthService {
         // CAS 通过后校验账号状态
         User user = userMapper.selectById(userId);
         if (user == null) {
-            redis.delete(REFRESH_KEY + userId);
+            authTokenSupport.revoke(userId);
             throw new BusinessException(REFRESH_TOKEN_INVALID, "用户不存在");
         }
         // 冻结(1)与注销(2)都必须拒绝(2026-10-23 修,审查 P1-3):
         // 原先只判 status==1,注销账号仍能一直 refresh 续命 —— login 拦了,refresh 没拦。
         if (user.getStatus() == 1) {
-            redis.delete(REFRESH_KEY + userId);
+            authTokenSupport.revoke(userId);
             throw frozen(user.getId());
         }
         if (user.getStatus() == 2) {
-            redis.delete(REFRESH_KEY + userId);
+            authTokenSupport.revoke(userId);
             throw new BusinessException(USER_CANCELLED);
         }
-        String newAccess = JwtUtil.issueAccess(userId, user.getUsername());
-        long accessExpireAt = System.currentTimeMillis() / 1000 + ACCESS_TTL_SECONDS;
-        return TokenPairVO.builder()
-                .accessToken(newAccess)
-                .refreshToken(newRefresh)
-                .accessExpireAt(accessExpireAt)
-                .build();
+        return authTokenSupport.pair(userId, user.getUsername(), ticket.token());
     }
 
     @Override
     public void logout(long userId) {
-        redis.delete(REFRESH_KEY + userId);
+        authTokenSupport.revoke(userId);
         log.info("logout: uid={}", userId);
         // 审计:登出
         auditService.record(userId, "logout", "user", userId, "退出登录", null);
@@ -589,7 +521,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
         // 吊销其他设备:删 Redis 指纹,旧 refresh 刷新时 CAS 失败全吊销
-        redis.delete(REFRESH_KEY + user.getId());
+        authTokenSupport.revoke(user.getId());
         auditService.record(user.getId(), "reset_password", "user", user.getId(), "重置密码", null);
         log.info("resetPassword: uid={}", user.getId());
     }
@@ -626,7 +558,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
         // 改密即吊销全部 refresh(审查 P1-26):攻击者持有的旧 refresh 立即失效
-        redis.delete(REFRESH_KEY + userId);
+        authTokenSupport.revoke(userId);
         auditService.record(userId, "change_password", "user", userId, "修改密码(已吊销全部 refresh token)", null);
         log.info("changePassword: uid={}, refresh revoked", userId);
     }
@@ -704,7 +636,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(JwtUtil.hashPassword(dto.getNewPassword()));
         userMapper.updateById(user);
         // 与改密同口径:设密后吊销其他设备的 refresh,避免旧会话长期续命
-        redis.delete(REFRESH_KEY + userId);
+        authTokenSupport.revoke(userId);
         auditService.record(userId, "set_password", "user", userId,
                 "邮箱验证码首次设置密码", null);
         log.info("setPassword: uid={}, refresh revoked", userId);
@@ -863,22 +795,6 @@ public class AuthServiceImpl implements AuthService {
     /** null 安全展示:值 null 时显示「空」,避免 detail 里出现 "null" */
     private String nullSafe(String v) {
         return v == null ? "空" : v;
-    }
-
-    /** 签发 access + refresh,refresh jti 写入 Redis(注册/登录首次签发,无旧 jti 需比对) */
-    private TokenPairVO issueTokens(User user, boolean remember) {
-        String jti = UUID.randomUUID().toString().replace("-", "");
-        String access = JwtUtil.issueAccess(user.getId(), user.getUsername());
-        String refresh = JwtUtil.issueRefresh(user.getId(), jti, remember);
-        // Redis 指纹 TTL 必须与 token 过期时间一致(勾选记住我=7d,否则 3d)
-        redis.opsForValue().set(REFRESH_KEY + user.getId(), jti, refreshTtl(remember));
-
-        long accessExpireAt = System.currentTimeMillis() / 1000 + ACCESS_TTL_SECONDS;
-        return TokenPairVO.builder()
-                .accessToken(access)
-                .refreshToken(refresh)
-                .accessExpireAt(accessExpireAt)
-                .build();
     }
 
     /**
