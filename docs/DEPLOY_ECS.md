@@ -742,6 +742,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - `backend/pom.xml` 固定 `project.build.outputTimestamp`，并新增 `.gitattributes` 统一 `backend/src/main/resources/**` 为 LF；
 - 验证：LF/CRLF 两种检出、两个不同路径构建，190 个前端产物逐字节一致（入口 `index-B9VD8-hD.js`）；后端连续两次 `mvn clean package` 的 jar md5 相同（`e702cfab61bea2adf1b6e52196225697`）；
 - `v1.13.2` 线上前端仍是修复前产物；需重建并重新部署后，线上才与仓库构建字节一致；
+- 2026-10-30 用户决定暂不重新部署：线上保持 `index-kJtT8_w_.js`，修复随下一版本发布；
 - 生产部署脚本归档：`deploy/production/deploy-1.13.2.sh`（1.13.2 实际使用版本；新版本需同步更新 jar md5 与入口校验值）。
 
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
