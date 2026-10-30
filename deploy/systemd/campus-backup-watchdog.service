@@ -1,0 +1,9 @@
+[Unit]
+Description=Stale backup watchdog for campus_social_v2
+After=network.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/opt/campus/backup-watchdog.sh

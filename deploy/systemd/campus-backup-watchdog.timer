@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly check that MySQL backup is fresh
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

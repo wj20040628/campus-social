@@ -809,6 +809,15 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 > **为什么是 `logs/db/` 而不是 `backup/`**：ECS RAM 角色 `mail` 的策略只授权 `logs/*`，`backup/` 前缀 PUT 会 `AccessDenied`（报错文案是误导性的 "bucket acl"）。要独立前缀需在 RAM 控制台给策略加 `acs:oss:*:*:yousheng-uploads/backup/*` 的 Put/Get/Delete，加完再改脚本里的 `OSS_KEY`。
 
+**26 小时无成功备份 watchdog（2026-10-30 新增）**
+
+`campus-backup.timer` 只保证「每天尝试」，如果 timer 被停、机器重启后未恢复、或脚本长期失败，`.last_success` 会一直变旧而没人知道。新增 `backup-watchdog.sh` + `campus-backup-watchdog.timer`：
+
+- 每小时第 15 分钟检查 `.last_success` 的 mtime；超过 26 小时（93600 秒）或文件不存在即告警；
+- 告警复用 `/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，同一故障 24 小时内只发一次；
+- 安装：`install -m 700 deploy/ops/backup-watchdog.sh /opt/campus/backup-watchdog.sh`，systemd 两个文件放 `/etc/systemd/system/` 后 `systemctl daemon-reload && systemctl enable --now campus-backup-watchdog.timer`；
+- 验证：`systemctl list-timers campus-backup-watchdog.timer --no-pager` 应显示每小时一次；`journalctl -u campus-backup-watchdog.service -n 20` 应无告警。
+
 **日常核查**（都应为正常）：
 
 ```bash
