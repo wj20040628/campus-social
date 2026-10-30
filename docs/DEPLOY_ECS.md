@@ -726,7 +726,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - 已知脚本瑕疵：回滚时 `web.bak_*` 会被移回 `web/`，脚本仍打印「备份仍保留 web.bak_*」，该提示不准确；不影响恢复结果，留待下一版修正。
 - 应用版本唯一来源为 `frontend/package.json` = 1.13.2；后端 Maven 坐标仍为 1.0.0，保持与已上线 jar 相同的构建配方。
 - 2026-10-30 运维补强：生产备份已恢复为 systemd 成功并做 41 表恢复演练；Nginx 补 gzip、`/upload/` 回调与 `/assets/` 缓存，回写 `deploy/nginx/production.conf`；备份脚本与 systemd 单元回写 `deploy/ops/`、`deploy/systemd/`。
-- 仍未做：OSS 生命周期（RAM 角色无权限，需控制台）、云监控主机与站点告警（控制台未配置）。
+- 仍未做：云监控主机与站点告警（控制台未配置）；OSS 生命周期已于 2026-10-30 控制台配置完成。
 
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
 
@@ -817,7 +817,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **告警现状（2026-10-30）**：已配置企业微信群机器人并实测：直接测试返回 `errcode:0`，随后用测试副本触发了一次「友声备份告警 | 测试 | ...」端到端告警；生产备份成功运行后失败标记已清除。Webhook 地址只存在服务器 `/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，不进仓库。若改用钉钉，安全设置选「自定义关键词」并填 `友声`，告警文本固定以「友声备份告警」开头。
 
-**OSS 生命周期**：规则模板在 `deploy/oss/lifecycle-logs-db-30d.xml`（`logs/db/` 30 天删除）。ECS RAM 角色 `mail` 没有 `oss:GetBucketLifecycle` / `oss:PutBucketLifecycle` 权限，`ossutil api get-bucket-lifecycle` 实测返回 403；需在 OSS 控制台给 `yousheng-uploads` 配置同样的规则，或先给角色补 RAM 策略。
+**OSS 生命周期**：2026-10-30 已在 OSS 控制台配置并启用规则 `expire-logs-db-30d`（作用域 `logs/db/`，最后一次修改时间 30 天后删除），与仓库模板 `deploy/oss/lifecycle-logs-db-30d.xml` 一致。桶内另有一条整桶碎片规则 `abort-incomplete-multipart`（碎片生成早于 1 天删除），新规则因此不再配碎片策略，否则同前缀碎片动作重叠会报 `0014-00000084`。规则创建后 48 小时内加载，加载完成后每天 8:00 执行。ECS RAM 角色 `mail` 没有 `oss:GetBucketLifecycle` / `oss:PutBucketLifecycle` 权限，`ossutil api get-bucket-lifecycle` 实测 403，故无法用命令行核对，控制台状态「启用中」是唯一判据。
 
 ### 13.2 阿里云云监控告警（免费，控制台点一遍）
 
