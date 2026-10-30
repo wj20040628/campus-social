@@ -14,7 +14,7 @@
 
     <groupId>com.campus</groupId>
     <artifactId>campus-social</artifactId>
-    <version>1.0.0</version>
+    <version>1.13.2</version>
     <name>campus-social</name>
     <description>Campus social platform - SpringBoot 3.2 + MySQL 8 + Redis</description>
 

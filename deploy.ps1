@@ -3,13 +3,13 @@
 # 用法(在本目录执行):
 #   powershell -ExecutionPolicy Bypass -File .\deploy.ps1
 # 前提:本机已装 MySQL(root,库 campus_social_v2)+ Redis(6379),密码见 .env
-#       后端已 mvn 打包(target/campus-social-1.0.0.jar)
+#       后端已 mvn 打包(target/campus-social.jar)
 # ============================================================
 
 $ErrorActionPreference = "Stop"
 
 # ---------- 1. 检查后端 jar ----------
-$jar = "..\backend\target\campus-social-1.0.0.jar"
+$jar = "..\backend\target\campus-social.jar"
 if (-not (Test-Path $jar)) {
     Write-Host "未找到后端 jar: $jar"
     Write-Host "请先在 backend/ 执行: mvn -DskipTests package"

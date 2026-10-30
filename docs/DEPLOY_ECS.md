@@ -726,7 +726,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - 重建 jar 本机启动验证：`/actuator/health` UP，游客 `/post/feed` 200，`/user/me` 401，`/dict/school` 200，`/v3/api-docs` 404（Swagger 关闭）。
 - 部署包：197 个条目、无反斜杠路径；jar MD5 与包 MD5 均与冻结记录一致；成功与健康检查失败两种回滚模拟均通过（失败时旧 jar 与 web 恢复）。
 - 已知脚本瑕疵：回滚时 `web.bak_*` 会被移回 `web/`，脚本仍打印「备份仍保留 web.bak_*」，该提示不准确；不影响恢复结果，留待下一版修正。
-- 应用版本唯一来源为 `frontend/package.json` = 1.13.2；后端 Maven 坐标仍为 1.0.0，保持与已上线 jar 相同的构建配方。
+- 版本号统一为 `1.13.2`（`frontend/package.json` 与 `backend/pom.xml`）；线上 jar 仍是旧的 `1.0.0` 构建产物，下次发版自然对齐。
 - 2026-10-30 运维补强：生产备份已恢复为 systemd 成功并做 41 表恢复演练；Nginx 补 gzip、`/upload/` 回调与 `/assets/` 缓存，回写 `deploy/nginx/production.conf`；备份脚本与 systemd 单元回写 `deploy/ops/`、`deploy/systemd/`。
 - 剩余：站点拨测（2026-10-30 用户决定不做）；主机告警规则已确认启用（2026-10-30 控制台列表可见「友声-ECS主机资源告警」）。OSS 生命周期已于 2026-10-30 控制台配置完成。
 

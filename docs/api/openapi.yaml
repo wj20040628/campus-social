@@ -11,7 +11,7 @@ openapi: 3.0.3
 
 info:
   title: 友声 · 校园生活社区 API
-  version: 1.0.0
+  version: 1.13.2
   summary: 校园社交 MVP 的对外 REST 契约
   description: |
     ## 0. 范围声明（本轮实现 / 不实现）
