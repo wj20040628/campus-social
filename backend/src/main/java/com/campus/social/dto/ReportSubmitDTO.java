@@ -19,7 +19,7 @@ public class ReportSubmitDTO {
      * 1用户 2帖子 3评论 4私聊消息 5搭子 6集市活动 7文件 8群消息。
      *
      * <p>上限从 5 提到 6（2026-10-21）：集市活动举报原先误用 5，
-     * 而 5 在契约里是「搭子（buddy_post，表已建但无端点）」——
+     * 而 5 在契约里是「搭子（buddy_post，预留表已删除、无端点）」——
      * 结果是集市举报提交成功、管理员处置时回 422，等于举报无效。
      * 6 是集市活动的独立编号，取值含义见
      * {@code com.campus.social.common.ReportTargetType}。

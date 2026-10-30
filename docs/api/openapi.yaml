@@ -25,8 +25,8 @@ info:
       `POST /api/v1/buddy`、`GET /api/v1/buddy`、`GET /api/v1/buddy/{id}`、
       `POST /api/v1/buddy/{id}/join`、`DELETE /api/v1/buddy/{id}/join`、
       `GET /api/v1/buddy/mine`、`PATCH /api/v1/buddy/{id}/status`。
-      对应 `buddy_post` / `buddy_join` 两张表的 DDL 照给（见 `docs/sql/migration_v1.sql`），
-      但仅作预留，避免第二批迭代再改一次表。
+      对应 `buddy_post` / `buddy_join` 的预留表已于 2026-10-30 删除
+      （`sql/migration_2026-10-30_drop_buddy_tables.sql`），F7 仍未实现。
     - 本轮实现的标签端点是 `GET /api/v1/tags`、`PUT /api/v1/user/tags`、
       `GET /api/v1/user/{id}/tags` —— 它们归属 F11 新用户引导（引导第 2 步要选标签），
       不是 F6「按标签找搭子」的发现页。
@@ -3421,7 +3421,7 @@ components:
           type: integer
           description: |
             1用户 2帖子 3评论 4聊天消息 5搭子 6集市活动 7文件 8群消息 9圈子
-            - 5搭子：buddy_post 表已建但无端点，只支持驳回/忽略，封禁会回 422
+            - 5搭子：预留表已于 2026-10-30 删除；编号保留，只支持驳回/忽略
             - 6集市活动：2026-10-21 新增。此前集市误用 5，导致举报能提交、管理员无法处置
             - 7文件：2026-10-27 新增，举报成立时把 file_asset.status 置 3（下架）
             - 8群消息：2026-10-28 新增，举报成立时把 group_message.is_deleted 置 1。

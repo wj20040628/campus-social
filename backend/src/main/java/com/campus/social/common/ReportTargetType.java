@@ -31,7 +31,7 @@ public final class ReportTargetType {
 
     /**
      * 搭子（buddy_post）。
-     * MVP+ 第二批：表已建、无端点，故只支持驳回/忽略，不支持封禁。
+     * 2026-10-30 已删除预留表；编号 5 保留，不再产生新举报，历史数据按驳回/忽略处理。
      */
     public static final int BUDDY_POST = 5;
 

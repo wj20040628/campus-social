@@ -175,7 +175,7 @@ public class ReportAdminServiceImpl implements ReportAdminService {
             case ReportTargetType.FILE -> reportMapper.selectFileSummary(id);
             case ReportTargetType.CIRCLE -> reportMapper.selectCircleSummary(id);
             /*
-             * 5 搭子：buddy_post 表已建但无端点（MVP+ 第二批），
+             * 5 搭子：预留表已于 2026-10-30 删除，且从未有端点，
              * 没有可查的内容 —— 保持「已删除」这个诚实的结果，
              * 而不是硬塞一句模糊文案。
              */

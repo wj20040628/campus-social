@@ -48,8 +48,8 @@
 | `report` | **实现** | 归属 F4 上线门槛项 |
 | `announcement` | **实现** | F5 |
 | `announcement_read` | **实现** | F5 |
-| `buddy_post` | **建表，不实现端点** | 归属 MVP+（F7）。本轮只出 DDL，避免第二批再来一次改表。**禁止**在 Phase 3 实现其 Service/Controller/页面 |
-| `buddy_join` | **建表，不实现端点** | 同上 |
+| `buddy_post` | **已删除（2026-10-30）** | F7 未实现，预留表下线；见 `sql/migration_2026-10-30_drop_buddy_tables.sql` |
+| `buddy_join` | **已删除（2026-10-30）** | 同上 |
 | `school_dept` | **实现** | 院系字典。F2/F11 第 1 步从自由文本改为字典 id，见 §6.1 |
 | `school_grade` | **实现** | 年级字典。口径为入学年份（`2026级`），见 §6.1 |
 | `user` | **ALTER 加 6 字段** | `school_id`、`verify_status`、`stranger_msg_enabled`、`onboarding_step`、`dept_id`、`grade_id`（见 §6.2） |
@@ -59,7 +59,7 @@
 ### 2.3 实体表总数核定
 
 - 现状实测：**22 个** entity（`ls backend/src/main/java/com/campus/social/entity/*.java | wc -l` = 22）
-- 本轮新增：7 张（`interest_tag` / `user_tag` / `report` / `announcement` / `announcement_read` / `buddy_post` / `buddy_join`）
+- 本轮新增：7 张（`interest_tag` / `user_tag` / `report` / `announcement` / `announcement_read` / `buddy_post` / `buddy_join`）；其中 `buddy_post`/`buddy_join` 已于 2026-10-30 删除
 - 终态：**29 张**
 - **勘误**：`ARCHITECTURE.md` 第 623 行写「23 表 → 29 表（+7）」、第 818 行写「新增 7 张表（23 → 30）」，两处自相矛盾且基数均错。**以本 Spec 的 22 → 29 为准**。Phase 2 由架构师用 `openapi.yaml` 与 DDL 复核后回填确认。
 
@@ -185,7 +185,7 @@ GET    /api/v1/chat/stranger-quota             查询今日剩余破冰额度
 - `stranger.daily-new-peer = 5`（每天最多向 5 个新对象发起首条）
 - `stranger.per-peer-daily = 20`（对同一陌生人每天最多 20 条）
 
-### 5.2 G2 搭子（**本轮仅建表，下列端点不实现**）
+### 5.2 G2 搭子（**本轮仅建表，下列端点不实现**；预留表已于 2026-10-30 删除）
 
 ```
 GET    /api/v1/tags                            兴趣标签树（按 category 分组）   ← 本轮实现（支撑 F11）
@@ -288,8 +288,8 @@ GET    /api/v1/post/{id}/comments?lastId=&size= 评论列表（仅一级）
 | `report` 举报 | `id, reporter_id, target_type(1用户 2帖子 3评论 4聊天消息 5搭子), target_id, reason_type(1骚扰 2广告 3色情 4诈骗 5其他), reason_text, status(0待审 1成立 2驳回), handler_id, handle_time` | `uk_report(reporter_id, target_type, target_id)` 防重复举报；`idx_status_time(status, create_time DESC)` | user | 实现 |
 | `announcement` 公告 | `id, title, content, category(1教务 2后勤 3活动 4社团 5紧急 6其他), publisher_id, school_id(默认1，预留多校), is_top(0/1), top_expire_time, status(0草稿 1已发布 2已下架), publish_time, read_count` | `idx_school_status_top_time(school_id, status, is_top DESC, publish_time DESC)`；`idx_category(category, status, publish_time DESC)` | user | 实现 |
 | `announcement_read` 已读回执 | `id, announcement_id, user_id, read_time` | `uk_ann_user(announcement_id, user_id)` 幂等；`idx_user(user_id, read_time)` | announcement / user | 实现 |
-| `buddy_post` 搭子卡片 | `id, user_id, tag_id, title, content, want_count, joined_count, status(0招募中 1已满 2已关闭 3下架), expire_time` | `idx_tag_status_time(tag_id, status, create_time DESC)`；`idx_user(user_id)` | user / interest_tag | **仅建表** |
-| `buddy_join` 报名 | `id, buddy_id, user_id, status(0待确认 1已加入 2已拒绝 3已退出)` | `uk_buddy_user(buddy_id, user_id)` 幂等；`idx_user(user_id, status)` | buddy_post / user | **仅建表** |
+| `buddy_post` 搭子卡片 | `id, user_id, tag_id, title, content, want_count, joined_count, status(0招募中 1已满 2已关闭 3下架), expire_time` | `idx_tag_status_time(tag_id, status, create_time DESC)`；`idx_user(user_id)` | user / interest_tag | 已删除（2026-10-30） |
+| `buddy_join` 报名 | `id, buddy_id, user_id, status(0待确认 1已加入 2已拒绝 3已退出)` | `uk_buddy_user(buddy_id, user_id)` 幂等；`idx_user(user_id, status)` | buddy_post / user | 已删除（2026-10-30） |
 | `school_dept` 院系字典 | `id, name, school_id(默认1), sort, enabled(1启用 0停用)` | `uk_school_name(school_id, name)` 种子幂等基础；`idx_school_enabled_sort(school_id, enabled, sort, id)` | — | 实现（人工维护 55 个，不做 UGC） |
 | `school_grade` 年级字典 | `id, name(如 2026级), enroll_year, sort, enabled` | `uk_name(name)`；`idx_enabled_sort(enabled, sort, id)` | — | 实现（见下方「年级字典口径」） |
 
@@ -346,7 +346,7 @@ AC-18 只约束第1 步（`dept` 与 `grade` 非空），这一条可以从现�
 
 ### 6.3 两个「为什么」（不许问第二遍）
 
-- **为什么 `buddy_post` 不复用 `activity`**：`activity` 有报名截止时间 + 活动状态机 + 线下场地语义；搭子卡片是轻量招募（"今晚王者缺一个"），语义不同，硬塞会让两张表都变脏。**但报名防超卖逻辑必须复用**——照抄 `activity_signup` 的「INSERT 幂等键 + `UPDATE ... WHERE joined_count < want_count` 乐观锁」同事务写法。
+- **为什么 `buddy_post` 不复用 `activity`（历史设计，表已于 2026-10-30 删除）**：`activity` 有报名截止时间 + 活动状态机 + 线下场地语义；搭子卡片是轻量招募（"今晚王者缺一个"），语义不同，硬塞会让两张表都变脏。**但报名防超卖逻辑必须复用**——照抄 `activity_signup` 的「INSERT 幂等键 + `UPDATE ... WHERE joined_count < want_count` 乐观锁」同事务写法。
 - **为什么公告不用「一人一条 notify」**：写入放大 1 万倍（1 万用户 × 100 公告 = 100 万行），且已读更新要 UPDATE 1 万行。`announcement_read` 只在实际有人读时写一行，未读数用 count 查询而非全量写入。
 
 ---

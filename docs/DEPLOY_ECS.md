@@ -418,6 +418,8 @@ grep Environment /etc/systemd/system/campus.service | grep OSS_DIRECT_UPLOAD   #
 
 ## 7. 数据库变更（加功能改表时）
 
+> 2026-10-30：删除从未启用的 `buddy_post` / `buddy_join` 预留表（本地已执行，生产待下次部署执行 `sql/migration_2026-10-30_drop_buddy_tables.sql`）；`sql/schema.sql` 39 表即完整基线。
+
 加字段/加表，走 SQL 脚本，不当场手敲：
 
 1. 本机 MySQL 改好，同时把变更写成 `sql/migration_YYYYMMDD.sql`（建表/加列/加索引）。

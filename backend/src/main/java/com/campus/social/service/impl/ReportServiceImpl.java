@@ -306,7 +306,7 @@ public class ReportServiceImpl implements ReportService {
             /*
              * 集市活动（targetType=6，2026-10-21 新增）。
              *
-             * 【为什么不复用 5】5 在契约里是「搭子（buddy_post）」—— 表已建但无端点，
+             * 【为什么不复用 5】5 在契约里是「搭子（buddy_post）」—— 预留表已删除、无端点，
              * 处置会被 resolveTargetUserId 拦下并回 422「搭子需上线后处理」。
              * 而前端 MktDetail 此前传的正是 5，导致集市活动举报**能提交、不能处置**。
              * 给集市单独一个编号，才是让「封禁作者 + 下架活动」这条链路真正可用。
@@ -519,7 +519,7 @@ public class ReportServiceImpl implements ReportService {
      *
      * <p>{@code targetType} 各取值的处置对象各不相同：
      * 1用户→ targetId 本身；2帖子→ post.author_id；3评论→ comment.user_id；
-     * 4私聊消息→ chat_message.sender_id；5搭子→ buddy_post（未上线）；
+     * 4私聊消息→ chat_message.sender_id；5搭子→ 预留表已删除（未上线）；
      * 6集市活动→ mkt_activity.user_id；7文件→ file_asset.user_id；
      * 8群消息→ group_message.sender_id；9圈子→ circle.owner_id。
      *

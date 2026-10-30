@@ -46,7 +46,7 @@ TRUNCATE TABLE `group_member`;
 TRUNCATE TABLE `group`;
 
 -- ------------------------------------------------------------
--- 4. 圈子 / 活动 / 集市 / 搭子(占位表)
+-- 4. 圈子 / 活动 / 集市
 -- ------------------------------------------------------------
 TRUNCATE TABLE `circle_member`;
 TRUNCATE TABLE `circle`;
@@ -54,8 +54,6 @@ TRUNCATE TABLE `activity_signup`;
 TRUNCATE TABLE `activity`;
 TRUNCATE TABLE `mkt_comment`;
 TRUNCATE TABLE `mkt_activity`;
-TRUNCATE TABLE `buddy_join`;
-TRUNCATE TABLE `buddy_post`;
 
 -- ------------------------------------------------------------
 -- 5. 通知 / 审核 / 举报 / 反馈 / 审计

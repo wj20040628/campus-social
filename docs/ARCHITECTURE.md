@@ -305,10 +305,12 @@ GET    /api/v1/chat/stranger-quota          查询今日剩余破冰额度（前
 |---|---|---|
 | `interest_tag` 标签字典 | `id, name, category(1兴趣 2游戏 3运动 4学习 5生活), sort, use_count` + 通用字段 | `uk_name(name)`；人工维护 30–60 个，不做 UGC |
 | `user_tag` 用户-标签 | `id, user_id, tag_id` + 通用字段 | `uk_user_tag(user_id, tag_id)`；`idx_tag(tag_id)` |
-| `buddy_post` 搭子卡片 | `id, user_id, tag_id, title, content, want_count, joined_count, status(0招募中 1已满 2已关闭 3下架), expire_time` + 通用字段 | `idx_tag_status_time(tag_id, status, create_time DESC)`；`idx_user(user_id)` |
-| `buddy_join` 报名 | `id, buddy_id, user_id, status(0待确认 1已加入 2已拒绝 3已退出)` + 通用字段 | `uk_buddy_user(buddy_id, user_id)` 幂等；`idx_user(user_id, status)` |
+| `buddy_post` 搭子卡片（2026-10-30 已删除） | `id, user_id, tag_id, title, content, want_count, joined_count, status(0招募中 1已满 2已关闭 3下架), expire_time` + 通用字段 | `idx_tag_status_time(tag_id, status, create_time DESC)`；`idx_user(user_id)` |
+| `buddy_join` 报名（2026-10-30 已删除） | `id, buddy_id, user_id, status(0待确认 1已加入 2已拒绝 3已退出)` + 通用字段 | `uk_buddy_user(buddy_id, user_id)` 幂等；`idx_user(user_id, status)` |
 
-**为什么 `buddy_post` 不复用 `activity`**：`activity` 有报名截止时间 + 活动状态机 + 线下场地语义，搭子卡片是轻量招募（"今晚王者缺一个"），语义不同。硬塞进 `activity` 会让两张表都变脏。**但报名防超卖逻辑必须复用** —— 照抄 `activity_signup` 的"INSERT 幂等键 + `UPDATE ... WHERE joined_count < want_count` 乐观锁"同事务写法。
+> 2026-10-30：F7 搭子发帖未实现，上述两张预留表已删除（见 `sql/migration_2026-10-30_drop_buddy_tables.sql`）。
+
+**为什么 `buddy_post` 不复用 `activity`（历史设计，表已删除）**：`activity` 有报名截止时间 + 活动状态机 + 线下场地语义，搭子卡片是轻量招募（"今晚王者缺一个"），语义不同。硬塞进 `activity` 会让两张表都变脏。**但报名防超卖逻辑必须复用** —— 照抄 `activity_signup` 的"INSERT 幂等键 + `UPDATE ... WHERE joined_count < want_count` 乐观锁"同事务写法。
 
 **新增端点**
 
