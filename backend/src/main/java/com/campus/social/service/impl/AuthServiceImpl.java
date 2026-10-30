@@ -5,8 +5,6 @@ import com.campus.social.dto.LoginDTO;
 import com.campus.social.dto.RefreshDTO;
 import com.campus.social.dto.RegisterDTO;
 import com.campus.social.dto.SendCodeDTO;
-import com.campus.social.dto.SchoolProfileDTO;
-import com.campus.social.dto.StudentNoVerifyDTO;
 import com.campus.social.dto.ForgotPasswordDTO;
 import com.campus.social.dto.ResetPasswordDTO;
 import com.campus.social.dto.ChangePasswordDTO;
@@ -16,6 +14,7 @@ import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuthService;
+import com.campus.social.service.RegisterService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.VerifyCodeService;
 import com.campus.social.service.support.AuthTokenSupport;
@@ -27,11 +26,8 @@ import com.campus.social.assembler.UserVoAssembler;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.concurrent.ThreadLocalRandom;
 
 import static com.campus.social.common.ResultCode.*;
 
@@ -56,8 +52,8 @@ public class AuthServiceImpl implements AuthService {
     private final com.campus.social.service.support.StudentNoChangeSupport studentNoChangeSupport;
     /** 头像归属校验:设置头像时,若引用的是本服务 /uploads 文件则必须确属该用户上传 */
     private final UploadService uploadService;
-    /** 注册即认证:带学号 + 归属注册时,复用存归属与六层校验逻辑,避免两套实现 */
-    private final com.campus.social.service.CampusVerifyService campusVerifyService;
+    /** 注册与验证码自动建号 */
+    private final RegisterService registerService;
     /** 封禁截止时间（2026-10-28）：登录被拒时说清「封到哪天」，不再只有一句「账号已冻结」 */
     private final com.campus.social.service.BanService banService;
     /** Token 签发、Redis 指纹轮换与吊销，机制细节见该类的 javadoc */
@@ -68,93 +64,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public TokenPairVO register(RegisterDTO dto) {
-        /*
-         * 2026-10-21 重构：注册轻、认证后置。
-         *
-         * 【改了什么】
-         * 1) 邮箱从「选填安全凭证」升级为「必填主键」—— 且必须验证码验证所有权。
-         * 2) 学号从「必填」降为「选填」—— 填了立即认证，不填则注册为未认证。
-         * 3) username 列对新用户存邮箱（老账号不动，登录时 OR 兼容）。
-         *
-         * 【为什么这么改】改版前学号是 @NotBlank，想先进来看看的人被挡在门外；
-         * 而注册直接置 verify_status=1，导致「未认证」状态在现实中不存在，
-         * AC-11「未认证不能搭话」永远不触发。现在未认证是真能出现的状态。
-         */
-        String email = dto.getEmail() == null ? null : dto.getEmail().trim().toLowerCase();
-        if (email == null || email.isEmpty()) {
-            throw new BusinessException(UNPROCESSABLE, "请填写邮箱");
-        }
-        // 邮箱必须通过验证码验证所有权：它是登录主键，不能是随手填的字符串。
-        // type="register" 与 sendCode 的默认值一致（见 sendCode 里 type == null ? "register"）。
-        verifyCodeService.verify(email, dto.getEmailCode(), "register");
-
-        // 邮箱已存在？（UNIQUE，防两账号绑同一邮箱）
-        User byEmail = userMapper.selectByEmail(email);
-        if (byEmail != null) {
-            throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱已注册");
-        }
-
-        // 学号选填：填了才查重、才做一致性比对
-        String studentNo = dto.getStudentNo() == null ? "" : dto.getStudentNo().trim();
-        boolean withStudentNo = !studentNo.isEmpty();
-        if (withStudentNo) {
-            User existing = userMapper.selectByStudentNo(studentNo);
-            if (existing != null) {
-                throw new BusinessException(USERNAME_EXISTS, "该学号已注册");
-            }
-        }
-
-        User user = new User();
-        /*
-         * 主账号：新用户 username 存邮箱。
-         * 为什么不存学号：学号 13~14 位数字用户记不住、填错改不了，
-         * 且 SPEC AC-12 要求对外不得显示学号 —— 它不该同时充当登录名。
-         * 学号此后只写 student_no 一列，仅用于认证比对与登录的别名匹配。
-         */
-        user.setUsername(email);
-        user.setPasswordHash(JwtUtil.hashPassword(dto.getPassword()));
-        user.setNickname(dto.getNickname());
-        user.setEmail(email);
-        user.setStudentNo(withStudentNo ? studentNo : null);
-        user.setStatus(0); // 正常
-        userMapper.insert(user);
-
-        /*
-         * 注册时带学号：一次性存归属并做一致性比对。
-         * 学号被占用 / 格式不合法（DTO Pattern 已拦）→ 抛异常，整体回滚。
-         * 一致性不匹配不阻断注册：状态置 2（核对中），由管理员后续处理。
-         * 学号为空则只注册、不存归属 —— verify_status 保持默认 0（未填写）。
-         */
-        if (withStudentNo) {
-            if (dto.getDeptId() == null || dto.getGradeId() == null || dto.getMajorId() == null) {
-                throw new BusinessException(SCHOOL_PROFILE_INCOMPLETE,
-                        "请完善学校归属（学院 / 本专科 / 专业 / 年级）后再提交学号");
-            }
-            SchoolProfileDTO profileDto = new SchoolProfileDTO();
-            // schoolId 不传时由 saveSchoolProfile 兜底成本校;MVP 单校恒为 1
-            profileDto.setSchoolId(dto.getSchoolId());
-            profileDto.setDeptId(dto.getDeptId());
-            profileDto.setGradeId(dto.getGradeId());
-            profileDto.setMajorId(dto.getMajorId());
-            profileDto.setCampus(dto.getCampus());
-            campusVerifyService.saveSchoolProfile(user.getId(), profileDto);
-
-            StudentNoVerifyDTO verifyDto = new StudentNoVerifyDTO();
-            verifyDto.setStudentNo(studentNo);
-            // 注册流程没有「姓名后 1-2 位」字段,传空串;管理员比对以学号 + 归属为主
-            verifyDto.setNameTail("");
-            campusVerifyService.submitStudentNo(user.getId(), verifyDto);
-        }
-
-        // 审计:注册
-        auditService.record(user.getId(), "register", "user", user.getId(),
-                "email=" + email + (withStudentNo ? ", studentNo=" + studentNo : ", 未认证"), null);
-
-        log.info("register: uid={}, email={}, studentNo={}, verified={}",
-                user.getId(), UserVoAssembler.maskUsername(email),
-                withStudentNo ? UserVoAssembler.maskUsername(studentNo) : "-", withStudentNo);
-        // 注册默认不勾记住我(记住我是密码登录的优化项)
-        return authTokenSupport.issue(user.getId(), user.getUsername(), false);
+        return registerService.register(dto);
     }
 
     @Override
@@ -254,7 +164,7 @@ public class AuthServiceImpl implements AuthService {
          */
         User user = userMapper.selectByEmail(email);
         if (user == null) {
-            user = createEmailAccount(email);
+            user = registerService.createEmailAccount(email);
         }
         if (user.getStatus() == 1) {
             throw frozen(user.getId());
@@ -283,61 +193,6 @@ public class AuthServiceImpl implements AuthService {
         return new BusinessException(USER_FROZEN, "账号已被封禁，将于 "
                 + until.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                 + " 自动解封。" + tail);
-    }
-
-    /**
-     * 邮箱验证码首次登录时自动建号。
-     *
-     * <p>并发兜底:同一邮箱两封验证码几乎同时到达时,两个请求都会查到 null,
-     * 第二个 INSERT 会撞 {@code uk_user_email}/{@code uk_username}。这里捕获
-     * 唯一键冲突后回查一次 —— 对方已经建好,直接用那一行登录,不把并发变成报错。
-     *
-     * <p>已注销账号(is_deleted=1)仍占着唯一键,回查也查不到(selectByEmail 带
-     * is_deleted=0),此时给出中性文案,不再继续建号。
-     */
-    private User createEmailAccount(String email) {
-        User user = new User();
-        user.setUsername(email);
-        user.setEmail(email);
-        user.setNickname(autoNickname());
-        user.setPasswordHash(JwtUtil.PASSWORD_UNSET);
-        user.setStatus(0);
-        user.setRole(0);
-        user.setVerifyStatus(0);
-        user.setOnboardingStep(0);
-        try {
-            userMapper.insert(user);
-        } catch (DuplicateKeyException e) {
-            User existing = userMapper.selectByEmail(email);
-            if (existing != null) {
-                return existing;
-            }
-            throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱暂时无法用于登录,请联系管理员");
-        }
-        auditService.record(user.getId(), "register", "user", user.getId(),
-                "email=" + email + ", 邮箱验证码自动建号(未设密码)", null);
-        log.info("auto register by email code: uid={}, email={}",
-                user.getId(), UserVoAssembler.maskUsername(email));
-        return user;
-    }
-
-    /**
-     * 自动昵称：「用户」+ 6 位随机，先查重再落库。
-     *
-     * <p>2026-10-28 改：原来 4 位（1000-9999 共 9000 种）。昵称不是唯一键，
-     * 撞了不会报错，但按生日悖论注册到百来人时已有近一半概率出现同名，
-     * 新用户会看到自己和一个陌生人叫一样的名字。6 位是 90 万种，
-     * 查一次库把已被人工改过的昵称也避开；三次都撞（并发极小概率）
-     * 退化到 9 位随机，空间足够大，不再查库。
-     */
-    private String autoNickname() {
-        for (int i = 0; i < 3; i++) {
-            String candidate = "用户" + ThreadLocalRandom.current().nextInt(100000, 1000000);
-            if (userMapper.countByNickname(candidate) == 0) {
-                return candidate;
-            }
-        }
-        return "用户" + ThreadLocalRandom.current().nextInt(100000000, 1000000000);
     }
 
     @Override
