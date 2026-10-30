@@ -726,7 +726,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - 已知脚本瑕疵：回滚时 `web.bak_*` 会被移回 `web/`，脚本仍打印「备份仍保留 web.bak_*」，该提示不准确；不影响恢复结果，留待下一版修正。
 - 应用版本唯一来源为 `frontend/package.json` = 1.13.2；后端 Maven 坐标仍为 1.0.0，保持与已上线 jar 相同的构建配方。
 - 2026-10-30 运维补强：生产备份已恢复为 systemd 成功并做 41 表恢复演练；Nginx 补 gzip、`/upload/` 回调与 `/assets/` 缓存，回写 `deploy/nginx/production.conf`；备份脚本与 systemd 单元回写 `deploy/ops/`、`deploy/systemd/`。
-- 仍未做：OSS 生命周期（RAM 角色无权限，需控制台）、外部告警 Webhook（待写入 `.env`）、云监控主机与站点告警（控制台未配置）。
+- 仍未做：OSS 生命周期（RAM 角色无权限，需控制台）、云监控主机与站点告警（控制台未配置）。
 
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
 
@@ -815,7 +815,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
-**告警现状（2026-10-30）**：失败告警代码已接入（`/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，钉钉/企业微信群机器人，文本消息）。钉钉机器人安全设置请选「自定义关键词」并填 `友声`，告警文本已固定以「友声备份告警」开头；企业微信机器人可直接用同一 Webhook。Webhook URL 尚未写入，当前失败只写 `.last_failure`、`backup.log` 与 journal；配置后需要做一次真实的失败演练。
+**告警现状（2026-10-30）**：已配置企业微信群机器人并实测：直接测试返回 `errcode:0`，随后用测试副本触发了一次「友声备份告警 | 测试 | ...」端到端告警；生产备份成功运行后失败标记已清除。Webhook 地址只存在服务器 `/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，不进仓库。若改用钉钉，安全设置选「自定义关键词」并填 `友声`，告警文本固定以「友声备份告警」开头。
 
 **OSS 生命周期**：规则模板在 `deploy/oss/lifecycle-logs-db-30d.xml`（`logs/db/` 30 天删除）。ECS RAM 角色 `mail` 没有 `oss:GetBucketLifecycle` / `oss:PutBucketLifecycle` 权限，`ossutil api get-bucket-lifecycle` 实测返回 403；需在 OSS 控制台给 `yousheng-uploads` 配置同样的规则，或先给角色补 RAM 策略。
 
