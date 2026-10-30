@@ -4,6 +4,7 @@
 # 失败告警：在 /opt/campus/.env 设置 ALERT_WEBHOOK_URL（钉钉/企业微信群机器人）
 # 每日备份 campus_social_v2：本地保留 14 天 + 上传 OSS logs/db/ 异地留存
 # 2026-10-30：临时文件 + 原子落盘、成功/失败标记、失败 Webhook 告警、并发锁
+# 2026-10-30：每月 1 日额外上传 logs/db-monthly/YYYY-MM.sql.gz，保留 12 个月
 set -uo pipefail
 umask 077
 
@@ -81,3 +82,20 @@ printf '%s | %s | %s | %s\n' "$(date '+%F %T %Z')" "$OUT" "$SIZE" "$OSS_KEY" > "
 rm -f "$FAIL_MARK"
 printf '%s | 备份成功: %s (%s) -> %s\n' "$(date '+%F %T %Z')" "$OUT" "$SIZE" "$OSS_KEY" >> "$LOG"
 echo "备份成功: $OUT ($SIZE) -> $OSS_KEY"
+
+# 每月 1 日额外保留一份月度副本，供 12 个月长期回看；日用副本仍只留 14 天
+if [ "$(date +%d)" = "01" ]; then
+  MONTH_KEY="oss://yousheng-uploads/logs/db-monthly/$(date +%Y-%m).sql.gz"
+  MONTH_ERR="$DIR/.backup_monthly.err"
+  if /usr/local/bin/ossutil cp "$OUT" "$MONTH_KEY" \
+        -e oss-cn-hangzhou.aliyuncs.com --region cn-hangzhou --mode EcsRamRole >/dev/null 2>>"$MONTH_ERR"; then
+    rm -f "$MONTH_ERR"
+    printf '%s | 月度备份: %s -> %s\n' "$(date '+%F %T %Z')" "$OUT" "$MONTH_KEY" >> "$LOG"
+  else
+    MSG="月度备份上传失败: $MONTH_KEY $(tail -n 1 "$MONTH_ERR" 2>/dev/null)"
+    rm -f "$MONTH_ERR"
+    alert "$MSG"
+    echo "$MSG" >&2
+    exit 1
+  fi
+fi

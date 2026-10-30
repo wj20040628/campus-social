@@ -799,6 +799,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 - 本地 `/opt/campus/backup/campus_social_v2_<时间戳>.sql.gz`，保留 14 天；备份目录 `0700`、文件 `0600`；
 - 同步上传 `oss://yousheng-uploads/logs/db/<时间戳>.sql.gz` 异地留存；
+- 每月 1 日额外上传 `oss://yousheng-uploads/logs/db-monthly/YYYY-MM.sql.gz`，保留 12 个月；对应生命周期规则 `expire-logs-db-monthly-365d`（模板 `deploy/oss/lifecycle-logs-db-monthly-365d.xml`，需在 OSS 控制台启用）；
 - dump 参数：`--single-transaction --quick --no-tablespaces --routines --triggers --events`，密码从 `/opt/campus/.env` 读取并以 `MYSQL_PWD` 传给子进程；
 - 先写 `.part` 临时文件，校验通过后再原子改名；失败不会覆盖已有备份；
 - 成功写 `/opt/campus/backup/.last_success`（时间、文件、大小、OSS 路径），失败写 `.last_failure` 并追加 `/opt/campus/backup/backup.log`；

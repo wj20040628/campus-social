@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 友声 OSS 生命周期：logs/db-monthly/ 下的月度数据库备份 365 天后自动删除。
+     与每日备份规则 expire-logs-db-30d 分开，避免月度副本被 30 天规则误删。
+     当前 ECS RAM 角色 mail 没有 GetBucketLifecycle / PutBucketLifecycle 权限；
+     请在 OSS 控制台给 yousheng-uploads 配置同样规则，或先补 RAM 策略再应用。 -->
+<LifecycleConfiguration>
+  <Rule>
+    <ID>expire-logs-db-monthly-365d</ID>
+    <Prefix>logs/db-monthly/</Prefix>
+    <Status>Enabled</Status>
+    <Expiration>
+      <Days>365</Days>
+    </Expiration>
+  </Rule>
+</LifecycleConfiguration>
