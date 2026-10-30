@@ -277,11 +277,16 @@ journalctl -u campus -f    # 看启动日志，确认无 IllegalStateException�
 
 ## 6. Nginx 配置（同源，免跨域）
 
-> **线上现状（2026-10-29）**：站点配置在 `/etc/nginx/sites-enabled/default`（Ubuntu 系统 Nginx；
+> **线上现状（2026-10-30）**：站点配置在 `/etc/nginx/sites-enabled/default`（Ubuntu 系统 Nginx；
 > `conf.d/` 是空目录），前端根目录 `/opt/campus/web`，共三个 server 块：
 > ① IP 直连 80（应急）② 域名 80（301 → https）③ 443 正式站点（Let's Encrypt 证书，
-> 含 `/api/`、`/uploads/`、`/ws/`、`= /index.html`、`/` 五个 location）。
+> 含 `/healthz`、`/api/`、`/upload/`、`/uploads/`、`/ws/`、`/assets/`、`= /index.html`、`/`）。
+> 仓库镜像见 `deploy/nginx/production.conf`（2026-10-30 20:50 CST 抓取）。
 > **不要整体套用下面的备案前模板**，它只作存档；线上改动一律按 6.1 的增量补丁做。
+>
+> 2026-10-30 已补：gzip（JS/CSS/JSON）、`/upload/` OSS 回调反代、`/assets/` 一年缓存。
+> 线上仍**没有** per-IP 限流：校园网常见多人共用一个 NAT 出口，按 IP 限 20r/s 会误伤正常用户；
+> Docker 模板里的限流仅作参考，未应用到生产。
 
 ### 6.1 本次上线增量补丁（1.11.0，2026-10-29）
 
@@ -720,7 +725,8 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - 部署包：197 个条目、无反斜杠路径；jar MD5 与包 MD5 均与冻结记录一致；成功与健康检查失败两种回滚模拟均通过（失败时旧 jar 与 web 恢复）。
 - 已知脚本瑕疵：回滚时 `web.bak_*` 会被移回 `web/`，脚本仍打印「备份仍保留 web.bak_*」，该提示不准确；不影响恢复结果，留待下一版修正。
 - 应用版本唯一来源为 `frontend/package.json` = 1.13.2；后端 Maven 坐标仍为 1.0.0，保持与已上线 jar 相同的构建配方。
-- 未在本次执行：生产库备份、OSS 异地文件检查与生命周期、云监控告警、线上 Nginx 对齐，均需服务器或阿里云控制台权限。
+- 2026-10-30 运维补强：生产备份已恢复为 systemd 成功并做 41 表恢复演练；Nginx 补 gzip、`/upload/` 回调与 `/assets/` 缓存，回写 `deploy/nginx/production.conf`；备份脚本与 systemd 单元回写 `deploy/ops/`、`deploy/systemd/`。
+- 仍未做：OSS 生命周期（RAM 角色无权限，需控制台）、外部告警 Webhook（待写入 `.env`）、云监控主机与站点告警（控制台未配置）。
 
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
 
@@ -772,24 +778,31 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 `/opt/campus/backup.sh` + systemd timer `campus-backup.timer`，每天 **04:30**（避开 03:00 ReconcileJob 与 03:30 logship）跑：
 
-- 本地 `/opt/campus/backup/campus_social_v2_<时间戳>.sql.gz`，保留 14 天；
+- 本地 `/opt/campus/backup/campus_social_v2_<时间戳>.sql.gz`，保留 14 天；备份目录 `0700`、文件 `0600`；
 - 同步上传 `oss://yousheng-uploads/logs/db/<时间戳>.sql.gz` 异地留存；
-- dump 参数：`--single-transaction --quick --no-tablespaces --routines --triggers --events`，密码走 `MYSQL_PWD` 不进 `ps`；
-- 三重校验后才算成功：非空 + `gzip -t` + `zgrep 'CREATE TABLE'`；任一步失败退出非 0，systemd 记为 failed。
+- dump 参数：`--single-transaction --quick --no-tablespaces --routines --triggers --events`，密码从 `/opt/campus/.env` 读取并以 `MYSQL_PWD` 传给子进程；
+- 先写 `.part` 临时文件，校验通过后再原子改名；失败不会覆盖已有备份；
+- 成功写 `/opt/campus/backup/.last_success`（时间、文件、大小、OSS 路径），失败写 `.last_failure` 并追加 `/opt/campus/backup/backup.log`；
+- `flock` 防并发，同一时间只允许一个备份任务；
+- 失败时若 `/opt/campus/.env` 配了 `ALERT_WEBHOOK_URL`（钉钉/企业微信群机器人），会 POST 一条文本告警；未配置则只写本地标记和 journal。
+
+> **2026-10-30 故障复盘**：04:30 自动备份连续报 `gzip: stdout: Broken pipe`，但手工执行成功。根因是校验命令 `zgrep -q 'CREATE TABLE'`：`grep -q` 命中后提前退出，`gzip` 写入管道时收到 SIGPIPE，`zgrep` 返回 2；在 systemd 的调度下稳定触发，把有效备份误判为损坏。已改为 `gzip -dc "$PART" | grep 'CREATE TABLE' >/dev/null`（完整读流，不提前退出）。当天 20:52 用 systemd 重跑成功，并已上传 OSS。
 
 > **为什么是 `logs/db/` 而不是 `backup/`**：ECS RAM 角色 `mail` 的策略只授权 `logs/*`，`backup/` 前缀 PUT 会 `AccessDenied`（报错文案是误导性的 "bucket acl"）。要独立前缀需在 RAM 控制台给策略加 `acs:oss:*:*:yousheng-uploads/backup/*` 的 Put/Get/Delete，加完再改脚本里的 `OSS_KEY`。
 
-**日常核查**（三条都应为正常）：
+**日常核查**（都应为正常）：
 
 ```bash
 systemctl list-timers campus-backup.timer --no-pager   # NEXT 应为次日 04:30
 journalctl -u campus-backup.service -n 20 --no-pager   # 每次一条「备份成功」
+cat /opt/campus/backup/.last_success                   # 最近一次成功的时间/文件/大小/OSS 路径
+test -f /opt/campus/backup/.last_failure && cat /opt/campus/backup/.last_failure || echo "最近一次没有失败标记"
+tail -n 20 /opt/campus/backup/backup.log
 ls -lht /opt/campus/backup/campus_social_v2_*.sql.gz   # 最近一份应是今天/昨天
 ossutil ls oss://yousheng-uploads/logs/db/ -e oss-cn-hangzhou.aliyuncs.com --region cn-hangzhou --mode EcsRamRole
 ```
 
 **恢复演练（2026-10-29 已做，41/41 表、user/post/comment/notify/report 行数一致）**：
-
 ```bash
 DB=campus_restore_check
 mysql -uroot -e "DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
@@ -798,7 +811,13 @@ mysql -uroot -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_s
 mysql -uroot -e "DROP DATABASE $DB"
 ```
 
-**尚未做**：备份失败没有主动告警（只有 `systemctl --failed` 能看见）；OSS 侧没配生命周期，远端会无限累积（单份 20K 上下，一年 ~7MB，可忽略；要清就在控制台给 `logs/db/` 配 30 天删除）。
+**2026-10-30 恢复演练（新脚本）**：最新备份 `campus_social_v2_20261030_205356.sql.gz`（22,218 字节）恢复到临时库，41/41 表；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`；演练库已 DROP。
+
+**仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
+
+**告警现状（2026-10-30）**：失败告警代码已接入（`/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，钉钉/企业微信群机器人，文本消息）。Webhook URL 尚未写入，当前失败只写 `.last_failure`、`backup.log` 与 journal；配置后需要做一次真实的失败演练。
+
+**OSS 生命周期**：规则模板在 `deploy/oss/lifecycle-logs-db-30d.xml`（`logs/db/` 30 天删除）。ECS RAM 角色 `mail` 没有 `oss:GetBucketLifecycle` / `oss:PutBucketLifecycle` 权限，`ossutil api get-bucket-lifecycle` 实测返回 403；需在 OSS 控制台给 `yousheng-uploads` 配置同样的规则，或先给角色补 RAM 策略。
 
 ### 13.2 阿里云云监控告警（免费，控制台点一遍）
 

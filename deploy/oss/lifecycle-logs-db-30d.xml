@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 友声 OSS 生命周期：logs/db/ 下的数据库备份 30 天后自动删除。
+     当前 ECS RAM 角色 mail 没有 GetBucketLifecycle / PutBucketLifecycle 权限，ossutil 返回 AccessDenied；
+     请在 OSS 控制台给 yousheng-uploads 配置同样的规则，或先补 RAM 策略再应用。
+     应用命令见 docs/DEPLOY_ECS.md §13.1。 -->
+<LifecycleConfiguration>
+  <Rule>
+    <ID>expire-logs-db-30d</ID>
+    <Prefix>logs/db/</Prefix>
+    <Status>Enabled</Status>
+    <Expiration>
+      <Days>30</Days>
+    </Expiration>
+  </Rule>
+</LifecycleConfiguration>
