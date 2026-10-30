@@ -19,7 +19,7 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.4-4479a1?logo=mysql&logoColor=white&style=flat-square)
 ![Redis](https://img.shields.io/badge/Redis-7-dc382d?logo=redis&logoColor=white&style=flat-square)
 
-![tests](https://img.shields.io/badge/mvn%20test-163%20passed-success?style=flat-square)
+![tests](https://img.shields.io/badge/mvn%20test-183%20passed-success?style=flat-square)
 ![gates](https://img.shields.io/badge/gates-11%2F11-success?style=flat-square)
 ![tables](https://img.shields.io/badge/schema-39%20tables-informational?style=flat-square)
 
@@ -111,11 +111,11 @@ graph LR
 个人项目最容易塌的是「没人 review」，所以把约束写成可执行的门禁：
 
 - **11 条静态门禁**：`python scripts/run-all-gates.py` —— SFC 编译零提醒、模板标识符存在性、外置样式括号平衡、composable 解构契约、未定义标识符、Token 纪律、OpenAPI 可解析与 `$ref` 零悬空、契约与 Java VO 字段一致、日期字段格式、学号解析、举报理由枚举唯一出处。
-- **33 个测试类 / 163 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；测试连独立测试库 `campus_social_test`（Redis 15 号库），不写开发库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
+- **40 个测试类 / 183 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；测试连独立测试库 `campus_social_test`（Redis 15 号库），不写开发库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
 - **持续集成**：GitHub Actions 三作业（后端 MySQL 8.4/Redis 7 测试；后端 MySQL 8.0/Redis 6 生产版本兼容测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏）。
 - **部署后冒烟**：`python scripts/smoke.py <base_url>` —— 真实 HTTP 请求验证登录、游客只读、游客写拦截、集市配额、数据清理，退出码可直接接进发布流程。
 
-> 最近一次本机实测（2026-10-30）：门禁 11/11 通过，`mvn test` 163/163 全绿（独立测试库）。
+> 最近一次本机实测（2026-10-30）：门禁 11/11 通过，`mvn test` 183/183 全绿（独立测试库）。
 
 ## 快速开始
 
@@ -172,13 +172,12 @@ cd frontend && npm ci && npm run dev                                 # :5173
 线上环境：阿里云 ECS 单机直装（2 核 2G / Ubuntu 22.04 / 3Mbps），Nginx 监听 80 与 443，systemd 托管应用，MySQL 与 Redis 只监听回环，`/healthz` 对外探活。
 
 - **HTTPS**：Let's Encrypt 证书（`CN=yousheng8.cn`，有效期至 2027-01-26），80 端口 301 跳转，443 协商 HTTP/2；ICP 备案已通过（豫ICP备2026053499号）。
-- **数据备份**：systemd timer 每日 04:30 全量备份，本地留 14 天并上传 OSS `logs/db/` 异地留存，2026-10-29 做过恢复演练（41 张表逐表行数一致）。
+- **数据备份**：线上 systemd timer 每日 04:30 全量备份，本地留 14 天并上传 OSS `logs/db/`（控制台 30 天生命周期）；2026-10-29 做过恢复演练（当时 41 张表逐表行数一致，此后下线 buddy 两张预留表，基线为 39 张）。仓库另备月度备份（每月 1 日 `logs/db-monthly/`，365 天生命周期模板）与 26 小时无成功 watchdog（systemd timer），随下次部署安装。
 
 已知限制（如实列出，也是下一步的工作项）：
 
 1. **OSS 前端直传未启用**：`/api/upload/config` 返回 `ossEnabled=false`，写入走服务端中转（读仍是签名直链）。原因是 443 站点尚未反代回调路径 `/upload/oss-callback`，回调不可达时直传会被 OSS 判失败。
-2. **静态资源未开传输压缩**：入口 JS（333,810 字节）原样下发，响应没有 `Content-Encoding`，3Mbps 带宽下影响首屏，需在 Nginx 站点配置开启 gzip/brotli。
-3. **云监控告警未配置**：仅有 `/healthz` 探活，进程被终止、磁盘写满、证书到期这类事件没有主动通知。
+2. **应用层故障无独立告警**：云监控已配置主机 CPU/内存/磁盘阈值告警，但 502/500、进程被终止这类应用层事件没有主动通知（systemd 会自动拉起进程，站点拨测经评估暂未启用）。
 
 ## 项目结构
 
