@@ -1,5 +1,7 @@
 # 资源文件统一 LF，配合 pom 的 outputTimestamp 保证 jar 字节可复现
 backend/src/main/resources/** text eol=lf
+# Maven JVM 参数逐行解析，固定 LF 避免 Windows 检出后带 \r
+backend/.mvn/jvm.config text eol=lf
 # Shell 脚本统一 LF，避免 Windows 检出后上传 Linux 出现 bash\r
 *.sh text eol=lf
 *.py text eol=lf

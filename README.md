@@ -112,6 +112,7 @@ graph LR
 
 - **11 条静态门禁**：`python scripts/run-all-gates.py` —— SFC 编译零提醒、模板标识符存在性、外置样式括号平衡、composable 解构契约、未定义标识符、Token 纪律、OpenAPI 可解析与 `$ref` 零悬空、契约与 Java VO 字段一致、日期字段格式、学号解析、举报理由枚举唯一出处。
 - **40 个测试类 / 183 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；测试连独立测试库 `campus_social_test`（Redis 15 号库），不写开发库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
+- **构建日志固定 UTF-8**：`backend/.mvn/jvm.config` 固定 Maven JVM 编码，Surefire fork 通过 `argLine` 固定同一编码；中文测试日志在 Git Bash / Qoder 终端直接可读。Windows `cmd` 默认代码页 936，交互查看前先执行 `chcp 65001`。
 - **持续集成**：GitHub Actions 三作业（后端 MySQL 8.4/Redis 7 测试；后端 MySQL 8.0/Redis 6 生产版本兼容测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏）。
 - **部署后冒烟**：`python scripts/smoke.py <base_url>` —— 真实 HTTP 请求验证登录、游客只读、游客写拦截、集市配额、数据清理，退出码可直接接进发布流程。
 
