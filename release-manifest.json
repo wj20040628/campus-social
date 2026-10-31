@@ -1,7 +1,7 @@
 {
   "version": "1.13.3",
   "releaseType": "full",
-  "onlineSince": null,
+  "onlineSince": "2026-10-31T15:27:54+08:00",
   "git": {
     "frontendSourceCommit": "514986c6e9df69300458a219cdf142b654f33e9d",
     "backendTag": "v1.13.3",
@@ -23,7 +23,17 @@
       "sql/migration_2026-10-30_drop_buddy_tables.sql",
       "sql/migration_2026-10-31_fix_comment_encoding.sql"
     ],
-    "notes": "buddy 两表下线迁移已于 2026-10-30 在生产执行，脚本幂等；注释编码修复为 1.13.3 新增，只改表/列 COMMENT，不改类型、默认值与索引，部署前先做数据库备份。"
+    "notes": "两段迁移均已于 2026-10-31 随 1.13.3 部署执行；buddy 下线为幂等 DROP IF EXISTS，注释编码修复只改表/列 COMMENT，不改类型、默认值与索引。部署前已由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
   },
-  "notes": "1.13.3 完整包：前端 514986c 可复现构建 + 后端同提交 jar。部署脚本先校验 MD5/入口哈希，复用 backup.sh 备份数据库，再停服落位、执行幂等迁移、探活；任一步失败回滚 jar/web/VERSION。"
+  "deployment": {
+    "package": "ys_deploy_20261031_v1133.zip",
+    "packageMd5": "24f1bccf7df36a9861e5e22f7b730162",
+    "deployedAt": "2026-10-31T15:27:54+08:00",
+    "verified": [
+      "https://yousheng8.cn/healthz 返回 UP",
+      "线上 assets/index-gydVwA6_.js SHA256 与包内一致",
+      "游客 feed 200、/user/me 与 /notify 401、不存在帖子与评论返回 1009"
+    ]
+  },
+  "notes": "1.13.3 已全量上线：前端 514986c 可复现构建 + 同提交 jar，前后端与迁移一次部署。部署脚本先校验 MD5/入口哈希，复用 backup.sh 备份数据库，再停服落位、执行幂等迁移、探活；任一步失败回滚 jar/web/VERSION。"
 }

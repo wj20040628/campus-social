@@ -708,7 +708,24 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-生产在 **1.13.2**（2026-10-30 部署，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`；2026-10-31 仅重建并替换前端，入口 `index-B9VD8-hD.js`，后端 jar 未变、未重启）：
+生产在 **1.13.3**（2026-10-31 15:27 CST 全量部署完成）：
+
+```text
+frontend: 514986c -> assets/index-gydVwA6_.js
+          sha256 b891743fae7994bdf599ed8fc7a4eb9502a4ed0c0182424a2db2fad7a954873d
+          333,827 B
+backend : v1.13.3 (tag 514986c) -> jar md5 2d9111c9a0b06c0ebb78c80958b2f02e
+          73,793,703 B
+database: 39 表；buddy 下线（幂等）+ 注释编码修复均随本次部署执行
+package : ys_deploy_20261031_v1133.zip
+          md5 24f1bccf7df36a9861e5e22f7b730162
+```
+
+- 发布内容：高风险动作统一「注册满 24 小时 + 信誉 60」；游客桌面首页改版；并发加圈/报名/集市配额幂等修复；发帖后自动落「全部」、首次进入默认「全部」。
+- 部署脚本先校验 jar MD5/入口哈希，复用 `backup.sh` 完成数据库备份（含 OSS 异地留存），再停服落位、执行两段幂等迁移、探活；失败自动回滚 jar/web/VERSION。
+- 公网验证（2026-10-31 15:27 CST）：`/healthz` UP；线上入口 `assets/index-gydVwA6_.js` 的 SHA256 与包内一致；游客 feed 200、`/user/me` 与 `/notify` 401、不存在帖子与评论均返回 1009。
+
+**上一版 1.13.2**（2026-10-30 部署，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`；2026-10-31 曾仅重建并替换前端，入口 `index-B9VD8-hD.js`，已被 1.13.3 覆盖）：
 
 - **评论列表跟随帖子状态**：下架/退回审核的帖子，评论不再能按 id 读取（作者本人放行，与详情同口径）。
 - **游客动作提示**：活动报名、举报先弹「登录后才能…」，不再点了没反应；游客也不再看到「不看这个作者」入口。
@@ -792,7 +809,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 > 1.11.0（12:48）已包含：举报快照 `report.target_snapshot`、上传上限 25MB/30MB/32m、公网 `/healthz`、
 > JVM 384m、Redis 128M、swappiness=10。相关备份见 20261029_124726 / nginx-default.bak_20261029_124637。
 
-线上为 1.13.2。尚未做：Swap 仍为 `/www/swap` 1G；站点拨测 2026-10-30 经决定不做（13.2）。
+线上为 1.13.3（2026-10-31 全量部署）。尚未做：Swap 仍为 `/www/swap` 1G；站点拨测 2026-10-30 经决定不做（13.2）。
 
 ---
 
@@ -923,15 +940,17 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 ## 14. 发布清单与前后端边界（2026-10-31）
 
-**当前线上是混合状态，必须显式记录**：
+**当前线上是 1.13.3 完整发布（2026-10-31）**：
 
 ```text
-frontend: master 720a58a 的可复现构建 -> assets/index-B9VD8-hD.js
-backend : v1.13.2 标签 3469720 的原包  -> jar md5 985a19b9472cd908d8033acfc57d800c
-database: 39 表 + migration_2026-10-30_drop_buddy_tables.sql 已执行
+frontend: master 514986c -> assets/index-gydVwA6_.js
+backend : v1.13.3 标签 514986c -> jar md5 2d9111c9a0b06c0ebb78c80958b2f02e
+database: 39 表 + migration_2026-10-30_drop_buddy_tables.sql
+                + migration_2026-10-31_fix_comment_encoding.sql 均已执行
+package : ys_deploy_20261031_v1133.zip md5 24f1bccf7df36a9861e5e22f7b730162
 ```
 
-公网功能正常说明当前前端与旧后端兼容，但这不等于所有接口都验证过。**下一版必须前后端作为同一个版本一起发布，不再只换 `web/` 或只换 jar。**
+**边界规则（保持）**：从 1.13.3 起，前端、后端、SQL 迁移、部署脚本与 `release-manifest.json` 必须作为同一个版本一次发布，不再只换 `web/` 或只换 jar。
 
 仓库根目录 `release-manifest.json` 是发布清单，包含版本、前端来源提交与入口哈希、后端标签与 jar MD5、表数量、迁移文件。发布前运行：
 
@@ -941,16 +960,16 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 
 校验项：`pom.xml` / `package.json` 版本与清单一致；前端入口 SHA256 与大小；jar MD5 与大小；`sql/schema.sql` 表数量；迁移文件存在；前端源码自清单提交后未变化；后端标签指向清单提交。任何一项失败都停止发布。
 
-**1.13.3 发布流程（下一次）**：
+**1.13.3 发布记录（2026-10-31，已完成）**：
 
-1. 同步修改 `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 为 1.13.3，补更新日志。
-2. 跑后端全量测试、前端 11 条门禁、生产构建；后端连续两次 `mvn clean package` 比对 MD5。
-3. 更新 `release-manifest.json`：`releaseType` 改为 `full`，版本 1.13.3，`frontendSourceCommit` 指向当前提交，`backendTag` 指向新标签，填 jar MD5/大小、入口 SHA256/大小、表数量与迁移。
-4. 用 `verify-release-manifest.py --jar ...` 全量校验。
-5. 把前后端、迁移、部署脚本和清单打进同一个部署包；部署脚本先校验清单，再备份、落位、健康检查与回滚。
-6. 部署后按第 9 节冒烟，并观察 15–30 分钟 5xx、systemd 重启、内存、Redis、Nginx error.log。
+1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 统一为 1.13.3，README 版本徽标同步。
+2. 后端 `mvn clean test` 183/183；前端 11 条门禁 0 失败；生产构建入口 `assets/index-gydVwA6_.js`。
+3. 后端连续两次 `mvn clean package`，jar md5 均为 `2d9111c9a0b06c0ebb78c80958b2f02e`；`application-local.yml` 未进包。
+4. `release-manifest.json` 改为 `full`，`verify-release-manifest.py --jar ...` 全量通过。
+5. 部署包 `ys_deploy_20261031_v1133.zip`（md5 `24f1bccf7df36a9861e5e22f7b730162`）含 jar、web、两段迁移、部署脚本、清单与 SHA256SUMS；包内校验全过。
+6. 通过宝塔上传 `/opt/campus/incoming` 后执行 `deploy.sh`：数据库备份 → 停服 → 前后端落位 → 迁移 → 探活；部署成功，公网验证见第 12 节。
 
-> 本轮另新增 `sql/migration_2026-10-31_fix_comment_encoding.sql`：只修复历史双重编码的表/列注释，不改类型、默认值、索引；已在生产 2026-10-30 快照的隔离库验证列属性与索引元数据不变，随 1.13.3 一起执行。
+> `sql/migration_2026-10-31_fix_comment_encoding.sql` 只修复历史双重编码的表/列注释，不改类型、默认值、索引；已在生产 2026-10-30 快照的隔离库验证列属性与索引元数据不变，已随 1.13.3 在线上执行。
 
 **拆分后回归重点（1.13.3）**：
 
@@ -961,4 +980,4 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 - 业务冒烟：登录、发帖、评论、文件上传/下载/预览、举报与审核、圈子管理、群消息与成员管理。
 - 门禁：后端全量测试、前端 11 条门禁、后端生产版本矩阵（MySQL 8.0 / Redis 6）、OpenAPI 契约、部署包 MD5、manifest 校验、39 表迁移状态、失败回滚。
 
-`release-manifest.json` 当前描述的是线上混合状态，下一次完整发布时再改为 1.13.3 的 full 清单。
+`release-manifest.json` 当前描述的是线上 1.13.3 full 清单；下一次发布时同步更新版本、入口哈希、jar MD5、迁移与部署包 MD5。
