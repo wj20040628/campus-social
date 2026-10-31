@@ -33,7 +33,7 @@ USE `campus_social_v2`;
 -- 用户
 -- status: 0正常 1冻结 2注销
 -- role: 0普通 1管理员
--- verify_status: 0未认证 1已认证 2审核中 3驳回
+-- verify_status: 校园信息状态 0未填写 1已登记 2核对中 3需修改(仅资料展示,不参与权限判定)
 --   AC-11 判定依据:只有 1 才允许发起搭话与发布公告
 -- follower_count / following_count / unread_notify_count / joined_circle_count 冗余计数
 --   在关注/取关/新通知/加圈退圈 事务内 SET x = x ± 1,绝不读改写
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `school_id`             BIGINT       NOT NULL DEFAULT 1      COMMENT '学校ID,默认1,预留多校',
     `campus`                TINYINT      NULL                    COMMENT '校区 1东 2西 NULL未填;与院系解耦独立自选,改不触发重审',
     `email`                 VARCHAR(64)  NULL                    COMMENT '安全凭证邮箱,有值时唯一(找回密码/绑定/邮箱验证码登录)',
-    `verify_status`         TINYINT      NOT NULL DEFAULT 0      COMMENT '0未认证 1已认证 2审核中 3驳回',
+    `verify_status`         TINYINT      NOT NULL DEFAULT 0      COMMENT '校园信息状态:0未填写 1已登记 2核对中 3需修改(仅资料展示,不参与权限判定)',
     `stranger_msg_enabled`  TINYINT      NOT NULL DEFAULT 1      COMMENT '是否接收陌生人消息 0否 1是(F3 护栏)',
     `onboarding_step`       TINYINT      NOT NULL DEFAULT 0      COMMENT '引导进度 0未开始 1已填归属 2已选标签 3已完成',
     `status`                TINYINT      NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',

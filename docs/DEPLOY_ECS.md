@@ -950,6 +950,8 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 5. 把前后端、迁移、部署脚本和清单打进同一个部署包；部署脚本先校验清单，再备份、落位、健康检查与回滚。
 6. 部署后按第 9 节冒烟，并观察 15–30 分钟 5xx、systemd 重启、内存、Redis、Nginx error.log。
 
+> 本轮另新增 `sql/migration_2026-10-31_fix_comment_encoding.sql`：只修复历史双重编码的表/列注释，不改类型、默认值、索引；已在生产 2026-10-30 快照的隔离库验证列属性与索引元数据不变，随 1.13.3 一起执行。
+
 **拆分后回归重点（1.13.3）**：
 
 - 事务边界：门面 `@Transactional` 是否仍覆盖完整业务动作；拆出的服务被门面调用、被同类自调用时是否绕过 Spring 代理；需要新事务的批处理是否显式传播。
