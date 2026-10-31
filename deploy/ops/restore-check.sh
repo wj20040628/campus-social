@@ -7,7 +7,11 @@ set -euo pipefail
 umask 077
 
 BACKUP_DIR=/opt/campus/backup
-BACKUP="${1:-$(ls -1t "$BACKUP_DIR"/campus_social_v2_*.sql.gz 2>/dev/null | head -n1)}"
+if [ -n "${1:-}" ]; then
+  BACKUP="$1"
+else
+  BACKUP=$(ls -1t "$BACKUP_DIR"/campus_social_v2_*.sql.gz 2>/dev/null | head -n1 || true)
+fi
 EXPECTED_TABLES="${EXPECTED_TABLES:-39}"
 STAMP=$(date +%Y%m%d_%H%M%S)
 DB="campus_restore_check_${STAMP}_$$"
