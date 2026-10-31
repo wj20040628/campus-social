@@ -52,7 +52,16 @@ rollback() {
   log "备份仍保留：$BACKUP_JAR  $BACKUP_WEB"
   log "注意：SQL 迁移为幂等注释修复，不会自动反向回滚；数据库备份见 $BASE/backup/"
 }
-trap 'if [ "$ROLLBACK" = "1" ]; then rollback; fi' ERR
+# 用 EXIT trap 而不是 ERR：die 走的是 exit，ERR trap 不会触发；
+# 只有 EXIT 能在健康检查失败等显式退出路径上保证回滚。
+cleanup() {
+  local rc=$?
+  if [ "$ROLLBACK" = "1" ] && [ "$rc" -ne 0 ]; then
+    set +e
+    rollback
+  fi
+}
+trap cleanup EXIT
 
 [ "$(id -u)" = "0" ] || die "请用 root 执行"
 [ "$PKG_DIR" != "$BASE" ] || die "不要把部署包解压到 /opt/campus 根目录"
