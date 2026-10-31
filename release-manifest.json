@@ -18,9 +18,11 @@
   },
   "database": {
     "schemaTables": 39,
+    "foreignKeys": 0,
     "migrations": [
       "sql/migration_2026-10-30_drop_buddy_tables.sql"
-    ]
+    ],
+    "notes": "生产实测 0 个外键；schema.sql 的 school_major.fk_major_dept 未落地，属已知 schema 漂移，恢复演练只记录不判失败。"
   },
   "notes": "线上为混合状态：前端来自 master（720a58a）的可复现构建，后端仍是 v1.13.2 原包。下一版必须前后端同一版本一起发布。"
 }
