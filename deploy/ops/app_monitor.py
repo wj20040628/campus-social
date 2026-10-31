@@ -136,6 +136,8 @@ def send_webhook(text: str, dry_run: bool) -> None:
             errcode = data.get("errcode")
             if errcode not in (None, 0):
                 log(f"Webhook 返回 errcode={errcode}: {body}")
+            else:
+                log(f"告警已发送: {text}")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         log(f"Webhook 发送失败: {exc}")
 
@@ -390,6 +392,15 @@ def run(dry_run: bool) -> int:
         handle_systemd(state, dry_run)
         if not dry_run:
             save_state(state)
+        nginx = state.get("nginx", {}).get("last_counts", {})
+        health = state.get("health", {})
+        systemd_state = state.get("systemd", {})
+        log(
+            "巡检完成: "
+            f"nginx_5xx={nginx.get('five_xx', 0)}/{nginx.get('total', 0)} "
+            f"health_failures={health.get('failures', 0)} "
+            f"service={systemd_state.get('substate', 'skipped')}"
+        )
         return 0
     finally:
         if lock is not None:

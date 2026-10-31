@@ -173,12 +173,12 @@ cd frontend && npm ci && npm run dev                                 # :5173
 
 - **HTTPS**：Let's Encrypt 证书（`CN=yousheng8.cn`，有效期至 2027-01-26），80 端口 301 跳转，443 协商 HTTP/2；ICP 备案已通过（豫ICP备2026053499号）。
 - **数据备份**：线上 systemd timer 每日 04:30 全量备份，本地留 14 天并上传 OSS `logs/db/`（控制台 30 天生命周期）；2026-10-29 做过恢复演练（当时 41 张表逐表行数一致，此后下线 buddy 两张预留表，基线为 39 张）。每月 1 日另存 `logs/db-monthly/`，脚本保留最近 12 份；26 小时无成功 watchdog 已安装为 systemd timer。
-- **运维巡检**：`deploy/ops/app_monitor.py`（Nginx 5xx / systemd 重启 / healthz，每 5 分钟）、`deploy/ops/restore-check.sh`（39 表恢复演练）与根目录 `release-manifest.json`（固定线上前后端来源）已入仓，服务器安装后生效。
+- **运维巡检**：`deploy/ops/app_monitor.py` 已安装为 `campus-monitor.timer`，每 5 分钟检查 Nginx 5xx、systemd 重启/失败与 healthz，异常推企业微信；`deploy/ops/restore-check.sh` 已完成 39 表恢复演练；根目录 `release-manifest.json` 固定线上前后端来源。
 
 已知限制（如实列出，也是下一步的工作项）：
 
 1. **OSS 前端直传未启用**：`/api/upload/config` 返回 `ossEnabled=false`，写入走服务端中转（读仍是签名直链）。Nginx 已反代 `/upload/` 回调路径，但 `OSS_DIRECT_UPLOAD_ENABLED` 仍为 false；开启需改环境变量、重启并做一次真实上传验证。
-2. **应用层故障无独立告警**：云监控已配置主机 CPU/内存/磁盘阈值告警，但 502/500、进程被终止这类应用层事件没有主动通知（systemd 会自动拉起进程，站点拨测经评估暂未启用）。
+2. **应用层已有站内巡检，但没有站外拨测**：`campus-monitor` 每 5 分钟检查 Nginx 5xx、systemd 重启/失败与 healthz 并推企业微信；整机宕机或断网时巡检自身无法外发，这类场景只由云监控主机告警覆盖，外部拨测仍未启用。
 
 ## 项目结构
 

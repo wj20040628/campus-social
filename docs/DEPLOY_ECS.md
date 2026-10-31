@@ -854,7 +854,9 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **2026-10-31 月度保留实测**：向 `logs/db-monthly/` 上传 `2025-01.sql.gz`、`2025-03.sql.gz` 两份旧副本后运行备份脚本，两份均被删除，`2026-10.sql.gz` 保留；日志记录 `保留 >= 2025-11`，脚本退出码 0，`.last_failure` 未生成。
 
-**一键恢复演练（2026-10-31 起）**：`/opt/campus/restore-check.sh [备份文件]`，默认取 `/opt/campus/backup` 下最新备份。脚本创建 `campus_restore_check_*` 临时库，校验 39 表、14 张关键表、6 个关键索引、`school_major.fk_major_dept` 外键和关键表行数，用临时只读账号做一次 TCP 查询，并在前后检查生产应用 health；结束时自动 DROP 临时库和账号，耗时写入 `restore-check.log`。仓库脚本 `deploy/ops/restore-check.sh`。
+**一键恢复演练（2026-10-31 起）**：`/opt/campus/restore-check.sh [备份文件]`，默认取 `/opt/campus/backup` 下最新备份。脚本创建 `campus_restore_check_*` 临时库，校验 39 表、14 张关键表、7 个关键索引、关键表行数，用临时只读账号做一次 TCP 查询，并在前后检查生产应用 health；结束时自动 DROP 临时库和账号，耗时写入 `restore-check.log`。仓库脚本 `deploy/ops/restore-check.sh`。
+
+**2026-10-31 39 表恢复演练结果**：使用 `campus_social_v2_20261031_094035.sql.gz` 恢复，**39/39 表、14/14 关键表、7/7 关键索引**；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`、`file_asset=4`；临时只读账号 TCP 查询成功；生产 health 演练前后均为 UP；耗时 **3 秒**；临时库与账号残留均为 0。生产库当前 **0 个外键**，`sql/schema.sql` 中的 `school_major.fk_major_dept` 未落地，属已记录的 schema 漂移，脚本只记录、不据此判定备份损坏。
 
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
@@ -878,7 +880,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 - 2026-10-30 已确认控制台规则列表出现「友声-ECS主机资源告警」且状态启用。
 - 未配置：公网带宽告警、进程/宕机 ping 告警。
 
-**站点拨测（2026-10-30 决定不做）**：原计划用云监控站点监控探活 `https://yousheng8.cn/healthz`（关键词 `"status":"UP"`），按境内 PC 探测点 10 元/万次计费；用户评估探测点选择成本与收益后决定不配置。已知缺口：**服务器本身正常而后端/数据库挂掉时不会自动告警**，需要人工或用户反馈发现。以后要补时可用 UptimeRobot 免费版（5 分钟间隔）配同一地址与关键词，不占用阿里云付费拨测。
+**站点拨测（2026-10-30 决定不做）**：原计划用云监控站点监控探活 `https://yousheng8.cn/healthz`（关键词 `"status":"UP"`），按境内 PC 探测点 10 元/万次计费；用户评估探测点选择成本与收益后决定不配置。现在由 ECS 内部 `campus-monitor` 补上 healthz、Nginx 5xx 与 systemd 重启/失败告警；但整机宕机或断网时巡检自身无法外发，这类场景仍由云监控主机告警覆盖。以后要补站外拨测时可用 UptimeRobot 免费版（5 分钟间隔）配同一地址与关键词。
 
 ### 13.3 CDN 预备（备案过审后做，现在只需知道）
 
@@ -886,7 +888,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **备案前不要做**——CDN 加速域名同样要求已备案。这里只留位置，过审后按 10.7 的顺序接入。
 
-### 13.4 应用层主动巡检（2026-10-31 补，脚本已入仓）
+### 13.4 应用层主动巡检（2026-10-31 已上线）
 
 主机告警只能覆盖 CPU/内存/磁盘，覆盖不到「进程还在但接口 500」「systemd 刚把进程拉起」「healthz 已经不 UP」。补充一个服务器内巡检脚本，每 5 分钟检查三件事：
 
@@ -915,6 +917,9 @@ mysql -uroot -e "DROP DATABASE $DB"
   tail -n 30 /var/log/campus-monitor.log
   ```
 - 边界：巡检运行在 ECS 内部，整机宕机/断网时它自身也发不出告警，这部分仍由云监控主机告警覆盖；它不是外部拨测，不替代 UptimeRobot 之类的站外探活。
+- **2026-10-31 上线验证**：`campus-monitor.timer` 已 `enabled`，首次运行 `nginx_5xx=0/687 health_failures=0 service=running`；状态文件已写入，`campus-monitor.service` 为 oneshot，运行后显示 inactive 属正常；Webhook 用「友声应用监控 | 测试2 | 巡检告警通道连通性测试」实测发送成功并记录 `告警已发送`。
+- **规则测试**：`deploy/ops/test_app_monitor.py` 4/4 通过（5 分钟窗口过滤、5xx 绝对/比例阈值、healthz 连续 2 次失败与恢复、systemd 重启与失败分开告警）。
+- 5xx 统计会排除 `/healthz` 自身请求，避免巡检流量稀释比例；阈值与冷却时间集中在脚本顶部常量，调整后需重新安装脚本。
 
 ## 14. 发布清单与前后端边界（2026-10-31）
 
