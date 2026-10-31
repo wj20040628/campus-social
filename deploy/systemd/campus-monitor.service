@@ -1,0 +1,11 @@
+[Unit]
+Description=友声应用层巡检（Nginx 5xx / systemd / healthz）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/campus/app_monitor.py
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=60

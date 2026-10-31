@@ -173,6 +173,7 @@ cd frontend && npm ci && npm run dev                                 # :5173
 
 - **HTTPS**：Let's Encrypt 证书（`CN=yousheng8.cn`，有效期至 2027-01-26），80 端口 301 跳转，443 协商 HTTP/2；ICP 备案已通过（豫ICP备2026053499号）。
 - **数据备份**：线上 systemd timer 每日 04:30 全量备份，本地留 14 天并上传 OSS `logs/db/`（控制台 30 天生命周期）；2026-10-29 做过恢复演练（当时 41 张表逐表行数一致，此后下线 buddy 两张预留表，基线为 39 张）。每月 1 日另存 `logs/db-monthly/`，脚本保留最近 12 份；26 小时无成功 watchdog 已安装为 systemd timer。
+- **运维巡检**：`deploy/ops/app_monitor.py`（Nginx 5xx / systemd 重启 / healthz，每 5 分钟）、`deploy/ops/restore-check.sh`（39 表恢复演练）与根目录 `release-manifest.json`（固定线上前后端来源）已入仓，服务器安装后生效。
 
 已知限制（如实列出，也是下一步的工作项）：
 
@@ -189,7 +190,7 @@ campus-social/
 ├─ frontend/               Vue 3 + Vite
 │  └─ src/                 api · views · components · composables · stores · styles · utils
 ├─ sql/                    schema.sql（39 张表基线）+ 增量迁移 + 演示数据
-├─ scripts/                run-all-gates.py（11 条门禁）· smoke.py（部署后冒烟）
+├─ scripts/                run-all-gates.py（11 条门禁）· smoke.py（部署后冒烟）· verify-release-manifest.py
 ├─ docs/                   PRD · SPEC · ARCHITECTURE · decisions/ · api/openapi.yaml · design/
 ├─ .github/workflows/      ci.yml（双作业）
 └─ docker-compose.yml      MySQL + Redis + 后端 + 前端一键起

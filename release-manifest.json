@@ -1,0 +1,26 @@
+{
+  "version": "1.13.2",
+  "releaseType": "hybrid",
+  "onlineSince": "2026-10-31T09:37:29+08:00",
+  "git": {
+    "frontendSourceCommit": "720a58a",
+    "backendTag": "v1.13.2",
+    "backendCommit": "3469720bf397f6a388132bdb9520b4ebadaa4409"
+  },
+  "frontend": {
+    "entry": "assets/index-B9VD8-hD.js",
+    "sha256": "708928ed4bf37a9ad1d5bf58df524265e0567e0c3afe1e983a343baedf75902d",
+    "bytes": 333357
+  },
+  "backend": {
+    "jarMd5": "985a19b9472cd908d8033acfc57d800c",
+    "bytes": 73743875
+  },
+  "database": {
+    "schemaTables": 39,
+    "migrations": [
+      "sql/migration_2026-10-30_drop_buddy_tables.sql"
+    ]
+  },
+  "notes": "线上为混合状态：前端来自 master（720a58a）的可复现构建，后端仍是 v1.13.2 原包。下一版必须前后端同一版本一起发布。"
+}

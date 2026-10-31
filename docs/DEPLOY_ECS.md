@@ -854,6 +854,8 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **2026-10-31 月度保留实测**：向 `logs/db-monthly/` 上传 `2025-01.sql.gz`、`2025-03.sql.gz` 两份旧副本后运行备份脚本，两份均被删除，`2026-10.sql.gz` 保留；日志记录 `保留 >= 2025-11`，脚本退出码 0，`.last_failure` 未生成。
 
+**一键恢复演练（2026-10-31 起）**：`/opt/campus/restore-check.sh [备份文件]`，默认取 `/opt/campus/backup` 下最新备份。脚本创建 `campus_restore_check_*` 临时库，校验 39 表、14 张关键表、6 个关键索引、`school_major.fk_major_dept` 外键和关键表行数，用临时只读账号做一次 TCP 查询，并在前后检查生产应用 health；结束时自动 DROP 临时库和账号，耗时写入 `restore-check.log`。仓库脚本 `deploy/ops/restore-check.sh`。
+
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
 **告警现状（2026-10-30）**：已配置企业微信群机器人并实测：直接测试返回 `errcode:0`，随后用测试副本触发了一次「友声备份告警 | 测试 | ...」端到端告警；生产备份成功运行后失败标记已清除。Webhook 地址只存在服务器 `/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，不进仓库。若改用钉钉，安全设置选「自定义关键词」并填 `友声`，告警文本固定以「友声备份告警」开头。
@@ -883,3 +885,64 @@ mysql -uroot -e "DROP DATABASE $DB"
 第 10.7 节已把「前端静态资源挂 CDN」列为扩容第 3 步。具体动作：前端 `dist/` 构建后不再只放 ECS Nginx，同时上传 OSS 的 `static/` 前缀 → 开 CDN 加速域名回源该桶 → `yousheng8.cn` 的静态路径 CNAME 到 CDN 域名。生效后 ECS 只出 API JSON，3Mbps 瓶颈解除（成本：几百 DAU 每月几块钱）。
 
 **备案前不要做**——CDN 加速域名同样要求已备案。这里只留位置，过审后按 10.7 的顺序接入。
+
+### 13.4 应用层主动巡检（2026-10-31 补，脚本已入仓）
+
+主机告警只能覆盖 CPU/内存/磁盘，覆盖不到「进程还在但接口 500」「systemd 刚把进程拉起」「healthz 已经不 UP」。补充一个服务器内巡检脚本，每 5 分钟检查三件事：
+
+| 检查 | 判定 | 告警行为 |
+|---|---|---|
+| Nginx 5xx | 最近 5 分钟 5xx ≥ 5 次，或总请求 ≥ 20 且 5xx 占比 ≥ 5% | 企业微信告警；60 分钟冷却；连续一个窗口 0 个 5xx 时发恢复 |
+| `campus.service` | `SubState != running`，或 `ActiveEnterTimestamp` / `NRestarts` 变化 | 失败告警与重启告警分开冷却，避免发布重启噪音盖住真实宕机 |
+| 公开 `/healthz` | HTTP 200 且 JSON `status` 为 `UP`；连续 2 次失败才告警 | 恢复后发恢复通知 |
+
+- 脚本：`deploy/ops/app_monitor.py`，单元测试 `deploy/ops/test_app_monitor.py`；systemd 单元 `deploy/systemd/campus-monitor.{service,timer}`。
+- 安装：
+  ```bash
+  install -m 700 deploy/ops/app_monitor.py /opt/campus/app_monitor.py
+  install -m 644 deploy/systemd/campus-monitor.service /etc/systemd/system/
+  install -m 644 deploy/systemd/campus-monitor.timer /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now campus-monitor.timer
+  systemctl start campus-monitor.service
+  ```
+- 状态与日志：`/var/lib/campus-monitor/state.json`（0700/0600）、`/var/log/campus-monitor.log`；Webhook 复用 `/opt/campus/.env` 的 `ALERT_WEBHOOK_URL`，不新增密钥。
+- 验证：
+  ```bash
+  python3 deploy/ops/test_app_monitor.py       # 在仓库目录运行规则测试
+  systemctl list-timers campus-monitor.timer --no-pager
+  systemctl status campus-monitor.service --no-pager
+  tail -n 30 /var/log/campus-monitor.log
+  ```
+- 边界：巡检运行在 ECS 内部，整机宕机/断网时它自身也发不出告警，这部分仍由云监控主机告警覆盖；它不是外部拨测，不替代 UptimeRobot 之类的站外探活。
+
+## 14. 发布清单与前后端边界（2026-10-31）
+
+**当前线上是混合状态，必须显式记录**：
+
+```text
+frontend: master 720a58a 的可复现构建 -> assets/index-B9VD8-hD.js
+backend : v1.13.2 标签 3469720 的原包  -> jar md5 985a19b9472cd908d8033acfc57d800c
+database: 39 表 + migration_2026-10-30_drop_buddy_tables.sql 已执行
+```
+
+公网功能正常说明当前前端与旧后端兼容，但这不等于所有接口都验证过。**下一版必须前后端作为同一个版本一起发布，不再只换 `web/` 或只换 jar。**
+
+仓库根目录 `release-manifest.json` 是发布清单，包含版本、前端来源提交与入口哈希、后端标签与 jar MD5、表数量、迁移文件。发布前运行：
+
+```bash
+python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
+```
+
+校验项：`pom.xml` / `package.json` 版本与清单一致；前端入口 SHA256 与大小；jar MD5 与大小；`sql/schema.sql` 表数量；迁移文件存在；前端源码自清单提交后未变化；后端标签指向清单提交。任何一项失败都停止发布。
+
+**1.13.3 发布流程（下一次）**：
+
+1. 同步修改 `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 为 1.13.3，补更新日志。
+2. 跑后端全量测试、前端 11 条门禁、生产构建；后端连续两次 `mvn clean package` 比对 MD5。
+3. 更新 `release-manifest.json`：`releaseType` 改为 `full`，版本 1.13.3，`frontendSourceCommit` 指向当前提交，`backendTag` 指向新标签，填 jar MD5/大小、入口 SHA256/大小、表数量与迁移。
+4. 用 `verify-release-manifest.py --jar ...` 全量校验。
+5. 把前后端、迁移、部署脚本和清单打进同一个部署包；部署脚本先校验清单，再备份、落位、健康检查与回滚。
+6. 部署后按第 9 节冒烟，并观察 15–30 分钟 5xx、systemd 重启、内存、Redis、Nginx error.log。
+
+`release-manifest.json` 当前描述的是线上混合状态，下一次完整发布时再改为 1.13.3 的 full 清单。
