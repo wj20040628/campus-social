@@ -1,28 +1,29 @@
 {
-  "version": "1.13.2",
-  "releaseType": "hybrid",
-  "onlineSince": "2026-10-31T09:37:29+08:00",
+  "version": "1.13.3",
+  "releaseType": "full",
+  "onlineSince": null,
   "git": {
-    "frontendSourceCommit": "720a58a",
-    "backendTag": "v1.13.2",
-    "backendCommit": "3469720bf397f6a388132bdb9520b4ebadaa4409"
+    "frontendSourceCommit": "514986c6e9df69300458a219cdf142b654f33e9d",
+    "backendTag": "v1.13.3",
+    "backendCommit": "514986c6e9df69300458a219cdf142b654f33e9d"
   },
   "frontend": {
-    "entry": "assets/index-B9VD8-hD.js",
-    "sha256": "708928ed4bf37a9ad1d5bf58df524265e0567e0c3afe1e983a343baedf75902d",
-    "bytes": 333357
+    "entry": "assets/index-gydVwA6_.js",
+    "sha256": "b891743fae7994bdf599ed8fc7a4eb9502a4ed0c0182424a2db2fad7a954873d",
+    "bytes": 333827
   },
   "backend": {
-    "jarMd5": "985a19b9472cd908d8033acfc57d800c",
-    "bytes": 73743875
+    "jarMd5": "2d9111c9a0b06c0ebb78c80958b2f02e",
+    "bytes": 73793703
   },
   "database": {
     "schemaTables": 39,
     "foreignKeys": 0,
     "migrations": [
-      "sql/migration_2026-10-30_drop_buddy_tables.sql"
+      "sql/migration_2026-10-30_drop_buddy_tables.sql",
+      "sql/migration_2026-10-31_fix_comment_encoding.sql"
     ],
-    "notes": "生产实测 0 个外键；schema.sql 的 school_major.fk_major_dept 未落地，属已知 schema 漂移，恢复演练只记录不判失败。"
+    "notes": "buddy 两表下线迁移已于 2026-10-30 在生产执行，脚本幂等；注释编码修复为 1.13.3 新增，只改表/列 COMMENT，不改类型、默认值与索引，部署前先做数据库备份。"
   },
-  "notes": "线上为混合状态：前端来自 master（720a58a）的可复现构建，后端仍是 v1.13.2 原包。下一版必须前后端同一版本一起发布。"
+  "notes": "1.13.3 完整包：前端 514986c 可复现构建 + 后端同提交 jar。部署脚本先校验 MD5/入口哈希，复用 backup.sh 备份数据库，再停服落位、执行幂等迁移、探活；任一步失败回滚 jar/web/VERSION。"
 }
