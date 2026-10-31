@@ -856,7 +856,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **一键恢复演练（2026-10-31 起）**：`/opt/campus/restore-check.sh [备份文件]`，默认取 `/opt/campus/backup` 下最新备份。脚本创建 `campus_restore_check_*` 临时库，校验 39 表、14 张关键表、7 个关键索引、关键表行数，用临时只读账号做一次 TCP 查询，并在前后检查生产应用 health；结束时自动 DROP 临时库和账号，耗时写入 `restore-check.log`。仓库脚本 `deploy/ops/restore-check.sh`。
 
-**2026-10-31 39 表恢复演练结果**：使用 `campus_social_v2_20261031_094035.sql.gz` 恢复，**39/39 表、14/14 关键表、7/7 关键索引**；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`、`file_asset=4`；临时只读账号 TCP 查询成功；生产 health 演练前后均为 UP；耗时 **3 秒**；临时库与账号残留均为 0。生产库当前 **0 个外键**，`sql/schema.sql` 中的 `school_major.fk_major_dept` 未落地，属已记录的 schema 漂移，脚本只记录、不据此判定备份损坏。首轮演练曾按 schema.sql 对该外键做硬校验而失败；核对生产确实 0 外键后改为记录漂移并重跑通过。
+**2026-10-31 39 表恢复演练结果**：使用 `campus_social_v2_20261031_094035.sql.gz` 恢复，**39/39 表、14/14 关键表、7/7 关键索引**；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`、`file_asset=4`；临时只读账号 TCP 查询成功；生产 health 演练前后均为 UP；耗时 **3 秒**；临时库与账号残留均为 0。生产库当前 **0 个外键**，`sql/schema.sql` 中的 `school_major.fk_major_dept` 未落地，属已记录的 schema 漂移，脚本只记录、不据此判定备份损坏。首轮演练曾按 schema.sql 对该外键做硬校验而失败；核对生产确实 0 外键后改为记录漂移并重跑通过。外键决策评估见 `docs/decisions/ADR-010.md`。
 
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
@@ -949,5 +949,14 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 4. 用 `verify-release-manifest.py --jar ...` 全量校验。
 5. 把前后端、迁移、部署脚本和清单打进同一个部署包；部署脚本先校验清单，再备份、落位、健康检查与回滚。
 6. 部署后按第 9 节冒烟，并观察 15–30 分钟 5xx、systemd 重启、内存、Redis、Nginx error.log。
+
+**拆分后回归重点（1.13.3）**：
+
+- 事务边界：门面 `@Transactional` 是否仍覆盖完整业务动作；拆出的服务被门面调用、被同类自调用时是否绕过 Spring 代理；需要新事务的批处理是否显式传播。
+- 权限判定：圈子管理、群管理、文件审核、举报处置的权限支持类是否仍在写操作前执行，管理员/圈主/群主/作者的身份判断是否与拆分前一致。
+- WebSocket：群消息、通知是否仍在事务提交后推送，失败回滚时不应提前发给客户端。
+- 审计与通知：文件上传/删除、举报处置、群管理操作是否仍写 `audit_log`，通知是否仍发给正确对象。
+- 业务冒烟：登录、发帖、评论、文件上传/下载/预览、举报与审核、圈子管理、群消息与成员管理。
+- 门禁：后端全量测试、前端 11 条门禁、后端生产版本矩阵（MySQL 8.0 / Redis 6）、OpenAPI 契约、部署包 MD5、manifest 校验、39 表迁移状态、失败回滚。
 
 `release-manifest.json` 当前描述的是线上混合状态，下一次完整发布时再改为 1.13.3 的 full 清单。
