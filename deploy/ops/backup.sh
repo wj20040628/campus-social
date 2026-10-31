@@ -4,7 +4,8 @@
 # 失败告警：在 /opt/campus/.env 设置 ALERT_WEBHOOK_URL（钉钉/企业微信群机器人）
 # 每日备份 campus_social_v2：本地保留 14 天 + 上传 OSS logs/db/ 异地留存
 # 2026-10-30：临时文件 + 原子落盘、成功/失败标记、失败 Webhook 告警、并发锁
-# 2026-10-30：每月 1 日额外上传 logs/db-monthly/YYYY-MM.sql.gz，保留 12 个月
+# 2026-10-30：每月 1 日额外上传 logs/db-monthly/YYYY-MM.sql.gz
+# 2026-10-31：月度副本按文件名保留最近 12 份（实例角色无 lifecycle 权限，改用 List/Delete）
 set -uo pipefail
 umask 077
 
@@ -99,3 +100,51 @@ if [ "$(date +%d)" = "01" ]; then
     exit 1
   fi
 fi
+
+# 月度副本保留最近 12 份：实例角色没有 lifecycle 权限，只能靠 List + Delete 自己清。
+# 清理失败不影响当天备份成功状态（避免误报），只写日志，下次运行再试。
+cleanup_monthly() {
+  local cutoff list_err keys name ym failed=0 deleted=0
+  # 从当月 1 日往前推 11 个月，保留「本月 + 前 11 个月」共 12 份；
+  # 不用当天日期，避免 31 号在短月份上归一化把截止月推后。
+  cutoff=$(date -d "$(date +%Y-%m-01) 11 months ago" +%Y-%m)
+  list_err="$DIR/.backup_monthly_ls.err"
+  keys=$(/usr/local/bin/ossutil ls oss://yousheng-uploads/logs/db-monthly/ \
+        -e oss-cn-hangzhou.aliyuncs.com --region cn-hangzhou --mode EcsRamRole 2>"$list_err" \
+        | awk '/oss:\/\/yousheng-uploads\/logs\/db-monthly\// {print $NF}' \
+        | sed 's#.*/##' \
+        | grep -E '^[0-9]{4}-[0-9]{2}\.sql\.gz$' || true)
+  if [ -s "$list_err" ] && [ -z "$keys" ]; then
+    printf '%s | 月度保留清理失败: 无法列出 %s (%s)\n' \
+      "$(date '+%F %T %Z')" "oss://yousheng-uploads/logs/db-monthly/" \
+      "$(tail -n 1 "$list_err" 2>/dev/null)" >> "$LOG"
+    rm -f "$list_err"
+    return 0
+  fi
+  while IFS= read -r name; do
+    [ -z "$name" ] && continue
+    ym=${name%.sql.gz}
+    if [[ "$ym" < "$cutoff" ]]; then
+      if /usr/local/bin/ossutil rm "oss://yousheng-uploads/logs/db-monthly/$name" \
+            -e oss-cn-hangzhou.aliyuncs.com --region cn-hangzhou --mode EcsRamRole \
+            >/dev/null 2>>"$list_err"; then
+        deleted=$((deleted + 1))
+      else
+        failed=$((failed + 1))
+        printf '%s | 月度保留清理: 删除失败 %s (%s)\n' \
+          "$(date '+%F %T %Z')" "$name" "$(tail -n 1 "$list_err" 2>/dev/null)" >> "$LOG"
+      fi
+    fi
+  done <<< "$keys"
+  rm -f "$list_err"
+  if [ "$deleted" -gt 0 ]; then
+    printf '%s | 月度保留清理: 删除 %d 份（保留 >= %s）\n' \
+      "$(date '+%F %T %Z')" "$deleted" "$cutoff" >> "$LOG"
+  fi
+  if [ "$failed" -gt 0 ]; then
+    printf '%s | 月度保留清理: %d 份删除失败（保留 >= %s），下次重试\n' \
+      "$(date '+%F %T %Z')" "$failed" "$cutoff" >> "$LOG"
+  fi
+}
+
+cleanup_monthly

@@ -708,14 +708,24 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-生产在 **1.13.2**（2026-10-30 部署，前端入口 `index-kJtT8_w_.js`，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`）：
+生产在 **1.13.2**（2026-10-30 部署，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`；2026-10-31 仅重建并替换前端，入口 `index-B9VD8-hD.js`，后端 jar 未变、未重启）：
 
 - **评论列表跟随帖子状态**：下架/退回审核的帖子，评论不再能按 id 读取（作者本人放行，与详情同口径）。
 - **游客动作提示**：活动报名、举报先弹「登录后才能…」，不再点了没反应；游客也不再看到「不看这个作者」入口。
 - **IP 取值防伪造**：优先 Nginx 覆写的 `X-Real-IP`，否则取 XFF 最后一段；用于登录失败锁定、游客下载限额与审计 IP。
-- 公网已验证（2026-10-30）：`/healthz` UP；首页入口 `index-kJtT8_w_.js`；游客 feed 200、`/user/me` 401、`POST /auth/campus-email/send` 404；不存在帖子的详情与评论均返回 1009（评论接口新增的帖子校验已生效，据此确认后端也是 1.13.2）。
-- 无数据库结构变更。备份由部署包内 `deploy.sh` 生成：`backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
+- 公网已验证（2026-10-30）：`/healthz` UP；游客 feed 200、`/user/me` 401、`POST /auth/campus-email/send` 404；不存在帖子的详情与评论均返回 1009（评论接口新增的帖子校验已生效，据此确认后端也是 1.13.2）。
+- 2026-10-31 前端重建上线：公网入口 `assets/index-B9VD8-hD.js`，`/`、`/login`、`/healthz` 均 200，后端 `/actuator/health` UP；游客登录与 feed 正常（控制台仅预期内 `/api/user/me` 401）。
+- 1.13.2 本身无数据库结构变更；2026-10-31 另行执行 buddy 两表下线迁移（见下）。部署包内 `deploy.sh` 生成 `backup/campus-social.jar.<时间戳>` 与 `web.bak_<时间戳>`。
 - **打包注意**：`mvn clean package` 已通过 `maven-jar-plugin` 排除 `application-local.yml`（2026-10-30 修）；发布前仍用 `unzip -l target/campus-social.jar | grep application-local` 自检，结果应为空。
+
+**2026-10-31 生产运维执行（备份 / 迁移 / 前端）**
+
+- 安装 `deploy/ops/backup.sh`（含月度保留清理）与 watchdog：`campus-backup.timer`、`campus-backup-watchdog.timer` 均 `enabled`；下次备份 2026-11-01 04:30，watchdog 每小时第 15 分钟。
+- 升级前脚本备份 `/opt/campus/backup.sh.bak_20261031_0940`。
+- 执行迁移 `sql/migration_2026-10-30_drop_buddy_tables.sql`：生产 **39 表、`buddy%` 0 表**；迁移后成功备份 `campus_social_v2_20261031_094035.sql.gz`（21,637 B，OSS `logs/db/20261031_094035.sql.gz`）。
+- 前端切换到可复现构建 `assets/index-B9VD8-hD.js`，旧目录备份 `web.bak_20261031_093729`；后端 jar 与进程未动。
+- 月度副本保留改为脚本清理：`logs/db-monthly/` 只留「本月 + 前 11 个月」共 12 份；实测上传 `2025-01`、`2025-03` 两份旧副本后被自动删除，`2026-10` 保留，日志显示 `保留 >= 2025-11`。实例角色无 lifecycle 权限（`get-bucket-lifecycle` 403），因此不依赖控制台规则。
+- 备份成功标记 `.last_success` 为 `2026-10-31 09:40:35`，`.last_failure` 不存在。
 
 **1.13.2 基线复核（2026-10-30，本地）**
 
@@ -743,8 +753,8 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - `frontend/vite.config.js` 固定 `componentIdGenerator: 'filepath'`，作用域 ID 只按相对路径生成；
 - `backend/pom.xml` 固定 `project.build.outputTimestamp`，并新增 `.gitattributes` 统一 `backend/src/main/resources/**` 为 LF；
 - 验证：LF/CRLF 两种检出、两个不同路径构建，190 个前端产物逐字节一致（入口 `index-B9VD8-hD.js`）；后端连续两次 `mvn clean package` 的 jar md5 相同（`e702cfab61bea2adf1b6e52196225697`）；
-- `v1.13.2` 线上前端仍是修复前产物；需重建并重新部署后，线上才与仓库构建字节一致；
-- 2026-10-30 用户决定暂不重新部署：线上保持 `index-kJtT8_w_.js`，修复随下一版本发布；
+- `v1.13.2` 线上前端原为修复前产物；2026-10-31 已用重建产物替换，线上入口现为 `index-B9VD8-hD.js`，与仓库构建字节一致；
+- 2026-10-30 曾决定暂不重新部署，2026-10-31 随生产运维执行一并完成（仅换前端，后端未动）；
 - 生产部署脚本归档：`deploy/production/deploy-1.13.2.sh`（1.13.2 实际使用版本；新版本需同步更新 jar md5 与入口校验值）。
 
 上一版 1.13.1（2026-10-30，前端入口 `index-biSlsd1H.js`，jar md5 `ebc0f98e…`）：
@@ -791,7 +801,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 > 背景：这台 2核2G 单机扛着 MySQL 全部用户数据。
 > 单机 + 本机盘，磁盘一坏数据全没；OOM/带宽打满只能等用户来报。三件事都很便宜，备案过审开放注册前务必做完。
 >
-> 现状（2026-10-29）：**数据库每日备份已上线并做过恢复演练**；外部监控与 CDN 仍未配置。
+> 现状（2026-10-31）：数据库每日备份、26 小时无成功 watchdog、月度副本 12 份保留均已上线并实测；主机告警已启用；站点拨测经决定不做，CDN 未配置。
 
 ### 13.1 数据库每日备份到 OSS（已上线）
 
@@ -799,7 +809,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 - 本地 `/opt/campus/backup/campus_social_v2_<时间戳>.sql.gz`，保留 14 天；备份目录 `0700`、文件 `0600`；
 - 同步上传 `oss://yousheng-uploads/logs/db/<时间戳>.sql.gz` 异地留存；
-- 每月 1 日额外上传 `oss://yousheng-uploads/logs/db-monthly/YYYY-MM.sql.gz`，保留 12 个月；对应生命周期规则 `expire-logs-db-monthly-365d`（模板 `deploy/oss/lifecycle-logs-db-monthly-365d.xml`，需在 OSS 控制台启用）；
+- 每月 1 日额外上传 `oss://yousheng-uploads/logs/db-monthly/YYYY-MM.sql.gz`；每月副本由脚本保留最近 12 份（每次备份成功后 `ossutil ls` + `rm`，按文件名保留「本月 + 前 11 个月」）。实例角色 `mail` 没有 lifecycle 权限（`ossutil api get-bucket-lifecycle` 实测 403），故不启用控制台规则；`deploy/oss/lifecycle-logs-db-monthly-365d.xml` 仅作有权限时的备用模板；
 - dump 参数：`--single-transaction --quick --no-tablespaces --routines --triggers --events`，密码从 `/opt/campus/.env` 读取并以 `MYSQL_PWD` 传给子进程；
 - 先写 `.part` 临时文件，校验通过后再原子改名；失败不会覆盖已有备份；
 - 成功写 `/opt/campus/backup/.last_success`（时间、文件、大小、OSS 路径），失败写 `.last_failure` 并追加 `/opt/campus/backup/backup.log`；
@@ -841,6 +851,8 @@ mysql -uroot -e "DROP DATABASE $DB"
 ```
 
 **2026-10-30 恢复演练（新脚本）**：最新备份 `campus_social_v2_20261030_205356.sql.gz`（22,218 字节）恢复到临时库，41/41 表；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`；演练库已 DROP。
+
+**2026-10-31 月度保留实测**：向 `logs/db-monthly/` 上传 `2025-01.sql.gz`、`2025-03.sql.gz` 两份旧副本后运行备份脚本，两份均被删除，`2026-10.sql.gz` 保留；日志记录 `保留 >= 2025-11`，脚本退出码 0，`.last_failure` 未生成。
 
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
