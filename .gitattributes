@@ -2,3 +2,7 @@
 backend/src/main/resources/** text eol=lf
 # Shell 脚本统一 LF，避免 Windows 检出后上传 Linux 出现 bash\r
 *.sh text eol=lf
+*.py text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+release-manifest.json text eol=lf
