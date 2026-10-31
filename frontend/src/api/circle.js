@@ -4,9 +4,9 @@ export function createCircle(name) {
   return request.post('/circle', { name })
 }
 
-export function list(lastId, size = 20) {
+export function list(lastId, size = 20, config = {}) {
   const q = `size=${size}${lastId ? `&lastId=${lastId}` : ''}`
-  return request.get(`/circle?${q}`)
+  return request.get(`/circle?${q}`, config)
 }
 
 export function detail(id) {

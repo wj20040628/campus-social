@@ -29,9 +29,9 @@ export function editMkt(id, dto) {
 /* ---------------- 列表 ---------------- */
 
 /** 广场：投放中、未满员、未过期、开启；可一级分类过滤。 */
-export function mktPlaza(category, lastId, size = 20) {
+export function mktPlaza(category, lastId, size = 20, config = {}) {
   const q = `size=${size}${category ? `&category=${encodeURIComponent(category)}` : ''}${lastId ? `&lastId=${lastId}` : ''}`
-  return request.get(`/mkt/plaza?${q}`)
+  return request.get(`/mkt/plaza?${q}`, config)
 }
 
 /** 我的发布：带服务端推导的 4 态 status。 */

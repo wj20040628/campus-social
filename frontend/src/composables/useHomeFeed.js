@@ -17,20 +17,27 @@
 import { ref, watch, nextTick, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { feed as feedApi, feedFollowing as followingApi, feedRecommend } from '@/api/feed'
-import { feedDirty } from '@/composables/useFeedRefresh'
+import { feedDirty, pendingHomeTab } from '@/composables/useFeedRefresh'
 import { useUserStore } from '@/stores/user'
 
-/** 首页 tab 记忆:只认这三个值,脏数据/旧版本残留一律回「关注」 */
+/** 首页 tab 记忆:只认这三个值,脏数据/旧版本残留一律回「全部」 */
 const HOME_TAB_KEY = 'ys-home-tab'
 const HOME_TABS = ['following', 'all', 'recommend']
 
 function readHomeTab() {
   try {
     const v = localStorage.getItem(HOME_TAB_KEY)
-    return HOME_TABS.includes(v) ? v : 'following'
+    return HOME_TABS.includes(v) ? v : 'all'
   } catch {
-    return 'following'
+    return 'all'
   }
+}
+
+/** 取走一次性切 tab 请求;游客不参与(关注流需要身份) */
+function consumePendingTab(isGuest) {
+  const v = pendingHomeTab.value
+  pendingHomeTab.value = null
+  return isGuest ? null : v
 }
 
 function writeHomeTab(v) {
@@ -234,7 +241,14 @@ export function useHomeFeed(isMobile) {
   }
 
   onMounted(async () => {
-    await loadFeed(true)
+    // 首次挂载必然重拉，历史脏标记已满足
+    feedDirty.value = false
+    const wanted = consumePendingTab(userStore.isGuest)
+    if (wanted && wanted !== tab.value) {
+      tab.value = wanted // watch 负责首拉
+    } else {
+      await loadFeed(true)
+    }
     nextTick(setupObserver)
     setupFeedBarScroll()
   })
@@ -276,6 +290,17 @@ export function useHomeFeed(isMobile) {
   onActivated(() => {
     // 手机端从 keep-alive 重新激活时,恢复工具条滚动监听(onDeactivated 已摘除)
     setupFeedBarScroll()
+    const wanted = consumePendingTab(userStore.isGuest)
+    if (wanted) {
+      if (wanted !== tab.value) {
+        // 切 tab 由 watch 重拉，这次请求已覆盖内容变更
+        feedDirty.value = false
+        tab.value = wanted
+        return
+      }
+      // 本来就在目标 tab:没有 watch 触发，补一次重拉
+      feedDirty.value = true
+    }
     if (feedDirty.value) {
       feedDirty.value = false
       loadFeed(true)

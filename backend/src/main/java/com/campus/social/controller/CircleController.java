@@ -41,7 +41,7 @@ public class CircleController {
     // ---------------- 圈子 ----------------
 
     /**
-     * 创建圈子。校园信息不参与；账号满 3 天 + 信誉 60 由
+     * 创建圈子。校园信息不参与；账号满 24 小时 + 信誉 60 由
      * {@code CircleServiceImpl} 的行为门槛兜底。
      */
     @PostMapping("/circle")

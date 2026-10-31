@@ -102,8 +102,14 @@ export function useCircleDetail(circleId) {
     joining.value = true
     try {
       await joinApi(circleId.value)
-      // 本地改 joined 而不是重拉整个圈子:一次加入不该让页面闪一下
+      /*
+       * 本地改 joined 而不是重拉整个圈子:一次加入不该让页面闪一下。
+       * 但头部的「退出圈子」和举报权限看的是 myRole，只改 joined 会让
+       * 加入后既没有退出入口、成员数也停在旧值 —— 三处一起更新。
+       */
       circle.value.joined = true
+      circle.value.myRole = 3
+      circle.value.memberCount = (circle.value.memberCount || 0) + 1
       ElMessage.success('已加入圈子')
     } catch {
       ElMessage.error('没加上,网络好像断了')
@@ -128,6 +134,7 @@ export function useCircleDetail(circleId) {
       await leaveApi(circleId.value)
       circle.value.joined = false
       circle.value.myRole = 0
+      circle.value.memberCount = Math.max(0, (circle.value.memberCount || 1) - 1)
       ElMessage.success('已退出圈子')
       await loadPosts() // 退圈后发帖权限没了,发帖框会切到「加入」态
     } catch {

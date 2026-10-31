@@ -20,6 +20,7 @@ import com.campus.social.vo.ActivitySignupVO;
 import com.campus.social.vo.ActivityVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +42,7 @@ public class ActivityServiceImpl implements ActivityService {
     private final com.campus.social.service.AuditService auditService;
     private final PostNotifySupport postNotifySupport;
     private final UserMapper userMapper;
-    /** 行为信任门槛：报名线下活动需账号满 3 天 + 信誉 60 */
+    /** 行为信任门槛：报名线下活动需账号满 24 小时 + 信誉 60 */
     private final CampusAccessService access;
 
     @Override
@@ -145,7 +146,7 @@ public class ActivityServiceImpl implements ActivityService {
     @Override
     @Transactional
     public void signup(long activityId, long userId) {
-        // 线下见面类动作：账号满 3 天 + 信誉 60；校园信息不参与（2026-10-30）
+        // 线下见面类动作：账号满 24 小时 + 信誉 60；校园信息不参与（2026-10-30）
         access.requireActivitySignup(userId);
         Activity a = activityMapper.selectById(activityId);
         if (a == null) {
@@ -168,13 +169,20 @@ public class ActivityServiceImpl implements ActivityService {
         }
 
         // 乐观锁防超卖:
-        // 1. 先 INSERT 幂等键
-        signupMapper.insertIdempotent(activityId, userId);
+        // 1. 先 INSERT 幂等键；撞 uk_as 说明并发请求已经插入过，直接按幂等返回，
+        //    不能继续 trySignin —— 否则同一用户并发报名会把 current_count 加多次。
+        try {
+            signupMapper.insertSignup(activityId, userId);
+        } catch (DuplicateKeyException e) {
+            // MySQL 只回滚这条失败语句、不回滚整个事务，继续返回是安全的。
+            log.info("signup idempotent skip: {} -> {}", userId, activityId);
+            return;
+        }
         // 2. 乐观锁 UPDATE(影响行=0 说明已满或状态变了,回滚 signup)
         int affected = activityMapper.trySignin(activityId);
         if (affected == 0) {
-            // 回滚 signup
-            signupMapper.delete(exist);
+            // 物理删，不能逻辑删：软删会留下 uk_as 行，用户之后再也报不上
+            signupMapper.hardDelete(activityId, userId);
             throw new BusinessException(ACTIVITY_FULL, "活动名额已满或已结束");
         }
         log.info("signup ok: {} -> {}", userId, activityId);

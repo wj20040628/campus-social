@@ -31,7 +31,7 @@
               <span class="adrawer__namerow">
                 <span class="adrawer__name">{{ userStore.isGuest ? '游客' : (userStore.userInfo?.nickname || '未登录') }}</span>
               </span>
-              <span class="adrawer__id">{{ userStore.isGuest ? '登录后可发帖、聊天、看通知' : studentNoText }}</span>
+              <span class="adrawer__id">{{ userStore.isGuest ? '点此登录' : studentNoText }}</span>
             </span>
             <span class="adrawer__chev" aria-hidden="true">›</span>
           </button>

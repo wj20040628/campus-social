@@ -231,7 +231,8 @@ function goDetail(id) {
 
 onMounted(() => {
   loadPlaza()
-  loadMy()
+  // 「我的发布」要登录态；游客没有这个 Tab，不必白跑一次 401
+  if (userStore.hasToken) loadMy()
 })
 </script>
 

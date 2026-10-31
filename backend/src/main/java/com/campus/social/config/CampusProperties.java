@@ -48,17 +48,17 @@ public class CampusProperties {
     private int groupMaxMembers = 500;
 
     /**
-     * 行为信任门槛（2026-10-30）。
+     * 行为信任门槛（2026-10-30，2026-10-31 统一为 24 小时）。
      *
      * <p>校园信息不再作为功能门槛后，陌生人搭话、建圈、建群、集市发布
      * 改由「账号注册时间 + 信誉分」判定。阈值放配置而不是写死：
      * 上线后按举报率调整，不必重新发版。
      */
     private int accessStrangerChatMinHours = 24;
-    private int accessCreateCircleMinDays = 3;
+    private int accessCreateCircleMinDays = 1;
     private int accessCreateMktMinDays = 1;
-    private int accessCreateGroupMinDays = 3;
-    private int accessActivitySignupMinDays = 3;
+    private int accessCreateGroupMinDays = 1;
+    private int accessActivitySignupMinDays = 1;
     private int accessMinCredit = 60;
 
     public String getSchoolName() {

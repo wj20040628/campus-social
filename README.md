@@ -10,7 +10,7 @@
 
 [![在线](https://img.shields.io/badge/online-HTTPS-success?style=flat-square)](https://yousheng8.cn)
 [![CI](https://github.com/wj20040628/campus-social/actions/workflows/ci.yml/badge.svg)](https://github.com/wj20040628/campus-social/actions/workflows/ci.yml)
-[![version](https://img.shields.io/badge/version-1.11.2-blue?style=flat-square)](frontend/package.json)
+[![version](https://img.shields.io/badge/version-1.13.3-blue?style=flat-square)](frontend/package.json)
 [![license](https://img.shields.io/badge/license-Mulan%20PSL%202.0-blue?style=flat-square)](LICENSE)
 
 ![Vue](https://img.shields.io/badge/Vue-3.4-42b883?logo=vuedotjs&logoColor=white&style=flat-square)

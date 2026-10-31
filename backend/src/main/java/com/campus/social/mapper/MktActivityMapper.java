@@ -84,13 +84,17 @@ public interface MktActivityMapper extends BaseMapper<MktActivity> {
     int softDelete(@Param("id") Long id, @Param("userId") Long userId);
 
     /**
-     * 某用户**在投**的集市活动数(2026-10-25,发布配额用)。
+     * 某用户**在投**的集市活动 ID(2026-10-25,发布配额用),锁定读。
      * 在投 = 投放中(is_enable=1) 且未过期 且未删——过期/暂停/删除即释放名额,
      * 用户可通过关停或等到期腾出配额,不需要管理员介入。
+     *
+     * <p>必须用 FOR UPDATE 的当前读,不能普通 COUNT:调用方事务里前面的
+     * 行为门槛校验已经建立了 REPEATABLE READ 快照,即使随后锁住 user 行,
+     * 普通快照读仍看不到并发事务刚提交的插入,配额会被同时突破。
      */
-    @Select("SELECT COUNT(*) FROM mkt_activity WHERE user_id = #{userId} "
-            + "AND is_enable = 1 AND expire_time > NOW() AND soft_delete = 0")
-    int countActiveByUser(@Param("userId") Long userId);
+    @Select("SELECT id FROM mkt_activity WHERE user_id = #{userId} "
+            + "AND is_enable = 1 AND expire_time > NOW() AND soft_delete = 0 FOR UPDATE")
+    List<Long> lockActiveIdsByUser(@Param("userId") Long userId);
 
     /**
      * 近 N 天某用户的集市活动产出数(2026-10-25,信誉分加分用)。

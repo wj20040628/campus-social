@@ -31,7 +31,7 @@ public class GroupController {
     /**
      * 建群 + 拉人:body { name, avatarUrl, memberIds[] }。
      *
-     * <p>校园信息不参与；建群/拉人由账号满 3 天 + 信誉 60 兜底，
+     * <p>校园信息不参与；建群/拉人由账号满 24 小时 + 信誉 60 兜底，
      * 拉人仍只能邀请互关的人。
      */
     @PostMapping
@@ -110,7 +110,7 @@ public class GroupController {
         return Result.ok(groupService.members(groupId, me));
     }
 
-    /** 拉人(群成员均可):body { userIds[] }。邀请人需账号满 3 天 + 信誉 60。 */
+    /** 拉人(群成员均可):body { userIds[] }。邀请人需账号满 24 小时 + 信誉 60。 */
     @PostMapping("/{groupId}/members")
     public Result<Map<String, Integer>> addMembers(
             @PathVariable("groupId") long groupId,

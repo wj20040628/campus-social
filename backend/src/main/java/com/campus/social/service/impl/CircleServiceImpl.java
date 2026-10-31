@@ -16,6 +16,7 @@ import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.util.SensitiveWordFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +43,7 @@ public class CircleServiceImpl implements CircleService {
     private final PostVoAssembler postVoAssembler;
     /** 建圈配额(2026-10-25):信誉分档 1/2/3,解散释放名额 */
     private final ReviewTrustService trustService;
-    /** 行为信任门槛：账号满 3 天 + 信誉 60（校园信息不参与） */
+    /** 行为信任门槛：账号满 24 小时 + 信誉 60（校园信息不参与） */
     private final CampusAccessService access;
 
     @Override
@@ -175,19 +176,15 @@ public class CircleServiceImpl implements CircleService {
         if (c == null) {
             throw new BusinessException(NOT_FOUND, "圈子不存在");
         }
-        // 幂等:已加入直接返回
-        LambdaQueryWrapper<CircleMember> qw = new LambdaQueryWrapper<CircleMember>()
-                .eq(CircleMember::getCircleId, circleId)
-                .eq(CircleMember::getUserId, userId);
-        if (circleMemberMapper.selectCount(qw) > 0) {
+        // 幂等:已加入直接返回；并发重复加入由唯一键 uk_cm 抛异常兜底。
+        // 不能先 selectCount 再 insert —— 两个请求都查到 0 后会撞唯一键。
+        try {
+            circleMemberMapper.insertMember(circleId, userId, 3);
+        } catch (DuplicateKeyException e) {
+            // MySQL 只回滚这条失败语句、不回滚整个事务，继续返回是安全的。
             log.info("join idempotent skip: {} -> {}", userId, circleId);
             return;
         }
-        CircleMember cm = new CircleMember();
-        cm.setCircleId(circleId);
-        cm.setUserId(userId);
-        cm.setRole(3); // member
-        circleMemberMapper.insert(cm);
         circleMapper.adjustMemberCount(circleId, 1);
         // 冗余计数:用户「加入的圈子数」+1(退圈时 -1),与 follower_count 同口径
         userMapper.adjustJoinedCircleCount(userId, 1);

@@ -16,7 +16,18 @@ import { ref } from 'vue'
  */
 export const feedDirty = ref(false)
 
+/**
+ * 首页下一次激活时要切到的 tab（一次性）。
+ * 发帖成功后用它把用户从「关注」切到「全部」，否则自己的新帖不在关注流里，
+ * 看起来像没发出去。刷新时的 tab 记忆仍走 localStorage，不受影响。
+ */
+export const pendingHomeTab = ref(null)
+
 /** 内容变更后调用:标记首页 feed 需要重拉 */
 export function markFeedDirty() {
   feedDirty.value = true
+}
+
+export function requestHomeTab(tab) {
+  pendingHomeTab.value = tab
 }

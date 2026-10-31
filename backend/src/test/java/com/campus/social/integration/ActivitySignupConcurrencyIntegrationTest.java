@@ -37,7 +37,7 @@ class ActivitySignupConcurrencyIntegrationTest {
     private final long circleless = -1L; // 无圈子活动
     private final List<Long> seededUserIds = new ArrayList<>();
 
-    /** 报名前置：账号需存在且注册满 3 天（2026-10-30 行为门槛） */
+    /** 报名前置：账号需存在且注册满 24 小时（2026-10-31 起，原为 3 天） */
     private void seedUsers(int count) {
         String suffix = String.valueOf(System.nanoTime() % 100000);
         for (int i = 0; i < count; i++) {

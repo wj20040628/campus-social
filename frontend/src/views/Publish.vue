@@ -187,7 +187,7 @@ import { useUserStore } from '@/stores/user'
 import { useMediaUpload, parseTopics, droppedTopics, TOPIC_NAME_MAX } from '@/composables/useMediaUpload'
 import { VIDEO_SUPPORTED_FORMATS, VIDEO_UNSUPPORTED_NOTE } from '@/utils/videoCodec'
 import { useKeyboardViewport } from '@/composables/useKeyboardViewport'
-import { markFeedDirty } from '@/composables/useFeedRefresh'
+import { markFeedDirty, requestHomeTab } from '@/composables/useFeedRefresh'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import SafeArea from '@/components/mobile/SafeArea.vue'
@@ -331,6 +331,8 @@ async function submit() {
       // AC-06:命中敏感词时后端给 status=0(审核中),要明确告诉用户「发出去了但还在审」
       ElMessage.success('发出去了，等别人来搭话吧')
       markFeedDirty() // 新帖必须出现在首页,keep-alive 缓存不能拦着
+      // 关注流不含自己且可能为空,回首页直接切「全部」让用户看到刚发的帖
+      requestHomeTab('all')
       router.push('/')
     }
   } catch {

@@ -54,7 +54,7 @@ public class GroupMembershipService {
     private final RelationMapper relationMapper;
     /** 新成员入群通知:至少让对方知道自己在哪个群、能自己退 */
     private final PostNotifySupport notifySupport;
-    /** 行为信任门槛：建群/拉人需账号满 3 天 + 信誉 60（校园信息不参与） */
+    /** 行为信任门槛：建群/拉人需账号满 24 小时 + 信誉 60（校园信息不参与） */
     private final CampusAccessService campusAccess;
     private final CampusProperties campus;
 

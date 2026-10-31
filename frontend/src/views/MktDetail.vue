@@ -319,6 +319,7 @@ async function load() {
   loadFailed.value = false
   try {
     act.value = await mkt.mktDetail(route.params.id)
+    maybeShowRisk() // 详情拿到后再弹：活动不存在时整页 404，不该被遮罩盖住
     await loadComments()
     // 右栏「同样在找」独立加载，失败静默（它是增强信息）
     loadSameCat()
@@ -393,7 +394,6 @@ const { riskOpen, maybeShowRisk, onRiskAck, reopenRisk } = useMktRiskNotice()
 
 onMounted(() => {
   load()
-  maybeShowRisk()
 })
 </script>
 

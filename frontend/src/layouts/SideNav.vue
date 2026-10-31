@@ -5,7 +5,10 @@
     (mobile-shell.md §2.7 明确要求不删除 el-menu)。
   -->
   <aside class="side">
-    <div class="brand">友声</div>
+    <div class="brand">
+      友声
+      <p v-if="userStore.isGuest" class="brand__tagline">校园生活社区</p>
+    </div>
     <el-menu :default-active="activeMenu" router class="side__menu">
       <!--
         2026-10-21 分组改造。改版前 7 个普通项 + 6 个管理子项一路平铺，
@@ -145,11 +148,23 @@
         </el-menu-item>
       </el-sub-menu>
     </el-menu>
+
+    <!--
+      游客侧栏底部卡片（2026-10-31）：游客只剩三个浏览入口时，
+      左下角整片留白，登录入口只有顶栏一个小按钮。这里补一条明确的加入路径。
+      只对游客渲染，登录用户不受影响。
+    -->
+    <div v-if="userStore.isGuest" class="side__guest">
+      <p class="side__guest-title">加入友声</p>
+      <p class="side__guest-desc">和同校同学聊起来</p>
+      <button type="button" class="side__guest-btn" @click="goLogin">登录 / 注册</button>
+    </div>
   </aside>
 </template>
 
 <script setup>
 import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
   Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
@@ -172,6 +187,11 @@ const props = defineProps({
 })
 
 const userStore = useUserStore()
+const router = useRouter()
+
+function goLogin() {
+  router.push({ path: '/login/form', query: { returnUrl: props.routePath || '/' } })
+}
 
 /* 管理待办角标:与 AppDrawer 共用模块级缓存,挂载时拉一次(2026-10-24 新增) */
 const pending = useAdminPending()
@@ -220,12 +240,24 @@ const activeMenu = computed(() => {
 }
 
 .brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   padding: var(--ys-space-5) var(--ys-space-6);
   font-size: var(--ys-text-xl);
   line-height: var(--ys-lh-xl);
   letter-spacing: var(--ys-ls-xl);
   font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
+}
+
+.brand__tagline {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  font-weight: normal;
+  letter-spacing: 0.04em;
+  color: var(--ys-muted);
 }
 
 .side__menu {
@@ -302,5 +334,47 @@ const activeMenu = computed(() => {
 .side__menu :deep(.el-menu-item.is-pending),
 .side__menu :deep(.el-menu-item.is-pending .el-icon) {
   color: var(--ys-danger);
+}
+
+/* 游客底部加入卡：菜单 flex:1 把这张卡自然推到底部 */
+.side__guest {
+  margin: var(--ys-space-4);
+  padding: var(--ys-space-4);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-xl);
+  background:
+    radial-gradient(110% 90% at 100% 0%, var(--ys-accent-soft) 0%, transparent 68%),
+    var(--ys-surface);
+}
+
+.side__guest-title {
+  margin: 0;
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.side__guest-desc {
+  margin: var(--ys-space-2) 0 var(--ys-space-3);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-muted);
+}
+
+.side__guest-btn {
+  width: 100%;
+  min-height: var(--ys-touch-min);
+  border: 0;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-semibold);
+  cursor: pointer;
+}
+
+.side__guest-btn:hover {
+  background: var(--ys-accent-hover);
 }
 </style>

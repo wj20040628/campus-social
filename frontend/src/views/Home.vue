@@ -19,6 +19,14 @@
         ③ 首页「关注/全部/推荐」tab 包成粘性工具条 .feed-bar。
         游客只开放「全部」，不渲染需要身份的关注/推荐 tab。
       -->
+      <!--
+        游客没有「关注/推荐」tab，但动态流仍需要一个明确的栏目名，
+        否则欢迎区下面直接掉出一条帖子，看起来像页面没做完。
+      -->
+      <div v-if="isGuest" class="feed-head">
+        <h2 class="feed-head__title">校园动态</h2>
+      </div>
+
       <div v-if="!isGuest" class="feed-bar" :class="{ 'feed-bar--hidden': feedBarHidden }">
         <!-- 关注 / 全部 / 推荐。树洞频道已下线,历史匿名帖仍在「全部」里只读展示 -->
         <el-tabs v-model="tab" class="feed-tabs">
@@ -70,17 +78,19 @@
           <StateBlock
             v-else-if="!loading && posts.length === 0"
             variant="empty"
-            :title="tab === 'following' ? '你关注的人还没发东西' : tab === 'recommend' ? '还没有可推荐的动态' : '这里还很空'"
+            :title="isGuest ? '这里还没有动态' : tab === 'following' ? '你关注的人还没发东西' : tab === 'recommend' ? '还没有可推荐的动态' : '这里还很空'"
             :description="
-              tab === 'following'
-                ? '关注几个同学,他们的动态就会出现在这儿'
-                : tab === 'recommend'
-                  ? '去关注几个同学,或者先发一条'
-                  : '现在没人发东西,你可以先发一条'
+              isGuest
+                ? '去圈子或集市看看'
+                : tab === 'following'
+                  ? '关注几个同学,他们的动态就会出现在这儿'
+                  : tab === 'recommend'
+                    ? '去关注几个同学,或者先发一条'
+                    : '现在没人发东西,你可以先发一条'
             "
-            :action-label="tab === 'following' ? '去圈子广场逛逛' : '发一条'"
+            :action-label="isGuest ? '去圈子逛逛' : tab === 'following' ? '去圈子广场逛逛' : '发一条'"
             :icon="ChatLineSquare"
-            @action="tab === 'following' ? goFollow() : goPublish()"
+            @action="isGuest ? goCircles() : tab === 'following' ? goFollow() : goPublish()"
           />
           <div ref="sentinelEl" class="sentinel">
             <el-text v-if="loading" type="info">加载中…</el-text>
@@ -90,6 +100,8 @@
       </div>
      </div>
      <HomeAside v-if="isWide && !isGuest" :posts="posts" class="home-aside" />
+     <!-- 游客右栏只放公开可点的内容，不混入「加入/公告」等登录动作 -->
+     <GuestAside v-else-if="isWide && isGuest" :posts="posts" class="home-aside" />
     </div>
 
     <!--
@@ -122,6 +134,7 @@ import { useRouter } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import HomeAside from '@/components/HomeAside.vue'
+import GuestAside from '@/components/home/GuestAside.vue'
 import { ChatLineSquare, WarningFilled } from '@element-plus/icons-vue'
 import { useBreakpoint, BREAKPOINTS } from '@/composables/useBreakpoint'
 import { useHomeFeed } from '@/composables/useHomeFeed'
@@ -152,6 +165,9 @@ const { fabEl, fab, handlers } = useDraggableFab()
 
 function goDetail(id) {
   router.push(`/post/${id}`)
+}
+function goCircles() {
+  router.push('/circles')
 }
 /** 空态「发一条」:游客先弹登录提示,再进发布页 */
 async function goPublish() {

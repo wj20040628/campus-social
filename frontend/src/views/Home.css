@@ -131,6 +131,21 @@
   margin-bottom: 8px;
 }
 /*
+ * 游客动态流栏目名（2026-10-31）。
+ * 欢迎区下面需要一条明确的「校园动态」分界，否则第一条帖子像是
+ * 从欢迎区里掉出来的；「游客只读」同时解释了为什么没有发布按钮。
+ */
+.feed-head {
+  margin: 0 0 var(--ys-space-3);
+  padding: 0 2px;
+}
+.feed-head__title {
+  margin: 0;
+  font-size: var(--ys-text-lg);
+  line-height: var(--ys-lh-lg);
+  color: var(--ys-fg);
+}
+/*
  * ③ 首页工具条(tab + 搜索/筛选条)「下滑收起 / 上滑拉回」。
  * feedBarHidden 仅在手机端由 window.scroll 驱动(桌面恒 false)。
  * 收起=translateY(-100%),贴顶隐藏;拉回=归位。

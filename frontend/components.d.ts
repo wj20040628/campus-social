@@ -85,6 +85,7 @@ declare module 'vue' {
     GroupMenu: typeof import('./src/components/chat/GroupMenu.vue')['default']
     GroupRenameDialog: typeof import('./src/components/chat/GroupRenameDialog.vue')['default']
     GroupTransferDialog: typeof import('./src/components/chat/GroupTransferDialog.vue')['default']
+    GuestAside: typeof import('./src/components/home/GuestAside.vue')['default']
     HomeAside: typeof import('./src/components/HomeAside.vue')['default']
     ImageViewer: typeof import('./src/components/common/ImageViewer.vue')['default']
     InitialAvatar: typeof import('./src/components/common/InitialAvatar.vue')['default']

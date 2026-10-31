@@ -327,8 +327,16 @@ public class MktActivityServiceImpl implements MktActivityService {
         if (skipIfAlreadyLive && target != null && isActivelyLive(target)) {
             return;
         }
+        /*
+         * 并发发布时「先 count 再 insert」会同时查到 0，一起越过配额。
+         * 锁住 user 行把这段读-算-写串行化；与文件容量配额同一做法。
+         * 在投列表必须用锁定读（FOR UPDATE）：事务前面的行为门槛查询已经
+         * 建立了 REPEATABLE READ 快照，普通快照读看不到等锁期间刚提交的插入。
+         * 必须在事务内调用。
+         */
+        userMapper.lockById(userId);
         int quota = trustService.creationQuota(userId);
-        if (quota <= 0 || mktActivityMapper.countActiveByUser(userId) >= quota) {
+        if (quota <= 0 || mktActivityMapper.lockActiveIdsByUser(userId).size() >= quota) {
             throw new BusinessException(ResultCode.MKT_ACTIVE_LIMIT_REACHED,
                     "在投的集市活动已达上限(" + quota + " 条),等待到期或暂停/删除腾出名额,提升信誉分后自动扩容");
         }
