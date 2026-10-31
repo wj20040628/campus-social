@@ -856,7 +856,7 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **一键恢复演练（2026-10-31 起）**：`/opt/campus/restore-check.sh [备份文件]`，默认取 `/opt/campus/backup` 下最新备份。脚本创建 `campus_restore_check_*` 临时库，校验 39 表、14 张关键表、7 个关键索引、关键表行数，用临时只读账号做一次 TCP 查询，并在前后检查生产应用 health；结束时自动 DROP 临时库和账号，耗时写入 `restore-check.log`。仓库脚本 `deploy/ops/restore-check.sh`。
 
-**2026-10-31 39 表恢复演练结果**：使用 `campus_social_v2_20261031_094035.sql.gz` 恢复，**39/39 表、14/14 关键表、7/7 关键索引**；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`、`file_asset=4`；临时只读账号 TCP 查询成功；生产 health 演练前后均为 UP；耗时 **3 秒**；临时库与账号残留均为 0。生产库当前 **0 个外键**，`sql/schema.sql` 中的 `school_major.fk_major_dept` 未落地，属已记录的 schema 漂移，脚本只记录、不据此判定备份损坏。
+**2026-10-31 39 表恢复演练结果**：使用 `campus_social_v2_20261031_094035.sql.gz` 恢复，**39/39 表、14/14 关键表、7/7 关键索引**；`user=4`、`post=2`、`comment=1`、`notify=13`、`report=1`、`sensitive_word=154`、`file_asset=4`；临时只读账号 TCP 查询成功；生产 health 演练前后均为 UP；耗时 **3 秒**；临时库与账号残留均为 0。生产库当前 **0 个外键**，`sql/schema.sql` 中的 `school_major.fk_major_dept` 未落地，属已记录的 schema 漂移，脚本只记录、不据此判定备份损坏。首轮演练曾按 schema.sql 对该外键做硬校验而失败；核对生产确实 0 外键后改为记录漂移并重跑通过。
 
 **仓库镜像**：`deploy/ops/backup.sh`、`deploy/systemd/campus-backup.service`、`deploy/systemd/campus-backup.timer`。线上 `/opt/campus/backup.sh` 改动后必须同步回这三个文件，避免下次重装/换机时丢失修复。
 
