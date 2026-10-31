@@ -25,6 +25,12 @@ import os
 import subprocess
 import sys
 
+# Windows 管道默认按 GBK 写 stdout；Git Bash / Qoder 终端按 UTF-8 读，
+# 非控制台输出统一为 UTF-8（控制台由 WindowsConsoleIO 直接处理 Unicode）
+if not sys.stdout.isatty():
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT = os.path.dirname(HERE)
 FRONTEND = os.path.join(PROJECT, "frontend")
@@ -50,9 +56,12 @@ TAIL = 12
 
 def run_one(name, cwd, argv, _what):
     """跑单个门禁，返回 (ok, 退出码, 输出文本)。不抛异常。"""
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
     try:
         p = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=600)
+                           encoding="utf-8", errors="replace", timeout=600,
+                           env=env)
     except FileNotFoundError as e:
         return False, -1, "命令不存在: %s (%s)" % (argv[0], e)
     except subprocess.TimeoutExpired:
