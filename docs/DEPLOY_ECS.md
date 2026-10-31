@@ -722,6 +722,7 @@ package : ys_deploy_20261031_v1133.zip
 ```
 
 - 发布内容：高风险动作统一「注册满 24 小时 + 信誉 60」；游客桌面首页改版；并发加圈/报名/集市配额幂等修复；发帖后自动落「全部」、首次进入默认「全部」。
+- 门槛生效核对（2026-10-31）：`grep -E 'CAMPUS_ACCESS_' /etc/systemd/system/campus.service` 无输出，确认生产没有显式环境变量覆盖 `application.yml` 的 24 小时默认值。
 - 部署脚本先校验 jar MD5/入口哈希，复用 `backup.sh` 完成数据库备份（含 OSS 异地留存），再停服落位、执行两段幂等迁移、探活；失败自动回滚 jar/web/VERSION。
 - 公网验证（2026-10-31 15:27 CST）：`/healthz` UP；线上入口 `assets/index-gydVwA6_.js` 的 SHA256 与包内一致；游客 feed 200、`/user/me` 与 `/notify` 401、不存在帖子与评论均返回 1009。
 
