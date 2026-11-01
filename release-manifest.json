@@ -1,23 +1,23 @@
 {
-  "version": "1.13.8",
+  "version": "1.13.9",
   "releaseType": "full",
-  "onlineSince": "2026-11-01T14:54:14+08:00",
+  "onlineSince": null,
   "sourceState": "committed",
   "git": {
-    "frontendSourceCommit": "500ef898ed6de3f5787459ddedb50239ae2c4bc4",
-    "backendTag": "v1.13.8",
-    "backendCommit": "500ef898ed6de3f5787459ddedb50239ae2c4bc4",
-    "baseCommit": "86a08636eb0120a6056ce010ab21cf5259af583f",
-    "note": "1.13.8 源码提交 500ef89，标签 v1.13.8 指向同一提交；清单提交仅更新发布元数据。"
+    "frontendSourceCommit": "d627c4c0380acd863212194828f43e25d371dc61",
+    "backendTag": "v1.13.9",
+    "backendCommit": "d627c4c0380acd863212194828f43e25d371dc61",
+    "baseCommit": "144755f94cd5b57b0c04e5172148f0f0a5fc541a",
+    "note": "1.13.9 源码提交 d627c4c，标签 v1.13.9 指向同一提交；清单提交仅更新发布元数据。"
   },
   "frontend": {
-    "entry": "assets/index-B-ftqZyC.js",
-    "sha256": "de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9",
+    "entry": "assets/index-CMJbJvOS.js",
+    "sha256": "e4c55b21769b7e2c87fd9ba5863f28259731b863c7d990808d6da91a92b1436e",
     "bytes": 334633
   },
   "backend": {
-    "jarMd5": "536884e3579d3c6b15fc2da2b2f57262",
-    "bytes": 73977056
+    "jarMd5": "49f042897018b54f4490993169c99029",
+    "bytes": 73985330
   },
   "database": {
     "schemaTables": 39,
@@ -26,23 +26,18 @@
       "sql/migration_2026-10-30_drop_buddy_tables.sql",
       "sql/migration_2026-10-31_fix_comment_encoding.sql",
       "sql/migration_2026-10-31_user_mute.sql",
-      "sql/migration_2026-10-31_mute_admin_polish.sql"
+      "sql/migration_2026-10-31_mute_admin_polish.sql",
+      "sql/migration_2026-11-01_cancel_cascade_repair.sql"
     ],
-    "notes": "本版无新增表结构；四段迁移均为历史幂等脚本，随包重复执行安全。schema.sql 已按 ADR-010 方案 B 移除 fk_major_dept，生产原本 0 外键，无 DDL 变化。部署前由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
+    "notes": "本版无新增表结构；新增的注销级联修复脚本为幂等 DML，按 status=2 用户清退群/圈成员关系、处理无主群圈、回退活动报名与重算计数。部署脚本会先备份数据库，再执行历史迁移与本次修复脚本。"
   },
-  "notes": "1.13.8 完整包：昵称、个人介绍、群名称接入敏感词过滤（昵称/群名一级二级均拒，简介二级拒发、一级打码）；ADR-010 收口为方案 B，schema.sql 与生产一致为 0 外键；另含 1.13.7 已上线的写接口限流、E2E CI、MktActivity 拆分与性能指标，无前端交互改版（仅关于页更新日志新增 1.13.8 条目）。",
+  "notes": "1.13.9 完整包：账号注销时级联清退群/圈成员关系；群主/圈主优先移交仍正常的成员（圈子优先圈管理、跳过圈内被封禁者），无人可接则解散；活动报名删除并回补名额；帖子/评论与私聊历史保留。另含已注销账号不可被拉群/接任群主圈主的写侧守卫、群历史 404 昵称兜底、私聊/主页静默提示，以及存量注销数据修复 SQL。",
   "deployment": {
-    "package": "ys_deploy_20261101_v1138.zip",
-    "packageMd5": "6fbbe4e55e10a916c870317b104eaadd",
-    "packageBytes": 68572615,
-    "deployedAt": "2026-11-01T14:54:14+08:00",
-    "note": "部署由用户通过宝塔执行成功；未取到脚本启动时间，deployedAt 与 onlineSince 取公网核验时间。包内 manifest 的 packageMd5 为空，以仓库清单回填值为准。",
-    "verified": [
-      "https://yousheng8.cn/healthz 返回 {\"status\":\"UP\"}（2026-11-01T14:54:14+08:00）",
-      "线上入口 assets/index-B-ftqZyC.js 334,633 B，SHA256 de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9，与包内一致",
-      "index.html Last-Modified 为 2026-11-01 14:46:28 CST，与 1.13.8 构建时间一致",
-      "/api/user/me 返回 401；/actuator/prometheus 返回 text/html（SPA 回退，指标未暴露公网）",
-      "用户确认宝塔 deploy.sh 执行成功"
-    ]
+    "package": "ys_deploy_20261101_v1139.zip",
+    "packageMd5": "1c9b4ca25589dbc00a725b0b105ddf6a",
+    "packageBytes": 68612334,
+    "deployedAt": null,
+    "note": "待部署。该清单先于部署包打包生成，包内 packageMd5 为空；仓库清单在打包后回填实际 md5 与大小。",
+    "verified": []
   }
 }
