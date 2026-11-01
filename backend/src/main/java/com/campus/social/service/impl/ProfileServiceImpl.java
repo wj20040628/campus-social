@@ -8,6 +8,7 @@ import com.campus.social.service.AuditService;
 import com.campus.social.service.ProfileService;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.support.StudentNoChangeSupport;
+import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,8 @@ public class ProfileServiceImpl implements ProfileService {
     private final StudentNoChangeSupport studentNoChangeSupport;
     /** 头像/封面归属校验：引用 /uploads 文件时必须确属该用户上传 */
     private final UploadService uploadService;
+    /** 昵称/简介是公开资料，与帖子评论同一套敏感词口径 */
+    private final SensitiveWordFilter sensitive;
 
     @Override
     public UserVO me(long userId) {
@@ -68,6 +71,20 @@ public class ProfileServiceImpl implements ProfileService {
         String oldStudentNo = user.getStudentNo();
         String oldAvatar = user.getAvatarUrl();
         String oldBio = user.getBio();
+        // 昵称是公开身份标识，命中一级词也不打码（`*` 昵称无法展示/搜索）；
+        // 简介与评论同口径：二级词拒发，一级词打码后落库。
+        if (nickname != null
+                && (sensitive.containsBlock(nickname) || sensitive.containsReplace(nickname))) {
+            throw new BusinessException(SENSITIVE_WORD_BLOCKED, "昵称包含违规词，换一个再试");
+        }
+        String newBio = null;
+        if (bio != null) {
+            if (sensitive.containsBlock(bio)) {
+                throw new BusinessException(SENSITIVE_WORD_BLOCKED, "个人介绍包含违规词，请修改后再保存");
+            }
+            String trimmed = bio.trim();
+            newBio = trimmed.isEmpty() ? null : sensitive.replaceAll(trimmed);
+        }
         // 学号变更需唯一校验；且被驳回的用户换了学号要重新进待审队列。
         // 判定细节见 StudentNoChangeSupport（那边写清了为什么这么判）。
         //
@@ -93,7 +110,7 @@ public class ProfileServiceImpl implements ProfileService {
          * trim 掉纯空白：用户按空格提交不该在主页占一行空白。
          */
         if (bio != null) {
-            user.setBio(bio.trim().isEmpty() ? null : bio.trim());
+            user.setBio(newBio);
         }
         if (avatarUrl != null) {
             // 归属校验:引用 /uploads 文件必须是本人上传的;老数据/外部图床放行
@@ -111,7 +128,7 @@ public class ProfileServiceImpl implements ProfileService {
         // 而审计表会被检索，凭一条「简介已修改」足以定位时间点。
         // 比较用 trim 后的值，与上面落库时的归一化保持同一口径，
         // 否则「从空改成只有空格」会被记成一次修改，而库里其实什么都没变。
-        if (bio != null && !bio.trim().equals(oldBio == null ? "" : oldBio.trim()))
+        if (bio != null && !java.util.Objects.equals(newBio, oldBio))
             diff.append("个人介绍:已修改; ");
         if (studentNo != null && !studentNo.isBlank() && !studentNo.equals(oldStudentNo))
             diff.append("学号:").append(nullSafe(oldStudentNo)).append("→").append(studentNo).append("; ");

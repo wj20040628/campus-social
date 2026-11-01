@@ -14,6 +14,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.service.support.GroupAccessSupport;
+import com.campus.social.util.SensitiveWordFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import static com.campus.social.common.ResultCode.GROUP_FULL;
 import static com.campus.social.common.ResultCode.GROUP_NAME_EMPTY;
 import static com.campus.social.common.ResultCode.NOT_GROUP_MEMBER;
 import static com.campus.social.common.ResultCode.NOT_GROUP_OWNER;
+import static com.campus.social.common.ResultCode.SENSITIVE_WORD_BLOCKED;
 import static com.campus.social.common.ResultCode.UNPROCESSABLE;
 import static com.campus.social.common.ResultCode.USER_CANCELLED;
 
@@ -57,10 +59,16 @@ public class GroupMembershipService {
     /** 行为信任门槛：建群/拉人需账号满 24 小时 + 信誉 60（校园信息不参与） */
     private final CampusAccessService campusAccess;
     private final CampusProperties campus;
+    /** 群名称公开可见，与圈子名同口径：一级/二级词都拒，不打码入库 */
+    private final SensitiveWordFilter sensitive;
 
     public long createGroup(long ownerId, String name, String avatarUrl, List<Long> memberIds) {
         if (name == null || name.isBlank()) {
             throw new BusinessException(GROUP_NAME_EMPTY, "群名称不能为空");
+        }
+        String trimmedName = name.trim();
+        if (sensitive.containsBlock(trimmedName) || sensitive.containsReplace(trimmedName)) {
+            throw new BusinessException(SENSITIVE_WORD_BLOCKED, "群名称包含违规词，换一个再试");
         }
         User owner = userMapper.selectById(ownerId);
         if (owner == null || owner.getStatus() == 1) {
@@ -69,7 +77,7 @@ public class GroupMembershipService {
         campusAccess.requireCreateGroup(ownerId, "创建群聊");
 
         Group g = new Group();
-        g.setName(name.trim());
+        g.setName(trimmedName);
         if (avatarUrl != null && !uploadService.isAvatarAllowed(avatarUrl, ownerId)) {
             throw new BusinessException(BAD_REQUEST, "群头像必须是您自己上传的图片");
         }
