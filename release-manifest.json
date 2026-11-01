@@ -1,7 +1,7 @@
 {
   "version": "1.13.8",
   "releaseType": "full",
-  "onlineSince": null,
+  "onlineSince": "2026-11-01T14:54:14+08:00",
   "sourceState": "committed",
   "git": {
     "frontendSourceCommit": "500ef898ed6de3f5787459ddedb50239ae2c4bc4",
@@ -35,8 +35,14 @@
     "package": "ys_deploy_20261101_v1138.zip",
     "packageMd5": "6fbbe4e55e10a916c870317b104eaadd",
     "packageBytes": 68572615,
-    "deployedAt": null,
-    "note": "待部署。该清单先于部署包打包生成，包内 packageMd5 为空；仓库清单在打包后回填实际 md5 与大小。",
-    "verified": []
+    "deployedAt": "2026-11-01T14:54:14+08:00",
+    "note": "部署由用户通过宝塔执行成功；未取到脚本启动时间，deployedAt 与 onlineSince 取公网核验时间。包内 manifest 的 packageMd5 为空，以仓库清单回填值为准。",
+    "verified": [
+      "https://yousheng8.cn/healthz 返回 {\"status\":\"UP\"}（2026-11-01T14:54:14+08:00）",
+      "线上入口 assets/index-B-ftqZyC.js 334,633 B，SHA256 de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9，与包内一致",
+      "index.html Last-Modified 为 2026-11-01 14:46:28 CST，与 1.13.8 构建时间一致",
+      "/api/user/me 返回 401；/actuator/prometheus 返回 text/html（SPA 回退，指标未暴露公网）",
+      "用户确认宝塔 deploy.sh 执行成功"
+    ]
   }
 }

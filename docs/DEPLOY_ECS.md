@@ -698,7 +698,7 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 ## 11. 探活与日志
 
 - 本机探活：`curl -s localhost:8080/actuator/health`（health 不返回 env/beans，明细也不返回）。
-- 性能指标（1.13.7 已启用）：`curl -s localhost:8080/actuator/prometheus`；
+- 性能指标（1.13.7 起启用）：`curl -s localhost:8080/actuator/prometheus`；
   `campus-metrics.timer` 每 5 分钟采样，保留 8 天。采集与 MySQL 慢查询步骤见 `docs/ops/performance-metrics.md`。
 - 公网探活：`https://yousheng8.cn/healthz` —— 6.1 节的 Nginx 反代，响应只有 `{"status":"UP"}`，专给外部监控用。
   除 `/healthz` 外，Nginx 没有反代任何 actuator 端点；`/actuator/prometheus` 只能从 ECS 本机访问。
@@ -710,7 +710,25 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-**当前线上 1.13.7（2026-11-01 14:19 CST 部署，14:20 CST 公网核验）**：
+**当前线上 1.13.8（2026-11-01 14:46 CST 构建，14:54 CST 公网核验）**：
+
+```text
+frontend: assets/index-B-ftqZyC.js
+          sha256 de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9
+          334,633 B
+backend : 1.13.8 -> jar md5 536884e3579d3c6b15fc2da2b2f57262
+          73,977,056 B
+database: 39 表；本版无新增结构，四段历史幂等迁移随包重跑
+package : ys_deploy_20261101_v1138.zip
+          md5 6fbbe4e55e10a916c870317b104eaadd（68,572,615 B，210 条目）
+onlineSince: 2026-11-01T14:54:14+08:00（公网核验时间；部署脚本启动时间与备份后缀未取得）
+```
+
+- 内容：昵称/个人介绍/群名称敏感词过滤（昵称/群名一级二级均拒，简介二级拒发、一级打码）；ADR-010 收口方案 B，`schema.sql` 与生产一致为 0 外键。1.13.7 的写接口限流、E2E CI、MktActivity 拆分与 Actuator 指标仍在包内。
+- 验证：后端 221/221、前端 11 门禁；`SHA256SUMS` 209 个文件通过、`bash -n deploy.sh` 通过、zip `testzip` 无损坏、0 反斜杠条目；`release-manifest.json` 校验全部通过。
+- 公网验证（2026-11-01 14:54 CST）：`/healthz` UP；入口 `assets/index-B-ftqZyC.js` 334,633 B，SHA256 与包内一致；`index.html` Last-Modified 为 14:46:28 CST；`/api/user/me` 401；`/actuator/prometheus` 返回 SPA HTML，未泄露指标。用户确认宝塔 `deploy.sh` 执行成功。
+
+**上一版 1.13.7（已被 1.13.8 覆盖）**（2026-11-01 14:19 CST 部署，14:20 CST 公网核验）：
 
 ```text
 frontend: assets/index-oKhCdAAb.js
@@ -718,18 +736,15 @@ frontend: assets/index-oKhCdAAb.js
           334,633 B
 backend : 1.13.7 -> jar md5 f6010d70cc11a9fdc3b1cd803a764691
           73,976,221 B
-database: 39 表；本版无新增结构，四段历史幂等迁移随包重跑
 package : ys_deploy_20261101_v1137.zip
           md5 af7f576b23befd849b263be37cde343f（68,572,799 B，210 条目）
 onlineSince: 2026-11-01T14:19:03+08:00（应用启动；备份后缀 20261101_141826）
 ```
 
-- 内容：写接口限流（用户 + IP 双维度）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 指标；包内 `ops/` 附可选指标采样安装。
-- 验证：后端 214/214、前端 11 门禁、E2E 4/4；`SHA256SUMS` 209 个文件通过、`bash -n deploy.sh` 通过、zip `testzip` 无损坏、0 反斜杠条目。
-- 公网验证（2026-11-01 14:20 CST）：`/healthz` UP；入口 `assets/index-oKhCdAAb.js` 334,633 B，SHA256 与包内一致；`/api/user/me` 401；`/actuator/prometheus` 返回 SPA HTML，未泄露指标。部署脚本输出版本 1.13.7、本机/公网健康均 UP、备份后缀 `20261101_141826`。
-- 指标采样：`campus-metrics.timer` 已安装，首次执行 `status=0/SUCCESS`，采样文件 `/opt/campus/logs/metrics/metrics-2026-11-01.prom`。
+- 内容：写接口限流（用户 + IP 双维度）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 指标。
+- 验证：后端 214/214、前端 11 门禁、E2E 4/4；公网入口哈希与包内一致。
 
-**上一版 1.13.6（已被 1.13.7 覆盖）**（2026-11-01 13:01 CST 构建包，13:17 CST 公网核验）：
+**更早 1.13.6（已被 1.13.7 覆盖）**（2026-11-01 13:01 CST 构建包，13:17 CST 公网核验）：
 
 ```text
 frontend: assets/index-D59WODR8.js
@@ -747,7 +762,7 @@ onlineSince: 2026-11-01T13:17:56+08:00（公网核验时间；包内入口 mtime
 - 部署脚本先校验版本、jar MD5、入口哈希与迁移清单，复用 `backup.sh` 完成数据库备份，再停服落位、执行四段幂等迁移、探活；失败自动回滚 jar/web/VERSION。
 - 公网验证（2026-11-01 13:17 CST）：`/healthz` UP；入口 `assets/index-D59WODR8.js` 334,633 B，SHA256 与包内一致；`Login-BOchmQSS.js`、`AdminUsers-BGkQus5K.js` 与包内逐字节一致；`Login` 含「邮箱格式不正确」且无 `you@qq.com`，`AdminUsers` 含「已注销」；`index.html` Last-Modified 为 2026-11-01 13:01:46 CST。
 - **后端版本判定**：`deploy.sh` 在同一次落位中先复制 jar 再换 web，任一步失败自动回滚；公网入口与分块全部匹配 1.13.6 包且服务 UP，用户确认脚本执行成功，判定 1.13.6 整包生效。actuator 除 health 外不对外，未做登录态接口探测。
-- **源码状态**：1.13.4-1.13.7 已提交为 `dc6aa2c` 并打 `v1.13.7`，Gitee 与 GitHub 均已推送；`release-manifest.json` 标记 `sourceState=committed` 并已回填 `onlineSince` 与核验段。
+- **源码状态**：1.13.4-1.13.8 已提交（1.13.8 为 `500ef89`，标签 `v1.13.8`；1.13.4-1.13.7 为 `dc6aa2c`），Gitee 与 GitHub 均已推送；`release-manifest.json` 已回填 1.13.8 的 `onlineSince` 与核验段。
 
 **上一版 1.13.5**（2026-11-01 10:22 CST，入口 `index-B8hU-Zw3.js`，jar md5 `e8f08305…`，包 `ys_deploy_20261101_v1135.zip`，已被 1.13.6 覆盖）：账号自助注销、隐私政策与用户协议重写、PII 日志与审计脱敏。
 
@@ -983,7 +998,7 @@ onlineSince: 2026-11-01T13:17:56+08:00（公网核验时间；包内入口 mtime
 
 公网验证（2026-11-01 13:17 CST）：`/healthz` 返回 `{"status":"UP"}`；`index.html` 入口为 `assets/index-D59WODR8.js`，下载后 SHA256 与大小均与包内一致；`Login-BOchmQSS.js`、`AdminUsers-BGkQus5K.js` 与包内逐字节一致；`Login` 含「邮箱格式不正确」且无 `you@qq.com`，`AdminUsers` 含「已注销」。
 
-> 1.13.4-1.13.7 源码已提交为 `dc6aa2c` 并打 `v1.13.7`；清单标记 `sourceState=committed`。1.13.7 待宝塔部署后回填 `onlineSince`、`deployedAt` 与公网核验段。
+> 1.13.4-1.13.8 源码已提交（1.13.8 为 `500ef89`，标签 `v1.13.8`；1.13.4-1.13.7 为 `dc6aa2c`）；清单标记 `sourceState=committed`，并已回填 `onlineSince`、`deployedAt` 与公网核验段。
 
 **边界规则（保持）**：从 1.13.3 起，前端、后端、SQL 迁移、部署脚本与 `release-manifest.json` 必须作为同一个版本一次发布，不再只换 `web/` 或只换 jar。
 
@@ -994,6 +1009,15 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 ```
 
 校验项：`pom.xml` / `package.json` 版本与清单一致；前端入口 SHA256 与大小；jar MD5 与大小；`sql/schema.sql` 表数量；迁移文件存在；前端源码自清单提交后未变化；后端标签指向清单提交。任何一项失败都停止发布。
+
+**1.13.8 发布记录（2026-11-01，已部署）**：
+
+1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json`、`README.md` 与 `changelog.js` 统一为 1.13.8；changelog 空数组行合并，保持 400 行门禁。
+2. 后端 `mvn test` **221/221**；`mvn -DskipTests package` 生成 jar md5 `536884e3579d3c6b15fc2da2b2f57262`，73,977,056 B；`application-local.yml` 未进包（`unzip -l` 为 0）。
+3. 前端 11 条门禁 0 失败；生产构建入口 `assets/index-B-ftqZyC.js`（334,633 B，sha256 `de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9`）。
+4. **本版无新增表结构**：包内仍带四段历史幂等迁移；`schema.sql` 已按 ADR-010 方案 B 移除 `fk_major_dept`，生产原本 0 外键，无 DDL 变化。
+5. 部署包 `ys_deploy_20261101_v1138.zip`（md5 `6fbbe4e55e10a916c870317b104eaadd`，68,572,615 B，210 条目，0 反斜杠条目）含 jar、web、四段迁移、`deploy.sh`、清单、SHA256SUMS 与可选 `ops/` 指标采样。
+6. 已通过宝塔上传执行 `deploy.sh`（用户确认成功）：公网健康 UP，入口与 sha256 匹配；`release-manifest.json` 已回填 `onlineSince=2026-11-01T14:54:14+08:00` 与 deployment 证据段。
 
 **1.13.7 发布记录（2026-11-01，已部署）**：
 
