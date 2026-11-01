@@ -9,15 +9,24 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.13.8',
+    date: '2026-11-01',
+    added: [], changed: [
+      '昵称、个人介绍、群名称增加违规词校验：昵称与群名命中会提示修改，个人介绍命中后按规则提示或打码保存',
+    ],
+    fixed: [
+      '公开资料与群名称此前未经过敏感词过滤，可能展示违规内容',
+    ],
+    removed: [],
+  },
+  {
     version: '1.13.7',
     date: '2026-11-01',
-    added: [],
-    changed: [
+    added: [], changed: [
       '发帖、编辑、评论、私信、群消息、举报、反馈、关注/拉黑、建圈建群增加频率保护，操作过于频繁时会提示稍后再试',
       '服务端增加接口耗时与连接池性能指标采集，便于定位慢请求',
     ],
-    fixed: [],
-    removed: [],
+    fixed: [], removed: [],
   },
   {
     version: '1.13.6',
@@ -47,8 +56,7 @@ export const CHANGELOG = [
     changed: [
       '隐私政策与用户协议更新：邮箱为注册必填、说明 OSS 与邮件服务、补充注销与投诉路径',
     ],
-    fixed: [],
-    removed: [],
+    fixed: [], removed: [],
   },
   {
     version: '1.13.4',
@@ -59,14 +67,12 @@ export const CHANGELOG = [
     changed: [
       '举报处置必须填写理由，处理结果会显示具体动作与天数',
     ],
-    fixed: [],
-    removed: [],
+    fixed: [], removed: [],
   },
   {
     version: '1.13.3',
     date: '2026-10-31',
-    added: [],
-    changed: [
+    added: [], changed: [
       '游客电脑端首页改为动态流 + 推荐栏',
       '建圈、建群、活动报名门槛由 3 天降为 24 小时',
     ],
@@ -78,8 +84,7 @@ export const CHANGELOG = [
   {
     version: '1.13.2',
     date: '2026-10-30',
-    added: [],
-    changed: [],
+    added: [], changed: [],
     fixed: [
       '下架或退回审核的帖子，其评论不再能被直接读取',
       '游客点击活动报名、举报时先提示登录，不再点了没反应',
@@ -89,8 +94,7 @@ export const CHANGELOG = [
   {
     version: '1.13.1',
     date: '2026-10-30',
-    added: [],
-    changed: [
+    added: [], changed: [
       '校园信息只保留学号一致性比对与管理员人工核对',
     ],
     fixed: [
@@ -121,8 +125,7 @@ export const CHANGELOG = [
   {
     version: '1.12.1',
     date: '2026-10-30',
-    added: [],
-    changed: [
+    added: [], changed: [
       '游客登录后可以浏览圈子列表、圈子详情、集市广场和搜索；顶栏为游客补了搜索入口',
     ],
     fixed: [
@@ -147,8 +150,7 @@ export const CHANGELOG = [
   {
     version: '1.11.2',
     date: '2026-10-29',
-    added: [],
-    changed: [
+    added: [], changed: [
       '视频上传时自动截一帧作为封面,首页/详情/发帖预览直接显示画面',
     ],
     fixed: [
@@ -159,8 +161,7 @@ export const CHANGELOG = [
   {
     version: '1.11.1',
     date: '2026-10-29',
-    added: [],
-    changed: [
+    added: [], changed: [
       '上传图片/视频时显示进度、进度条和大概剩余时间;上传完成前不能点发布',
       '服务端转存视频改走 OSS 内网,弱网上传大视频明显变快',
     ],
