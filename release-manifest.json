@@ -36,10 +36,15 @@
   "notes": "1.13.11 完整包（含 1.13.10 全部修复）：用户引用清单测试、统一关系清理入口、夜间对账补齐群人数/报名数/加圈数/私信未读、状态可见性矩阵、发布一致性 SQL 与部署闸门、存量计数重算迁移；并发计数幂等、群消息预览、圈子封禁/活动状态守卫、注销后活动/集市/关注残留与通知收口。",
   "deployment": {
     "package": "ys_deploy_20261101_v11311.zip",
-    "packageMd5": null,
-    "packageBytes": null,
+    "packageMd5": "434c95d0c97e9575c523923feb7488a2",
+    "packageBytes": 68592184,
     "deployedAt": null,
-    "note": "待部署。该清单先于部署包打包生成，包内 packageMd5 为空；仓库清单在打包后回填实际 md5 与大小。",
-    "verified": []
+    "note": "包已构建并校验，待宝塔部署。包内 release-manifest.json 的 packageMd5 为空（清单先于打包生成）；仓库清单回填实际 md5 与大小。",
+    "verified": [
+      "SHA256SUMS 209 个文件全部通过",
+      "verify-release-manifest.py 全项通过",
+      "bash -n deploy.sh 与 check-consistency.sh 通过",
+      "zip testzip 无损坏，210 个条目"
+    ]
   }
 }
