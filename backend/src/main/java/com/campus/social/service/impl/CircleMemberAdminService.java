@@ -83,6 +83,9 @@ public class CircleMemberAdminService {
         if (targetUser == null || !Integer.valueOf(0).equals(targetUser.getStatus())) {
             throw new BusinessException(UNPROCESSABLE, "目标账号不可用");
         }
+        if (permissions.isBanActive(circleId, targetUserId)) {
+            throw new BusinessException(UNPROCESSABLE, "该成员处于封禁中，无法任命圈管理");
+        }
         // 圈管理不能再任命别人:本方法 requireCircleCreator 已保证只有圈主(role=1)能进来
         circleMemberMapper.setRole(circleId, targetUserId, CirclePermissionSupport.ROLE_ADMIN);
         auditService.record(me, "circle_appoint_admin", "circle", circleId, "任命圈管理 " + targetUserId, null);
@@ -110,6 +113,13 @@ public class CircleMemberAdminService {
                 .eq(CircleMember::getCircleId, circleId)
                 .orderByAsc(CircleMember::getRole)
                 .orderByDesc(CircleMember::getId));
+        /*
+         * 成员页公开，但封禁状态属于管理信息：只有圈主/圈管理/平台管理员能看到被封禁者。
+         * 前端公开页本来就会过滤 banStatus=1，这里在 API 层同样收口，避免直连接口拿到名单。
+         */
+        if (!canSeeBanDetail(circleId, viewerId)) {
+            rows = rows.stream().filter(m -> currentBanStatus(m) == 0).toList();
+        }
         // 批量取昵称/头像(避免 N+1)
         List<Long> userIds = rows.stream().map(CircleMember::getUserId).distinct().toList();
         List<User> users = userIds.isEmpty() ? List.of() : userMapper.selectBatchIds(userIds);
@@ -137,6 +147,21 @@ public class CircleMemberAdminService {
                     .dept(u != null ? u.getDept() : null)
                     .build();
         }).toList();
+    }
+
+    /** 圈主/圈管理/平台管理员可看封禁状态；普通成员与游客只看正常成员 */
+    private boolean canSeeBanDetail(long circleId, long viewerId) {
+        if (viewerId <= 0) {
+            return false;
+        }
+        User viewer = userMapper.selectById(viewerId);
+        if (viewer != null && Integer.valueOf(1).equals(viewer.getRole())) {
+            return true;
+        }
+        CircleMember me = circleMemberMapper.selectOne(new LambdaQueryWrapper<CircleMember>()
+                .eq(CircleMember::getCircleId, circleId)
+                .eq(CircleMember::getUserId, viewerId));
+        return me != null && me.getRole() != null && me.getRole() <= CirclePermissionSupport.ROLE_ADMIN;
     }
 
     /** 行内 ban_status 到点动态重算:ban_until 非空且已过期 → 视为 0(自动解禁,不落库) */

@@ -61,6 +61,8 @@ class AccountCancelCascadeTest {
     private long circleDisband;
     private long circleMemberOnly;
     private long activityId;
+    private long createdActivity;
+    private long mktActivity;
 
     @BeforeEach
     void seed() {
@@ -128,6 +130,20 @@ class AccountCancelCascadeTest {
         activityId = activity("满员活动", 1, 1, 1);
         jdbc.update("INSERT INTO activity_signup (activity_id, user_id) VALUES (?,?)", activityId, cancelUser);
 
+        // 注销用户创建的活动：另一个正常用户报名 → 活动取消并通知报名者
+        createdActivity = activityByCreator("用户创建的活动", cancelUser, 1, 0);
+        jdbc.update("INSERT INTO activity_signup (activity_id, user_id) VALUES (?,?)", createdActivity, memberA);
+
+        // 注销用户的集市发布：注销后应下线
+        mktActivity = mktActivity(cancelUser);
+
+        // 注销用户的关注关系：双向都应清理并回退对方计数
+        jdbc.update("INSERT INTO relation (from_user_id, to_user_id, type, is_deleted) VALUES (?,?,1,0)",
+                cancelUser, memberA);
+        jdbc.update("INSERT INTO relation (from_user_id, to_user_id, type, is_deleted) VALUES (?,?,1,0)",
+                memberA, cancelUser);
+        jdbc.update("UPDATE user SET follower_count = 1, following_count = 1 WHERE id = ?", memberA);
+
         // 内容留痕：不挂圈的帖子注销后保留
         post(cancelUser, null, "注销后保留的帖子", 1);
 
@@ -158,8 +174,10 @@ class AccountCancelCascadeTest {
         for (Long id : userIds) {
             redis.delete("refresh:" + id);
             redis.delete("user:status:" + id);
+            jdbc.update("DELETE FROM notify WHERE user_id = ?", id);
             jdbc.update("DELETE FROM audit_log WHERE user_id = ?", id);
             jdbc.update("DELETE FROM relation WHERE from_user_id = ? OR to_user_id = ?", id, id);
+            jdbc.update("DELETE FROM mkt_activity WHERE user_id = ?", id);
             jdbc.update("DELETE FROM user WHERE id = ?", id);
         }
         userIds.clear();
@@ -243,6 +261,24 @@ class AccountCancelCascadeTest {
         assertEquals(0, count("SELECT COUNT(*) FROM activity_signup WHERE activity_id = ? AND user_id = ?",
                 activityId, cancelUser));
 
+        // 注销用户创建的活动：取消并通知仍报名的正常用户
+        assertEquals(4, queryInt("SELECT status FROM activity WHERE id = ?", createdActivity),
+                "注销用户创建的活动应被取消");
+        assertEquals(1, count("SELECT COUNT(*) FROM activity_signup WHERE activity_id = ? AND user_id = ?",
+                createdActivity, memberA), "其他正常用户的报名记录保留");
+        assertEquals(1, count("SELECT COUNT(*) FROM notify WHERE user_id = ? AND type = 12 AND target_id = ?",
+                memberA, createdActivity), "活动取消通知应送达仍报名的用户");
+
+        // 集市发布下线
+        assertEquals(0, count("SELECT COUNT(*) FROM mkt_activity WHERE id = ? AND is_enable = 1", mktActivity),
+                "注销用户的在投集市发布应下线");
+
+        // 关注关系清理并回退对方计数
+        assertEquals(0, count("SELECT COUNT(*) FROM relation WHERE type = 1 "
+                + "AND (from_user_id = ? OR to_user_id = ?)", cancelUser, cancelUser));
+        assertEquals(0, queryInt("SELECT follower_count FROM user WHERE id = ?", memberA));
+        assertEquals(0, queryInt("SELECT following_count FROM user WHERE id = ?", memberA));
+
         // 内容留痕：不挂圈的帖子保留；用户自己的圈子计数归零
         assertEquals(1, count("SELECT COUNT(*) FROM post WHERE author_id = ? AND content = ? "
                 + "AND status = 1 AND is_deleted = 0", cancelUser, "注销后保留的帖子"));
@@ -304,6 +340,30 @@ class AccountCancelCascadeTest {
         Long id = jdbc.queryForObject("SELECT id FROM activity WHERE title = ?", Long.class, title);
         activityIds.add(id);
         return id;
+    }
+
+    private long activityByCreator(String titleSuffix, long creatorId, int currentCount, int status) {
+        String title = "级联-" + titleSuffix + "-" + SUFFIX;
+        jdbc.update("INSERT INTO activity (title, creator_id, capacity, current_count, "
+                        + "start_time, end_time, status) "
+                        + "VALUES (?,?,10,?, DATE_ADD(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 2 DAY), ?)",
+                title, creatorId, currentCount, status);
+        Long id = jdbc.queryForObject("SELECT id FROM activity WHERE title = ?", Long.class, title);
+        activityIds.add(id);
+        return id;
+    }
+
+    private long mktActivity(long userId) {
+        String title = "级联集市-" + SUFFIX;
+        jdbc.update("INSERT INTO mkt_activity (user_id, category, title, content, is_enable, expire_time) "
+                        + "VALUES (?,?,?,?,1, DATE_ADD(NOW(), INTERVAL 1 HOUR))",
+                userId, "其它", title, "注销后应下线的集市内容");
+        return jdbc.queryForObject("SELECT id FROM mkt_activity WHERE user_id = ? AND title = ?",
+                Long.class, userId, title);
+    }
+
+    private int queryInt(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Integer.class, args);
     }
 
     private void post(long authorId, Long circleId, String content, int status) {

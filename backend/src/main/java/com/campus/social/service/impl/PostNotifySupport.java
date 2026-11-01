@@ -77,6 +77,9 @@ public class PostNotifySupport {
      * 用户永远看不到红点；只改未读数不写 notify，点了进去是空的。
      */
     public void pushNotify(long userId, int type, long targetId, long actorId, Long postId) {
+        if (!canDeliver(userId)) {
+            return;
+        }
         // 通知偏好:被用户关闭的类型不投递(免打扰)。反馈回复 type=11 走 pushFeedbackReply,不在此受限。
         Set<Integer> disabled = parseDisabled(userMapper.selectNotifyPrefById(userId));
         if (disabled.contains(type)) {
@@ -106,6 +109,9 @@ public class PostNotifySupport {
      * （封禁/解封）本来就没有可指向的实体。
      */
     public void pushSystemNotify(long userId, int type, Long targetId, Long postId, String content) {
+        if (!canDeliver(userId)) {
+            return;
+        }
         Set<Integer> disabled = parseDisabled(userMapper.selectNotifyPrefById(userId));
         if (disabled.contains(type)) {
             log.debug("system notify skipped by pref: userId={}, type={}", userId, type);
@@ -135,6 +141,9 @@ public class PostNotifySupport {
      * 既无意义也不安全。驳回理由走 content，与反馈回复同一口径。
      */
     public void pushVerifyResult(long userId, int type, String content) {
+        if (!canDeliver(userId)) {
+            return;
+        }
         Set<Integer> disabled = parseDisabled(userMapper.selectNotifyPrefById(userId));
         if (disabled.contains(type)) {
             log.debug("verify notify skipped by pref: userId={}, type={}", userId, type);
@@ -151,6 +160,16 @@ public class PostNotifySupport {
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(userId, 1);
         wsPush.pushNotify(userId, n.getId(), type, 0L, 0L);
+    }
+
+    /** 接收人不存在或已注销时不再写通知、不再累加未读；冻结账号仍可收到，恢复后可看 */
+    private boolean canDeliver(long userId) {
+        Integer status = userMapper.selectStatusById(userId);
+        if (status == null || Integer.valueOf(2).equals(status)) {
+            log.debug("notify skipped: userId={} not deliverable", userId);
+            return false;
+        }
+        return true;
     }
 
     /** 解析 notify_pref 列里的 disabled 类型集合;NULL/空/非法都视为全开 */
@@ -185,6 +204,9 @@ public class PostNotifySupport {
      * @param content 回复原文（即 handleNote）
      */
     public void pushFeedbackReply(long toUserId, long feedbackId, long adminId, String content) {
+        if (!canDeliver(toUserId)) {
+            return;
+        }
         Notify n = new Notify();
         n.setUserId(toUserId);
         n.setType(11);

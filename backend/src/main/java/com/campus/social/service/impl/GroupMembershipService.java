@@ -145,8 +145,10 @@ public class GroupMembershipService {
         // 2026-10-28:只能邀请关注我/我关注的人。此前任何群成员都能把任意 userId
         // 拉进群且无通知,是「新号建群 → 批量拉陌生人」骚扰链路的最后一环。
         assertInvitables(me, toAdd);
-        // 人数上限:当前成员数 + 本次新增 不得超过 groupMaxMembers
-        int now = groupMemberMapper.countByGroup(groupId);
+        // 人数上限:先锁群行，再用当前读计数。两个邀请并发时必须在同一把锁上排队，
+        // 否则双方都按旧快照判断会一起越过上限。
+        groupMapper.lockById(groupId);
+        int now = groupMemberMapper.countByGroupForUpdate(groupId);
         if (now + toAdd.size() > campus.getGroupMaxMembers()) {
             throw new BusinessException(GROUP_FULL, "群成员已满,无法继续拉人");
         }
@@ -169,7 +171,10 @@ public class GroupMembershipService {
         if (groupMemberMapper.isMember(groupId, userId) == 0) {
             return; // 已不在群里,幂等
         }
-        groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(userId));
+        // 并发重复踢同一人时只有第一个请求真正删到行，后面的不能再次减计数
+        if (groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(userId)) == 0) {
+            return;
+        }
         groupReadMapper.deleteByGroupAndUser(groupId, userId);
         groupMapper.decMemberCount(groupId);
         log.info("group kick: group={} owner={} kicked={}", groupId, me, userId);
@@ -201,7 +206,9 @@ public class GroupMembershipService {
         }
         boolean isOwner = g.getOwnerId().equals(me);
         if (!isOwner) {
-            groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me));
+            if (groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me)) == 0) {
+                return; // 并发重复退群:已由另一个请求删掉并减过计数
+            }
             groupReadMapper.deleteByGroupAndUser(groupId, me);
             groupMapper.decMemberCount(groupId);
             log.info("group leave: group={} member={}", groupId, me);
@@ -217,7 +224,9 @@ public class GroupMembershipService {
             long nextOwner = activeOthers.get(0);
             groupMapper.transferOwner(groupId, nextOwner);
             groupMemberMapper.updateRole(groupId, nextOwner, 1);
-            groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me));
+            if (groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me)) == 0) {
+                return; // 并发重复退群:另一个请求已完成移交和计数
+            }
             groupReadMapper.deleteByGroupAndUser(groupId, me);
             groupMapper.decMemberCount(groupId);
             log.info("group owner leave -> transfer to {}: group={}", nextOwner, groupId);

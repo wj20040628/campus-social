@@ -65,11 +65,11 @@ public interface UserMapper extends BaseMapper<User> {
             + "</script>")
     List<User> selectByIds(@Param("ids") Collection<Long> ids);
 
-    /** 原子自增/自减计数,防并发丢失 */
-    @Update("UPDATE user SET follower_count = follower_count + #{delta}, update_time = NOW() WHERE id = #{userId}")
+    /** 原子自增/自减计数,防并发丢失;减到 0 即止,避免并发重复取消把计数打成负数 */
+    @Update("UPDATE user SET follower_count = GREATEST(0, follower_count + #{delta}), update_time = NOW() WHERE id = #{userId}")
     int adjustFollowerCount(@Param("userId") Long userId, @Param("delta") int delta);
 
-    @Update("UPDATE user SET following_count = following_count + #{delta}, update_time = NOW() WHERE id = #{userId}")
+    @Update("UPDATE user SET following_count = GREATEST(0, following_count + #{delta}), update_time = NOW() WHERE id = #{userId}")
     int adjustFollowingCount(@Param("userId") Long userId, @Param("delta") int delta);
 
     @Update("UPDATE user SET unread_notify_count = GREATEST(0, unread_notify_count + #{delta}), update_time = NOW() WHERE id = #{userId}")
@@ -99,12 +99,32 @@ public interface UserMapper extends BaseMapper<User> {
             + "update_time = NOW() WHERE id = #{userId}")
     int recomputeUnreadNotifyCount(@Param("userId") Long userId);
 
-    /** 全量对账:一次把所有用户的 follower/following 重算(凌晨跑,简单可靠) */
-    @Update("UPDATE user u SET " +
-            "  follower_count = (SELECT COUNT(*) FROM relation r WHERE r.to_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
-            "  following_count = (SELECT COUNT(*) FROM relation r WHERE r.from_user_id = u.id AND r.type = 1 AND r.is_deleted = 0), " +
-            "  update_time = NOW()")
+    /**
+     * 全量对账:一次把所有用户的 follower/following 重算(凌晨跑,简单可靠)。
+     * 已注销账号不参与计数：关系行可能保留，但展示层已隐藏，计数必须同口径。
+     *
+     * <p>必须用 GROUP BY 派生表：MySQL 不允许在 UPDATE user 的子查询里再读 user
+     * （ERROR 1093），直接 JOIN user 会报错；GROUP BY 会先把派生表物化。
+     */
+    @Update("UPDATE user u "
+            + "LEFT JOIN ("
+            + "  SELECT r.to_user_id AS uid, COUNT(*) AS cnt FROM relation r "
+            + "  JOIN user ru ON ru.id = r.from_user_id AND ru.status <> 2 AND ru.is_deleted = 0 "
+            + "  WHERE r.type = 1 AND r.is_deleted = 0 GROUP BY r.to_user_id"
+            + ") f ON f.uid = u.id "
+            + "LEFT JOIN ("
+            + "  SELECT r.from_user_id AS uid, COUNT(*) AS cnt FROM relation r "
+            + "  JOIN user ru ON ru.id = r.to_user_id AND ru.status <> 2 AND ru.is_deleted = 0 "
+            + "  WHERE r.type = 1 AND r.is_deleted = 0 GROUP BY r.from_user_id"
+            + ") g ON g.uid = u.id "
+            + "SET u.follower_count = COALESCE(f.cnt, 0), "
+            + "    u.following_count = COALESCE(g.cnt, 0), "
+            + "    u.update_time = NOW()")
     int reconcileAll();
+
+    /** 注销通知拦截：接收人不存在或已注销时不再写通知 */
+    @Select("SELECT status FROM user WHERE id = #{userId} AND is_deleted = 0")
+    Integer selectStatusById(@Param("userId") Long userId);
 
     // ---------------------------------------------------------------- F2 校内认证
 

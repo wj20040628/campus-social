@@ -79,7 +79,10 @@ public class RelationServiceImpl implements RelationService {
             // 幂等:未关注直接返回
             return;
         }
-        relationMapper.hardDelete(me, toUserId, TYPE_FOLLOW);
+        // 并发重复取关时只有第一个请求真正删到行,后面的不能再减双方计数
+        if (relationMapper.hardDelete(me, toUserId, TYPE_FOLLOW) == 0) {
+            return;
+        }
         userMapper.adjustFollowingCount(me, -1);
         userMapper.adjustFollowerCount(toUserId, -1);
         log.info("unfollow: {} -> {}", me, toUserId);

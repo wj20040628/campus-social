@@ -1,10 +1,12 @@
 package com.campus.social.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.campus.social.entity.Activity;
 import com.campus.social.entity.ActivitySignup;
 import com.campus.social.entity.Circle;
 import com.campus.social.entity.CircleMember;
 import com.campus.social.entity.Group;
+import com.campus.social.entity.Relation;
 import com.campus.social.mapper.ActivityMapper;
 import com.campus.social.mapper.ActivitySignupMapper;
 import com.campus.social.mapper.CircleMapper;
@@ -13,7 +15,9 @@ import com.campus.social.mapper.GroupMapper;
 import com.campus.social.mapper.GroupMemberMapper;
 import com.campus.social.mapper.GroupMessageMapper;
 import com.campus.social.mapper.GroupReadMapper;
+import com.campus.social.mapper.MktActivityMapper;
 import com.campus.social.mapper.PostMapper;
+import com.campus.social.mapper.RelationMapper;
 import com.campus.social.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +56,9 @@ public class AccountCancelCascadeService {
     private final PostMapper postMapper;
     private final ActivitySignupMapper signupMapper;
     private final ActivityMapper activityMapper;
+    private final MktActivityMapper mktActivityMapper;
+    private final RelationMapper relationMapper;
+    private final PostNotifySupport notifySupport;
     private final UserMapper userMapper;
     private final FeedPageCacheService feedCache;
 
@@ -141,6 +148,27 @@ public class AccountCancelCascadeService {
             // 已解散/已封禁圈子的残留成员行也删掉，但不再改活跃计数
         }
 
+        // 注销用户创建的活动：无人能再管理，统一取消并通知仍报名的正常用户。
+        // 先取消再删报名，通知时能拿到完整报名名单；当前用户自己的报名随后统一清退。
+        int activitiesCancelled = 0;
+        List<Activity> createdActivities = activityMapper.selectList(new LambdaQueryWrapper<Activity>()
+                .eq(Activity::getCreatorId, userId)
+                .in(Activity::getStatus, 0, 1, 2));
+        for (Activity a : createdActivities) {
+            if (activityMapper.cancelOpenById(a.getId()) == 0) {
+                continue; // 并发下已被其他请求取消，避免重复通知
+            }
+            List<ActivitySignup> listeners = signupMapper.selectList(
+                    new LambdaQueryWrapper<ActivitySignup>().eq(ActivitySignup::getActivityId, a.getId()));
+            for (ActivitySignup s : listeners) {
+                if (!s.getUserId().equals(userId)) {
+                    notifySupport.pushSystemNotify(s.getUserId(), 12, a.getId(), null,
+                            "活动创建者已注销，活动已取消");
+                }
+            }
+            activitiesCancelled++;
+        }
+
         int signupsRemoved = 0;
         List<ActivitySignup> signups = signupMapper.selectList(
                 new LambdaQueryWrapper<ActivitySignup>().eq(ActivitySignup::getUserId, userId));
@@ -151,9 +179,30 @@ public class AccountCancelCascadeService {
             }
         }
 
+        // 集市发布立即下线；帖子/评论/私聊仍按既定口径保留
+        int mktDisabled = mktActivityMapper.disableByUser(userId);
+
+        // 关注关系随账号注销清除；黑名单保留以支持对方解除拉黑。
+        // 计数只改关系另一端，注销账号自身计数随后由全量对账归零。
+        int followsRemoved = 0;
+        List<Relation> follows = relationMapper.selectList(new LambdaQueryWrapper<Relation>()
+                .eq(Relation::getType, 1)
+                .and(w -> w.eq(Relation::getFromUserId, userId).or().eq(Relation::getToUserId, userId)));
+        for (Relation r : follows) {
+            if (relationMapper.hardDelete(r.getFromUserId(), r.getToUserId(), 1) > 0) {
+                if (r.getFromUserId().equals(userId)) {
+                    userMapper.adjustFollowerCount(r.getToUserId(), -1);
+                } else {
+                    userMapper.adjustFollowingCount(r.getFromUserId(), -1);
+                }
+                followsRemoved++;
+            }
+        }
+
         userMapper.resetJoinedCircleCount(userId);
         Result result = new Result(groupsLeft, groupsTransferred, groupsDisbanded,
-                circlesLeft, circlesTransferred, circlesDisbanded, signupsRemoved);
+                circlesLeft, circlesTransferred, circlesDisbanded, signupsRemoved,
+                activitiesCancelled, mktDisabled, followsRemoved);
         log.info("account cancel cascade: uid={}, {}", userId, result.summary());
         return result;
     }
@@ -209,11 +258,13 @@ public class AccountCancelCascadeService {
     /** 一次注销的级联结果，写进审计说明，便于事后核对清退了哪些关系。 */
     public record Result(int groupsLeft, int groupsTransferred, int groupsDisbanded,
                          int circlesLeft, int circlesTransferred, int circlesDisbanded,
-                         int signupsRemoved) {
+                         int signupsRemoved, int activitiesCancelled,
+                         int mktDisabled, int followsRemoved) {
         public String summary() {
             return "退出群 " + groupsLeft + "、移交群 " + groupsTransferred + "、解散群 " + groupsDisbanded
                     + "；退出圈 " + circlesLeft + "、移交圈 " + circlesTransferred + "、解散圈 " + circlesDisbanded
-                    + "；退报活动 " + signupsRemoved;
+                    + "；退报活动 " + signupsRemoved + "、取消自己创建的活动 " + activitiesCancelled
+                    + "；下线集市 " + mktDisabled + "、清理关注关系 " + followsRemoved;
         }
     }
 }

@@ -83,6 +83,11 @@ public interface MktActivityMapper extends BaseMapper<MktActivity> {
     @Update("UPDATE mkt_activity SET soft_delete = 1 WHERE id = #{id} AND user_id = #{userId} AND soft_delete = 0")
     int softDelete(@Param("id") Long id, @Param("userId") Long userId);
 
+    /** 注销级联：把该用户所有在投集市发布下线，避免已注销账号继续出现在广场 */
+    @Update("UPDATE mkt_activity SET is_enable = 0 WHERE user_id = #{userId} "
+            + "AND soft_delete = 0 AND is_enable = 1")
+    int disableByUser(@Param("userId") Long userId);
+
     /**
      * 某用户**在投**的集市活动 ID(2026-10-25,发布配额用),锁定读。
      * 在投 = 投放中(is_enable=1) 且未过期 且未删——过期/暂停/删除即释放名额,

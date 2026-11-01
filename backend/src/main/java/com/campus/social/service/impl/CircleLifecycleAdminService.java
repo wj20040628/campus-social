@@ -51,6 +51,9 @@ public class CircleLifecycleAdminService {
         if (newOwner == null || !Integer.valueOf(0).equals(newOwner.getStatus())) {
             throw new BusinessException(UNPROCESSABLE, "目标账号不可用，无法成为圈主");
         }
+        if (permissions.isBanActive(circleId, newOwnerId)) {
+            throw new BusinessException(UNPROCESSABLE, "目标成员处于封禁中，无法成为圈主");
+        }
         long oldOwnerId = c.getOwnerId();
         circleMapper.transferOwner(circleId, newOwnerId);
         // 角色翻转:原圈主 1→3,新圈主→1

@@ -79,6 +79,25 @@ public class CirclePermissionSupport {
         if (role != ROLE_MEMBER) {
             return false; // 圈主/圈管理不受封禁拦
         }
+        return isBanActive(row);
+    }
+
+    /**
+     * 只判断封禁记录本身，不看角色。用于「任命圈管理 / 移交圈主」：
+     * 一旦把封禁中的成员升到 role 1/2，isBanned 会因角色而失效，等于绕过封禁。
+     */
+    public boolean isBanActive(long circleId, long userId) {
+        if (circleId <= 0 || userId <= 0) {
+            return false;
+        }
+        CircleMember row = circleMemberMapper.selectOne(new LambdaQueryWrapper<CircleMember>()
+                .eq(CircleMember::getCircleId, circleId)
+                .eq(CircleMember::getUserId, userId));
+        return row != null && isBanActive(row);
+    }
+
+    /** ban_status=1 且未到解除时间（NULL=长期） */
+    private boolean isBanActive(CircleMember row) {
         if (row.getBanStatus() == null || row.getBanStatus() != 1) {
             return false;
         }

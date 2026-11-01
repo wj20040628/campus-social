@@ -32,6 +32,11 @@ public interface ActivityMapper extends BaseMapper<Activity> {
             "WHERE id = #{activityId} AND current_count > 0 AND is_deleted = 0")
     int cancelSignin(@Param("activityId") Long activityId);
 
+    /** 注销级联:取消该用户创建且仍未结束的活动(0报名中/1已满/2进行中) */
+    @Update("UPDATE activity SET status = 4, update_time = NOW() "
+            + "WHERE id = #{activityId} AND status IN (0,1,2) AND is_deleted = 0")
+    int cancelOpenById(@Param("activityId") Long activityId);
+
     /** 定时任务:到 start_time 0/1 → 2 */
     @Update("UPDATE activity SET status = 2, update_time = NOW() " +
             "WHERE status IN (0,1) AND start_time <= NOW() AND is_deleted = 0")

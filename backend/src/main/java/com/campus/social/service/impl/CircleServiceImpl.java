@@ -173,8 +173,9 @@ public class CircleServiceImpl implements CircleService {
     @Transactional
     public void join(long circleId, long userId) {
         Circle c = circleMapper.selectById(circleId);
-        if (c == null) {
-            throw new BusinessException(NOT_FOUND, "圈子不存在");
+        if (c == null || Integer.valueOf(1).equals(c.getStatus())) {
+            // 不能只判 null：status=1 的封禁/解散圈仍能用 id 直连接入并加计数
+            throw new BusinessException(NOT_FOUND, "圈子不存在或已封禁");
         }
         // 幂等:已加入直接返回；并发重复加入由唯一键 uk_cm 抛异常兜底。
         // 不能先 selectCount 再 insert —— 两个请求都查到 0 后会撞唯一键。
@@ -200,6 +201,12 @@ public class CircleServiceImpl implements CircleService {
         if (c.getOwnerId().equals(userId)) {
             throw new BusinessException(UNPROCESSABLE, "圈子创建者不可退出");
         }
+        // 封禁期间不能退圈再入圈：leave 走物理删，重新 join 会生成 ban_status=0 的新行，
+        // 等于把圈主刚做的封禁直接抹掉。圈子已解散/封禁时允许退，避免残行无法清理。
+        if (Integer.valueOf(0).equals(c.getStatus())
+                && circleAdminService.isBanned(circleId, userId)) {
+            throw new BusinessException(UNPROCESSABLE, "封禁期间不能退出圈子，请等待封禁结束");
+        }
         LambdaQueryWrapper<CircleMember> qw = new LambdaQueryWrapper<CircleMember>()
                 .eq(CircleMember::getCircleId, circleId)
                 .eq(CircleMember::getUserId, userId)
@@ -209,7 +216,10 @@ public class CircleServiceImpl implements CircleService {
             return; // 未加入,幂等
         }
         // 物理删(绕过 @TableLogic 软删,否则残留行锁住 uk_cm,再入会撞唯一键)
-        circleMemberMapper.hardDelete(circleId, userId, 3);
+        // 并发重复退圈时只有第一个请求真正删到行,后面的不能再减计数
+        if (circleMemberMapper.hardDelete(circleId, userId, 3) == 0) {
+            return;
+        }
         circleMapper.adjustMemberCount(circleId, -1);
         // 冗余计数:用户「加入的圈子数」-1(加圈时 +1),与 follower_count 同口径
         userMapper.adjustJoinedCircleCount(userId, -1);

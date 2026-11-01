@@ -19,6 +19,13 @@ public interface GroupMemberMapper extends BaseMapper<GroupMember> {
     int countByGroup(@Param("groupId") Long groupId);
 
     /**
+     * 邀请配额检查用的当前读：普通 COUNT 在 REPEATABLE READ 下可能读到
+     * 事务开始时的快照，等锁期间别人刚提交的成员行看不到，仍会突破上限。
+     */
+    @Select("SELECT COUNT(*) FROM group_member WHERE group_id = #{groupId} AND is_deleted = 0 FOR UPDATE")
+    int countByGroupForUpdate(@Param("groupId") Long groupId);
+
+    /**
      * 群内仍可登录的正常成员，按入群行 id 升序。
      * 注销级联选新群主时用：已注销/冻结账号不能接群。
      */

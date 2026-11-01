@@ -77,6 +77,8 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     public CursorPage<ActivityVO> listByCircle(long circleId, Long lastId, int size, long viewerId) {
+        // 圈子封禁/解散后，圈内活动一并不可见；否则直链仍能打开并继续报名
+        requireUsableCircle(circleId);
         LambdaQueryWrapper<Activity> qw = new LambdaQueryWrapper<Activity>()
                 .eq(Activity::getCircleId, circleId)
                 .lt(lastId != null, Activity::getId, lastId)
@@ -96,6 +98,7 @@ public class ActivityServiceImpl implements ActivityService {
         if (a == null) {
             throw new BusinessException(NOT_FOUND, "活动不存在");
         }
+        requireUsableCircle(a.getCircleId());
         return toVo(a, viewerId);
     }
 
@@ -119,6 +122,7 @@ public class ActivityServiceImpl implements ActivityService {
         if (a == null) {
             throw new BusinessException(NOT_FOUND, "活动不存在");
         }
+        requireUsableCircle(a.getCircleId());
         List<ActivitySignup> rows = signupMapper.selectList(
                 new LambdaQueryWrapper<ActivitySignup>()
                         .eq(ActivitySignup::getActivityId, activityId)
@@ -152,6 +156,7 @@ public class ActivityServiceImpl implements ActivityService {
         if (a == null) {
             throw new BusinessException(NOT_FOUND, "活动不存在");
         }
+        requireUsableCircle(a.getCircleId());
         if (a.getStatus() == 4) {
             throw new BusinessException(ACTIVITY_CANCELLED, "活动已取消");
         }
@@ -210,7 +215,10 @@ public class ActivityServiceImpl implements ActivityService {
             return; // 未报名,幂等
         }
         // 物理删(绕过 @TableLogic 软删,否则残留行锁住 uk_as,再报名会撞唯一键)
-        signupMapper.hardDelete(activityId, userId);
+        // 并发重复取消时只有第一个请求真正删到行,后面的不能再减 current_count
+        if (signupMapper.hardDelete(activityId, userId) == 0) {
+            return;
+        }
         activityMapper.cancelSignin(activityId);
         // 审计:取消报名
         auditService.record(userId, "cancel_signup", "activity", activityId, "取消报名", null);
@@ -248,6 +256,17 @@ public class ActivityServiceImpl implements ActivityService {
         // 审计:取消活动
         auditService.record(operatorId, "activity_cancel", "activity", activityId, "取消活动", null);
         log.info("activity cancelled: id={}, operator={}", activityId, operatorId);
+    }
+
+    /** 带圈子的活动必须挂在可用圈子上；无圈子活动不受影响 */
+    private void requireUsableCircle(Long circleId) {
+        if (circleId == null) {
+            return;
+        }
+        Circle c = circleMapper.selectById(circleId);
+        if (c == null || Integer.valueOf(1).equals(c.getStatus())) {
+            throw new BusinessException(NOT_FOUND, "圈子不存在或已封禁");
+        }
     }
 
     private ActivityVO toVo(Activity a, long viewerId) {

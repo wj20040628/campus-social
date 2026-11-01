@@ -710,23 +710,25 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-**当前线上 1.13.8（2026-11-01 14:46 CST 构建，14:54 CST 公网核验）**：
+**当前线上 1.13.9（2026-11-01 部署，用户确认成功）**：
 
 ```text
-frontend: assets/index-B-ftqZyC.js
-          sha256 de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9
+frontend: assets/index-CMJbJvOS.js
+          sha256 e4c55b21769b7e2c87fd9ba5863f28259731b863c7d990808d6da91a92b1436e
           334,633 B
-backend : 1.13.8 -> jar md5 536884e3579d3c6b15fc2da2b2f57262
-          73,977,056 B
-database: 39 表；本版无新增结构，四段历史幂等迁移随包重跑
-package : ys_deploy_20261101_v1138.zip
-          md5 6fbbe4e55e10a916c870317b104eaadd（68,572,615 B，210 条目）
-onlineSince: 2026-11-01T14:54:14+08:00（公网核验时间；部署脚本启动时间与备份后缀未取得）
+backend : 1.13.9 -> jar md5 49f042897018b54f4490993169c99029
+          73,985,330 B
+database: 39 表；本版无新增结构，五段历史幂等迁移随包重跑
+package : ys_deploy_20261101_v1139.zip
+          md5 1c9b4ca25589dbc00a725b0b105ddf6a（68,612,334 B，211 条目）
+onlineSince: 2026-11-01（部署脚本启动时间与备份后缀未取得）
 ```
 
-- 内容：昵称/个人介绍/群名称敏感词过滤（昵称/群名一级二级均拒，简介二级拒发、一级打码）；ADR-010 收口方案 B，`schema.sql` 与生产一致为 0 外键。1.13.7 的写接口限流、E2E CI、MktActivity 拆分与 Actuator 指标仍在包内。
-- 验证：后端 221/221、前端 11 门禁；`SHA256SUMS` 209 个文件通过、`bash -n deploy.sh` 通过、zip `testzip` 无损坏、0 反斜杠条目；`release-manifest.json` 校验全部通过。
-- 公网验证（2026-11-01 14:54 CST）：`/healthz` UP；入口 `assets/index-B-ftqZyC.js` 334,633 B，SHA256 与包内一致；`index.html` Last-Modified 为 14:46:28 CST；`/api/user/me` 401；`/actuator/prometheus` 返回 SPA HTML，未泄露指标。用户确认宝塔 `deploy.sh` 执行成功。
+- 内容：账号注销级联清退（群/圈成员、群主/圈主移交或解散、活动报名回退）；写侧拒绝已注销账号接任；群历史与私聊/主页 404 兜底；存量注销修复 SQL。
+- 验证：后端 226/226、前端 11 门禁；`SHA256SUMS` 210 个文件通过、`bash -n deploy.sh` 通过、zip `testzip` 无损坏；`release-manifest.json` 校验全部通过。
+- 公网验证（2026-11-01 16:40 CST）：`/healthz` UP；入口 `assets/index-CMJbJvOS.js` 与包内一致。用户确认宝塔 `deploy.sh` 执行成功。
+
+**1.13.10 修复完成待发版（2026-11-01）**：并发重复操作计数幂等、群消息预览保留、封禁圈加入/报名守卫、被封禁成员任命/接任拦截、注销后的活动/集市/关注残留清理与通知收口。后端 237/237、前端 11/11、生产构建入口 `assets/index-BZr38KMS.js`（334,633 B，sha256 `0ab675ac…`）；源码与部署包尚未提交/打包。
 
 **上一版 1.13.7（已被 1.13.8 覆盖）**（2026-11-01 14:19 CST 部署，14:20 CST 公网核验）：
 

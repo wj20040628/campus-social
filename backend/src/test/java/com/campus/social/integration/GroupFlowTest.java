@@ -18,6 +18,10 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -310,6 +314,55 @@ class GroupFlowTest {
         GroupMessageVO recalled = groupService.groupMessages(gid, m1, null, 20).getList().get(1);
         assertTrue(recalled.getRecalled());
         assertEquals("", recalled.getContent());
+    }
+
+    @Test
+    void addMembersPreservesLastMessagePreview() {
+        long m1 = user();
+        long gid = group(m1);
+        long msgId = groupService.sendGroupMessage(owner, gid, "邀请前的最近消息", null).getMsgId();
+
+        long m2 = user();
+        jdbc.update("INSERT INTO relation (from_user_id, to_user_id, type, is_deleted) VALUES (?,?,1,0)",
+                owner, m2);
+        groupService.addMembers(gid, owner, List.of(m2));
+
+        assertEquals(msgId, groupMapper.selectById(gid).getLastMsgId(),
+                "拉人不应清空群最近消息水位");
+        CursorPage<GroupVO> mine = groupService.myGroups(m1, null, 20);
+        assertEquals("邀请前的最近消息", mine.getList().get(0).getLastPreview(),
+                "拉人后群列表预览仍应显示最近一条消息");
+    }
+
+    @Test
+    void concurrentKickDecrementsCountOnce() throws Exception {
+        long m1 = user();
+        long m2 = user();
+        long gid = group(m1, m2);
+
+        int threads = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch gate = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        for (int i = 0; i < threads; i++) {
+            pool.submit(() -> {
+                try {
+                    gate.await();
+                    groupService.kick(gid, owner, m2);
+                } catch (Exception ignored) {
+                    // 并发下等待/幂等分支可能返回，不影响最终断言
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        gate.countDown();
+        done.await(20, TimeUnit.SECONDS);
+        pool.shutdown();
+
+        assertEquals(0, memberRowCount(gid, m2), "被踢成员行只应删除一次");
+        assertEquals(Integer.valueOf(2), groupMemberCount(gid),
+                "并发重复踢同一人不能把群人数多减");
     }
 
     @Test

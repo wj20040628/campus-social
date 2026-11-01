@@ -4,14 +4,23 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.campus.social.entity.Group;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface GroupMapper extends BaseMapper<Group> {
 
-    /** 建群/拉人时原子累加 member_count(+delta) */
-    @Update("UPDATE `group` SET member_count = member_count + #{delta}, last_msg_id = #{lastMsgId}, update_time = NOW() WHERE id = #{groupId}")
+    /**
+     * 建群/拉人时原子累加 member_count(+delta)。
+     * lastMsgId 为空时必须保留原水位：拉人不是发消息，不能把群列表预览清空。
+     */
+    @Update("UPDATE `group` SET member_count = member_count + #{delta}, "
+            + "last_msg_id = COALESCE(#{lastMsgId}, last_msg_id), update_time = NOW() WHERE id = #{groupId}")
     int touchCountAndLastMsg(@Param("groupId") Long groupId, @Param("delta") int delta, @Param("lastMsgId") Long lastMsgId);
+
+    /** 锁群行：邀请配额检查与插入必须串行，否则并发会突破群成员上限 */
+    @Select("SELECT * FROM `group` WHERE id = #{groupId} AND is_deleted = 0 FOR UPDATE")
+    Group lockById(@Param("groupId") Long groupId);
 
     /** 仅更新最近一条群消息 id(发消息时用) */
     @Update("UPDATE `group` SET last_msg_id = #{lastMsgId}, update_time = NOW() WHERE id = #{groupId}")
