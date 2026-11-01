@@ -48,8 +48,8 @@
                   {{ n.summary }}
                 </template>
               </div>
-              <!-- 反馈回复(11)/校园信息需修改(17)/处置结果(18-23)/群聊邀请(22):原文或群名,引用块展示 -->
-              <div v-if="(n.type === 11 || n.type === 17 || (n.type >= 18 && n.type <= 23)) && n.content" class="n-reply">{{ n.content }}</div>
+              <!-- 反馈回复(11)/校园信息需修改(17)/处置结果(18-25)/群聊邀请(22):原文或群名,引用块展示 -->
+              <div v-if="(n.type === 11 || n.type === 17 || (n.type >= 18 && n.type <= 25)) && n.content" class="n-reply">{{ n.content }}</div>
               <div class="n-time">{{ n.createTime }}</div>
             </div>
             <el-tag v-if="!n.isRead" type="danger" size="small" effect="dark" class="n-badge">新</el-tag>
@@ -239,7 +239,7 @@ async function openAndRead(n) {
     } else if (n.type === 23) {
       if (n.targetId) go(`/circles/${n.targetId}`)
     } else if (n.type >= 18) {
-      // 18 举报结果 / 19 封禁：结论已完整写在正文里，点击只标已读
+      // 18 举报结果 / 19 封禁 / 24 禁言 / 25 解除禁言：结论已完整写在正文里，点击只标已读
     }
   }
   if (!n.isRead) {

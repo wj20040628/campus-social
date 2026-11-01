@@ -127,5 +127,12 @@ public class UserVO {
      * 不应出现在他人卡片上。默认 1（开启）。
      */
     private Boolean strangerMsgEnabled;
+    /**
+     * 禁言截止时间（2026-10-31，仅「我的资料」ofPrivate 暴露）。
+     *
+     * <p>null / 已过期 = 未禁言。前端据此在「我的」页显示禁言提示与申诉入口；
+     * 他人卡片不携带——禁言是账号状态，不是公开信息。
+     */
+    private LocalDateTime muteUntil;
     private LocalDateTime createTime;
 }

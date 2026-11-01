@@ -142,6 +142,8 @@ public class ReportAdminServiceImpl implements ReportAdminService {
                 .status(row.getStatus())
                 .handlerId(row.getHandlerId())
                 .handleNote(row.getHandleNote())
+                .handleAction(row.getHandleAction())
+                .handleDays(row.getHandleDays())
                 .handleTime(row.getHandleTime())
                 .createTime(row.getCreateTime())
                 .build();

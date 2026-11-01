@@ -2,6 +2,7 @@ package com.campus.social.config;
 
 import com.campus.social.interceptor.AdminInterceptor;
 import com.campus.social.interceptor.AuthInterceptor;
+import com.campus.social.interceptor.WriteRateLimitInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -20,6 +21,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
     private final AdminInterceptor adminInterceptor;
+    private final WriteRateLimitInterceptor writeRateLimitInterceptor;
     private final CorsProperties corsProperties;
 
     @Value("${upload.dir:./uploads}")
@@ -27,15 +29,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     public WebMvcConfig(AuthInterceptor authInterceptor,
             AdminInterceptor adminInterceptor,
+            WriteRateLimitInterceptor writeRateLimitInterceptor,
             CorsProperties corsProperties) {
         this.authInterceptor = authInterceptor;
         this.adminInterceptor = adminInterceptor;
+        this.writeRateLimitInterceptor = writeRateLimitInterceptor;
         this.corsProperties = corsProperties;
     }
 
     /**
      * 拦截器顺序：AuthInterceptor 必须先跑，AdminInterceptor 读它写入的
-     * {@code ATTR_USER_ID}。auth 的 order 显式写 0，admin 写 3。
+     * {@code ATTR_USER_ID}。auth 的 order 显式写 0，写接口限流写 1，
+     * admin 写 3。
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -82,6 +87,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/actuator/health",
                         "/ws/**"
                 );
+        registry.addInterceptor(writeRateLimitInterceptor)
+                .order(1)
+                .addPathPatterns("/**");
         registry.addInterceptor(adminInterceptor)
                 .addPathPatterns("/admin/**")
                 .order(3);

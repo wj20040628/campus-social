@@ -14,6 +14,7 @@ import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.ReviewTaskMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
+import com.campus.social.service.UserMuteService;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.PostVO;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +66,8 @@ public class PostWriteService {
     private final ReviewTrustService trustService;
     /** 发帖日配额:按信誉档位 5/10/15 条/日(2026-10-30 起不再看校园信息),Redis 自然日分桶 */
     private final org.springframework.data.redis.core.StringRedisTemplate redis;
+    /** 管理员禁言:禁言期间不能发帖/编辑 */
+    private final UserMuteService muteService;
 
     @Transactional
     public long create(long authorId, CreatePostDTO dto) {
@@ -75,6 +78,7 @@ public class PostWriteService {
         if (author.getStatus() == 1) {
             throw new BusinessException(USER_FROZEN, "账号已冻结,无法发帖");
         }
+        muteService.requireCanSpeak(author, "发帖");
         // 新建:content 必填(允许只传 media/topics 不行,至少要有文案或媒体)
         if ((dto.getContent() == null || dto.getContent().isBlank())
                 && (dto.getMedia() == null || dto.getMedia().isBlank())) {
@@ -230,6 +234,7 @@ public class PostWriteService {
         if (post.getStatus() == 3) {
             throw new BusinessException(UNPROCESSABLE, "帖子已删除,无法编辑");
         }
+        muteService.requireCanSpeak(authorId, "编辑帖子");
 
         // 至少改一项(文案/媒体/话题),否则幂等空操作
         boolean contentChanged = !Objects.equals(

@@ -10,6 +10,7 @@ import com.campus.social.mapper.ReportMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
+import com.campus.social.service.UserMuteService;
 import com.campus.social.vo.ReportHandleVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class ReportReviewService {
 
     /** 处置动作 */
     private static final String ACTION_BAN = "ban";
+    private static final String ACTION_MUTE = "mute";
     private static final String ACTION_REJECT = "reject";
     private static final String ACTION_IGNORE = "ignore";
     /**
@@ -54,12 +56,17 @@ public class ReportReviewService {
 
     /** 审计动作名 */
     private static final String AUDIT_BAN = "report_ban";
+    private static final String AUDIT_MUTE = "report_mute";
     private static final String AUDIT_REJECT = "report_reject";
     private static final String AUDIT_TAKEDOWN = "report_takedown";
+
+    /** 禁言上限。再长等同于事实上的永久禁言，封禁才是对应的重档 */
+    private static final int MAX_MUTE_DAYS = 365;
 
     private final ReportMapper reportMapper;
     private final UserMapper userMapper;
     private final BanService banService;
+    private final UserMuteService muteService;
     private final AuditService auditService;
     /** 举报目标 → 作者的归因(2026-10-25 抽出,与自动封禁共用一份 switch) */
     private final ReportTargetResolver targetResolver;
@@ -85,11 +92,12 @@ public class ReportReviewService {
         LocalDateTime now = LocalDateTime.now();
         return switch (action) {
             case ACTION_BAN -> handleBan(adminId, report, dto, now);
+            case ACTION_MUTE -> handleMute(adminId, report, dto, now);
             case ACTION_TAKEDOWN -> handleTakedown(adminId, report, dto, now);
             case ACTION_REJECT -> handleReject(adminId, report, dto, now);
             case ACTION_IGNORE -> handleIgnore(adminId, reportId, dto);
             default -> throw new BusinessException(UNPROCESSABLE,
-                    "处置动作不合法，只能是 ban / takedown / reject / ignore");
+                    "处置动作不合法，只能是 ban / mute / takedown / reject / ignore");
         };
     }
 
@@ -110,8 +118,15 @@ public class ReportReviewService {
         if (banTarget != null && Integer.valueOf(1).equals(banTarget.getRole())) {
             throw new BusinessException(UNPROCESSABLE, "不能封禁管理员账号");
         }
+        if (banTarget != null && Integer.valueOf(2).equals(banTarget.getStatus())) {
+            throw new BusinessException(UNPROCESSABLE, "该账号已注销，无法封禁");
+        }
+        // 理由校验放在对象定位之后：先告诉管理员「这个人不能封 / 内容没了」，
+        // 再要求他补理由，否则会被一句「请写理由」挡住更关键的错误
+        String note = requireNote(dto, "封禁");
 
-        int affected = reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, dto.getHandleNote());
+        int affected = reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, note,
+                ACTION_BAN, banDays);
         if (affected == 0) {
             throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
         }
@@ -123,7 +138,7 @@ public class ReportReviewService {
         auditService.record(adminId, AUDIT_BAN, "report", report.getId(),
                 "封禁用户 " + targetUserId + "，天数 " + banDays
                         + (takedown == null ? "" : "，下架内容(" + takedown + ")")
-                        + "，备注 " + dto.getHandleNote(), "");
+                        + "，备注 " + note, "");
         /*
          * user 级成立审计(2026-10-25,信誉分计分源):举报对象无论是用户本人
          * 还是其帖子/评论/消息/集市活动,成立即给作者记一次 report_upheld,
@@ -136,7 +151,7 @@ public class ReportReviewService {
          * 通知(2026-10-28 补):此前成立只写审计,举报人永远不知道结果,
          * 被处置人只看到账号突然不能发帖——两端都是黑箱。
          */
-        noticeService.notifyPunished(report, targetUserId, banDays, bannedUntil, takedown, dto.getHandleNote());
+        noticeService.notifyPunished(report, targetUserId, banDays, bannedUntil, takedown, note);
         noticeService.notifyReporter(report, report.getTargetType() == ReportTargetType.USER
                 ? "举报已核实成立，该用户已被封禁。"
                 : report.getTargetType() == ReportTargetType.CIRCLE
@@ -149,6 +164,68 @@ public class ReportReviewService {
                 .status(STATUS_CONFIRMED)
                 .action(ACTION_BAN)
                 .bannedUntil(bannedUntil)
+                .build();
+    }
+
+    /**
+     * 成立并禁言（2026-10-31）：账号不冻结，可登录、浏览、收通知，
+     * 但禁言期内不能发帖/评论/私信/群消息（集市与文件上传不拦）。
+     *
+     * <p>内容举报与封禁同口径：连带下架被举报内容，避免「处罚了人、违规内容还挂着」。
+     * 圈子举报不走禁言——圈子本身没有可禁言对象，请选解散或封禁圈主。
+     */
+    private ReportHandleVO handleMute(long adminId, Report report, ReportHandleDTO dto, LocalDateTime now) {
+        Integer muteDays = dto.getMuteDays();
+        if (muteDays == null || muteDays < 1 || muteDays > MAX_MUTE_DAYS) {
+            throw new BusinessException(UNPROCESSABLE,
+                    "禁言天数需在 1~" + MAX_MUTE_DAYS + " 天之间");
+        }
+        if (Integer.valueOf(ReportTargetType.CIRCLE).equals(report.getTargetType())) {
+            throw new BusinessException(UNPROCESSABLE,
+                    "圈子举报没有可禁言的对象，请选择解散圈子或封禁圈主");
+        }
+        long targetUserId = resolveTargetUserId(report);
+        User target = userMapper.selectById(targetUserId);
+        if (target == null) {
+            throw new BusinessException(NOT_FOUND, "被举报用户不存在");
+        }
+        if (Integer.valueOf(1).equals(target.getRole())) {
+            throw new BusinessException(UNPROCESSABLE, "不能禁言管理员账号");
+        }
+        if (Integer.valueOf(1).equals(target.getStatus())) {
+            throw new BusinessException(UNPROCESSABLE, "该账号已被封禁，无需禁言");
+        }
+        if (Integer.valueOf(2).equals(target.getStatus())) {
+            throw new BusinessException(UNPROCESSABLE, "该账号已注销，无法禁言");
+        }
+        String note = requireNote(dto, "禁言");
+
+        int affected = reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, note,
+                ACTION_MUTE, muteDays);
+        if (affected == 0) {
+            throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
+        }
+        LocalDateTime mutedUntil = muteService.mute(targetUserId, muteDays);
+        String takedown = takedownContent(report);
+        auditService.record(adminId, AUDIT_MUTE, "report", report.getId(),
+                "禁言用户 " + targetUserId + "，天数 " + muteDays
+                        + (takedown == null ? "" : "，下架内容(" + takedown + ")")
+                        + "，备注 " + note, "");
+        // 禁言也是处置成立，与 ban/takedown 同口径计信誉分
+        auditService.record(adminId, "report_upheld", "user", targetUserId,
+                "举报#" + report.getId() + "成立,信誉-20", "");
+        noticeService.notifyMuted(report, targetUserId, muteDays, mutedUntil, takedown, note);
+        noticeService.notifyReporter(report,
+                Integer.valueOf(ReportTargetType.USER).equals(report.getTargetType())
+                        ? "举报已核实成立，该用户已被禁言 " + muteDays + " 天。"
+                        : "举报已核实成立，该用户已被禁言 " + muteDays + " 天，相关内容已下架。");
+        log.info("report mute: report={}, targetUser={}, days={}, takedown={}, admin={}",
+                report.getId(), targetUserId, muteDays, takedown, adminId);
+        return ReportHandleVO.builder()
+                .reportId(report.getId())
+                .status(STATUS_CONFIRMED)
+                .action(ACTION_MUTE)
+                .mutedUntil(mutedUntil)
                 .build();
     }
 
@@ -256,17 +333,18 @@ public class ReportReviewService {
         }
         // 作者先解析：内容一旦被下架，resolveUserId 的查询带 is_deleted=0 会查空
         long authorId = resolveTargetUserId(report);
-        if (reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, dto.getHandleNote()) == 0) {
+        String note = requireNote(dto, "下架");
+        if (reportMapper.handle(report.getId(), STATUS_CONFIRMED, adminId, now, note,
+                ACTION_TAKEDOWN, null) == 0) {
             throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
         }
         String takedown = takedownContent(report);
         auditService.record(adminId, AUDIT_TAKEDOWN, "report", report.getId(),
-                "举报成立，下架内容(" + takedown + ")，未封禁"
-                        + (dto.getHandleNote() == null ? "" : "，备注 " + dto.getHandleNote()), "");
+                "举报成立，下架内容(" + takedown + ")，未封禁，备注 " + note, "");
         // 成立即计信誉分，与封禁口径一致（只下架不代表没违规）
         auditService.record(adminId, "report_upheld", "user", authorId,
                 "举报#" + report.getId() + "成立,信誉-20", "");
-        noticeService.notifyPunished(report, authorId, null, null, takedown, dto.getHandleNote());
+        noticeService.notifyPunished(report, authorId, null, null, takedown, note);
         noticeService.notifyReporter(report, report.getTargetType() == ReportTargetType.CIRCLE
                 ? "举报已核实成立，该圈子已被解散。"
                 : "举报已核实成立，相关内容已下架。");
@@ -281,11 +359,13 @@ public class ReportReviewService {
 
     /** 驳回：举报不成立 */
     private ReportHandleVO handleReject(long adminId, Report report, ReportHandleDTO dto, LocalDateTime now) {
-        int affected = reportMapper.handle(report.getId(), STATUS_REJECTED, adminId, now, dto.getHandleNote());
+        String note = optionalNote(dto);
+        int affected = reportMapper.handle(report.getId(), STATUS_REJECTED, adminId, now, note,
+                ACTION_REJECT, null);
         if (affected == 0) {
             throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
         }
-        auditService.record(adminId, AUDIT_REJECT, "report", report.getId(), dto.getHandleNote(), "");
+        auditService.record(adminId, AUDIT_REJECT, "report", report.getId(), note, "");
         /*
          * 驳回也回执（2026-10-28）：举报人最怕的不是「不成立」，
          * 是不知道为什么、也没有人告诉他。不告知被举报人——举报不成立对他没有处置。
@@ -314,7 +394,7 @@ public class ReportReviewService {
      * 与 openapi「同一举报重复处置返回 409」一致。
      */
     private ReportHandleVO handleIgnore(long adminId, long reportId, ReportHandleDTO dto) {
-        int affected = reportMapper.markIgnored(reportId, adminId, dto.getHandleNote());
+        int affected = reportMapper.markIgnored(reportId, adminId, optionalNote(dto));
         if (affected == 0) {
             throw new BusinessException(REPORT_ALREADY_HANDLED, "该举报已被处置，请勿重复操作");
         }
@@ -344,5 +424,29 @@ public class ReportReviewService {
             throw new BusinessException(NOT_FOUND, "被举报内容已不存在或已被删除，无法定位作者");
         }
         return authorId;
+    }
+
+    /**
+     * 处罚类动作（ban/mute/takedown）必须写理由（2026-10-31）。
+     *
+     * <p>理由会原样进被处置人的站内通知与申诉材料。没有理由的处罚，
+     * 用户端只看到「你被禁言 7 天」，无法判断是否误判，只能反复找管理员。
+     */
+    private String requireNote(ReportHandleDTO dto, String actionLabel) {
+        String note = optionalNote(dto);
+        if (note == null) {
+            throw new BusinessException(UNPROCESSABLE,
+                    actionLabel + "必须填写处置理由，理由会同步告知被处置人");
+        }
+        return note;
+    }
+
+    /** 可选备注统一去空白；空串按 null 落库，避免列表里出现一行看不见的「处置说明」 */
+    private String optionalNote(ReportHandleDTO dto) {
+        String note = dto.getHandleNote();
+        if (note == null || note.isBlank()) {
+            return null;
+        }
+        return note.trim();
     }
 }

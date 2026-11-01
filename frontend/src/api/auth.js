@@ -176,8 +176,19 @@ export function setNotifyPref(pref) {
   })
 }
 
+/** 注销账号第一步:向本人绑定邮箱发验证码,返回打码后的邮箱（如 ab***c@qq.com） */
+export function sendCancelCode() {
+  return request.post('/user/cancel/code')
+}
+
+/** 注销账号第二步:验证码确认,不可逆；成功后账号无法登录、个人信息被清空 */
+export function cancelAccount(code) {
+  return request.post('/user/cancel', { code })
+}
+
 export default {
   login, loginByCode, register, sendCode, forgotPassword, resetPassword, appealStudentNo,
   bindEmail, changePassword, sendSetPasswordCode, setPassword, refresh, logout, me, userCard,
   updateMe, setCover, mentionCandidates, getNotifyPref, setNotifyPref,
+  setStrangerMsg, sendCancelCode, cancelAccount,
 }

@@ -38,6 +38,8 @@ public final class BusinessHttpStatus {
         // 账号状态类:一律 403(不是 401——凭证有效,是账号不可用)
         MAPPING.put(ResultCode.USER_FROZEN, HttpStatus.FORBIDDEN);
         MAPPING.put(ResultCode.USER_CANCELLED, HttpStatus.FORBIDDEN);
+        // 禁言不等于封禁:账号可登录浏览,只是此刻不能发布内容
+        MAPPING.put(ResultCode.USER_MUTED, HttpStatus.FORBIDDEN);
         MAPPING.put(ResultCode.BLACKLISTED, HttpStatus.FORBIDDEN);
         MAPPING.put(ResultCode.NOT_ADMIN, HttpStatus.FORBIDDEN);
 

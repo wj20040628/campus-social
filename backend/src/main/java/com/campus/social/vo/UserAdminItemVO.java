@@ -43,5 +43,8 @@ public class UserAdminItemVO {
     /** 解封时间；永久封禁为 null，未封禁为 null——前端配 status 一起判 */
     private LocalDateTime bannedUntil;
 
+    /** 禁言截止时间；未禁言为 null，已过期也可能保留旧值，前端按时间判断 */
+    private LocalDateTime muteUntil;
+
     private LocalDateTime createTime;
 }

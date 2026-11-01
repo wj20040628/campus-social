@@ -94,6 +94,14 @@ public class User implements Serializable {
     /** 0正常 1冻结 2注销 */
     private Integer status;
 
+    /**
+     * 禁言截止时间，null=未禁言。
+     *
+     * <p>与封禁（status=1）不同：禁言可正常登录、浏览、收通知，
+     * 只是不能发帖/评论/私信/群消息/上传文件。到点自动解除，无需定时任务。
+     */
+    private LocalDateTime muteUntil;
+
     /** 角色:0普通用户 1管理员 */
     private Integer role;
 

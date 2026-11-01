@@ -214,26 +214,40 @@ springdoc:
     path: /swagger-ui.html
 
 # ------------------------------------------------------------
-# 健康检查(TD-09):Nginx / 运维探活依赖 /actuator/health
-# 只暴露 health 一个端点,exposure.include 不含
-# env / configprops / beans —— 那几个会把数据库地址、配置项打给公网。
-# show-details: never 让响应只有 {"status":"UP"},不带连接池/磁盘等组件明细。
+# 健康检查(TD-09) + 性能指标(2026-11-01):Nginx /healthz 只反代 health;
+# metrics/prometheus 仅供本机宝塔终端 curl 采样,不进 Nginx location,
+# 公网 /actuator/* 会落到 SPA 回退(返回 index.html),不暴露指标数据。
+# exposure.include 仍不含 env / configprops / beans —— 那些会把数据库地址、
+# 配置项打给本机进程以外的任何调用者。
+# show-details: never 让 health 响应只有 {"status":"UP"},不带连接池/磁盘明细。
 #
 # 注意:这里**没有**配 management.server.port,健康检查与业务共用 8080,
-# 经 Nginx 转发后公网可达。这是有意的取舍,不是遗漏:
-#   1) 只暴露 health 一个端点且不带详情,泄露面已经收敛到「服务活着没有」;
+# 经 Nginx 转发后健康检查公网可达。这是有意的取舍,不是遗漏:
+#   1) health 不带详情,泄露面已经收敛到「服务活着没有」;
 #   2) 2G 单机上再开一个独立监听 + 多一条防火墙规则,运维成本高于收益。
 # 若将来确实要挪到内网独享端口,加 management.server.port 并同步改 nginx 与安全组。
-# （此前这段注释声称「已独立监听,便于只在内网可达」,与实现不符,已按实际改写。）
 # ------------------------------------------------------------
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        # prometheus 提供 http_server_requests / hikaricp / jvm / lettuce 等指标;
+        # metrics 提供按名字查询单指标(排障用)。
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: never
+  metrics:
+    tags:
+      application: campus-social
+    distribution:
+      # HTTP 延迟分位数:只看平均值会被少数慢请求掩盖,先落 p50/p95/p99。
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
+      sla:
+        http.server.requests: 100ms,300ms,1s
 
 # ------------------------------------------------------------
 # 跨域白名单(TD-01 / TD-02,上线阻断项)

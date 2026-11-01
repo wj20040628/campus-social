@@ -1,39 +1,31 @@
 {
-  "version": "1.13.3",
+  "version": "1.13.7",
   "releaseType": "full",
-  "onlineSince": "2026-10-31T15:27:54+08:00",
+  "onlineSince": null,
+  "sourceState": "working-tree-dirty",
   "git": {
-    "frontendSourceCommit": "514986c6e9df69300458a219cdf142b654f33e9d",
-    "backendTag": "v1.13.3",
-    "backendCommit": "514986c6e9df69300458a219cdf142b654f33e9d"
+    "baseCommit": "926c775e12ac03b36679dd79c0abd13c7415a7c7",
+    "note": "1.13.4-1.13.7 源码在打包时尚未提交；打包后需补提交/tag，并在部署核验后更新本清单的 onlineSince、sourceState、git 与 deployment 段。"
   },
   "frontend": {
-    "entry": "assets/index-gydVwA6_.js",
-    "sha256": "b891743fae7994bdf599ed8fc7a4eb9502a4ed0c0182424a2db2fad7a954873d",
-    "bytes": 333827
+    "entry": "assets/index-oKhCdAAb.js",
+    "sha256": "7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461",
+    "bytes": 334633
   },
   "backend": {
-    "jarMd5": "2d9111c9a0b06c0ebb78c80958b2f02e",
-    "bytes": 73793703
+    "jarMd5": "f6010d70cc11a9fdc3b1cd803a764691",
+    "bytes": 73976221
   },
   "database": {
     "schemaTables": 39,
     "foreignKeys": 0,
     "migrations": [
       "sql/migration_2026-10-30_drop_buddy_tables.sql",
-      "sql/migration_2026-10-31_fix_comment_encoding.sql"
+      "sql/migration_2026-10-31_fix_comment_encoding.sql",
+      "sql/migration_2026-10-31_user_mute.sql",
+      "sql/migration_2026-10-31_mute_admin_polish.sql"
     ],
-    "notes": "两段迁移均已于 2026-10-31 随 1.13.3 部署执行；buddy 下线为幂等 DROP IF EXISTS，注释编码修复只改表/列 COMMENT，不改类型、默认值与索引。部署前已由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
+    "notes": "本版无新增表结构；四段迁移均为历史幂等脚本，随包重复执行安全。部署前由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
   },
-  "deployment": {
-    "package": "ys_deploy_20261031_v1133.zip",
-    "packageMd5": "24f1bccf7df36a9861e5e22f7b730162",
-    "deployedAt": "2026-10-31T15:27:54+08:00",
-    "verified": [
-      "https://yousheng8.cn/healthz 返回 UP",
-      "线上 assets/index-gydVwA6_.js SHA256 与包内一致",
-      "游客 feed 200、/user/me 与 /notify 401、不存在帖子与评论返回 1009"
-    ]
-  },
-  "notes": "1.13.3 已全量上线：前端 514986c 可复现构建 + 同提交 jar，前后端与迁移一次部署。部署脚本先校验 MD5/入口哈希，复用 backup.sh 备份数据库，再停服落位、执行幂等迁移、探活；任一步失败回滚 jar/web/VERSION。"
+  "notes": "1.13.7 完整包：写接口限流（用户+IP 双维度，覆盖发帖/编辑/评论/私信/群消息/举报/反馈/关注/拉黑/建圈建群）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 性能指标与 5 分钟采样脚本。无前端交互改版；1.13.4-1.13.6 的禁言/注销/回归修复代码一并首次入库。"
 }

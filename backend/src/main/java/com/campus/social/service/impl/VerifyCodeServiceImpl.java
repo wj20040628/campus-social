@@ -1,5 +1,6 @@
 package com.campus.social.service.impl;
 
+import com.campus.social.assembler.UserVoAssembler;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.service.MessageGateway;
 import com.campus.social.service.VerifyCodeService;
@@ -72,7 +73,8 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
         String codeKey = "code:" + type + ":" + norm;
         String existing = redis.opsForValue().get(codeKey);
         if (existing != null && !existing.isEmpty()) {
-            log.info("verify code reused(not resent): target={}, type={}", norm, type);
+            log.info("verify code reused(not resent): target={}, type={}",
+                    UserVoAssembler.maskUsername(norm), type);
             return "验证码已发送,5 分钟内有效";
         }
 
@@ -107,7 +109,7 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
             throw new BusinessException(CODE_LIMIT_REACHED.getCode(),
                     "验证码发送失败(通道不可用),请稍后重试");
         }
-        log.info("verify code sent: target={}, type={}", norm, type);
+        log.info("verify code sent: target={}, type={}", UserVoAssembler.maskUsername(norm), type);
         return "验证码已发送,5 分钟内有效";
     }
 

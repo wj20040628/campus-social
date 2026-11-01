@@ -10,6 +10,7 @@
  */
 import { ref } from 'vue'
 import { accountBlocked, authErrCode, isNetworkFail, credentialMessage, AUTH_ERR } from '@/utils/authError'
+import { markPasswordHintPending } from '@/utils/passwordHint'
 
 /**
  * @param {{ pwdForm:object, codeForm:object, userStore:object }} deps
@@ -86,8 +87,10 @@ export function useLoginSubmit({ pwdForm, codeForm, userStore, onSuccess }) {
     clearError()
     loadingCode.value = true
     try {
-      await userStore.loginByCode(codeForm.email, codeForm.code)
+      const pair = await userStore.loginByCode(codeForm.email, codeForm.code)
       await userStore.fetchMe()
+      // 只有验证码登录自动建号才提示；已有账号登录、注册页注册都不弹
+      if (pair?.newAccount) markPasswordHintPending()
       onSuccess()
     } catch (e) {
       handleFail(e, 'code')

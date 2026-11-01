@@ -14,7 +14,7 @@
 
     <groupId>com.campus</groupId>
     <artifactId>campus-social</artifactId>
-    <version>1.13.3</version>
+    <version>1.13.7</version>
     <name>campus-social</name>
     <description>Campus social platform - SpringBoot 3.2 + MySQL 8 + Redis</description>
 
@@ -154,6 +154,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- 性能指标(2026-11-01):/actuator/prometheus 文本格式,便于宝塔终端
+             curl 采样或用 Prometheus 抓取;不引入额外服务端组件。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
         <!-- Test -->

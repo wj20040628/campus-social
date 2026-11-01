@@ -12,6 +12,7 @@ import com.campus.social.mapper.MktActivityMapper;
 import com.campus.social.mapper.MktCommentMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.vo.MktActivityVO;
+import com.campus.social.vo.MktCommentVO;
 import com.campus.social.vo.MktStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -387,5 +388,39 @@ class MktActivityServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.addComment(id, OWNER, c));
         assertNotNull(ex);
+    }
+
+    /** 特征测试(2026-11-01 拆服务前补):留言列表要带留言人昵称,游标到头 nextCursor=null。 */
+    @Test
+    void comment_listReturnsContentAndNickname() {
+        MktActivityDTO dto = fixTitle();
+        Long id = service.create(OTHER, dto);
+        createdId = id;
+
+        MktCommentDTO c = new MktCommentDTO();
+        c.setContent("列表特征测试");
+        service.addComment(id, OWNER, c);
+
+        var page = service.listComments(id, null, 10);
+        assertEquals(1, page.getList().size());
+        MktCommentVO vo = page.getList().get(0);
+        assertEquals("列表特征测试", vo.getContent());
+        assertEquals("集市测试" + OWNER, vo.getNickname());
+        assertNull(page.getNextCursor());
+        assertFalse(page.isHasMore());
+    }
+
+    /** 特征测试:活动不存在(含已软删)时,留言列表与新增留言都返回 MKT_NOT_FOUND。 */
+    @Test
+    void comment_rejectsUnknownActivity() {
+        BusinessException listEx = assertThrows(BusinessException.class,
+                () -> service.listComments(8_888_888L, null, 10));
+        assertEquals(ResultCode.MKT_NOT_FOUND.getCode(), listEx.getCode());
+
+        MktCommentDTO c = new MktCommentDTO();
+        c.setContent("不存在的活动");
+        BusinessException addEx = assertThrows(BusinessException.class,
+                () -> service.addComment(8_888_888L, OWNER, c));
+        assertEquals(ResultCode.MKT_NOT_FOUND.getCode(), addEx.getCode());
     }
 }

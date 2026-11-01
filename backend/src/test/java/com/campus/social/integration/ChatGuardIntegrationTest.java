@@ -270,6 +270,16 @@ class ChatGuardIntegrationTest {
     }
 
     /** 不能给自己发 */
+    /** 已注销账号不能再收到私信：消息发出去也没人能看到 */
+    @Test
+    void cancelledPeerIsRejected() {
+        long me = user(1, 1);
+        long peer = user(1, 1);
+        jdbc.update("UPDATE user SET status = 2 WHERE id = ?", peer);
+
+        assertCode(ResultCode.NOT_FOUND, () -> guard.check(me, peer, "你好"));
+    }
+
     @Test
     void selfMessageIsRejected() {
         long me = user(1, 1);

@@ -11,6 +11,7 @@ import com.campus.social.mapper.GroupMemberMapper;
 import com.campus.social.mapper.GroupMessageMapper;
 import com.campus.social.mapper.GroupReadMapper;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.UserMuteService;
 import com.campus.social.service.support.GroupAccessSupport;
 import com.campus.social.vo.GroupMessageVO;
 import com.campus.social.vo.GroupSendVO;
@@ -53,6 +54,8 @@ public class GroupMessageService {
     private final WsAfterCommit wsAfterCommit;
     /** 敏感词横切(2026-10-24 补):此前群消息发送路径无任何敏感词检查 */
     private final MessageContentGuard contentGuard;
+    /** 管理员禁言:禁言期间不能发群消息(优先于群主自己的禁言判定) */
+    private final UserMuteService muteService;
 
     public CursorPage<GroupMessageVO> groupMessages(long groupId, long me, Long lastId, int size) {
         access.assertMember(groupId, me);
@@ -81,6 +84,7 @@ public class GroupMessageService {
 
     public GroupSendVO sendGroupMessage(long me, long groupId, String content, Long replyToId) {
         access.assertMember(groupId, me);
+        muteService.requireCanSpeak(me, "发送群消息");
         // 禁言拦截:群主恒可发言;普通成员被群主禁言(muted=1)则拒绝
         Group g = access.requireGroup(groupId);
         if (!g.getOwnerId().equals(me) && groupMemberMapper.mutedOf(groupId, me) == 1) {

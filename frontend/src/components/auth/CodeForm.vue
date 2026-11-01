@@ -7,7 +7,7 @@
     @submit.prevent="onSubmit"
   >
     <el-form-item label="邮箱" prop="email">
-      <el-input v-model="model.email" placeholder="you@qq.com" autocomplete="email" />
+      <el-input v-model="model.email" autocomplete="email" />
     </el-form-item>
     <el-form-item label="验证码" prop="code">
       <div class="code-row">

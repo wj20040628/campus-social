@@ -116,7 +116,8 @@ public class ReportAutoBanService {
             return;
         }
         User target = userMapper.selectById(targetUser);
-        if (target == null || Integer.valueOf(1).equals(target.getStatus())) {
+        if (target == null || Integer.valueOf(1).equals(target.getStatus())
+                || Integer.valueOf(2).equals(target.getStatus())) {
             return; // 已冻结(含已被自动封过)/已注销:幂等跳过
         }
         if (Integer.valueOf(1).equals(target.getRole())) {

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.CursorPage;
 
 import com.campus.social.entity.Relation;
+import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.RelationMapper;
 import com.campus.social.mapper.UserMapper;
@@ -43,6 +44,10 @@ public class RelationServiceImpl implements RelationService {
     public void follow(long me, long toUserId) {
         if (me == toUserId) {
             throw new BusinessException(CHAT_SELF.getCode(), "不能关注自己");
+        }
+        User target = userMapper.selectById(toUserId);
+        if (target == null || Integer.valueOf(2).equals(target.getStatus())) {
+            throw new BusinessException(NOT_FOUND, "用户不存在");
         }
         // 幂等:已关注直接返回
         if (relationExists(me, toUserId, TYPE_FOLLOW)) {
@@ -147,7 +152,7 @@ public class RelationServiceImpl implements RelationService {
         boolean hasMore = rows.size() > size;
         // 我关注的:每个 Relation 的 toUserId 才是"被关注的人"
         List<UserVO> vos = rows.stream().limit(size)
-                .map(r -> toUserVoById(r.getToUserId()))
+                .map(r -> toActiveUserVoById(r.getToUserId()))
                 .filter(Objects::nonNull)
                 .toList();
         Long nextCursor = hasMore ? rows.get(size - 1).getId() : null;
@@ -166,7 +171,7 @@ public class RelationServiceImpl implements RelationService {
         boolean hasMore = rows.size() > size;
         // 我的粉丝:每个 Relation 的 fromUserId 才是"关注我的人"
         List<UserVO> vos = rows.stream().limit(size)
-                .map(r -> toUserVoById(r.getFromUserId()))
+                .map(r -> toActiveUserVoById(r.getFromUserId()))
                 .filter(Objects::nonNull)
                 .toList();
         Long nextCursor = hasMore ? rows.get(size - 1).getId() : null;
@@ -233,5 +238,20 @@ public class RelationServiceImpl implements RelationService {
         if (userId == null)
             return null;
         return UserVoAssembler.of(userMapper.selectById(userId));
+    }
+
+    /**
+     * 关注/粉丝列表不展示已注销账号：这类关系行会留在表里，
+     * 但用户卡片已无意义，且会被 @ 推荐（关注 + 粉丝）再次带到前台。
+     * 黑名单列表仍用 {@link #toUserVoById}，保留注销账号供解除拉黑。
+     */
+    private UserVO toActiveUserVoById(Long userId) {
+        if (userId == null)
+            return null;
+        User u = userMapper.selectById(userId);
+        if (u == null || Integer.valueOf(2).equals(u.getStatus())) {
+            return null;
+        }
+        return UserVoAssembler.of(u);
     }
 }

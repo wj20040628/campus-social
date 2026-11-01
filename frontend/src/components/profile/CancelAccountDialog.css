@@ -1,0 +1,38 @@
+.cancel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ys-space-3);
+}
+
+.cancel__warn {
+  margin: 0;
+  padding: var(--ys-space-3);
+  border-radius: var(--ys-radius-md);
+  background: rgba(195, 43, 32, 0.08);
+  color: var(--ys-danger, #c32b20);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.cancel__note,
+.cancel__hint {
+  margin: 0;
+  color: var(--ys-text-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cancel__code {
+  display: flex;
+  gap: var(--ys-space-2);
+  align-items: center;
+}
+
+.cancel__code .el-input {
+  flex: 1;
+}
+
+.cancel__code .el-button {
+  flex: none;
+  white-space: nowrap;
+}

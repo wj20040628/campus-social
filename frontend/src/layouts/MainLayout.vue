@@ -114,9 +114,10 @@
  * 本项目没有 postcss-custom-media,`@media (--ys-bp-lg)` 会被浏览器
  * 静默丢弃(SPEC §11 的「沉默故障」之一)。
  */
-import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
+import { consumePasswordHintPending } from '@/utils/passwordHint'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 import TabBar from '@/components/mobile/TabBar.vue'
@@ -301,12 +302,32 @@ watch(
   },
 )
 
+/** 验证码自动建号后的首次提示：4 秒自动消失，点击直达「账号与安全」设置密码 */
+function showPasswordHint() {
+  const hint = ElMessage({
+    duration: 4000,
+    showClose: true,
+    message: h('span', [
+      '建议设置密码，之后可用学号/邮箱 + 密码登录。',
+      h('button', {
+        type: 'button',
+        style: 'margin-left:6px;padding:0;border:0;background:none;color:var(--ys-accent);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer',
+        onClick: () => {
+          hint.close()
+          router.push('/settings/security')
+        },
+      }, '去设置'),
+    ]),
+  })
+}
+
 onMounted(() => {
   // 兜底:进布局时若 userInfo 还没加载(token 有效但没拉过),拉一次,
   // 保证顶栏头像 / 个人主页 / 退出都能用。
   if (userStore.hasToken && !userStore.userInfo) {
     userStore.fetchMe().catch(() => {})
   }
+  if (consumePasswordHintPending()) showPasswordHint()
   if (userStore.hasToken) {
     /*
      * 首屏就落在聊天/通知页时不要拉数（2026-10-21）。

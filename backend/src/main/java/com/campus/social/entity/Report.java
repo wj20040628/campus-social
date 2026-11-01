@@ -53,6 +53,12 @@ public class Report implements Serializable {
 
     private String handleNote;
 
+    /** 处置动作 ban/mute/takedown/reject/ignore；历史行为 null */
+    private String handleAction;
+
+    /** 处罚天数：封禁 0=永久；禁言 1~365；其余动作为 null */
+    private Integer handleDays;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

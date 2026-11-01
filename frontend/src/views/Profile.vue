@@ -57,6 +57,9 @@
           @preview-avatar="previewAvatar"
         />
 
+        <!-- 禁言提示（2026-10-31）：只在本人主页出现，附「意见反馈」申诉入口 -->
+        <MuteBanner :is-me="isMe" />
+
         <!-- 信誉条:他人=受信徽章(不受信不渲染),本人=完整信誉卡(复用设置页组件) -->
         <ProfileTrust :target-id="targetId" :is-me="isMe" />
 
@@ -185,6 +188,7 @@ import ProfileTabs from '@/components/profile/ProfileTabs.vue'
 import ProfileTags from '@/components/profile/ProfileTags.vue'
 import ProfileStats from '@/components/profile/ProfileStats.vue'
 import ProfileTrust from '@/components/profile/ProfileTrust.vue'
+import MuteBanner from '@/components/profile/MuteBanner.vue'
 import RelationSheet from '@/components/profile/RelationSheet.vue'
 import ReportSheet from '@/components/post/ReportSheet.vue'
 import ImageViewer from '@/components/common/ImageViewer.vue'

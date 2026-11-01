@@ -28,6 +28,8 @@ public class ReportNoticeService {
     private static final int NOTIFY_FILE_TAKEDOWN = 15;
     /** notify.type：圈子被解散（发给圈主，2026-10-29 加；点击跳圈子详情） */
     private static final int NOTIFY_CIRCLE_TAKEDOWN = 23;
+    /** notify.type：账号被禁言（发给被处置人，2026-10-31 加） */
+    private static final int NOTIFY_ACCOUNT_MUTED = 24;
 
     private final PostNotifySupport notifySupport;
     private final ReportMapper reportMapper;
@@ -55,28 +57,51 @@ public class ReportNoticeService {
                     "因违反社区规范，你的账号已被" + span + "。" + reason
                             + "如有异议，可在登录页提交封禁申诉。");
         }
-        if (takedownDesc != null) {
-            int tt = report.getTargetType() == null ? 0 : report.getTargetType();
-            if (tt == ReportTargetType.CIRCLE) {
-                // 圈子没有「内容下架」这个说法，用独立 type 23：前端点击跳圈子详情，
-                // 文案也直接说「被解散」。复用 20 会被误解成某条帖子被删。
-                String circleName = reportMapper.selectCircleSummary(report.getTargetId());
-                String subject = circleName == null || circleName.isBlank()
-                        ? "你创建的圈子"
-                        : "你创建的圈子「" + circleName + "」";
-                notifySupport.pushSystemNotify(authorId, NOTIFY_CIRCLE_TAKEDOWN,
-                        report.getTargetId(), null,
-                        subject + "因被举报核实违规，已被解散。" + reason
-                                + "如有异议，可在「意见反馈」申请复核。");
-            } else {
-                // 文件走 15（前端已有「去我的文件看理由」入口），其余内容走 20
-                notifySupport.pushSystemNotify(authorId,
-                        tt == ReportTargetType.FILE ? NOTIFY_FILE_TAKEDOWN : NOTIFY_CONTENT_TAKEDOWN,
-                        report.getTargetId(),
-                        tt == ReportTargetType.POST ? report.getTargetId() : null,
-                        "你发布的" + targetLabel(report.getTargetType()) + "因被举报核实违规，已下架。" + reason
-                                + "如有异议，可在「意见反馈」申请复核。");
-            }
+        notifyTakedown(report, authorId, takedownDesc, reason);
+    }
+
+    /**
+     * 通知被禁言人（2026-10-31）：账号还能登录浏览，但一段时间内不能发布内容。
+     * 与封禁通知分开，避免用户误以为账号被冻结。
+     */
+    public void notifyMuted(Report report, long authorId, int muteDays,
+            LocalDateTime mutedUntil, String takedownDesc, String handleNote) {
+        String reason = handleNote == null || handleNote.isBlank() ? "" : "处置说明：" + handleNote.trim() + "。";
+        String until = mutedUntil == null ? ""
+                : "（" + mutedUntil.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                        + " 自动解除）";
+        notifySupport.pushSystemNotify(authorId, NOTIFY_ACCOUNT_MUTED, 0L, null,
+                "因违反社区规范，你的账号已被禁言 " + muteDays + " 天" + until + "。"
+                        + "禁言期间可以浏览，但不能发帖、评论、私信和发送群消息。" + reason
+                        + "如有异议，可在「意见反馈」申请复核。");
+        notifyTakedown(report, authorId, takedownDesc, reason);
+    }
+
+    /** 内容/文件/圈子被处置的站内通知，封禁与禁言共用 */
+    private void notifyTakedown(Report report, long authorId, String takedownDesc, String reason) {
+        if (takedownDesc == null) {
+            return;
+        }
+        int tt = report.getTargetType() == null ? 0 : report.getTargetType();
+        if (tt == ReportTargetType.CIRCLE) {
+            // 圈子没有「内容下架」这个说法，用独立 type 23：前端点击跳圈子详情，
+            // 文案也直接说「被解散」。复用 20 会被误解成某条帖子被删。
+            String circleName = reportMapper.selectCircleSummary(report.getTargetId());
+            String subject = circleName == null || circleName.isBlank()
+                    ? "你创建的圈子"
+                    : "你创建的圈子「" + circleName + "」";
+            notifySupport.pushSystemNotify(authorId, NOTIFY_CIRCLE_TAKEDOWN,
+                    report.getTargetId(), null,
+                    subject + "因被举报核实违规，已被解散。" + reason
+                            + "如有异议，可在「意见反馈」申请复核。");
+        } else {
+            // 文件走 15（前端已有「去我的文件看理由」入口），其余内容走 20
+            notifySupport.pushSystemNotify(authorId,
+                    tt == ReportTargetType.FILE ? NOTIFY_FILE_TAKEDOWN : NOTIFY_CONTENT_TAKEDOWN,
+                    report.getTargetId(),
+                    tt == ReportTargetType.POST ? report.getTargetId() : null,
+                    "你发布的" + targetLabel(report.getTargetType()) + "因被举报核实违规，已下架。" + reason
+                            + "如有异议，可在「意见反馈」申请复核。");
         }
     }
 

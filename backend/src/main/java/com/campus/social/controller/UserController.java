@@ -7,6 +7,7 @@ import com.campus.social.dto.UpdateProfileDTO;
 import com.campus.social.dto.UpdateCoverDTO;
 import com.campus.social.dto.ChangePasswordDTO;
 import com.campus.social.dto.BindEmailDTO;
+import com.campus.social.dto.CancelAccountDTO;
 import com.campus.social.dto.SetPasswordDTO;
 import com.campus.social.entity.User;
 import com.campus.social.interceptor.AuthInterceptor;
@@ -37,13 +38,15 @@ public class UserController {
     /** 通知偏好解析/合并单点(2026-10-25,邮件摘要) */
     private final com.campus.social.service.impl.NotifyPrefSupport prefSupport;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final com.campus.social.service.AccountCancelService accountCancelService;
 
     public UserController(AuthService authService, UserMapper userMapper,
                           PostMapper postMapper, LikeMapper likeMapper,
                           PostFavoriteMapper favoriteMapper, PostService postService,
                           com.campus.social.service.impl.ReviewTrustService trustService,
                           com.campus.social.service.impl.NotifyPrefSupport prefSupport,
-                          com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+                          com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+                          com.campus.social.service.AccountCancelService accountCancelService) {
         this.authService = authService;
         this.userMapper = userMapper;
         this.postMapper = postMapper;
@@ -53,6 +56,7 @@ public class UserController {
         this.trustService = trustService;
         this.prefSupport = prefSupport;
         this.objectMapper = objectMapper;
+        this.accountCancelService = accountCancelService;
     }
 
     @GetMapping("/me")
@@ -113,6 +117,37 @@ public class UserController {
             return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
         }
         return Result.ok(authService.bindEmail(me, dto));
+    }
+
+    /**
+     * 注销账号（第一步）：向本人绑定邮箱发验证码。
+     *
+     * <p>返回打码邮箱（如 {@code ab***c@qq.com}）供页面提示「验证码已发送至 …」，
+     * 不回显完整地址，避免仅凭一个 token 就能读出账号绑定的邮箱。
+     */
+    @PostMapping("/cancel/code")
+    public Result<String> sendCancelCode(HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        return Result.ok(accountCancelService.sendCode(me));
+    }
+
+    /**
+     * 注销账号（第二步）：验证码确认，不可逆。
+     *
+     * <p>成功后昵称改为「已注销用户」，邮箱/学号/头像/简介/校园信息清空，
+     * refresh 令牌与状态缓存立即失效；已发布内容保留但不再关联个人信息。
+     */
+    @PostMapping("/cancel")
+    public Result<Void> cancelAccount(@Valid @RequestBody CancelAccountDTO dto, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (me == null) {
+            return Result.fail(com.campus.social.common.ResultCode.UNAUTHORIZED, "未登录");
+        }
+        accountCancelService.cancel(me, dto.getCode());
+        return Result.ok(null);
     }
 
     /**

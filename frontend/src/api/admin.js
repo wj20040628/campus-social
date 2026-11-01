@@ -54,7 +54,7 @@ export function listReservedNames(lastId, size = 20) {
 export default {
   transferCircle, banCircle, unbanCircle, restoreCircle, listAllCircles,
   addReservedName, delReservedName, listReservedNames,
-  adminUsers, banUser, unbanUser, pendingSummary,
+  adminUsers, banUser, unbanUser, muteUser, unmuteUser, pendingSummary,
 }
 
 // ---------------- 用户处置(2026-10-24 新增) ----------------
@@ -63,14 +63,16 @@ export default {
 
 /**
  * 用户处置列表。
- * @param {{keyword?: string, status?: 0|1, cursor?: number|null, size?: number}} [params]
- *   keyword:昵称/登录名/学号模糊匹配;status: 0 正常 / 1 冻结(封禁中),不传 = 全部
+ * @param {{keyword?: string, status?: 0|1, muted?: boolean, cursor?: number|null, size?: number}} [params]
+ *   keyword:昵称/登录名/学号模糊匹配;status: 0 正常 / 1 冻结(封禁中);
+ *   muted: true = 只看禁言中(mute_until 未到期);都不传 = 全部
  */
 export function adminUsers(params = {}) {
-  const { keyword, status, cursor, size = 20 } = params
+  const { keyword, status, muted, cursor, size = 20 } = params
   const query = { size }
   if (keyword) query.keyword = keyword
   if (status !== undefined && status !== null) query.status = status
+  if (muted) query.muted = true
   if (cursor) query.cursor = cursor
   return request.get('/admin/users', { params: query })
 }
@@ -80,9 +82,19 @@ export function banUser(userId, banDays, reason) {
   return request.post(`/admin/users/${userId}/ban`, { banDays, reason })
 }
 
+/** 直接禁言(不依赖举报流程)。muteDays 1~365;reason 必填,同步告知被处置人。 */
+export function muteUser(userId, muteDays, reason) {
+  return request.post(`/admin/users/${userId}/mute`, { muteDays, reason })
+}
+
 /** 手动解封。此前唯一的解封路径是到期定时任务,永久封禁不可撤销——本端点是救济路径。 */
 export function unbanUser(userId) {
   return request.post(`/admin/users/${userId}/unban`)
+}
+
+/** 手动解除禁言。禁言会自动到期，误判/申诉成立时可提前恢复。 */
+export function unmuteUser(userId) {
+  return request.post(`/admin/users/${userId}/unmute`)
 }
 
 /**

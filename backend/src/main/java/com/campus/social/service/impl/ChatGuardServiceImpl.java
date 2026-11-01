@@ -8,6 +8,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.ChatGuardService;
 import com.campus.social.service.StrangerQuotaService;
+import com.campus.social.service.UserMuteService;
 import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.service.support.StrangerPolicy;
 import com.campus.social.util.SensitiveWordFilter;
@@ -60,6 +61,8 @@ public class ChatGuardServiceImpl implements ChatGuardService {
     private final AuditService auditService;
     /** 行为信任门槛：账号满 24 小时 + 信誉 60 才能主动搭话 */
     private final CampusAccessService access;
+    /** 管理员禁言:禁言期间不能发私信 */
+    private final UserMuteService muteService;
 
     @Override
     public ChatSendVO check(long me, long peerId, String content) {
@@ -77,6 +80,7 @@ public class ChatGuardServiceImpl implements ChatGuardService {
         if (Integer.valueOf(1).equals(meUser.getStatus())) {
             throw new BusinessException(USER_FROZEN, "账号已冻结，无法发送消息");
         }
+        muteService.requireCanSpeak(meUser, "发送消息");
 
         // 3. 双向黑名单。拉黑是单向动作，只查一个方向等于没护栏。
         if (relationMapper.countBlacklistEitherDirection(me, peerId) > 0) {
@@ -86,7 +90,7 @@ public class ChatGuardServiceImpl implements ChatGuardService {
         // 4. 接收方开关（AC-05）。只对真正的陌生人有效——
         //    对方已经关注我/回复过我时，他已经主动开了门，不该被自己的开关挡住。
         User peer = userMapper.selectById(peerId);
-        if (peer == null) {
+        if (peer == null || Integer.valueOf(2).equals(peer.getStatus())) {
             throw new BusinessException(ResultCode.NOT_FOUND, "对方不存在");
         }
         boolean isStranger = strangerPolicy.isStranger(me, peerId);

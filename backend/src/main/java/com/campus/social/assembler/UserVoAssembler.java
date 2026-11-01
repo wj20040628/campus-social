@@ -87,6 +87,9 @@ public final class UserVoAssembler {
                 // 无密码账号(邮箱验证码自动建号)靠它把设置页的「修改密码」
                 // 切成「设置密码」;他人卡片不暴露此字段。
                 .passwordSet(JwtUtil.isPasswordSet(user.getPasswordHash()))
+                // 禁言截止时间只给本人：用于「我的」页的禁言提示与申诉入口，
+                // 他人卡片不需要也不该看到这个账号状态。
+                .muteUntil(user.getMuteUntil())
                 .build();
     }
 

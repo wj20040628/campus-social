@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -40,7 +41,7 @@ public interface UserMapper extends BaseMapper<User> {
      * username 仍是旧主标识(邮箱/手机)而 student_no 为空时漏判。
      */
     @Select("SELECT id, username, password_hash, student_no, email, nickname, avatar_url, "
-            + "verify_status, status, role, school_id, dept_id, grade_id, major_id, "
+            + "verify_status, status, mute_until, role, school_id, dept_id, grade_id, major_id, "
             + "stranger_msg_enabled, onboarding_step, follower_count, following_count, "
             + "unread_notify_count, joined_circle_count, create_time, update_time, is_deleted "
             + "FROM user WHERE is_deleted = 0 AND (username = #{studentNo} OR student_no = #{studentNo}) "
@@ -51,7 +52,7 @@ public interface UserMapper extends BaseMapper<User> {
      * 按安全凭证邮箱查用户(账号体系重构)。邮箱存库前已统一转小写,这里用精确匹配即可。
      */
     @Select("SELECT id, username, password_hash, student_no, email, nickname, avatar_url, "
-            + "verify_status, status, role, school_id, dept_id, grade_id, major_id, "
+            + "verify_status, status, mute_until, role, school_id, dept_id, grade_id, major_id, "
             + "stranger_msg_enabled, onboarding_step, follower_count, following_count, "
             + "unread_notify_count, joined_circle_count, create_time, update_time, is_deleted "
             + "FROM user WHERE is_deleted = 0 AND email = #{email} LIMIT 1")
@@ -136,6 +137,28 @@ public interface UserMapper extends BaseMapper<User> {
     /** 封禁/解封(举报处置 action=ban)。status:0正常 1冻结 */
     @Update("UPDATE user SET status = #{status}, update_time = NOW() WHERE id = #{userId}")
     int updateAccountStatus(@Param("userId") Long userId, @Param("status") int status);
+
+    /**
+     * 自助注销：置 2 并抹掉全部可识别信息。
+     *
+     * <p>username 不能置 NULL（NOT NULL + 唯一键），改成 {@code deleted_{id}}：
+     * 既保持唯一，又让人无法再用原邮箱/学号登录。email 与 student_no 置 NULL
+     * 释放唯一键，用户日后可以用同一邮箱重新注册。
+     */
+    @Update("UPDATE user SET status = 2, username = CONCAT('deleted_', id), "
+            + "email = NULL, student_no = NULL, nickname = '已注销用户', bio = NULL, "
+            + "avatar_url = NULL, cover_url = NULL, mute_until = NULL, "
+            + "grade = NULL, grade_id = NULL, dept = NULL, dept_id = NULL, major_id = NULL, "
+            + "campus = NULL, verify_status = 0, password_hash = '__NO_PASSWORD__', "
+            + "update_time = NOW() WHERE id = #{userId} AND status <> 2")
+    int cancelAccount(@Param("userId") Long userId);
+
+    /** 禁言截止时间，null=解除禁言 */
+    @Update("UPDATE user SET mute_until = #{muteUntil}, update_time = NOW() WHERE id = #{userId}")
+    int updateMuteUntil(@Param("userId") Long userId, @Param("muteUntil") LocalDateTime muteUntil);
+
+    @Select("SELECT mute_until FROM user WHERE id = #{userId} AND is_deleted = 0")
+    LocalDateTime selectMuteUntil(@Param("userId") Long userId);
 
     // ---------------------------------------------------------------- 学号核验审核（admin）
 

@@ -17,6 +17,7 @@ import { adminReports, handleReport } from '@/api/review'
 import { reasonLabel } from '@/constants/reportReason'
 import { useUndoWindow } from '@/composables/useUndoWindow'
 import { useAdminPending } from '@/composables/useAdminPending'
+import { verdictText } from '@/utils/reportVerdict'
 
 /** 封禁时长。0 = 永久,放最后并单独标注 */
 export const BAN_DAY_OPTIONS = [
@@ -24,6 +25,14 @@ export const BAN_DAY_OPTIONS = [
   { v: 7, t: '7 天' },
   { v: 30, t: '30 天' },
   { v: 0, t: '永久' },
+]
+
+/** 禁言时长。禁言是限期措施，不提供永久（永久对应封禁） */
+export const MUTE_DAY_OPTIONS = [
+  { v: 1, t: '1 天' },
+  { v: 3, t: '3 天' },
+  { v: 7, t: '7 天' },
+  { v: 30, t: '30 天' },
 ]
 
 /**
@@ -53,7 +62,10 @@ export function useReportQueue(handled) {
   const listMode = ref(true)
   const expanded = ref(false)
   const banDays = ref(7)
-  /** 'idle' 一行三按钮; 'ban' 已展开封禁时长选择 */
+  const muteDays = ref(7)
+  /** 处罚类动作的必填理由（2026-10-31）：空时确认按钮不可点 */
+  const note = ref('')
+  /** 'idle' 一行按钮; 'ban' 已展开封禁时长; 'mute' 已展开禁言时长 */
   const stage = ref('idle')
 
   /**
@@ -117,6 +129,7 @@ export function useReportQueue(handled) {
     if (stage.value !== 'ban') return '成立并封禁'
     return banDays.value === 0 ? '永久封禁' : `封禁 ${banDays.value} 天`
   })
+  const muteLabel = computed(() => `禁言 ${muteDays.value} 天`)
   /**
    * 这条举报有没有可下架的内容（2026-10-28）。
    *
@@ -128,28 +141,15 @@ export function useReportQueue(handled) {
    */
   const canTakedown = computed(() => [2, 3, 4, 6, 7, 8, 9].includes(current.value?.targetType))
 
+  /**
+   * 圈子（9）没有可禁言的对象：禁言作用于账号，圈子只能解散或封圈主。
+   * 其余 1~8 都能归因到作者。
+   */
+  const canMute = computed(() => [1, 2, 3, 4, 6, 7, 8].includes(current.value?.targetType))
+
   const takedownLabel = computed(() => (current.value?.targetType === 9 ? '解散圈子' : '仅下架'))
 
-  /**
-   * 处置结论文案（2026-10-28 加，2026-10-29 从 ReportPane 移入）。
-   *
-   * status=1 不再写死「成立并封禁」——新增「仅下架」后同是 status=1，
-   * 写封禁会让管理员误以为每个成立都封了人。按 targetType 说清后果。
-   *
-   * 关键分支：status=0 但 handlerId 非空 = **已忽略**。
-   * 「忽略」按契约不改 status，只看 status 会把它标成「待处理」。
-   */
-  function verdictText(r) {
-    if (!r) return ''
-    if (r.status === 1) {
-      if (r.targetType === 1) return '举报成立，已处置该用户'
-      if (r.targetType === 9) return '举报成立，该圈子已解散'
-      return '举报成立，内容已下架'
-    }
-    if (r.status === 2) return '驳回'
-    return r.handlerId ? '忽略' : '待处理'
-  }
-
+  /** 处置结论文案见 utils/reportVerdict.js（历史行与四种动作的判定都在那里） */
   function reasonText(t) {
     return reasonLabel(t)
   }
@@ -224,11 +224,19 @@ export function useReportQueue(handled) {
     expanded.value = false
     actionError.value = ''
     banDays.value = 7
+    muteDays.value = 7
+    note.value = ''
   }
 
   /** 第一下点「成立并封禁」只展开时长选择,不提交 —— 不可逆动作要多一道确认 */
   function confirmBan() {
     stage.value = 'ban'
+    actionError.value = ''
+  }
+
+  /** 禁言同样要选天数、连带下架内容，保留二段确认 */
+  function confirmMute() {
+    stage.value = 'mute'
     actionError.value = ''
   }
 
@@ -241,8 +249,17 @@ export function useReportQueue(handled) {
     const report = current.value
     if (!report) return
 
+    // 处罚类动作必须有理由：按钮已禁用，这里再兜一道防止快捷键/误触绕过
+    const why = note.value.trim()
+    if (['ban', 'mute', 'takedown'].includes(action) && !why) {
+      actionError.value = '处罚类处置必须填写理由，理由会同步给被处置人'
+      return
+    }
+
     const body = { action }
+    if (why) body.handleNote = why
     if (action === 'ban') body.banDays = banDays.value
+    if (action === 'mute') body.muteDays = muteDays.value
 
     // 按下标移除,不用 slice(0)/slice(1) —— 那是「砍第一个」的写法,
     // 建立在「当前项恒在头部」的旧假设上。J/K 切到第 3 条时它会砍错。
@@ -253,12 +270,28 @@ export function useReportQueue(handled) {
 
     const text = {
       ban: banDays.value === 0 ? '已永久封禁该用户' : `已封禁 ${banDays.value} 天`,
+      mute: `已禁言该用户 ${muteDays.value} 天`,
       takedown: '已下架被举报内容（未封禁）',
       reject: '举报不成立，已驳回',
       ignore: '已忽略这条举报',
     }[action]
 
-    open(text, () => commit(report.id, body), { report, at })
+    /*
+     * 撤销要能回到「没点过」：把理由、天数与展开态一并存进 meta，
+     * undo 时恢复。列表字段本身已经够还原，但少了这些，管理员撤销后
+     * 得重新选天数和重写理由。
+     */
+    const meta = {
+      report,
+      at,
+      note: why,
+      stage: stage.value,
+      banDays: banDays.value,
+      muteDays: muteDays.value,
+    }
+    // 立即清空理由：下一条不能复用上一条的处罚理由
+    note.value = ''
+    open(text, () => commit(report.id, body), meta)
   }
 
   async function commit(id, body) {
@@ -297,6 +330,13 @@ export function useReportQueue(handled) {
     currentIndex.value = pos
     listMode.value = false
     reset()
+    // 恢复撤销前填写/选择的内容，使结果与「没点过」一致
+    if (back.stage) {
+      stage.value = back.stage
+      banDays.value = back.banDays ?? banDays.value
+      muteDays.value = back.muteDays ?? muteDays.value
+      note.value = back.note ?? ''
+    }
     ElMessage.info('已撤销，这条还在待处置里')
   }
 
@@ -322,6 +362,8 @@ export function useReportQueue(handled) {
     listMode,
     expanded,
     banDays,
+    muteDays,
+    note,
     stage,
     undo,
     doneCount,
@@ -330,6 +372,8 @@ export function useReportQueue(handled) {
     currentIndex,
     longContent,
     banLabel,
+    muteLabel,
+    canMute,
     canTakedown,
     takedownLabel,
     verdictText,
@@ -338,6 +382,7 @@ export function useReportQueue(handled) {
     loadMore,
     openOne,
     confirmBan,
+    confirmMute,
     act,
     onUndo,
     // reset 要导出的原因:ReportPane 用 J/K 切条目时,切过去要清掉上一条的

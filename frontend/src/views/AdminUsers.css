@@ -202,6 +202,11 @@
   font-weight: var(--ys-weight-semibold);
 }
 
+.uadmin__status[data-muted='1'] {
+  color: var(--ys-accent-2);
+  font-weight: var(--ys-weight-semibold);
+}
+
 /* ---------------- 行内动作 / 封禁面板 ---------------- */
 
 .uadmin__acts {
@@ -273,6 +278,12 @@
   color: var(--ys-fg);
   font-size: var(--ys-text-sm);
   font-family: var(--ys-font-body);
+}
+
+.uadmin__ban-tip {
+  margin: 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
 }
 
 .uadmin__err {

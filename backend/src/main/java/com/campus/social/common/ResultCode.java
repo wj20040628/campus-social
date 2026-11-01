@@ -165,6 +165,10 @@ public enum ResultCode {
     ACCOUNT_TOO_NEW(1073, "账号注册时间不足"),
     CREDIT_TOO_LOW(1074, "信誉分不足"),
 
+    // 1075 起:管理员禁言(举报处置 action=mute)。与封禁 1001 分开:
+    // 禁言只拦内容发布,账号仍可登录浏览,前端提示语与处理方式不同。
+    USER_MUTED(1075, "账号已被禁言"),
+
     // 频率类:复用 HTTP 429 段(枚举内本就混排 4xx 与 1xxx)
     TOO_MANY_REQUESTS(429, "操作过于频繁,请稍后再试");
 

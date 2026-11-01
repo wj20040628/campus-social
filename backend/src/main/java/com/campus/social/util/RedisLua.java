@@ -82,6 +82,29 @@ public class RedisLua {
                     + "return 0",
             Long.class);
 
+    // ---------------------------------------------------------------- 脚本 5
+
+    /**
+     * 脚本 5：双维度滑动窗口（用户 + IP）原子限频。
+     * 两个维度都未超限才同时记账，避免先记用户维度、再被 IP 维度拒绝时多扣一次。
+     * KEYS[1]=用户键 KEYS[2]=IP键；ARGV[1]=左边界 ARGV[2]=用户上限 ARGV[3]=IP上限
+     * ARGV[4]=当前毫秒 ARGV[5]/[6]=两个成员 ARGV[7]=窗口毫秒。
+     */
+    private static final RedisScript<Long> SLIDING_WINDOW_PAIR = RedisScript.of(
+            "redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1]) "
+                    + "redis.call('ZREMRANGEBYSCORE', KEYS[2], 0, ARGV[1]) "
+                    + "local n1 = redis.call('ZCARD', KEYS[1]) "
+                    + "local n2 = redis.call('ZCARD', KEYS[2]) "
+                    + "if n1 < tonumber(ARGV[2]) and n2 < tonumber(ARGV[3]) then "
+                    + "  redis.call('ZADD', KEYS[1], ARGV[4], ARGV[5]) "
+                    + "  redis.call('ZADD', KEYS[2], ARGV[4], ARGV[6]) "
+                    + "  redis.call('PEXPIRE', KEYS[1], ARGV[7]) "
+                    + "  redis.call('PEXPIRE', KEYS[2], ARGV[7]) "
+                    + "  return 1 "
+                    + "end "
+                    + "return 0",
+            Long.class);
+
     // ---------------------------------------------------------------- 只读计数
 
     /**
@@ -138,5 +161,25 @@ public class RedisLua {
     public long windowCount(String windowKey, long leftBoundMs) {
         Long r = redis.execute(WINDOW_COUNT, List.of(windowKey), String.valueOf(leftBoundMs));
         return r == null ? 0L : r;
+    }
+
+    /**
+     * 双维度滑动窗口限频：用户与 IP 都未超限时同时记账并返回 true。
+     *
+     * <p>任一维度超限返回 false，且两个窗口都不记账——检查与写入在同一个 Lua
+     * 脚本内完成，不存在「用户维度扣了、IP 维度拒绝」的半记账状态。
+     */
+    public boolean tryAcquireBoth(String userKey, int userLimit,
+            String ipKey, int ipLimit, long nowMs, long windowMs, String member) {
+        long leftBoundMs = nowMs - windowMs;
+        Long r = redis.execute(SLIDING_WINDOW_PAIR, List.of(userKey, ipKey),
+                String.valueOf(leftBoundMs),
+                String.valueOf(userLimit),
+                String.valueOf(ipLimit),
+                String.valueOf(nowMs),
+                member,
+                member,
+                String.valueOf(windowMs));
+        return r != null && r == 1L;
     }
 }

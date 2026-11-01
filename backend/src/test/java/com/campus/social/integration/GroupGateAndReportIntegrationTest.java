@@ -246,6 +246,8 @@ class GroupGateAndReportIntegrationTest {
 
         ReportHandleDTO handle = new ReportHandleDTO();
         handle.setAction("takedown");
+        // 2026-10-31 起处罚类处置必须写理由
+        handle.setHandleNote("群消息违规，下架");
         reportService.handle(ADMIN_ID, created.getReportId(), handle);
 
         Integer chatTouched = jdbc.queryForObject(

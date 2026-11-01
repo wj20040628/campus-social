@@ -95,7 +95,9 @@ public class RegisterServiceImpl implements RegisterService {
         }
 
         auditService.record(user.getId(), "register", "user", user.getId(),
-                "email=" + email + (withStudentNo ? ", studentNo=" + studentNo : ", 未认证"), null);
+                "email=" + UserVoAssembler.maskUsername(email)
+                        + (withStudentNo ? ", studentNo=" + UserVoAssembler.maskUsername(studentNo) : ", 未认证"),
+                null);
 
         log.info("register: uid={}, email={}, studentNo={}, verified={}",
                 user.getId(), UserVoAssembler.maskUsername(email),

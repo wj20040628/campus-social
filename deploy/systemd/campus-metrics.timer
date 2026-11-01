@@ -1,0 +1,11 @@
+[Unit]
+Description=每 5 分钟采集友声 Actuator 性能指标
+
+[Timer]
+OnCalendar=*:0/5
+AccuracySec=30s
+Persistent=true
+Unit=campus-metrics.service
+
+[Install]
+WantedBy=timers.target

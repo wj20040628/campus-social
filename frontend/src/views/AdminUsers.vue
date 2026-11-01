@@ -90,7 +90,7 @@
               </p>
             </div>
             <span class="uadmin__right">
-              <span class="uadmin__status" :data-status="u.status">
+              <span class="uadmin__status" :data-status="u.status" :data-muted="isMuted(u) ? '1' : undefined">
                 {{ statusText(u) }}
               </span>
               <!--
@@ -135,6 +135,41 @@
             </div>
           </div>
 
+          <!--
+            行内禁言面板（2026-10-31）：与封禁同构。禁言不冻结账号，
+            所以封禁中的人不显示本入口（后端 422，前端不给按钮）。
+          -->
+          <div v-else-if="muting && muting.userId === u.userId" class="uadmin__ban-panel">
+            <div class="uadmin__ban-row">
+              <label for="uadmin-mute-days">禁言时长</label>
+              <select id="uadmin-mute-days" v-model.number="muteDays" class="uadmin__ban-select">
+                <option v-for="d in MUTE_DAYS" :key="d.v" :value="d.v">{{ d.t }}</option>
+              </select>
+            </div>
+            <input
+              v-model="muteReason"
+              type="text"
+              maxlength="200"
+              placeholder="禁言理由(必填,会随通知发给对方)"
+              @keyup.enter="submitMute"
+            />
+            <p class="uadmin__ban-tip">
+              禁言期间可登录浏览，不能发帖、评论、私信和发群消息；重复禁言只延长
+            </p>
+            <p v-if="actionError" class="uadmin__err" role="alert">{{ actionError }}</p>
+            <div class="uadmin__ban-btns">
+              <button type="button" class="uadmin__btn" @click="cancelMute">取消</button>
+              <button
+                type="button"
+                class="uadmin__btn uadmin__btn--danger"
+                :disabled="busy"
+                @click="submitMute"
+              >
+                禁言 {{ muteDays }} 天
+              </button>
+            </div>
+          </div>
+
           <div v-else class="uadmin__acts">
             <button
               v-if="u.status === 1"
@@ -146,7 +181,25 @@
               解封
             </button>
             <button
-              v-if="u.role !== 1"
+              v-if="isMuted(u)"
+              type="button"
+              class="uadmin__btn"
+              :disabled="busy"
+              @click="openUnmute(u)"
+            >
+              解除禁言
+            </button>
+            <button
+              v-if="u.role !== 1 && u.status === 0"
+              type="button"
+              class="uadmin__btn"
+              :disabled="busy"
+              @click="openMute(u)"
+            >
+              {{ isMuted(u) ? '延长禁言' : '禁言' }}
+            </button>
+            <button
+              v-if="u.role !== 1 && u.status !== 2"
               type="button"
               class="uadmin__btn uadmin__btn--danger-ghost"
               :disabled="busy"
@@ -182,6 +235,14 @@
       confirm-text="解封"
       @confirm="onUnbanConfirm"
     />
+
+    <ConfirmDialog
+      v-model="unmuteOpen"
+      :title="`解除 ${unmuteTarget?.nickname || '该用户'} 的禁言?`"
+      text="解除后可以立即发帖、评论、私信和发送群消息。"
+      confirm-text="解除禁言"
+      @confirm="onUnmuteConfirm"
+    />
   </div>
 </template>
 
@@ -191,7 +252,7 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ArrowLeft, Search, WarningFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { useAdminUsers, STATUS_FILTERS, BAN_DAYS } from '@/composables/useAdminUsers'
+import { useAdminUsers, STATUS_FILTERS, BAN_DAYS, MUTE_DAYS } from '@/composables/useAdminUsers'
 import { resolveThumb } from '@/utils/resolve'
 import AdminDenied from '@/components/common/AdminDenied.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
@@ -203,9 +264,13 @@ const userStore = useUserStore()
 const {
   list, total, hasMore, loading, failed,
   keyword, statusFilter,
-  banning, banDays, banReason, busy, actionError,
+  banning, banDays, banReason,
+  muting, muteDays, muteReason,
+  busy, actionError,
   load, loadMore, search, setStatus,
-  openBan, cancelBan, submitBan, submitUnban,
+  openBan, cancelBan, submitBan,
+  openMute, cancelMute, submitMute,
+  submitUnban, submitUnmute,
 } = useAdminUsers()
 
 load(true)
@@ -214,10 +279,16 @@ load(true)
 const ready = computed(() => !!userStore.userInfo)
 const denied = computed(() => ready.value && userStore.isAdmin !== true)
 
+function isMuted(u) {
+  return u.status !== 1 && !!u.muteUntil && dayjs(u.muteUntil).isAfter(dayjs())
+}
+
 function statusText(u) {
+  if (u.status === 2) return '已注销'
   if (u.status === 1) {
     return u.bannedUntil ? `封禁中 · 至 ${dayjs(u.bannedUntil).format('MM-DD HH:mm')}` : '永久封禁'
   }
+  if (isMuted(u)) return `禁言中 · 至 ${dayjs(u.muteUntil).format('MM-DD HH:mm')}`
   return '正常'
 }
 
@@ -255,6 +326,22 @@ async function onUnbanConfirm() {
   unbanOpen.value = false
   unbanTarget.value = null
   if (t) await submitUnban(t)
+}
+
+/* ---------------- 解除禁言确认框（同上，开关与目标分开） ---------------- */
+const unmuteTarget = ref(null)
+const unmuteOpen = ref(false)
+
+function openUnmute(u) {
+  unmuteTarget.value = u
+  unmuteOpen.value = true
+}
+
+async function onUnmuteConfirm() {
+  const t = unmuteTarget.value
+  unmuteOpen.value = false
+  unmuteTarget.value = null
+  if (t) await submitUnmute(t)
 }
 
 /* ---------------- 无限滚动哨兵 ---------------- */

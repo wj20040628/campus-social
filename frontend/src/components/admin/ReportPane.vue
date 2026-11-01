@@ -1,26 +1,10 @@
 <template>
   <!--
-    举报处置(AdminReview.vue.md §0「举报处置」Tab + §1.3 卡片 + §1.4 吸底栏)
-
-    为什么默认落在这个 Tab:OD-19 的时效压力来自举报,不是来自机审队列。
-    机审任务可以等,举报人等着被回应。
-
-    处置动作三选一(契约 ReportHandleRequest):
-      ban    成立并封禁 -> banDays 必填(1/7/30,0=永久)
-      reject 举报不成立
-      ignore 忽略,仅记录处置人
-
-    数据与动作全在 useReportQueue.js,本文件只负责视图与五态。
+    举报处置：数据与动作在 useReportQueue.js，本文件只负责视图与五态。
+    动作：ban 封禁 / mute 禁言 / takedown 仅下架 / reject 驳回 / ignore 忽略。
   -->
   <div class="report-pane">
-    <!--
-      快捷键说明。设计 §2 把 J/K/A/R/U 定为「桌面管理员的刚需」,但没给发现机制。
-      放在吸底栏**上方**:与操作按钮同屏,管理员学键时眼睛不用来回扫。
-
-      标签写全称不写单字:举报域的「A」在机审域是「通过」,在这里是「忽略」。
-      只写「A 忽略」怕管理员带着机审的肌肉记忆来;写「A 忽略(不采纳)」最稳。
-      「成立并封禁」不在列表里 —— 它没绑键,列出来会让人去找那个键。
-    -->
+    <!-- 快捷键说明：A 在机审域是「通过」，在这里是「忽略」，写全称防肌肉记忆误按 -->
     <p v-if="!isMobile && !listMode && !readOnly" class="report-pane__keys">
       <span><kbd>J</kbd><kbd>K</kbd> 切换</span>
       <span><kbd>A</kbd> 忽略（不采纳）</span>
@@ -107,14 +91,8 @@
           {{ expanded ? '收起' : '展开全文' }}
         </button>
 
-        <!--
-          处置结论（2026-10-24 加）：已处理态唯一能说明「这条后来怎么了」的地方。
-          在此之前已处理列表根本不存在，管理员处置完就再也查不到自己做过什么。
-
-          三种结论的判定：status=1 成立 / 2 驳回；而「忽略」按契约不改 status
-          （仍为 0）只写 handler_id —— 所以 status=0 但 handlerId 非空 = 已忽略，
-          这个分支不能少，否则忽略过的记录会被显示成「待处理」。
-        -->
+        <!-- 处置结论：已处理态唯一能说明「这条后来怎么了」的地方。
+             注意「忽略」不改 status（仍为 0）只写 handler_id，判据见 verdictText。 -->
         <div v-if="readOnly" class="report-card__verdict">
           <p class="report-card__verdict-line">
             处置结论：<b>{{ verdictText(current) }}</b>
@@ -182,6 +160,22 @@
           <option v-for="d in BAN_DAY_OPTIONS" :key="d.v" :value="d.v">{{ d.t }}</option>
         </select>
         <p class="report-pane__ban-warn">封禁后不能发帖、不能搭话</p>
+        <ReportHandleNote v-model="note" />
+      </div>
+
+      <!-- 禁言天数：账号不冻结，禁言期内只能浏览 -->
+      <div v-else-if="stage === 'mute'" class="report-pane__ban-days">
+        <p class="report-pane__ban-confirm">
+          {{ canTakedown
+            ? '禁言会同时下架被举报内容；只想删内容就选「仅下架」'
+            : '禁言立即生效，到期自动解除' }}
+        </p>
+        <label for="rp-mute-days">禁言时长</label>
+        <select id="rp-mute-days" v-model.number="muteDays" class="report-pane__ban-select">
+          <option v-for="d in MUTE_DAY_OPTIONS" :key="d.v" :value="d.v">{{ d.t }}</option>
+        </select>
+        <p class="report-pane__ban-warn">禁言期间能浏览，不能发帖、评论、私信和发群消息</p>
+        <ReportHandleNote v-model="note" />
       </div>
 
       <div class="report-pane__actions">
@@ -194,11 +188,23 @@
           <button type="button" class="report-pane__btn" :disabled="busy" @click="stage = 'idle'">
             取消
           </button>
-          <button v-if="canTakedown" type="button" class="report-pane__btn" :disabled="busy" @click="act('takedown')">
+          <button v-if="canTakedown" type="button" class="report-pane__btn" :disabled="busy || !note.trim()" @click="act('takedown')">
             {{ takedownLabel }}
           </button>
-          <button type="button" class="report-pane__btn report-pane__btn--danger" :disabled="busy" @click="act('ban')">
+          <button type="button" class="report-pane__btn report-pane__btn--danger" :disabled="busy || !note.trim()" @click="act('ban')">
             {{ banLabel }}
+          </button>
+        </template>
+
+        <template v-else-if="stage === 'mute'">
+          <button type="button" class="report-pane__btn" :disabled="busy" @click="stage = 'idle'">
+            取消
+          </button>
+          <button v-if="canTakedown" type="button" class="report-pane__btn" :disabled="busy || !note.trim()" @click="act('takedown')">
+            {{ takedownLabel }}
+          </button>
+          <button type="button" class="report-pane__btn" :disabled="busy || !note.trim()" @click="act('mute')">
+            {{ muteLabel }}
           </button>
         </template>
 
@@ -209,6 +215,16 @@
           <!-- 驳回不可逆但无副作用（不封人、不下架），一步到底，不再二段确认 -->
           <button type="button" class="report-pane__btn" :disabled="busy" @click="act('reject')">
             驳回
+          </button>
+          <!-- 禁言要选天数、可能连带下架，保留二段确认；圈子没有可禁言对象，不显示 -->
+          <button
+            v-if="canMute"
+            type="button"
+            class="report-pane__btn"
+            :disabled="busy"
+            @click="confirmMute()"
+          >
+            禁言
           </button>
           <!-- 「成立并封禁」要选天数、封人、下架内容，保留二段确认 -->
           <button
@@ -247,11 +263,12 @@ import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import dayjs from 'dayjs'
 import { Files, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
-import { useReportQueue, BAN_DAY_OPTIONS } from '@/composables/useReportQueue'
+import { useReportQueue, BAN_DAY_OPTIONS, MUTE_DAY_OPTIONS } from '@/composables/useReportQueue'
 import { useReviewHotkeys } from '@/composables/useReviewHotkeys'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import StateBlock from '@/components/common/StateBlock.vue'
 import ReportTargetInfo from '@/components/admin/ReportTargetInfo.vue'
+import ReportHandleNote from '@/components/admin/ReportHandleNote.vue'
 
 const props = defineProps({
   /** 0 待审 / 1 成立 / 2 驳回。handled=true 时忽略本字段 */
@@ -276,10 +293,10 @@ const readOnly = computed(() => props.handled)
 const q = useReportQueue(toRef(props, 'handled'))
 const {
   list, total, hasMore, loading, failed, busy, actionError, listMode,
-  expanded, banDays, stage, undo, doneCount, progressPct, current, currentIndex,
-  longContent, banLabel,
-  canTakedown, takedownLabel, verdictText,
-  reasonText, load, loadMore, openOne, confirmBan, act, onUndo, reset,
+  expanded, banDays, muteDays, note, stage, undo, doneCount, progressPct, current, currentIndex,
+  longContent, banLabel, muteLabel,
+  canMute, canTakedown, takedownLabel, verdictText,
+  reasonText, load, loadMore, openOne, confirmBan, confirmMute, act, onUndo, reset,
 } = q
 
 // ---------------- 无限滚动（2026-10-24 补） ----------------
@@ -320,8 +337,9 @@ const busyById = computed(() => ({
 /**
  * 桌面快捷键(设计 §2「键盘」行)。与机审域同一套机制(复用 useReviewHotkeys)。
  *
- * [键位与三动作的映射,以及为什么少一个]
- * 举报域是三动作:成立并封禁 / 驳回 / 忽略。设计给的键位是 A 通过、R 驳回、U 撤销。
+ * [键位与动作的映射,以及为什么少几个]
+ * 举报域的动作:成立并封禁 / 禁言 / 仅下架 / 驳回 / 忽略。
+ * 设计给的键位是 A 通过、R 驳回、U 撤销。
  * 映射:
  *   A → ignore(忽略)  「忽略」在举报语境里就是「不采纳」,与机审的「通过」同义
  *   R → reject(驳回)  同名对应

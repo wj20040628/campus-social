@@ -25,14 +25,21 @@ public interface AdminUserService {
      *
      * @param keyword 昵称/登录名/学号模糊匹配；空 = 不筛
      * @param status  0 正常 / 1 冻结（封禁中）；空 = 全部
+     * @param muted   true = 只看禁言中（mute_until &gt; NOW()）；空 = 不筛
      */
-    UserAdminPageVO page(String keyword, Integer status, Long cursor, int size);
+    UserAdminPageVO page(String keyword, Integer status, Boolean muted, Long cursor, int size);
 
     /** 直接封禁（不走举报流程）。禁止封自己与其他管理员。 */
     void ban(long adminId, long userId, int banDays, String reason);
 
     /** 手动解封（到期任务之外的救济路径）。审计归因到 adminId。 */
     void unban(long adminId, long userId);
+
+    /** 直接禁言（不走举报流程）。重复禁言只延长，不缩短已有截止时间。 */
+    void mute(long adminId, long userId, int muteDays, String reason);
+
+    /** 手动解除禁言（禁言到期之外的救济路径）。审计归因到 adminId。 */
+    void unmute(long adminId, long userId);
 
     /** 四条队列的待办聚合（管理入口角标）。 */
     PendingSummaryVO pendingSummary();

@@ -70,6 +70,17 @@ public class ReportVO implements Serializable {
      */
     private String handleNote;
 
+    /**
+     * 处置动作与天数（2026-10-31 补）。
+     *
+     * <p>只凭 status 无法区分「封禁 7 天」「禁言 7 天」「仅下架」——
+     * 已处理列表此前对用户举报一律显示「已处置该用户」，管理员回查时
+     * 看不出当时到底做了什么。历史行这两个字段为 null，前端回退旧文案。
+     */
+    private String handleAction;
+
+    private Integer handleDays;
+
     private LocalDateTime handleTime;
 
     private LocalDateTime createTime;

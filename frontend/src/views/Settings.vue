@@ -114,8 +114,18 @@
 
       
 
-      <!-- 退出登录:危险项 -->
+      <!-- 退出登录 / 注销账号:危险项 -->
       <el-card class="settings__group settings__group--danger">
+        <div class="set-row set-row--link set-row--danger">
+          <button type="button" class="set-row__btn" @click="openCancel">
+            <span class="set-row__icon"><el-icon :size="18"><CircleClose /></el-icon></span>
+            <span class="set-row__text">
+              <span class="set-row__label">注销账号</span>
+              <span class="set-row__desc">清空个人信息并停用账号，不可恢复</span>
+            </span>
+            <el-icon class="set-row__chevron"><ArrowRight /></el-icon>
+          </button>
+        </div>
         <div class="set-row set-row--link set-row--danger">
           <button type="button" class="set-row__btn" @click="doLogout">
             <span class="set-row__icon"><el-icon :size="18"><SwitchButton /></el-icon></span>
@@ -126,6 +136,8 @@
           </button>
         </div>
       </el-card>
+
+      <CancelAccountDialog ref="cancelRef" />
 
       <ActionSheet v-model="adminSheetOpen" title="管理后台">
         <button
@@ -198,7 +210,7 @@
  * - 陌生人消息开关在 /settings/privacy;审核记录弹层 2026-10-20 从抽屉搬回本页
  */
 import {
-  ArrowRight, Bell, Hide, InfoFilled, Lock, Moon, Operation, Setting, SwitchButton, Tickets,
+  ArrowRight, Bell, CircleClose, Hide, InfoFilled, Lock, Moon, Operation, Setting, SwitchButton, Tickets,
 } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -212,9 +224,16 @@ import { useAdminPending } from '@/composables/useAdminPending'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import MyReviewBlock from '@/components/common/MyReviewBlock.vue'
 import AdminPendingBadge from '@/components/admin/AdminPendingBadge.vue'
+import CancelAccountDialog from '@/components/profile/CancelAccountDialog.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const cancelRef = ref(null)
+
+/** 注销账号：不可逆操作，单独弹窗做验证码与确认，不放进分类页 */
+function openCancel() {
+  cancelRef.value?.open()
+}
 const { isDark, toggle: toggleTheme } = useTheme()
 const { code, studentNo, load: loadVerifyStatus } = useVerifyStatus()
 const { adminSheetOpen, goAdmin, doLogout } = useSettings()

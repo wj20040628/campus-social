@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `stranger_msg_enabled`  TINYINT      NOT NULL DEFAULT 1      COMMENT '是否接收陌生人消息 0否 1是(F3 护栏)',
     `onboarding_step`       TINYINT      NOT NULL DEFAULT 0      COMMENT '引导进度 0未开始 1已填归属 2已选标签 3已完成',
     `status`                TINYINT      NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',
+    `mute_until`            DATETIME     NULL                    COMMENT '禁言截止时间,NULL=未禁言;到点自动解除',
     `role`                  TINYINT      NOT NULL DEFAULT 0      COMMENT '角色:0普通用户 1管理员',
     `notify_pref`           TEXT         NULL                    COMMENT '通知偏好JSON:{"disabled":[类型id]}',
     `follower_count`        INT          NOT NULL DEFAULT 0,
@@ -75,7 +76,8 @@ CREATE TABLE IF NOT EXISTS `user` (
     UNIQUE KEY `uk_username` (`username`),
     UNIQUE KEY `uk_student_no` (`student_no`),
     UNIQUE KEY `uk_user_email` (`email`),
-    KEY `idx_dept_grade` (`dept`, `grade`)
+    KEY `idx_dept_grade` (`dept`, `grade`),
+    KEY `idx_mute_until` (`mute_until`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户';
 
 -- ------------------------------------------------------------
@@ -658,6 +660,8 @@ CREATE TABLE IF NOT EXISTS `report` (
     `handler_id`   BIGINT      NULL                    COMMENT '处置管理员ID',
     `handle_time`  DATETIME    NULL                    COMMENT '处置时间',
     `handle_note`  VARCHAR(500) NULL                   COMMENT '处置备注,同步写 audit_log',
+    `handle_action` VARCHAR(16) NULL                   COMMENT '处置动作 ban/mute/takedown/reject/ignore;历史行 NULL',
+    `handle_days`  INT         NULL                    COMMENT '处罚天数:封禁 0=永久;禁言 1~365;其余动作为 NULL',
     `create_time`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted`   TINYINT     NOT NULL DEFAULT 0,

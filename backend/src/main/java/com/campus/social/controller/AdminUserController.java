@@ -3,6 +3,7 @@ package com.campus.social.controller;
 import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.UserBanDTO;
+import com.campus.social.dto.UserMuteDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.interceptor.RequireAdmin;
 import com.campus.social.service.AdminUserService;
@@ -40,16 +41,20 @@ public class AdminUserController {
     }
 
     /**
-     * 用户列表（游标分页）：昵称/登录名/学号模糊搜 + 状态筛选。
+     * 用户列表（游标分页）：昵称/登录名/学号模糊搜 + 状态筛选 + 禁言中筛选。
      * username 打码下发（口径同审计日志）。
+     *
+     * <p>{@code muted=true} 只返回 {@code mute_until > NOW()} 的账号。
+     * 与 {@code status} 正交：禁言中的账号 status 仍是 0（可登录浏览）。
      */
     @GetMapping
     public Result<UserAdminPageVO> list(
             @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "muted", required = false) Boolean muted,
             @RequestParam(value = "cursor", required = false) Long cursor,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(adminUserService.page(keyword, status, cursor, PageSize.clamp(size)));
+        return Result.ok(adminUserService.page(keyword, status, muted, cursor, PageSize.clamp(size)));
     }
 
     /**
@@ -76,5 +81,30 @@ public class AdminUserController {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         adminUserService.unban(me, userId);
         return Result.ok(Map.of("message", "已解封该用户"));
+    }
+
+    /**
+     * 直接禁言（不依赖举报流程，2026-10-31）。
+     * 422：禁自己 / 禁管理员 / 账号封禁中 / 已注销；404：用户不存在。
+     */
+    @PostMapping("/{userId}/mute")
+    public Result<Map<String, String>> mute(@PathVariable("userId") long userId,
+            @Valid @RequestBody UserMuteDTO dto,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        adminUserService.mute(me, userId, dto.getMuteDays(), dto.getReason());
+        return Result.ok(Map.of("message", "已禁言该用户 " + dto.getMuteDays() + " 天"));
+    }
+
+    /**
+     * 手动解除禁言。禁言会自动到期，但误判/申诉成立时需要提前恢复。
+     * 422：不在禁言中 / 账号封禁中；404：用户不存在。
+     */
+    @PostMapping("/{userId}/unmute")
+    public Result<Map<String, String>> unmute(@PathVariable("userId") long userId,
+            HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        adminUserService.unmute(me, userId);
+        return Result.ok(Map.of("message", "已解除禁言"));
     }
 }

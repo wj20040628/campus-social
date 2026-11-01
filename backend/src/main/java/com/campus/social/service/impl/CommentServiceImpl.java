@@ -10,6 +10,7 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.CommentMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.service.UserMuteService;
 import com.campus.social.service.support.CommentTreeAssembler;
 import com.campus.social.util.SensitiveWordFilter;
 import com.campus.social.vo.CommentChildrenPageVO;
@@ -61,9 +62,12 @@ public class CommentServiceImpl {
     /** 圈内封禁拦截:评论前查 ban_status */
     private final com.campus.social.service.CircleAdminService circleAdminService;
     private final com.campus.social.service.AuditService auditService;
+    /** 管理员禁言:禁言期间不能评论/回复 */
+    private final UserMuteService muteService;
 
     @Transactional
     public long comment(long postId, CreateCommentDTO dto, long userId) {
+        muteService.requireCanSpeak(userId, "评论或回复");
         Post post = postMapper.selectById(postId);
         if (post == null || post.getStatus() != 1) {
             throw new BusinessException(POST_NOT_FOUND, "帖子不可评论");

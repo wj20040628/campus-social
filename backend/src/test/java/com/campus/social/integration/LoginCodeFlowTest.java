@@ -63,6 +63,7 @@ class LoginCodeFlowTest {
 
         assertNotNull(pair.getAccessToken());
         assertNotNull(pair.getRefreshToken());
+        assertTrue(pair.isNewAccount(), "验证码自动建号应标记 newAccount，供前端提示设置密码");
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT id, username, password_hash, verify_status FROM user WHERE email = ?", email);
         userId = ((Number) row.get("id")).longValue();
@@ -86,6 +87,7 @@ class LoginCodeFlowTest {
         TokenPairVO pair = authService.loginByCode(dto(email));
 
         assertNotNull(pair.getAccessToken());
+        assertFalse(pair.isNewAccount(), "已有账号验证码登录不得标记为新建账号");
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM user WHERE email = ?", Integer.class, email);
         assertEquals(1, count, "已存在账号不得重复建号");
         String storedHash = jdbc.queryForObject("SELECT password_hash FROM user WHERE id = ?", String.class, userId);

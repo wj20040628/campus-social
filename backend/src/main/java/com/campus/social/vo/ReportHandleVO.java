@@ -25,4 +25,7 @@ public class ReportHandleVO implements Serializable {
 
     /** action=ban 时的解封时间；永久封禁为 null */
     private LocalDateTime bannedUntil;
+
+    /** action=mute 时的禁言截止时间 */
+    private LocalDateTime mutedUntil;
 }

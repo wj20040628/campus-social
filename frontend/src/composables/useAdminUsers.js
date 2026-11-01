@@ -7,7 +7,7 @@
  * 找人(昵称/登录名/学号模糊搜 + 状态筛) → 直接封禁 / 手动解封。
  */
 import { ref } from 'vue'
-import { adminUsers, banUser, unbanUser } from '@/api/admin'
+import { adminUsers, banUser, unbanUser, muteUser, unmuteUser } from '@/api/admin'
 import { ElMessage } from '@/utils/feedback'
 
 /** 单页条数,与核验/机审队列一致 */
@@ -18,6 +18,8 @@ export const STATUS_FILTERS = [
   { v: null, t: '全部' },
   { v: 0, t: '正常' },
   { v: 1, t: '封禁中' },
+  // 'muted' 是独立维度：禁言中的账号 status 仍是 0，不能用 status 表达
+  { v: 'muted', t: '禁言中' },
 ]
 
 /** 封禁时长。0=永久放最后:最重的一档不能是顺手点的那个 */
@@ -26,6 +28,14 @@ export const BAN_DAYS = [
   { v: 7, t: '7 天' },
   { v: 30, t: '30 天' },
   { v: 0, t: '永久' },
+]
+
+/** 禁言时长。不提供永久——永久对应封禁，禁言只是限期措施 */
+export const MUTE_DAYS = [
+  { v: 1, t: '1 天' },
+  { v: 3, t: '3 天' },
+  { v: 7, t: '7 天' },
+  { v: 30, t: '30 天' },
 ]
 
 export function useAdminUsers() {
@@ -42,6 +52,10 @@ export function useAdminUsers() {
   const banning = ref(null)
   const banDays = ref(7)
   const banReason = ref('')
+  /* 禁言面板与封禁同构:同一时刻只允许一行展开一个面板 */
+  const muting = ref(null)
+  const muteDays = ref(7)
+  const muteReason = ref('')
   const busy = ref(false)
   const actionError = ref('')
 
@@ -53,7 +67,9 @@ export function useAdminUsers() {
     try {
       const data = await adminUsers({
         keyword: keyword.value.trim() || undefined,
-        status: statusFilter.value,
+        // 'muted' 不是状态值，走独立参数；禁言中的人 status 仍是 0
+        status: typeof statusFilter.value === 'number' ? statusFilter.value : undefined,
+        muted: statusFilter.value === 'muted' ? true : undefined,
         cursor: cursor.value,
         size: PAGE,
       })
@@ -90,6 +106,7 @@ export function useAdminUsers() {
 
   function openBan(user) {
     banning.value = user
+    muting.value = null
     banDays.value = 7
     banReason.value = ''
     actionError.value = ''
@@ -97,6 +114,19 @@ export function useAdminUsers() {
 
   function cancelBan() {
     banning.value = null
+    actionError.value = ''
+  }
+
+  function openMute(user) {
+    muting.value = user
+    banning.value = null
+    muteDays.value = 7
+    muteReason.value = ''
+    actionError.value = ''
+  }
+
+  function cancelMute() {
+    muting.value = null
     actionError.value = ''
   }
 
@@ -127,6 +157,32 @@ export function useAdminUsers() {
     }
   }
 
+  /**
+   * 提交禁言。与封禁同一套约束：理由必填、成功后整页重拉。
+   * 重复禁言只延长（后端保证），不会把已选天数改短。
+   */
+  async function submitMute() {
+    const user = muting.value
+    if (!user || busy.value) return
+    const reason = muteReason.value.trim()
+    if (!reason) {
+      actionError.value = '禁言要写理由——理由会随通知发给对方'
+      return
+    }
+    busy.value = true
+    actionError.value = ''
+    try {
+      await muteUser(user.userId, muteDays.value, reason)
+      muting.value = null
+      ElMessage.success(`已禁言 ${muteDays.value} 天`)
+      await load(true)
+    } catch {
+      // request.js 已弹错;面板与理由保留,管理员改一下就能重提
+    } finally {
+      busy.value = false
+    }
+  }
+
   /** 解封由 ConfirmDialog 确认后在视图里调这里 */
   async function submitUnban(user) {
     if (busy.value) return
@@ -143,11 +199,31 @@ export function useAdminUsers() {
     }
   }
 
+  /** 解除禁言由 ConfirmDialog 确认后在视图里调这里 */
+  async function submitUnmute(user) {
+    if (busy.value) return
+    busy.value = true
+    try {
+      await unmuteUser(user.userId)
+      ElMessage.success('已解除禁言')
+      await load(true)
+    } catch {
+      // 422「不在禁言中」/「封禁中」时重拉，让列表回到真实状态
+      await load(true)
+    } finally {
+      busy.value = false
+    }
+  }
+
   return {
     list, total, hasMore, loading, failed,
     keyword, statusFilter,
-    banning, banDays, banReason, busy, actionError,
+    banning, banDays, banReason,
+    muting, muteDays, muteReason,
+    busy, actionError,
     load, loadMore, search, setStatus,
-    openBan, cancelBan, submitBan, submitUnban,
+    openBan, cancelBan, submitBan,
+    openMute, cancelMute, submitMute,
+    submitUnban, submitUnmute,
   }
 }

@@ -5,6 +5,11 @@ name: CI
 #   此前仓库没有任何 CI,后端测试红了 19 个也无人察觉 —— pre-push 钩子只跑前端门禁。
 #   本流水线把「后端编译 + 测试」和「前端构建 + 门禁」都跑起来。
 #
+# 2026-11-01 增补:
+#   - e2e 作业:真实 MySQL/Redis + 后端 jar + Vite + Chromium,
+#     覆盖登录→发帖→评论、举报下架、禁言、注销六条主链路。
+#     脚本在 e2e/(独立 npm 包),不再散落 .e2e-env 手工执行。
+#
 # 说明:
 #   - 后端测试是 @SpringBootTest + @ActiveProfiles("local"),连真实 MySQL/Redis,
 #     所以用 service container;application-local.yml 不入库,由 env 注入等价配置。
@@ -229,3 +234,149 @@ jobs:
       - name: 首屏体积护栏(AC-17:首屏 JS < 300KB gzip)
         working-directory: frontend
         run: node scripts/check-firstscreen-size.mjs
+
+  # ============================================================
+  # 端到端冒烟(2026-11-01):真实 MySQL + Redis + 后端 jar + Vite 前端 + Chromium。
+  #
+  # 为什么单开一个 job 而不是塞进 frontend:UI 用例要连真实后端;
+  # 后端测试已经在别的 job 里覆盖接口细节,这里只验证「浏览器点得通、
+  # 数据真的落库」——登录→发帖→评论、举报下架、禁言、注销。
+  #
+  # e2e/ 是独立 npm 包(自带 lockfile),不污染 frontend 依赖。
+  # ============================================================
+  e2e:
+    name: E2E 冒烟（真实后端 + 浏览器）
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pw
+          MYSQL_DATABASE: campus_social_v2
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: '3306'
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ci_root_pw
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: '6379'
+      JWT_ACCESS_SECRET: ci-e2e-access-secret-please-replace-with-64-bytes-random-value-xxxxxxxx
+      JWT_REFRESH_SECRET: ci-e2e-refresh-secret-please-replace-with-64-bytes-random-value-yyyyyyyy
+      APP_MESSAGE_GATEWAY: dev
+      UPLOAD_DIR: ./uploads
+      # e2e 用例直连后端(不走 /api 前缀);浏览器侧仍走 Vite 代理
+      E2E_API_BASE_URL: http://127.0.0.1:8080
+      E2E_BASE_URL: http://127.0.0.1:5173
+      E2E_JWT_ACCESS_SECRET: ci-e2e-access-secret-please-replace-with-64-bytes-random-value-xxxxxxxx
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 导入 E2E 库基线
+        run: |
+          # schema.sql 顶部自带 CREATE DATABASE/USE campus_social_v2,与 E2E 服务库同名
+          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw --default-character-set=utf8mb4 \
+            < sql/schema.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -pci_root_pw -N -e \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='campus_social_v2';"
+
+      - name: 构建后端 jar
+        working-directory: backend
+        run: mvn -B -DskipTests package
+
+      - name: 启动后端并等待健康检查
+        run: |
+          java -jar backend/target/campus-social.jar > /tmp/e2e-backend.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "backend UP after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::后端 120s 内未就绪"
+          tail -80 /tmp/e2e-backend.log
+          exit 1
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci
+
+      - name: 启动前端 Vite 并等待端口
+        working-directory: frontend
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 5173 --strictPort > /tmp/e2e-vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5173/login/form > /dev/null; then
+              echo "vite UP after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Vite 120s 内未就绪"
+          tail -80 /tmp/e2e-vite.log
+          exit 1
+
+      - name: 安装 E2E 依赖
+        working-directory: e2e
+        run: npm ci
+
+      - name: 安装 Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: 跑 E2E
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: 失败时输出服务日志
+        if: failure()
+        run: |
+          echo "===== backend ====="
+          tail -120 /tmp/e2e-backend.log 2>/dev/null || echo "(无后端日志)"
+          echo "===== vite ====="
+          tail -60 /tmp/e2e-vite.log 2>/dev/null || echo "(无 Vite 日志)"
+
+      - name: 上传 Playwright 报告(失败时)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7

@@ -148,6 +148,22 @@ class ReportAutoBanTest {
     }
 
     @Test
+    void cancelledTargetIsExemptFromAutoBan() {
+        jdbc.update("UPDATE user SET status = 2 WHERE id = ?", targetId);
+        insertReport(r1, 1, targetId);
+        insertReport(r2, 2, postId);
+        insertReport(r3, 3, commentId);
+
+        autoBanService.check(reportOnUser());
+
+        assertEquals(2, reload(targetId).getStatus(), "已注销账号不得被自动封禁");
+        Integer audits = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM audit_log WHERE action = 'auto_ban_reports' AND target_id = ?",
+                Integer.class, targetId);
+        assertTrue(audits == null || audits == 0, "豁免时不应落自动封禁审计");
+    }
+
+    @Test
     void adminTargetIsExemptFromAutoBan() {
         // 2026-10-25 审计修回归:3 名成熟用户举报管理员 → 不得自动封禁
         // (单管理员运营期,冻结管理员=锁死后台;管理员违规走人工处置)

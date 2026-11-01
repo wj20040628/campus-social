@@ -354,8 +354,9 @@ paths:
         故在此显式标注而不是统一改名。
 
         **未注册邮箱也能登录**：验证码校验通过后若该邮箱还没有账号，
-        后端自动创建账号（`username`/`email` 均写该邮箱，昵称 `用户+4位随机数`，
-        `password_hash` 写未设置哨兵值）并直接返回 token。登录页已没有独立注册入口。
+        后端自动创建账号（`username`/`email` 均写该邮箱，昵称 `用户+6位随机数`，
+        `password_hash` 写未设置哨兵值）并直接返回 token；此时响应里的
+        `newAccount=true`，前端据此提示设置密码。登录页已没有独立注册入口。
         账号被冻结/注销仍分别返回 1001/1002。
       requestBody:
         required: true
@@ -532,6 +533,9 @@ paths:
         处置动作四选一：
         - `ban` 成立并封禁目标用户，`banDays` 必填（1/7/30/永久用 0 表示）；
           目标为内容时同时下架被举报内容
+        - `mute` 成立并禁言目标用户，`muteDays` 必填（1~365，2026-10-31 新增）；
+          账号可登录、浏览、收通知，但禁言期内不能发帖/评论/私信/群消息（集市与文件上传不拦）；
+          目标为内容时同时下架被举报内容；目标为圈子（9）返回 422
         - `takedown` 成立、仅下架被举报内容，不封禁作者（2026-10-28 新增）；
           目标为用户（`targetType=1`）或未上线的搭子（5）返回 422；
           目标为圈子（9）时 = 解散圈子（`circle.status=1`，圈内帖子级联 `status=2`），
@@ -539,11 +543,13 @@ paths:
         - `reject` 驳回，举报记录置 `status = 2`
         - `ignore` 忽略，不改变 `status`，仅记录处置人与备注（用于「已阅未处置」）
 
-        `ban` / `takedown` / `reject` 都写 `audit_log`；`ban` 与 `takedown`
+        `ban` / `mute` / `takedown` / `reject` 都写 `audit_log`；`ban` / `mute` / `takedown`
         还写一条 `report_upheld`（信誉分计分源）。
         处置结果通过站内通知回执：举报人收 type=18；被封禁作者收 type=19；
-        被下架内容的作者收 type=20（文件为 15，圈子被解散为 23）。`handleNote` 会展示给被处置人。
-        同一举报重复处置返回 409 `CONFLICT`。
+        被禁言作者收 type=24；被下架内容的作者收 type=20（文件为 15，圈子被解散为 23）。
+        `ban` / `mute` / `takedown` 的 `handleNote` 必填（2026-10-31），
+        会原样展示给被处置人；实际动作与天数写入 `report.handle_action/handle_days`，
+        供「已处理」列表回查。同一举报重复处置返回 409 `CONFLICT`。
       parameters:
         - $ref: '#/components/parameters/ReportId'
       requestBody:
@@ -588,6 +594,13 @@ paths:
           required: false
           description: 0 正常 / 1 冻结（封禁中）；不传 = 全部
           schema: { type: integer, nullable: true }
+        - name: muted
+          in: query
+          required: false
+          description: |
+            true = 只看禁言中（`mute_until > NOW()`）。与 `status` 正交：
+            禁言中的账号 status 仍为 0（可登录浏览）。2026-10-31 加。
+          schema: { type: boolean }
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -640,6 +653,58 @@ paths:
         永久封禁误判后没有任何 API/UI 能撤销，只能改数据库。
         审计动作名 `account_unban`，operator 归因到操作管理员（非系统）。
         422：该账号不在封禁中（看的列表是旧的，应刷新）。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{userId}/mute:
+    post:
+      operationId: muteUserDirect
+      tags: [admin-users]
+      summary: 直接禁言用户（不依赖举报流程）
+      description: |
+        2026-10-31 新增。账号可登录、浏览、收通知，但禁言期内不能发帖/评论/
+        私信/群消息（集市与文件上传不拦）。与封禁的区别：不冻结账号、只限期。
+        重复禁言只延长，不会缩短已有截止时间。
+        422：禁管理员 / 账号封禁中 / 已注销；404：用户不存在。
+        审计动作名 `account_mute`；站内通知 type=24（解除禁言为 25）。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserMuteRequest' }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{userId}/unmute:
+    post:
+      operationId: unmuteUser
+      tags: [admin-users]
+      summary: 手动解除禁言
+      description: |
+        2026-10-31 新增。禁言到期会自动解除，但误判/申诉成立时需要提前恢复。
+        审计动作名 `account_unmute`，operator 归因到操作管理员。
+        422：该账号不在禁言中 / 账号封禁中（先解封再处理禁言）。
       parameters:
         - name: userId
           in: path
@@ -2093,6 +2158,59 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /user/cancel/code:
+    post:
+      operationId: sendCancelAccountCode
+      tags: [user]
+      summary: 注销账号第一步 · 发送验证码
+      description: |
+        向本人绑定邮箱发送 `type=cancel` 验证码，返回打码后的邮箱（如 `ab***c@qq.com`）
+        供页面提示，不回显完整地址。
+
+        拒绝条件（422）：账号已注销、管理员账号、账号未绑定邮箱。
+        发码受 60 秒重发与每日次数限制，与其它验证码用途共享同一套限频。
+      responses:
+        '200':
+          description: 打码后的邮箱
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string }
+                  data: { type: string, example: 'ab***c@qq.com' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /user/cancel:
+    post:
+      operationId: cancelMyAccount
+      tags: [user]
+      summary: 注销账号第二步 · 验证码确认（不可逆）
+      description: |
+        校验绑定邮箱的 `type=cancel` 验证码后注销账号：
+
+        - `user.status` 置 2，账号无法再登录；
+        - `username` 改为 `deleted_{id}`，`email` / `student_no` 置 NULL（释放唯一键，
+          该邮箱日后可重新注册）；
+        - `nickname` 改为「已注销用户」，`bio` / `avatar_url` / `cover_url` 与院系年级专业清空；
+        - refresh 令牌全部吊销，`user:status:{id}` 缓存立即删除；
+        - 写审计 `account_cancel`。
+
+        已发布的帖子、评论保留并显示为「已注销用户」，不再关联个人信息。
+        管理员账号不能自助注销（422）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelAccountRequest' }
+      responses:
+        '200': { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /user/school-profile:
     post:
       operationId: upsertSchoolProfile
@@ -3529,6 +3647,17 @@ components:
           type: string
           nullable: true
           description: 处置备注（2026-10-28 补下发）；「已处理」列表的处置说明
+        handleAction:
+          type: string
+          nullable: true
+          enum: [ban, mute, takedown, reject, ignore]
+          description: |
+            实际处置动作（2026-10-31 加）。此前已处理列表只能凭 status 猜，
+            「举报成立」既可能是永久封禁也可能是仅下架。历史行为 null，前端回退旧文案。
+        handleDays:
+          type: integer
+          nullable: true
+          description: 处罚天数；封禁 0=永久，禁言 1~365，其余动作为 null
         handleTime:
           type: string
           format: date-time
@@ -3561,17 +3690,25 @@ components:
       properties:
         action:
           type: string
-          description: ban 成立并封禁 / takedown 成立仅下架 / reject 驳回 / ignore 忽略
-          enum: [ban, takedown, reject, ignore]
+          description: ban 成立并封禁 / mute 成立并禁言 / takedown 成立仅下架 / reject 驳回 / ignore 忽略
+          enum: [ban, mute, takedown, reject, ignore]
           example: ban
         banDays:
           type: integer
           description: action=ban 时必填。1/7/30，0 表示永久封禁
           enum: [0, 1, 7, 30]
+        muteDays:
+          type: integer
+          description: action=mute 时必填。1~365 天；禁言期间可登录浏览，不能发布内容和消息
+          minimum: 1
+          maximum: 365
         handleNote:
           type: string
           maxLength: 200
-          description: 处置备注，写入 audit_log；会随处置结果通知展示给被处置人
+          description: |
+            处置备注，写入 audit_log；会随处置结果通知展示给被处置人。
+            2026-10-31 起 `ban` / `mute` / `takedown` **必填**（422），
+            `reject` / `ignore` 可留空。
 
     ReportHandleData:
       type: object
@@ -3585,12 +3722,17 @@ components:
           enum: [0, 1, 2]
         action:
           type: string
-          enum: [ban, reject, ignore]
+          enum: [ban, mute, takedown, reject, ignore]
         bannedUntil:
           type: string
           format: date-time
           nullable: true
           description: action=ban 时的解封时间；永久封禁为 null
+        mutedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: action=mute 时的禁言截止时间
 
     ReportHandleResponse:
       allOf:
@@ -4693,6 +4835,14 @@ components:
             他人卡片的 UserVO 此字段为 null。
             默认开启（DB 为 1 或 NULL 时视为 true）。
             前端判据：`me.strangerMsgEnabled !== false`（null/undefined 视为开）。
+        muteUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            禁言截止时间（2026-10-31 加）。**仅「我的资料」出口有值**，
+            他人卡片为 null——禁言是账号状态，不是公开信息。
+            null 或已过期 = 未禁言；前端据此在本人主页显示禁言提示与申诉入口。
         createTime: { type: string, format: date-time, nullable: true }
 
     # ---- 群（群信息头 + 群管理）--------------------------------------------
@@ -5483,6 +5633,11 @@ components:
           format: int64
           description: accessToken 过期时刻（epoch 毫秒）。由 JwtUtil 签发时算出
           example: 1791450320000
+        newAccount:
+          type: boolean
+          description: |
+            仅 `/auth/login-code` 自动建号时为 `true`。前端据此在首次进入首页时
+            提示「设置密码」；注册页注册、密码登录与已有账号验证码登录均为 `false`。
 
     AdminVerifyPendingItem:
       type: object
@@ -5739,6 +5894,11 @@ components:
           format: date-time
           nullable: true
           description: 解封时间；永久封禁为 null，未封禁也为 null——须与 status 同看
+        muteUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: 禁言截止时间；未禁言或已过期时可能为 null/过去时间，前端按时间判断
         createTime:
           type: string
           format: date-time
@@ -5765,6 +5925,21 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/UserAdminPageVO' }
+
+    UserMuteRequest:
+      type: object
+      required: [muteDays, reason]
+      properties:
+        muteDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: 1~365 天；不提供永久档（永久对应封禁）
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 必填，写入 audit_log 并随通知展示给被处置人
 
     UserBanRequest:
       type: object
@@ -6070,6 +6245,15 @@ components:
           minLength: 6
           maxLength: 64
           description: 新密码 6~64 位
+
+    CancelAccountRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          pattern: '^\d{6}$'
+          description: 绑定邮箱收到的 `type=cancel` 验证码
 
     SendCodeRequest:
       type: object

@@ -6,34 +6,30 @@ import com.campus.social.dto.MktActivityDTO;
 import com.campus.social.dto.MktCommentDTO;
 import com.campus.social.dto.MktReactivDTO;
 import com.campus.social.entity.MktActivity;
-import com.campus.social.entity.MktComment;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.MktActivityMapper;
-import com.campus.social.mapper.MktCommentMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.MktActivityService;
 import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.util.MktRateLimiter;
 import com.campus.social.vo.MktActivityVO;
 import com.campus.social.vo.MktCommentVO;
-import com.campus.social.vo.MktStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * 校园限时活动集市实现。
+ *
+ * <p>2026-11-01 拆分：内容规则在 {@link MktActivityRules}，VO 装配在
+ * {@link MktActivityVoAssembler}，留言在 {@link MktActivityCommentService}；
+ * 本类保留发布/编辑/在投配额与属主校验。
  *
  * <p>时间统一东八区（服务器 TZ=Asia/Shanghai，见 docker-compose.yml），
  * 故 {@code expire_time > NOW()} 与 {@code LocalDateTime.now()} 口径一致。
@@ -42,28 +38,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MktActivityServiceImpl implements MktActivityService {
 
-    /** 一级分类白名单（9 选 1）。运营维护，与前端发布页下拉一致。 */
-    private static final Set<String> CATEGORIES = Set.of(
-            "游戏组队", "跑腿代办", "拼车出行", "旅游结伴", "学习搭子",
-            "运动约伴", "干饭搭子", "闲置互助", "其它");
-
-    /** 单次投放时长上限。 */
-    private static final int MAX_LAUNCH_HOURS = 12;
-
-    /** 站内通知类型：有人在我的集市活动下留言 → 通知发布者。
-     * 接在既有 notify type 序列（1 被关注…9 被@）之后，见 NotifyServiceImpl.summaryFor。 */
-    private static final int MKT_COMMENT_NOTIFY_TYPE = 10;
-
     private final MktActivityMapper mktActivityMapper;
-    private final MktCommentMapper mktCommentMapper;
     private final UserMapper userMapper;
     private final MessageContentGuard contentGuard;
     private final MktRateLimiter rateLimiter;
-    private final PostNotifySupport postNotifySupport;
     /** 在投配额(2026-10-25):信誉分档 1/2/3,过期/暂停/删除释放名额 */
     private final ReviewTrustService trustService;
     /** 行为信任门槛：账号满 1 天 + 信誉 60（校园信息不参与） */
     private final CampusAccessService access;
+    private final MktActivityCommentService commentService;
+    private final MktActivityVoAssembler assembler;
 
     // ---------------------------------------------------------------- create
 
@@ -76,11 +60,12 @@ public class MktActivityServiceImpl implements MktActivityService {
         // 在投配额:与频率限流互补(429 管太快,这里管太多)
         guardActiveQuota(userId, false, null, "发布");
 
-        validateCategory(dto.getCategory());
+        MktActivityRules.validateCategory(dto.getCategory());
         // 标题不再必填:主文案由「分类 · 游戏(游戏组队时)」派生,未传则留 null(前端不再采集)。
-        String title = optionalTitle(dto.getTitle());
-        String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
-        LocalDateTime expire = validateExpire(dto.getExpireTime());
+        String title = MktActivityRules.optionalTitle(dto.getTitle());
+        String content = MktActivityRules.requireText(
+                dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
+        LocalDateTime expire = MktActivityRules.validateExpire(dto.getExpireTime());
 
         /*
          * 敏感词(2026-10-24 改走统一横切):level-2 拒发,level-1 打码后入库。
@@ -95,14 +80,15 @@ public class MktActivityServiceImpl implements MktActivityService {
         MktActivity a = new MktActivity();
         a.setUserId(userId);
         a.setCategory(dto.getCategory().trim());
-        a.setSubTag(blankToNull(dto.getSubTag()));
+        a.setSubTag(MktActivityRules.blankToNull(dto.getSubTag()));
         // 数据库 title 列 NOT NULL:未传标题时落「分类 · 游戏」派生主文案,兼容旧读法。
-        String storedTitle = blankToNull(safeTitle);
-        a.setTitle(storedTitle != null ? storedTitle : derivedTitle(dto.getCategory(), dto.getSubTag()));
+        String storedTitle = MktActivityRules.blankToNull(safeTitle);
+        a.setTitle(storedTitle != null ? storedTitle
+                : MktActivityRules.derivedTitle(dto.getCategory(), dto.getSubTag()));
         a.setContent(safeContent);
         a.setTargetNum(dto.getTargetNum());
         a.setPrice(dto.getPrice());
-        a.setLocation(blankToNull(dto.getLocation()));
+        a.setLocation(MktActivityRules.blankToNull(dto.getLocation()));
         a.setIsEnable(1);
         a.setExpireTime(expire);
         a.setIsFull(0);
@@ -117,11 +103,11 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Override
     public CursorPage<MktActivityVO> plaza(String category, Long lastId, int size) {
         if (category != null && !category.isBlank()) {
-            validateCategory(category);
+            MktActivityRules.validateCategory(category);
         }
         String cat = (category == null || category.isBlank()) ? null : category.trim();
         List<MktActivity> rows = mktActivityMapper.selectPlaza(cat, lastId, size + 1);
-        return toPlazaPage(rows, size);
+        return assembler.toPlazaPage(rows, size);
     }
 
     @Override
@@ -129,12 +115,13 @@ public class MktActivityServiceImpl implements MktActivityService {
         List<MktActivity> rows = mktActivityMapper.selectByUser(userId, lastId, size + 1);
         boolean hasMore = rows.size() > size;
         List<MktActivity> page = rows.stream().limit(size).toList();
-        Map<Long, User> users = usersByIds(page.stream().map(MktActivity::getUserId).toList());
+        Map<Long, User> users = assembler.usersByIds(
+                page.stream().map(MktActivity::getUserId).toList());
 
         List<MktActivityVO> vos = page.stream().map(a -> {
-            MktActivityVO vo = toVoNoStatus(a);
-            vo.setStatus(deriveStatus(a));
-            fillPublisher(vo, users.get(a.getUserId()));
+            MktActivityVO vo = assembler.toVo(a);
+            vo.setStatus(assembler.statusOf(a));
+            assembler.fillPublisher(vo, users.get(a.getUserId()));
             return vo;
         }).toList();
 
@@ -149,9 +136,9 @@ public class MktActivityServiceImpl implements MktActivityService {
             // 软删（isDeleted=1）或不存在 → 一律 404
             throw new BusinessException(ResultCode.MKT_NOT_FOUND);
         }
-        MktActivityVO vo = toVoNoStatus(a);
-        vo.setStatus(deriveStatus(a));
-        fillPublisher(vo, userMapper.selectById(a.getUserId()));
+        MktActivityVO vo = assembler.toVo(a);
+        vo.setStatus(assembler.statusOf(a));
+        assembler.fillPublisher(vo, userMapper.selectById(a.getUserId()));
         return vo;
     }
 
@@ -163,23 +150,25 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Transactional
     public void edit(long id, long me, MktActivityDTO dto) {
         MktActivity a = ownedBy(id, me);
-        validateCategory(dto.getCategory());
+        MktActivityRules.validateCategory(dto.getCategory());
         // 标题可选:留空则置 null(前端不再采集,主文案走「分类 · 游戏」)。
-        String title = optionalTitle(dto.getTitle());
-        String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
+        String title = MktActivityRules.optionalTitle(dto.getTitle());
+        String content = MktActivityRules.requireText(
+                dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
         // 2026-10-24 与 create 同口径:level-2 拒发,level-1 打码后入库
         String safeTitle = title == null ? null
                 : contentGuard.sanitize(me, "mkt", "mkt_activity", title);
         String safeContent = contentGuard.sanitize(me, "mkt", "mkt_activity", content);
 
         a.setCategory(dto.getCategory().trim());
-        a.setSubTag(blankToNull(dto.getSubTag()));
-        String storedTitle = blankToNull(safeTitle);
-        a.setTitle(storedTitle != null ? storedTitle : derivedTitle(dto.getCategory(), dto.getSubTag()));
+        a.setSubTag(MktActivityRules.blankToNull(dto.getSubTag()));
+        String storedTitle = MktActivityRules.blankToNull(safeTitle);
+        a.setTitle(storedTitle != null ? storedTitle
+                : MktActivityRules.derivedTitle(dto.getCategory(), dto.getSubTag()));
         a.setContent(safeContent);
         a.setTargetNum(dto.getTargetNum());
         a.setPrice(dto.getPrice());
-        a.setLocation(blankToNull(dto.getLocation()));
+        a.setLocation(MktActivityRules.blankToNull(dto.getLocation()));
         // 编辑只改文案：不改 expire_time、不重置 is_enable / is_full / last_launch_time
         mktActivityMapper.updateById(a);
     }
@@ -218,7 +207,7 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Transactional
     public void reactivate(long id, long me, MktReactivDTO dto) {
         MktActivity a = ownedBy(id, me);
-        LocalDateTime expire = validateExpire(dto.getNewExpire());
+        LocalDateTime expire = MktActivityRules.validateExpire(dto.getNewExpire());
         rateLimiter.guardReactivate(id);
         /*
          * 在投配额(2026-10-25 补洞):重激活把过期/暂停的活动拉回「在投」池。
@@ -244,54 +233,12 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Override
     @Transactional
     public void addComment(long activityId, long userId, MktCommentDTO dto) {
-        MktActivity a = mktActivityMapper.selectById(activityId);
-        if (a == null) {
-            throw new BusinessException(ResultCode.MKT_NOT_FOUND);
-        }
-        rateLimiter.guardComment(userId);
-        // 2026-10-24 与发布同口径:level-2 拒发,level-1 打码后入库
-        String content = requireText(dto.getContent(), ResultCode.MKT_CONTENT_INVALID, 1, 500);
-        String safeContent = contentGuard.sanitize(userId, "mkt", "mkt_activity", content);
-
-        MktComment c = new MktComment();
-        c.setActivityId(activityId);
-        c.setUserId(userId);
-        c.setContent(safeContent);
-        mktCommentMapper.insert(c);
-
-        // 站内通知（增量①）：有人在我的活动下留言 → 通知发布者。
-        // 复用 PostNotifySupport：写 notify + bump unread + WS 推。
-        // 不通知自己（给自己留言无意义）；活动本身不在审核队列，故不涉及 type 6/7/8。
-        if (!Objects.equals(a.getUserId(), userId)) {
-            postNotifySupport.pushNotify(a.getUserId(), MKT_COMMENT_NOTIFY_TYPE, activityId, userId, null);
-        }
+        commentService.addComment(activityId, userId, dto);
     }
 
     @Override
     public CursorPage<MktCommentVO> listComments(long activityId, Long lastId, int size) {
-        MktActivity a = mktActivityMapper.selectById(activityId);
-        if (a == null) {
-            throw new BusinessException(ResultCode.MKT_NOT_FOUND);
-        }
-        List<MktComment> rows = mktCommentMapper.selectByActivity(activityId, lastId, size + 1);
-        boolean hasMore = rows.size() > size;
-        List<MktComment> page = rows.stream().limit(size).toList();
-        Map<Long, User> users = usersByIds(page.stream().map(MktComment::getUserId).toList());
-
-        List<MktCommentVO> vos = page.stream().map(c -> {
-            MktCommentVO vo = MktCommentVO.builder()
-                    .id(c.getId())
-                    .activityId(c.getActivityId())
-                    .userId(c.getUserId())
-                    .content(c.getContent())
-                    .createTime(c.getCreateTime())
-                    .build();
-            fillCommentUser(vo, users.get(c.getUserId()));
-            return vo;
-        }).toList();
-
-        Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
-        return new CursorPage<>(vos, nextCursor, hasMore);
+        return commentService.listComments(activityId, lastId, size);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -340,156 +287,5 @@ public class MktActivityServiceImpl implements MktActivityService {
             throw new BusinessException(ResultCode.MKT_ACTIVE_LIMIT_REACHED,
                     "在投的集市活动已达上限(" + quota + " 条),等待到期或暂停/删除腾出名额,提升信誉分后自动扩容");
         }
-    }
-
-    private void validateCategory(String category) {
-        if (category == null || !CATEGORIES.contains(category.trim())) {
-            throw new BusinessException(ResultCode.MKT_CATEGORY_INVALID);
-        }
-    }
-
-    /** 空串归一为 null（sub_tag / location 等可选字段）。 */
-    private String blankToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
-    }
-
-    /**
-     * 取非空文本并做 15–25 / 1–500 字符长度硬校验。
-     * 中英文各计 1 字符（Java {@code String.length} 即 UTF-16 码元数，对常见中文/ASCII 等价）。
-     */
-    private String requireText(String raw, ResultCode rc, int min, int max) {
-        if (raw == null) {
-            throw new BusinessException(rc);
-        }
-        String t = raw.trim();
-        if (t.length() < min || t.length() > max) {
-            throw new BusinessException(rc);
-        }
-        return t;
-    }
-
-    /**
-     * 标题(可选):前端不再采集标题,主文案由「分类 · 游戏」派生。
-     * 仍兼容旧数据:传入非空且 ≤25 字则保留(trim 后),留空/未传/超长一律置 null,
-     * 不再抛 MKT_TITLE_INVALID(标题不再是必填校验项)。
-     */
-    private String optionalTitle(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String t = raw.trim();
-        if (t.isEmpty()) {
-            return null;
-        }
-        // 旧数据或前端仍传了标题:超长时截断到 25,而非拒收(标题已非必填)。
-        return t.length() > 25 ? t.substring(0, 25) : t;
-    }
-
-    /**
-     * 派生主文案「分类 · 游戏」:标题列 NOT NULL 的兜底,同时是卡片/详情的主文案来源。
-     * 游戏组队且有游戏名 →「游戏组队 · 王者荣耀」;否则只给分类。限 64 列宽内。
-     */
-    private String derivedTitle(String category, String subTag) {
-        String cat = category == null ? "" : category.trim();
-        String game = subTag == null ? "" : subTag.trim();
-        String main = (game.isEmpty()) ? cat : cat + " · " + game;
-        return main.length() > 64 ? main.substring(0, 64) : main;
-    }
-
-    /**
-     * 投放截止时间校验：now < expire <= now + MAX_LAUNCH_HOURS。
-     * 既拦「过去时间」也拦「单次超 12h」——防前端篡改。
-     */
-    private LocalDateTime validateExpire(LocalDateTime expire) {
-        if (expire == null) {
-            throw new BusinessException(ResultCode.MKT_EXPIRE_INVALID);
-        }
-        LocalDateTime now = LocalDateTime.now();
-        // 用秒数比较,不用 toHours():Duration.toHours() 向下取整,12h 整点会因
-        // 网络/请求耗时变成 11h59m 而取整成 11,导致「12 小时」快捷选项偶发被拦。
-        if (!expire.isAfter(now)
-                || Duration.between(now, expire).toSeconds() > MAX_LAUNCH_HOURS * 3600L) {
-            throw new BusinessException(ResultCode.MKT_EXPIRE_INVALID);
-        }
-        return expire;
-    }
-
-    /** 软删由 MyBatis-Plus 的 {@code selectById}（@TableLogic）自动过滤；返回 null 即 404。 */
-    private MktStatus deriveStatus(MktActivity a) {
-        boolean isFull = Integer.valueOf(1).equals(a.getIsFull());
-        boolean isEnable = Integer.valueOf(1).equals(a.getIsEnable());
-        boolean expired = a.getExpireTime() == null || !a.getExpireTime().isAfter(LocalDateTime.now());
-        return MktStatus.derive(isFull, isEnable, expired);
-    }
-
-    private MktActivityVO toVoNoStatus(MktActivity a) {
-        return MktActivityVO.builder()
-                .id(a.getId())
-                .userId(a.getUserId())
-                .category(a.getCategory())
-                .subTag(a.getSubTag())
-                .title(a.getTitle())
-                .content(a.getContent())
-                .targetNum(a.getTargetNum())
-                .price(a.getPrice())
-                .location(a.getLocation())
-                .isEnable(a.getIsEnable())
-                .expireTime(a.getExpireTime())
-                .isFull(a.getIsFull())
-                .createTime(a.getCreateTime())
-                .lastLaunchTime(a.getLastLaunchTime())
-                .mainText(derivedTitle(a.getCategory(), a.getSubTag()))
-                .build();
-    }
-
-    /** 广场/详情行：填发布者昵称/头像（脱敏由前端 displayName 兜底，此处取原昵称）。 */
-    private void fillPublisher(MktActivityVO vo, User u) {
-        if (vo == null || u == null) {
-            return;
-        }
-        vo.setNickname(u.getNickname());
-        vo.setAvatarUrl(u.getAvatarUrl());
-    }
-
-    private void fillCommentUser(MktCommentVO vo, User u) {
-        if (vo == null || u == null) {
-            return;
-        }
-        vo.setNickname(u.getNickname());
-        vo.setAvatarUrl(u.getAvatarUrl());
-    }
-
-    /** 批量取用户消 N+1；广场分页最多 100 条，一次性取。 */
-    private Map<Long, User> usersByIds(List<Long> ids) {
-        Set<Long> uniq = new HashSet<>(ids);
-        uniq.remove(null);
-        if (uniq.isEmpty()) {
-            return Map.of();
-        }
-        List<User> users = userMapper.selectByIds(uniq);
-        return users.stream().collect(Collectors.toMap(User::getId, Function.identity()));
-    }
-
-    /**
-     * 把一页广场实体转成带发布者的 VO 列表 + 游标。
-     * 不填 status（广场行不显示 4 态，那是「我的发布」的事）。
-     */
-    private CursorPage<MktActivityVO> toPlazaPage(List<MktActivity> rows, int size) {
-        boolean hasMore = rows.size() > size;
-        List<MktActivity> page = rows.stream().limit(size).toList();
-        Map<Long, User> users = usersByIds(page.stream().map(MktActivity::getUserId).toList());
-
-        List<MktActivityVO> vos = page.stream().map(a -> {
-            MktActivityVO vo = toVoNoStatus(a);
-            fillPublisher(vo, users.get(a.getUserId()));
-            return vo;
-        }).toList();
-
-        Long nextCursor = hasMore ? page.get(size - 1).getId() : null;
-        return new CursorPage<>(vos, nextCursor, hasMore);
     }
 }

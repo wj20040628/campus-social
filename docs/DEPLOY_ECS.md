@@ -697,9 +697,11 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 11. 探活与日志
 
-- 本机探活：`curl -s localhost:8080/actuator/health`（只暴露 health，不含 env/beans，明细也不返回）。
+- 本机探活：`curl -s localhost:8080/actuator/health`（health 不返回 env/beans，明细也不返回）。
+- 性能指标（工作树已启用，待随下一版上线）：`curl -s localhost:8080/actuator/prometheus`；
+  线上 1.13.6 仍只有 health。采集与 MySQL 慢查询步骤见 `docs/ops/performance-metrics.md`。
 - 公网探活：`https://yousheng8.cn/healthz` —— 6.1 节的 Nginx 反代，响应只有 `{"status":"UP"}`，专给外部监控用。
-  除 health 外的 actuator 端点一律不对外。
+  除 `/healthz` 外，Nginx 没有反代任何 actuator 端点；`/actuator/prometheus` 只能从 ECS 本机访问。
 - **不能拿首页探活**：`/` 和任何前端路径都会被 SPA 回退成 200 index.html，后端、MySQL 全挂了首页照样 200。
 - 后端日志：`journalctl -u campus -f`，或 `/opt/campus/app.log`、`/opt/campus/error.log`。
 - 前端报错：浏览器 Console + Network；`silent:true` 的请求只压 toast，Console 仍会打印（如 503 直传降级），属正常降级信号非失败。
@@ -708,25 +710,50 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 ## 12. 当前线上版本与本地状态
 
-生产在 **1.13.3**（2026-10-31 15:27 CST 全量部署完成）：
+**待部署 1.13.7（2026-11-01 包已生成，尚未上线）**：
 
 ```text
-frontend: 514986c -> assets/index-gydVwA6_.js
-          sha256 b891743fae7994bdf599ed8fc7a4eb9502a4ed0c0182424a2db2fad7a954873d
-          333,827 B
-backend : v1.13.3 (tag 514986c) -> jar md5 2d9111c9a0b06c0ebb78c80958b2f02e
-          73,793,703 B
-database: 39 表；buddy 下线（幂等）+ 注释编码修复均随本次部署执行
-package : ys_deploy_20261031_v1133.zip
-          md5 24f1bccf7df36a9861e5e22f7b730162
+frontend: assets/index-oKhCdAAb.js
+          sha256 7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461
+          334,633 B
+backend : 1.13.7 -> jar md5 f6010d70cc11a9fdc3b1cd803a764691
+          73,976,221 B
+database: 39 表；本版无新增结构，四段历史幂等迁移随包重跑
+package : ys_deploy_20261101_v1137.zip
+          md5 bb485bd72eeb0af1933c2e7631498d75（68,572,648 B，210 条目）
 ```
 
-- 发布内容：高风险动作统一「注册满 24 小时 + 信誉 60」；游客桌面首页改版；并发加圈/报名/集市配额幂等修复；发帖后自动落「全部」、首次进入默认「全部」。
-- 门槛生效核对（2026-10-31）：`grep -E 'CAMPUS_ACCESS_' /etc/systemd/system/campus.service` 无输出，确认生产没有显式环境变量覆盖 `application.yml` 的 24 小时默认值。
-- 部署脚本先校验 jar MD5/入口哈希，复用 `backup.sh` 完成数据库备份（含 OSS 异地留存），再停服落位、执行两段幂等迁移、探活；失败自动回滚 jar/web/VERSION。
-- 公网验证（2026-10-31 15:27 CST）：`/healthz` UP；线上入口 `assets/index-gydVwA6_.js` 的 SHA256 与包内一致；游客 feed 200、`/user/me` 与 `/notify` 401、不存在帖子与评论均返回 1009。
+- 内容：写接口限流（用户 + IP 双维度）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 指标；包内 `ops/` 附可选指标采样安装。
+- 验证：后端 214/214、前端 11 门禁、E2E 4/4；`SHA256SUMS` 209 个文件通过、`bash -n deploy.sh` 通过、zip `testzip` 无损坏、0 反斜杠条目。
+- 状态：待通过宝塔上传并执行 `bash deploy.sh`；执行后回填本节、`release-manifest.json` 与项目状态文档。
 
-**上一版 1.13.2**（2026-10-30 部署，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`；2026-10-31 曾仅重建并替换前端，入口 `index-B9VD8-hD.js`，已被 1.13.3 覆盖）：
+**当前线上仍是 1.13.6**（2026-11-01 13:01 CST 构建包，13:17 CST 公网核验；部署脚本由用户通过宝塔执行成功）：
+
+```text
+frontend: assets/index-D59WODR8.js
+          sha256 3d68193d077a64750ed534f2a8096a4a369a2052bf162595d63197efe20b8d35
+          334,633 B
+backend : 1.13.6 -> jar md5 8887f753243b79ca8f1020015502d334
+          73,808,718 B
+database: 39 表；本版无新增结构，四段历史幂等迁移随包重跑
+package : ys_deploy_20261101_v1136.zip
+          md5 b1b8396854a19660ff73c4d80616098a（68,420,892 B，205 条目）
+onlineSince: 2026-11-01T13:17:56+08:00（公网核验时间；包内入口 mtime 13:01:46 CST）
+```
+
+- 发布内容：注销账号回归修复（手动封禁/举报处置/自动封禁拒绝 `status=2`；管理端已注销行无封禁按钮；@ 推荐、关注/粉丝列表隐藏；不可关注/私信；注销补清校区、认证状态、密码哈希）；新注册用户首次进首页约 4 秒设置密码提示；验证码登录页邮箱框移除示例占位并保留格式校验；用户协议第 6 条与隐私政策对齐。
+- 部署脚本先校验版本、jar MD5、入口哈希与迁移清单，复用 `backup.sh` 完成数据库备份，再停服落位、执行四段幂等迁移、探活；失败自动回滚 jar/web/VERSION。
+- 公网验证（2026-11-01 13:17 CST）：`/healthz` UP；入口 `assets/index-D59WODR8.js` 334,633 B，SHA256 与包内一致；`Login-BOchmQSS.js`、`AdminUsers-BGkQus5K.js` 与包内逐字节一致；`Login` 含「邮箱格式不正确」且无 `you@qq.com`，`AdminUsers` 含「已注销」；`index.html` Last-Modified 为 2026-11-01 13:01:46 CST。
+- **后端版本判定**：`deploy.sh` 在同一次落位中先复制 jar 再换 web，任一步失败自动回滚；公网入口与分块全部匹配 1.13.6 包且服务 UP，用户确认脚本执行成功，判定 1.13.6 整包生效。actuator 除 health 外不对外，未做登录态接口探测。
+- **源码状态**：1.13.6 源码尚未提交/打 tag，`release-manifest.json` 如实标记 `sourceState=working-tree-dirty`；提交后需补齐清单 git 段。
+
+**上一版 1.13.5**（2026-11-01 10:22 CST，入口 `index-B8hU-Zw3.js`，jar md5 `e8f08305…`，包 `ys_deploy_20261101_v1135.zip`，已被 1.13.6 覆盖）：账号自助注销、隐私政策与用户协议重写、PII 日志与审计脱敏。
+
+**上一版 1.13.4**（2026-10-31 20:59 CST，入口 `index-BgONH2QR.js`，jar md5 `8c3c900a…`，包 `ys_deploy_20261031_v1134.zip`，已被 1.13.5 覆盖）：禁言管理五项补强——用户处置页直连禁言（1/3/7/30 天 + 必填理由）与解除禁言；「禁言中」筛选；举报处置必填理由；已处理列表显示实际动作与天数；`/user/me` 下发 `muteUntil`，本人主页显示禁言横幅与申诉入口。
+
+**更上一版 1.13.3**（2026-10-31 15:27 CST，入口 `index-gydVwA6_.js`，jar md5 `2d9111c9…`，包 `ys_deploy_20261031_v1133.zip`，已被 1.13.4 覆盖）：高风险动作统一「注册满 24 小时 + 信誉 60」；游客桌面首页改版；并发加圈/报名/集市配额幂等修复；发帖后自动落「全部」、首次进入默认「全部」。门槛生效核对：`grep -E 'CAMPUS_ACCESS_' /etc/systemd/system/campus.service` 无输出。
+
+**更早 1.13.2**（2026-10-30 部署，jar md5 `985a19b9…`，部署包 `ys_deploy_20261030_v1132.zip`，md5 `e5c7b067…`；2026-10-31 曾仅重建并替换前端，入口 `index-B9VD8-hD.js`，已被 1.13.3 覆盖）：
 
 - **评论列表跟随帖子状态**：下架/退回审核的帖子，评论不再能按 id 读取（作者本人放行，与详情同口径）。
 - **游客动作提示**：活动报名、举报先弹「登录后才能…」，不再点了没反应；游客也不再看到「不看这个作者」入口。
@@ -810,7 +837,7 @@ package : ys_deploy_20261031_v1133.zip
 > 1.11.0（12:48）已包含：举报快照 `report.target_snapshot`、上传上限 25MB/30MB/32m、公网 `/healthz`、
 > JVM 384m、Redis 128M、swappiness=10。相关备份见 20261029_124726 / nginx-default.bak_20261029_124637。
 
-线上为 1.13.3（2026-10-31 全量部署）。尚未做：Swap 仍为 `/www/swap` 1G；站点拨测 2026-10-30 经决定不做（13.2）。
+线上为 1.13.4（2026-10-31 全量部署）。尚未做：Swap 仍为 `/www/swap` 1G；站点拨测 2026-10-30 经决定不做（13.2）。
 
 ---
 
@@ -941,15 +968,20 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 ## 14. 发布清单与前后端边界（2026-10-31）
 
-**当前线上是 1.13.3 完整发布（2026-10-31）**：
+**当前线上是 1.13.6 完整发布（2026-11-01）**：
 
 ```text
-frontend: master 514986c -> assets/index-gydVwA6_.js
-backend : v1.13.3 标签 514986c -> jar md5 2d9111c9a0b06c0ebb78c80958b2f02e
-database: 39 表 + migration_2026-10-30_drop_buddy_tables.sql
-                + migration_2026-10-31_fix_comment_encoding.sql 均已执行
-package : ys_deploy_20261031_v1133.zip md5 24f1bccf7df36a9861e5e22f7b730162
+frontend: assets/index-D59WODR8.js
+          sha256 3d68193d077a64750ed534f2a8096a4a369a2052bf162595d63197efe20b8d35 (334,633 B)
+backend : 1.13.6 -> jar md5 8887f753243b79ca8f1020015502d334 (73,808,718 B)
+database: 39 表 + 四段历史迁移随包重复执行（全部幂等，无新增表结构）
+package : ys_deploy_20261101_v1136.zip md5 b1b8396854a19660ff73c4d80616098a (68,420,892 B)
+onlineSince: 2026-11-01T13:17:56+08:00（公网核验时间；包内入口 mtime 13:01:46 CST）
 ```
+
+公网验证（2026-11-01 13:17 CST）：`/healthz` 返回 `{"status":"UP"}`；`index.html` 入口为 `assets/index-D59WODR8.js`，下载后 SHA256 与大小均与包内一致；`Login-BOchmQSS.js`、`AdminUsers-BGkQus5K.js` 与包内逐字节一致；`Login` 含「邮箱格式不正确」且无 `you@qq.com`，`AdminUsers` 含「已注销」。
+
+> 1.13.4 / 1.13.5 / 1.13.6 源码尚未提交/打 tag，清单标记 `sourceState=working-tree-dirty`；提交后需补齐 `frontendSourceCommit` / `backendTag` / `backendCommit` 再跑一次清单校验。
 
 **边界规则（保持）**：从 1.13.3 起，前端、后端、SQL 迁移、部署脚本与 `release-manifest.json` 必须作为同一个版本一次发布，不再只换 `web/` 或只换 jar。
 
@@ -961,7 +993,45 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 
 校验项：`pom.xml` / `package.json` 版本与清单一致；前端入口 SHA256 与大小；jar MD5 与大小；`sql/schema.sql` 表数量；迁移文件存在；前端源码自清单提交后未变化；后端标签指向清单提交。任何一项失败都停止发布。
 
-**1.13.3 发布记录（2026-10-31，已完成）**：
+**1.13.7 发布记录（2026-11-01，包已生成，待部署）**：
+
+1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 统一为 1.13.7；`changelog.js` 增加频率保护与性能指标说明。
+2. 后端 `mvn test` **214/214**；`mvn -DskipTests package` 生成 jar md5 `f6010d70cc11a9fdc3b1cd803a764691`，73,976,221 B；`application-local.yml` 未进包（`unzip -l` 为 0）。
+3. 前端 11 条门禁 0 失败；生产构建入口 `assets/index-oKhCdAAb.js`（334,633 B，sha256 `7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461`）；首屏 JS gzip 175 KB（预算 300 KB）。
+4. **本版无新增表结构**：包内仍带四段历史幂等迁移。
+5. 部署包 `ys_deploy_20261101_v1137.zip`（md5 `bb485bd72eeb0af1933c2e7631498d75`，68,572,648 B，210 条目，0 反斜杠条目）含 jar、web、四段迁移、`deploy.sh`、清单、SHA256SUMS 与可选 `ops/` 指标采样。
+6. 待通过宝塔上传后执行 `deploy.sh`；成功后回填 `onlineSince` 与公网核验记录。
+
+**1.13.6 发布记录（2026-11-01，已完成部署）**：
+
+1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 统一为 1.13.6；`frontend/src/constants/changelog.js` 增加 1.13.6 条目。
+2. 后端 `mvn clean package -DskipTests`（构建前测试 205/205）：jar md5 `8887f753243b79ca8f1020015502d334`，73,808,718 B；`application-local.yml` 未进包（`unzip -l` 为 0）；已确认 jar 内含 `newAccount` 与「该账号已注销」拦截。
+3. 前端 11 条门禁 0 失败；生产构建入口 `assets/index-D59WODR8.js`（334,633 B，sha256 `3d68193d077a64750ed534f2a8096a4a369a2052bf162595d63197efe20b8d35`）。
+4. **本版无新增表结构**：包内仍带四段历史幂等迁移（重复执行安全）。
+5. 部署包 `ys_deploy_20261101_v1136.zip`（md5 `b1b8396854a19660ff73c4d80616098a`，68,420,892 B，205 条目，0 反斜杠条目）含 jar、web、四段迁移、`deploy.sh`、清单与 SHA256SUMS；`verify-release-manifest.py` 12 项通过，包内 SHA256SUMS 204 个文件通过，`bash -n deploy.sh` 通过。
+6. 通过宝塔上传后执行 `deploy.sh`（用户确认成功）：数据库备份 → 停服 → 前后端落位 → 四段迁移 → 探活；公网验证见第 12 节；`release-manifest.json` 已补 `onlineSince=2026-11-01T13:17:56+08:00` 与 deployment 证据段。
+7. 源码尚未提交/打 tag，清单标记 `working-tree-dirty`。
+
+**1.13.5 发布记录（2026-11-01，已完成部署）**：
+
+1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 统一为 1.13.5；`frontend/src/constants/changelog.js` 补 1.13.3/1.13.4/1.13.5 三条。
+2. 后端 `mvn clean package`：**201 测试全绿**（42 个测试类，含新增 `AccountCancelFlowTest` 7 条）；jar md5 `e8f08305d2dc44447104dbe767df3c6c`，73,808,113 B，`application-local.yml` 未进包（已 `unzip -l` 核实为 0）。
+3. 前端 11 条门禁 0 失败；生产构建入口 `assets/index-B8hU-Zw3.js`（334,027 B，sha256 `799a0da39cfc4d0ba874a22462989e62c747df9818d90d870dc30ca21829664a`）。
+4. **本版无新增表结构**：账号注销复用已有列，不需要新 SQL；包内仍带四段历史幂等迁移（重复执行安全）。
+5. 部署包 `ys_deploy_20261101_v1135.zip`（md5 `70a3a7886b4057f7da4ad691a5d7491e`，68,447,956 B，205 条目，0 反斜杠条目）含 jar、web、四段迁移、`deploy.sh`、清单与 SHA256SUMS；包内 MD5/入口哈希/版本号已逐项核对。
+6. 通过宝塔上传后执行 `deploy.sh`：数据库备份（后缀 `20261101_102158`）→ 停服 → 前后端落位 → 四段迁移 → 探活；公网验证见第 12 节；`release-manifest.json` 已补 `onlineSince=2026-11-01T10:22:50+08:00` 与 deployment 证据段。
+7. 源码尚未提交/打 tag，清单标记 `working-tree-dirty`。
+
+**1.13.4 发布记录（2026-10-31，已完成部署）**：
+
+1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 统一为 1.13.4，README 版本徽标同步。
+2. 后端 `mvn test` 194/194；前端 11 条门禁 0 失败；生产构建入口 `assets/index-BgONH2QR.js`；390px Playwright 21 项禁言流程检查全过。
+3. 新增迁移 `sql/migration_2026-10-31_user_mute.sql`（user.mute_until）与 `sql/migration_2026-10-31_mute_admin_polish.sql`（report.handle_action/handle_days + user.idx_mute_until），均幂等并已在本地重复执行验证。
+4. 部署包 `ys_deploy_20261031_v1134.zip`（md5 `e9e1e2b69d78e695201dab263b2b8505`）含 jar、web、四段迁移、部署脚本、清单与 SHA256SUMS；包内校验全过。
+5. 通过宝塔上传 `/opt/campus/incoming` 后执行 `deploy.sh`：数据库备份 → 停服 → 前后端落位 → 四段迁移 → 探活；公网验证见第 12 节。
+6. 源码尚未提交/打 tag，清单 git 段待补。
+
+**1.13.3 上一版记录（2026-10-31，已被 1.13.4 覆盖）**：
 
 1. `backend/pom.xml`、`frontend/package.json`、`frontend/package-lock.json` 统一为 1.13.3，README 版本徽标同步。
 2. 后端 `mvn clean test` 183/183；前端 11 条门禁 0 失败；生产构建入口 `assets/index-gydVwA6_.js`。
@@ -981,4 +1051,4 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 - 业务冒烟：登录、发帖、评论、文件上传/下载/预览、举报与审核、圈子管理、群消息与成员管理。
 - 门禁：后端全量测试、前端 11 条门禁、后端生产版本矩阵（MySQL 8.0 / Redis 6）、OpenAPI 契约、部署包 MD5、manifest 校验、39 表迁移状态、失败回滚。
 
-`release-manifest.json` 当前描述的是线上 1.13.3 full 清单；下一次发布时同步更新版本、入口哈希、jar MD5、迁移与部署包 MD5。
+`release-manifest.json` 当前描述的是线上 1.13.4 full 清单（源码标记 working-tree-dirty）；提交源码后先补齐 git 段并重跑校验。

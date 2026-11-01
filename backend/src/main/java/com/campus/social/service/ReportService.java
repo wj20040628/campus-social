@@ -23,7 +23,7 @@ public interface ReportService {
     /**
      * 处置举报。
      *
-     * @param action ban 成立并封禁 / reject 驳回 / ignore 忽略
+     * @param action ban 成立并封禁 / mute 成立并禁言 / takedown 成立仅下架 / reject 驳回 / ignore 忽略
      * @return 落库后的状态回执
      */
     ReportHandleVO handle(long adminId, long reportId, ReportHandleDTO dto);

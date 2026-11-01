@@ -1,0 +1,11 @@
+[Unit]
+Description=采集友声 Actuator 性能指标快照
+After=network-online.target campus.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/campus/metrics-snapshot.sh
+Nice=15
+IOSchedulingClass=idle
+TimeoutStartSec=30

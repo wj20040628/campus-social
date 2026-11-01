@@ -52,7 +52,8 @@ public class AccountEmailServiceImpl implements AccountEmailService {
         }
         user.setEmail(email);
         userMapper.updateById(user);
-        auditService.record(userId, "bind_email", "user", userId, "绑定邮箱=" + email, null);
+        auditService.record(userId, "bind_email", "user", userId,
+                "绑定邮箱=" + UserVoAssembler.maskUsername(email), null);
         log.info("bindEmail: uid={}, email={}", userId, UserVoAssembler.maskUsername(email));
         return toVo(user);
     }

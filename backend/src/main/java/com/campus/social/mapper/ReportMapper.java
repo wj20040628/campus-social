@@ -46,10 +46,12 @@ public interface ReportMapper extends BaseMapper<Report> {
      * 影响行数=0 即「已被他人处置」，调用方回 409。
      */
     @Update("UPDATE report SET status = #{status}, handler_id = #{handlerId}, handle_time = #{handleTime}, "
-            + "handle_note = #{handleNote}, update_time = NOW() "
+            + "handle_note = #{handleNote}, handle_action = #{handleAction}, handle_days = #{handleDays}, "
+            + "update_time = NOW() "
             + "WHERE id = #{id} AND status = 0")
     int handle(@Param("id") Long id, @Param("status") int status, @Param("handlerId") Long handlerId,
-            @Param("handleTime") LocalDateTime handleTime, @Param("handleNote") String handleNote);
+            @Param("handleTime") LocalDateTime handleTime, @Param("handleNote") String handleNote,
+            @Param("handleAction") String handleAction, @Param("handleDays") Integer handleDays);
 
     /**
      * 忽略动作:不改 status,仅记录处置人与备注(用于「已阅未处置」)。
@@ -75,7 +77,7 @@ public interface ReportMapper extends BaseMapper<Report> {
      * 没有任何后端逻辑依赖它为 NULL（全仓库只有 UI 读它）。
      */
     @Update("UPDATE report SET handler_id = #{handlerId}, handle_time = NOW(), "
-            + "handle_note = #{handleNote}, update_time = NOW() "
+            + "handle_note = #{handleNote}, handle_action = 'ignore', update_time = NOW() "
             + "WHERE id = #{id} AND status = 0 AND handler_id IS NULL")
     int markIgnored(@Param("id") Long id, @Param("handlerId") Long handlerId,
             @Param("handleNote") String handleNote);

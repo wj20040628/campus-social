@@ -45,6 +45,8 @@ public class LoginServiceImpl implements LoginService {
     @Override
     public TokenPairVO login(LoginDTO dto, String ip) {
         String id = dto.getUsername() == null ? "" : dto.getUsername().trim().toLowerCase();
+        // 审计日志面向管理员回看，只留打码后的标识；完整账号会随 audit_log 长期留存
+        String masked = UserVoAssembler.maskUsername(id);
         loginLockService.checkAccount(id);
         loginLockService.checkIp(ip);
         User user = userMapper.selectOne(
@@ -58,33 +60,33 @@ public class LoginServiceImpl implements LoginService {
                         .eq(User::getIsDeleted, 0));
         if (user == null) {
             // 账号不存在只计 IP 维度，避免不存在的账号名被用来误锁真实用户
-            auditService.record(0L, "login_fail", null, null, "identifier=" + id + ", 账号不存在", null);
+            auditService.record(0L, "login_fail", null, null, "identifier=" + masked + ", 账号不存在", null);
             loginLockService.recordIpFailure(ip);
             throw new BusinessException(WRONG_PASSWORD);
         }
         if (user.getStatus() == 1) {
-            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已冻结", null);
+            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + masked + ", 账号已冻结", null);
             throw banService.frozenException(user.getId());
         }
         if (user.getStatus() == 2) {
-            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 账号已注销", null);
+            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + masked + ", 账号已注销", null);
             throw new BusinessException(USER_CANCELLED);
         }
         // 验证码自动建号没有密码（哨兵值），不能喂给 BCrypt，也不计密码错误
         if (!JwtUtil.isPasswordSet(user.getPasswordHash())) {
             auditService.record(user.getId(), "login_fail", null, null,
-                    "identifier=" + id + ", 账号尚未设置密码", null);
+                    "identifier=" + masked + ", 账号尚未设置密码", null);
             throw new BusinessException(PASSWORD_NOT_SET);
         }
         if (!JwtUtil.verifyPassword(dto.getPassword(), user.getPasswordHash())) {
-            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + id + ", 密码错误", null);
+            auditService.record(user.getId(), "login_fail", null, null, "identifier=" + masked + ", 密码错误", null);
             loginLockService.recordAccountFailure(id);
             loginLockService.recordIpFailure(ip);
             throw new BusinessException(WRONG_PASSWORD);
         }
         loginLockService.clearAccount(id);
         boolean remember = Boolean.TRUE.equals(dto.getRememberMe());
-        auditService.record(user.getId(), "login", "user", user.getId(), "identifier=" + id, null);
+        auditService.record(user.getId(), "login", "user", user.getId(), "identifier=" + masked, null);
         return tokenService.issue(user.getId(), user.getUsername(), remember);
     }
 
@@ -99,9 +101,11 @@ public class LoginServiceImpl implements LoginService {
         verifyCodeService.verify(email, dto.getCode(), "login");
 
         User user = userMapper.selectByEmail(email);
+        boolean newAccount = false;
         if (user == null) {
             // 验证码登录兼做注册：未注册邮箱直接建号并登录
             user = registerService.createEmailAccount(email);
+            newAccount = true;
         }
         if (user.getStatus() == 1) {
             throw banService.frozenException(user.getId());
@@ -110,6 +114,8 @@ public class LoginServiceImpl implements LoginService {
             throw new BusinessException(USER_CANCELLED);
         }
         log.info("loginByCode: email={}", UserVoAssembler.maskUsername(email));
-        return tokenService.issue(user.getId(), user.getUsername(), false);
+        TokenPairVO pair = tokenService.issue(user.getId(), user.getUsername(), false);
+        pair.setNewAccount(newAccount);
+        return pair;
     }
 }

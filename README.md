@@ -10,7 +10,7 @@
 
 [![在线](https://img.shields.io/badge/online-HTTPS-success?style=flat-square)](https://yousheng8.cn)
 [![CI](https://github.com/wj20040628/campus-social/actions/workflows/ci.yml/badge.svg)](https://github.com/wj20040628/campus-social/actions/workflows/ci.yml)
-[![version](https://img.shields.io/badge/version-1.13.3-blue?style=flat-square)](frontend/package.json)
+[![version](https://img.shields.io/badge/version-1.13.7-blue?style=flat-square)](frontend/package.json)
 [![license](https://img.shields.io/badge/license-Mulan%20PSL%202.0-blue?style=flat-square)](LICENSE)
 
 ![Vue](https://img.shields.io/badge/Vue-3.4-42b883?logo=vuedotjs&logoColor=white&style=flat-square)
@@ -19,7 +19,7 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.4-4479a1?logo=mysql&logoColor=white&style=flat-square)
 ![Redis](https://img.shields.io/badge/Redis-7-dc382d?logo=redis&logoColor=white&style=flat-square)
 
-![tests](https://img.shields.io/badge/mvn%20test-183%20passed-success?style=flat-square)
+![tests](https://img.shields.io/badge/mvn%20test-214%20passed-success?style=flat-square)
 ![gates](https://img.shields.io/badge/gates-11%2F11-success?style=flat-square)
 ![tables](https://img.shields.io/badge/schema-39%20tables-informational?style=flat-square)
 
@@ -111,12 +111,14 @@ graph LR
 个人项目最容易塌的是「没人 review」，所以把约束写成可执行的门禁：
 
 - **11 条静态门禁**：`python scripts/run-all-gates.py` —— SFC 编译零提醒、模板标识符存在性、外置样式括号平衡、composable 解构契约、未定义标识符、Token 纪律、OpenAPI 可解析与 `$ref` 零悬空、契约与 Java VO 字段一致、日期字段格式、学号解析、举报理由枚举唯一出处。
-- **40 个测试类 / 183 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；测试连独立测试库 `campus_social_test`（Redis 15 号库），不写开发库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限等。
+- **43 个测试类 / 214 个用例**：`cd backend && mvn test` —— 跑真实 MySQL 与 Redis，不 mock 数据库；测试连独立测试库 `campus_social_test`（Redis 15 号库），不写开发库；覆盖报名并发、refresh 双花、登录锁定、作者字段脱敏、信任闸门、举报自动封禁、圈主权限、写接口限流等。
 - **构建日志固定 UTF-8**：`backend/.mvn/jvm.config` 固定 Maven JVM 编码，Surefire fork 通过 `argLine` 固定同一编码；中文测试日志在 Git Bash / Qoder 终端直接可读。Windows `cmd` 默认代码页 936，交互查看前先执行 `chcp 65001`。
-- **持续集成**：GitHub Actions 三作业（后端 MySQL 8.4/Redis 7 测试；后端 MySQL 8.0/Redis 6 生产版本兼容测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏）。
+- **持续集成**：GitHub Actions 四作业（后端 MySQL 8.4/Redis 7 测试；MySQL 8.0/Redis 6 生产版本兼容测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏；E2E 冒烟 —— 真实 MySQL/Redis + 后端 jar + Vite + Chromium）。
+- **E2E 冒烟**：`cd e2e && npm ci && npx playwright test` —— 覆盖登录→发帖→评论、举报处置下架、禁言、注销 6 条主链路；用真实数据库与接口，不 mock。
+- **性能指标**：`/actuator/prometheus` 暴露 HTTP p50/p95/p99、Hikari、JVM、Tomcat 与限流计数；`deploy/ops/metrics-snapshot.sh` 每 5 分钟留一份 8 天快照；MySQL 慢查询开启步骤见 [`docs/ops/performance-metrics.md`](docs/ops/performance-metrics.md)。
 - **部署后冒烟**：`python scripts/smoke.py <base_url>` —— 真实 HTTP 请求验证登录、游客只读、游客写拦截、集市配额、数据清理，退出码可直接接进发布流程。
 
-> 最近一次本机实测（2026-10-30）：门禁 11/11 通过，`mvn test` 183/183 全绿（独立测试库）。
+> 最近一次本机实测（2026-11-01）：门禁 11/11 通过，`mvn test` 214/214 全绿（独立测试库），E2E 4/4 全绿（真实后端 jar + Vite）。
 
 ## 快速开始
 
@@ -207,6 +209,7 @@ campus-social/
 | [API 契约](docs/api/openapi.yaml) | OpenAPI 3.0，90 条路径 / 100 个操作 |
 | [部署清单](docs/DEPLOY_ECS.md) | ECS 从零部署、发布回滚与运维核查 |
 | [测试总结](docs/测试总结-2026-10-25.md) | 四层防线与缺陷分布 |
+| [性能指标与慢查询](docs/ops/performance-metrics.md) | Actuator 指标、5 分钟采样、宝塔 MySQL 慢查询 |
 | [ADR](docs/decisions/) | 架构决策记录 |
 
 ## 许可证
