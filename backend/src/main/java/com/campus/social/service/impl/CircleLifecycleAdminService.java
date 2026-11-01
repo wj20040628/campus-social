@@ -1,11 +1,12 @@
 package com.campus.social.service.impl;
 
 import com.campus.social.entity.Circle;
-import com.campus.social.entity.CircleMember;
+import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.CircleMemberMapper;
 import com.campus.social.mapper.PostMapper;
+import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.RoleService;
 import com.campus.social.service.support.CirclePermissionSupport;
@@ -28,6 +29,7 @@ public class CircleLifecycleAdminService {
     private final CirclePermissionSupport permissions;
     private final CircleMapper circleMapper;
     private final CircleMemberMapper circleMemberMapper;
+    private final UserMapper userMapper;
     private final PostMapper postMapper;
     private final RoleService roleService;
     private final AuditService auditService;
@@ -43,8 +45,12 @@ public class CircleLifecycleAdminService {
         if (c.getOwnerId().equals(newOwnerId)) {
             return; // 已是目标圈主,幂等
         }
-        // 新圈主须为圈内成员
-        CircleMember newOwnerRow = permissions.memberRow(circleId, newOwnerId);
+        // 新圈主须为圈内成员，且账号仍可用(已注销/冻结账号不能接圈)
+        permissions.memberRow(circleId, newOwnerId);
+        User newOwner = userMapper.selectById(newOwnerId);
+        if (newOwner == null || !Integer.valueOf(0).equals(newOwner.getStatus())) {
+            throw new BusinessException(UNPROCESSABLE, "目标账号不可用，无法成为圈主");
+        }
         long oldOwnerId = c.getOwnerId();
         circleMapper.transferOwner(circleId, newOwnerId);
         // 角色翻转:原圈主 1→3,新圈主→1

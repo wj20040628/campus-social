@@ -28,7 +28,6 @@ import static com.campus.social.common.ResultCode.NOT_GROUP_MEMBER;
 import static com.campus.social.common.ResultCode.NOT_GROUP_OWNER;
 import static com.campus.social.common.ResultCode.SENSITIVE_WORD_BLOCKED;
 import static com.campus.social.common.ResultCode.UNPROCESSABLE;
-import static com.campus.social.common.ResultCode.USER_CANCELLED;
 
 /**
  * 群成员与群主变更（2026-10-30 从 GroupServiceImpl 拆出）：
@@ -70,10 +69,6 @@ public class GroupMembershipService {
         if (sensitive.containsBlock(trimmedName) || sensitive.containsReplace(trimmedName)) {
             throw new BusinessException(SENSITIVE_WORD_BLOCKED, "群名称包含违规词，换一个再试");
         }
-        User owner = userMapper.selectById(ownerId);
-        if (owner == null || owner.getStatus() == 1) {
-            throw new BusinessException(USER_CANCELLED);
-        }
         campusAccess.requireCreateGroup(ownerId, "创建群聊");
 
         Group g = new Group();
@@ -97,9 +92,9 @@ public class GroupMembershipService {
                     .filter(id -> id != ownerId)
                     .distinct()
                     .toList();
-            // 只算"确实存在的人"(与 addMembers 同口径),再校验群人数上限
+            // 只算仍正常的用户(与 addMembers 同口径),再校验群人数上限
             List<Long> toAdd = valid.stream()
-                    .filter(id -> userMapper.selectById(id) != null)
+                    .filter(this::isActiveUser)
                     .toList();
             // 2026-10-28:只能拉关注我/我关注的人。此前任意 userId 都能被塞进群,
             // 新账号可以建群后把陌生人批量拉进来发广告。
@@ -140,9 +135,9 @@ public class GroupMembershipService {
                 .filter(id -> !id.equals(me))
                 .filter(id -> groupMemberMapper.isMember(groupId, id) == 0)
                 .toList();
-        // 只算"确实存在的人",与 createGroup 同口径
+        // 只算仍正常的用户,与 createGroup 同口径
         List<Long> toAdd = newOnes.stream()
-                .filter(id -> userMapper.selectById(id) != null)
+                .filter(this::isActiveUser)
                 .toList();
         if (toAdd.isEmpty()) {
             return 0;
@@ -188,6 +183,9 @@ public class GroupMembershipService {
         if (groupMemberMapper.isMember(groupId, newOwnerId) == 0) {
             throw new BusinessException(NOT_GROUP_MEMBER, "目标不是该群成员");
         }
+        if (!isActiveUser(newOwnerId)) {
+            throw new BusinessException(UNPROCESSABLE, "目标账号不可用，无法成为群主");
+        }
         // 改群主 + 双方角色:目标升 1、我降 2(我不退出,留在群里当普通成员)
         groupMapper.transferOwner(groupId, newOwnerId);
         groupMemberMapper.updateRole(groupId, newOwnerId, 1);
@@ -202,7 +200,6 @@ public class GroupMembershipService {
             return; // 已解散,幂等
         }
         boolean isOwner = g.getOwnerId().equals(me);
-        int remaining = groupMemberMapper.countByGroup(groupId) - 1;
         if (!isOwner) {
             groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me));
             groupReadMapper.deleteByGroupAndUser(groupId, me);
@@ -210,13 +207,14 @@ public class GroupMembershipService {
             log.info("group leave: group={} member={}", groupId, me);
             return;
         }
-        // 群主退
-        if (remaining >= 1) {
-            // 自动转让给"第一个非我成员":memberIds 里去掉我,取第一个
-            long nextOwner = groupMemberMapper.memberIds(groupId).stream()
-                    .filter(id -> !id.equals(me))
-                    .findFirst()
-                    .orElseThrow();
+        // 群主退:只把群主交给仍可登录的正常成员;已注销/冻结成员不能接群。
+        List<Long> all = groupMemberMapper.memberIds(groupId);
+        List<Long> activeOthers = all.stream()
+                .filter(id -> !id.equals(me))
+                .filter(this::isActiveUser)
+                .toList();
+        if (!activeOthers.isEmpty()) {
+            long nextOwner = activeOthers.get(0);
             groupMapper.transferOwner(groupId, nextOwner);
             groupMemberMapper.updateRole(groupId, nextOwner, 1);
             groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me));
@@ -224,14 +222,21 @@ public class GroupMembershipService {
             groupMapper.decMemberCount(groupId);
             log.info("group owner leave -> transfer to {}: group={}", nextOwner, groupId);
         } else {
-            // 只剩我:解散,物理清四表 + 软删群行
-            List<Long> all = groupMemberMapper.memberIds(groupId);
-            groupMemberMapper.hardDeleteByGroupAndUsers(groupId, all);
+            // 没有可接管的正常成员:解散,物理清四表 + 软删群行
+            if (!all.isEmpty()) {
+                groupMemberMapper.hardDeleteByGroupAndUsers(groupId, all);
+            }
             groupReadMapper.deleteByGroup(groupId);
             groupMessageMapper.deleteByGroup(groupId);
             groupMapper.deleteById(groupId);
-            log.info("group disbanded (only member left): group={}", groupId);
+            log.info("group disbanded (no active member left): group={}", groupId);
         }
+    }
+
+    /** 只有 status=0 的账号能被拉进群/接任群主;冻结(1)与注销(2)都不行 */
+    private boolean isActiveUser(Long userId) {
+        User u = userMapper.selectById(userId);
+        return u != null && Integer.valueOf(0).equals(u.getStatus());
     }
 
     private void insertMember(long groupId, long userId, int role) {

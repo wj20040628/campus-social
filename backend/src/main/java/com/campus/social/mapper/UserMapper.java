@@ -79,6 +79,10 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE user SET joined_circle_count = GREATEST(0, joined_circle_count + #{delta}), update_time = NOW() WHERE id = #{userId}")
     int adjustJoinedCircleCount(@Param("userId") Long userId, @Param("delta") int delta);
 
+    /** 注销级联清空后归零;此后该账号不再有任何圈子成员关系 */
+    @Update("UPDATE user SET joined_circle_count = 0, update_time = NOW() WHERE id = #{userId}")
+    int resetJoinedCircleCount(@Param("userId") Long userId);
+
     @Update("UPDATE user SET unread_notify_count = 0, update_time = NOW() WHERE id = #{userId}")
     int clearUnreadNotifyCount(@Param("userId") Long userId);
 

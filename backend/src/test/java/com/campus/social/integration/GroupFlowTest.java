@@ -97,6 +97,13 @@ class GroupFlowTest {
         return gid;
     }
 
+    /** 已注销账号:行还在，但 status=2，不能再参与群关系 */
+    private long cancelledUser() {
+        long id = user();
+        jdbc.update("UPDATE user SET status = 2 WHERE id = ?", id);
+        return id;
+    }
+
     private int memberRowCount(long gid, long uid) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM group_member WHERE group_id = ? AND user_id = ?",
                 Integer.class, gid, uid);
@@ -157,6 +164,51 @@ class GroupFlowTest {
         BusinessException e = assertThrows(BusinessException.class,
                 () -> groupService.rename(gid, owner, "原群主改名"));
         assertEquals(ResultCode.NOT_GROUP_OWNER.getCode(), e.getCode());
+    }
+
+    @Test
+    void cancelledAccountCannotBeInvitedOrMadeOwner() {
+        long cancelled = cancelledUser();
+        long m1 = user();
+        long gid = group(m1);
+        // 关系行注销后仍保留；这里刻意造出「关系存在但账号已注销」的场景
+        jdbc.update("INSERT INTO relation (from_user_id, to_user_id, type, is_deleted) VALUES (?,?,1,0)",
+                owner, cancelled);
+
+        assertEquals(0, groupService.addMembers(gid, owner, List.of(cancelled)),
+                "已注销账号不应被拉进群");
+        assertEquals(0, memberRowCount(gid, cancelled));
+
+        // 即使已注销账号是群成员，也不能接任群主
+        jdbc.update("INSERT INTO group_member (group_id, user_id, role) VALUES (?,?,2)", gid, cancelled);
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> groupService.transfer(gid, owner, cancelled));
+        assertEquals(ResultCode.UNPROCESSABLE.getCode(), e.getCode());
+        assertEquals(owner, groupMapper.selectById(gid).getOwnerId(), "群主不应变化");
+    }
+
+    @Test
+    void cancelledAccountIsSkippedAsInitialGroupMember() {
+        long cancelled = cancelledUser();
+        jdbc.update("INSERT INTO relation (from_user_id, to_user_id, type, is_deleted) VALUES (?,?,1,0)",
+                owner, cancelled);
+
+        long gid = groupService.createGroup(owner, "注销成员群-" + SUFFIX, null, List.of(cancelled));
+        groupIds.add(gid);
+        assertEquals(Integer.valueOf(1), groupMemberCount(gid), "建群时只保留群主");
+        assertEquals(0, memberRowCount(gid, cancelled));
+    }
+
+    @Test
+    void ownerLeaveDisbandsWhenOnlyCancelledMembersRemain() {
+        long m1 = user();
+        long gid = group(m1);
+        jdbc.update("UPDATE user SET status = 2 WHERE id = ?", m1);
+
+        groupService.leaveGroup(gid, owner);
+
+        assertNull(groupMapper.selectById(gid), "没有正常成员可接群时应解散");
+        assertEquals(0, memberRowCount(gid, m1));
     }
 
     @Test

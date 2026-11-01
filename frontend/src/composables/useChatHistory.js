@@ -27,11 +27,16 @@ export function useChatHistory({
     await Promise.all(
       todo.map(async (id) => {
         try {
-          const u = await userCard(id)
+          // 群历史里可能有已注销成员发的旧消息；/user/{id} 对 status=2 返回 404，
+          // 不能让它走全局 toast（否则每次进群都弹「用户不存在」）。
+          const u = await userCard(id, { silent: true })
           nickCache.set(id, u.nickname || u.username)
-        } catch {
-          // 单个查不到不影响整屏:降级为「用户<id>」而不是整块报错
-          nickCache.set(id, `用户${id}`)
+        } catch (e) {
+          // 单个查不到不影响整屏:404 显示已注销,其他错误降级为「用户<id>」
+          // HTTP 404 走 Axios 错误分支,码在 response.data.code;只有 HTTP 200
+          // 的业务错误才带 businessCode。少读一路会把已注销降级成「用户<id>」。
+          const code = e?.businessCode ?? e?.response?.data?.code
+          nickCache.set(id, code === 404 ? '已注销用户' : `用户${id}`)
         }
       }),
     )

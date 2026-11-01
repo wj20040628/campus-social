@@ -109,8 +109,8 @@ export function trustStatus() {
   return request.get('/user/trust-status')
 }
 
-export function userCard(id) {
-  return request.get(`/user/${id}`)
+export function userCard(id, options = {}) {
+  return request.get(`/user/${id}`, options)
 }
 
 /**

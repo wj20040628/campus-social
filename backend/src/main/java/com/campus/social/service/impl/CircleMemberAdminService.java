@@ -79,6 +79,10 @@ public class CircleMemberAdminService {
         if (trole == CirclePermissionSupport.ROLE_CREATOR) {
             throw new BusinessException(UNPROCESSABLE, "圈主无需任命");
         }
+        User targetUser = userMapper.selectById(targetUserId);
+        if (targetUser == null || !Integer.valueOf(0).equals(targetUser.getStatus())) {
+            throw new BusinessException(UNPROCESSABLE, "目标账号不可用");
+        }
         // 圈管理不能再任命别人:本方法 requireCircleCreator 已保证只有圈主(role=1)能进来
         circleMemberMapper.setRole(circleId, targetUserId, CirclePermissionSupport.ROLE_ADMIN);
         auditService.record(me, "circle_appoint_admin", "circle", circleId, "任命圈管理 " + targetUserId, null);

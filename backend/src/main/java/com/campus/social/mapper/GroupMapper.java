@@ -24,4 +24,10 @@ public interface GroupMapper extends BaseMapper<Group> {
     /** 群主转让:把 owner_id 改指到新群主(群主本人不退出,降为普通成员) */
     @Update("UPDATE `group` SET owner_id = #{newOwnerId}, update_time = NOW() WHERE id = #{groupId}")
     int transferOwner(@Param("groupId") Long groupId, @Param("newOwnerId") Long newOwnerId);
+
+    /** 以 group_member 实际行数重算 member_count(注销级联/数据修复用) */
+    @Update("UPDATE `group` SET member_count = (SELECT COUNT(*) FROM group_member "
+            + "WHERE group_id = #{groupId} AND is_deleted = 0), update_time = NOW() "
+            + "WHERE id = #{groupId}")
+    int recountMemberCount(@Param("groupId") Long groupId);
 }

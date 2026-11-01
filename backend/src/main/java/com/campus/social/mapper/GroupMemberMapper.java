@@ -18,6 +18,16 @@ public interface GroupMemberMapper extends BaseMapper<GroupMember> {
     @Select("SELECT COUNT(*) FROM group_member WHERE group_id = #{groupId} AND is_deleted = 0")
     int countByGroup(@Param("groupId") Long groupId);
 
+    /**
+     * 群内仍可登录的正常成员，按入群行 id 升序。
+     * 注销级联选新群主时用：已注销/冻结账号不能接群。
+     */
+    @Select("SELECT gm.user_id FROM group_member gm "
+            + "JOIN user u ON u.id = gm.user_id AND u.is_deleted = 0 AND u.status = 0 "
+            + "WHERE gm.group_id = #{groupId} AND gm.is_deleted = 0 "
+            + "ORDER BY gm.id ASC")
+    List<Long> activeMemberIdsOrdered(@Param("groupId") Long groupId);
+
     /** 我加入的群 id 列表 */
     @Select("SELECT group_id FROM group_member WHERE user_id = #{me} AND is_deleted = 0")
     List<Long> groupIdsByUser(@Param("me") Long me);

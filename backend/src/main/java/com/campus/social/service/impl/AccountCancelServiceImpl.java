@@ -36,6 +36,8 @@ public class AccountCancelServiceImpl implements AccountCancelService {
     private final TokenService tokenService;
     private final AuditService auditService;
     private final StringRedisTemplate redis;
+    /** 注销后清退群/圈成员关系与活动报名；不处理帖子/评论留痕 */
+    private final AccountCancelCascadeService cascade;
 
     @Override
     public String sendCode(long userId) {
@@ -54,11 +56,14 @@ public class AccountCancelServiceImpl implements AccountCancelService {
         if (userMapper.cancelAccount(userId) == 0) {
             throw new BusinessException(UNPROCESSABLE, "账号状态已变化，请刷新后重试");
         }
+        // user.status 已置 2，级联里的「正常成员」筛选会自动排除本人
+        AccountCancelCascadeService.Result cascadeResult = cascade.purge(userId);
         tokenService.revoke(userId);
         redis.delete(STATUS_KEY_PREFIX + userId);
         auditService.record(userId, "account_cancel", "user", userId,
-                "用户自助注销，昵称/邮箱/学号/头像/简介/校园信息已清空", null);
-        log.info("account cancelled: uid={}", userId);
+                "用户自助注销，昵称/邮箱/学号/头像/简介/校园信息已清空；级联清理："
+                        + cascadeResult.summary(), null);
+        log.info("account cancelled: uid={}, {}", userId, cascadeResult.summary());
     }
 
     private User requireCancellable(long userId) {

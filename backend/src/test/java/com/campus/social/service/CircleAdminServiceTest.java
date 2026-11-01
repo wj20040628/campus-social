@@ -465,6 +465,16 @@ class CircleAdminServiceTest {
     }
 
     @Test
+    void transferCircle_rejectsCancelledNewOwner() {
+        // admin 是圈内成员，但账号已注销：不能把圈子交给一个无法登录的人
+        jdbc.update("UPDATE user SET status = 2 WHERE id = ?", admin);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.transferCircle(circleId, admin, adminUser));
+        assertEquals(ResultCode.UNPROCESSABLE.getCode(), ex.getCode());
+        assertEquals(creator, circleMapper.selectById(circleId).getOwnerId(), "圈主不应变化");
+    }
+
+    @Test
     void banCircle_adminSetsStatus1() {
         service.banCircle(circleId, adminUser);
         Circle c = circleMapper.selectById(circleId);

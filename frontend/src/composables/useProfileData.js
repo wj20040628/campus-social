@@ -49,7 +49,7 @@ export function useProfileData(targetId, myId, dict) {
          * 不再用 /post/mine(绑死登录人,传 targetId 会张冠李戴)。
          * 审核记录是私有的,看别人主页不拉。
          */
-        user.value = await userCard(targetId.value)
+        user.value = await userCard(targetId.value, { silent: true })
         await loadPosts()
         myReviews.value = []
       }

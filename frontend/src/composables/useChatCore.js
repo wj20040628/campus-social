@@ -164,7 +164,7 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     // 对方明明有未读消息却显示「还没有消息」(实测:消息已落库、未读已计数,
     // 但 /chat?to=X 直进占位分支导致历史被跳过)。
     try {
-      const peer = await userCard(peerId)
+      const peer = await userCard(peerId, { silent: true })
       currentKind.value = 'dm'
       currentGroup.value = null
       currentConv.value = { convId: 0, peer, unread: 0 }
@@ -173,8 +173,13 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
       historyError.value = false
       markRead(peerId).catch(() => {})
       await loadHistory()
-    } catch {
-      ElMessage.error('打开会话失败,回列表重试')
+    } catch (e) {
+      const code = e?.businessCode ?? e?.response?.data?.code
+      if (code === 404) {
+        ElMessage.warning('该账号已注销，无法发起会话')
+      } else {
+        ElMessage.error('打开会话失败,回列表重试')
+      }
       return false
     }
     return true

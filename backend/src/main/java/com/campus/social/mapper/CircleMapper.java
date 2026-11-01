@@ -16,6 +16,16 @@ public interface CircleMapper extends BaseMapper<Circle> {
     @Update("UPDATE circle SET member_count = member_count + #{delta}, update_time = NOW() WHERE id = #{circleId}")
     int adjustMemberCount(@Param("circleId") Long circleId, @Param("delta") int delta);
 
+    /** 以 circle_member 实际行数重算 member_count(注销级联/数据修复用) */
+    @Update("UPDATE circle SET member_count = (SELECT COUNT(*) FROM circle_member "
+            + "WHERE circle_id = #{circleId} AND is_deleted = 0), update_time = NOW() "
+            + "WHERE id = #{circleId}")
+    int recountMemberCount(@Param("circleId") Long circleId);
+
+    /** 强制把成员数归零(圈子解散时用) */
+    @Update("UPDATE circle SET member_count = 0, update_time = NOW() WHERE id = #{circleId}")
+    int clearMemberCount(@Param("circleId") Long circleId);
+
     /** 圈主移交(管理员):owner_id 翻转,成员行角色由 service 同步翻转 */
     @Update("UPDATE circle SET owner_id = #{to}, update_time = NOW() WHERE id = #{circleId} AND is_deleted = 0")
     int transferOwner(@Param("circleId") long circleId, @Param("to") long to);
