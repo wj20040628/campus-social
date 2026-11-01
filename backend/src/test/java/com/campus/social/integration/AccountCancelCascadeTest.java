@@ -136,6 +136,7 @@ class AccountCancelCascadeTest {
 
         // 注销用户的集市发布：注销后应下线
         mktActivity = mktActivity(cancelUser);
+        jdbc.update("INSERT INTO user_tag (user_id, tag_id) VALUES (?,?)", cancelUser, 1);
 
         // 注销用户的关注关系：双向都应清理并回退对方计数
         jdbc.update("INSERT INTO relation (from_user_id, to_user_id, type, is_deleted) VALUES (?,?,1,0)",
@@ -176,6 +177,7 @@ class AccountCancelCascadeTest {
             redis.delete("user:status:" + id);
             jdbc.update("DELETE FROM notify WHERE user_id = ?", id);
             jdbc.update("DELETE FROM audit_log WHERE user_id = ?", id);
+            jdbc.update("DELETE FROM user_tag WHERE user_id = ?", id);
             jdbc.update("DELETE FROM relation WHERE from_user_id = ? OR to_user_id = ?", id, id);
             jdbc.update("DELETE FROM mkt_activity WHERE user_id = ?", id);
             jdbc.update("DELETE FROM user WHERE id = ?", id);
@@ -282,6 +284,8 @@ class AccountCancelCascadeTest {
         // 内容留痕：不挂圈的帖子保留；用户自己的圈子计数归零
         assertEquals(1, count("SELECT COUNT(*) FROM post WHERE author_id = ? AND content = ? "
                 + "AND status = 1 AND is_deleted = 0", cancelUser, "注销后保留的帖子"));
+        // 兴趣标签属于个人资料，注销后应清空
+        assertEquals(0, count("SELECT COUNT(*) FROM user_tag WHERE user_id = ?", cancelUser));
         assertEquals(0, joinedCircleCount(cancelUser));
 
         String detail = jdbc.queryForObject(

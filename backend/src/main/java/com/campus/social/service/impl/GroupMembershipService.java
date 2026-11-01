@@ -14,6 +14,7 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.UploadService;
 import com.campus.social.service.support.CampusAccessService;
 import com.campus.social.service.support.GroupAccessSupport;
+import com.campus.social.service.support.MembershipCleanupSupport;
 import com.campus.social.util.SensitiveWordFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,7 @@ public class GroupMembershipService {
     private final GroupMemberMapper groupMemberMapper;
     private final GroupReadMapper groupReadMapper;
     private final GroupMessageMapper groupMessageMapper;
+    private final MembershipCleanupSupport cleanup;
     private final UserMapper userMapper;
     private final UploadService uploadService;
     /** 拉人关系校验:只能邀请关注我/我关注的人,防任意 userId 拉群骚扰 */
@@ -172,11 +174,9 @@ public class GroupMembershipService {
             return; // 已不在群里,幂等
         }
         // 并发重复踢同一人时只有第一个请求真正删到行，后面的不能再次减计数
-        if (groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(userId)) == 0) {
+        if (!cleanup.removeGroupMember(groupId, userId)) {
             return;
         }
-        groupReadMapper.deleteByGroupAndUser(groupId, userId);
-        groupMapper.decMemberCount(groupId);
         log.info("group kick: group={} owner={} kicked={}", groupId, me, userId);
     }
 
@@ -206,11 +206,9 @@ public class GroupMembershipService {
         }
         boolean isOwner = g.getOwnerId().equals(me);
         if (!isOwner) {
-            if (groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me)) == 0) {
+            if (!cleanup.removeGroupMember(groupId, me)) {
                 return; // 并发重复退群:已由另一个请求删掉并减过计数
             }
-            groupReadMapper.deleteByGroupAndUser(groupId, me);
-            groupMapper.decMemberCount(groupId);
             log.info("group leave: group={} member={}", groupId, me);
             return;
         }
@@ -224,11 +222,9 @@ public class GroupMembershipService {
             long nextOwner = activeOthers.get(0);
             groupMapper.transferOwner(groupId, nextOwner);
             groupMemberMapper.updateRole(groupId, nextOwner, 1);
-            if (groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(me)) == 0) {
+            if (!cleanup.removeGroupMember(groupId, me)) {
                 return; // 并发重复退群:另一个请求已完成移交和计数
             }
-            groupReadMapper.deleteByGroupAndUser(groupId, me);
-            groupMapper.decMemberCount(groupId);
             log.info("group owner leave -> transfer to {}: group={}", nextOwner, groupId);
         } else {
             // 没有可接管的正常成员:解散,物理清四表 + 软删群行

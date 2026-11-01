@@ -1,23 +1,23 @@
 {
-  "version": "1.13.10",
+  "version": "1.13.11",
   "releaseType": "full",
   "onlineSince": null,
   "sourceState": "committed",
   "git": {
-    "frontendSourceCommit": "486c85dce92fa21ff6fd957e1724feeb8ce6e849",
-    "backendTag": "v1.13.10",
-    "backendCommit": "486c85dce92fa21ff6fd957e1724feeb8ce6e849",
-    "baseCommit": "33b2c68b643b5aba20439a1b3b6ae3201ee36f18",
-    "note": "1.13.10 源码提交 486c85d，标签 v1.13.10 指向同一提交；清单提交仅更新发布元数据。"
+    "frontendSourceCommit": "",
+    "backendTag": "v1.13.11",
+    "backendCommit": "",
+    "baseCommit": "44e4c2a",
+    "note": "1.13.11 源码提交与标签 v1.13.11 指向同一提交；清单提交仅更新发布元数据。"
   },
   "frontend": {
-    "entry": "assets/index-BZr38KMS.js",
-    "sha256": "0ab675ac5472988c852aaebc9724f3d74ff30e8b455b51aa0adf49e41cb131c0",
+    "entry": "assets/index-VNjZ0C6w.js",
+    "sha256": "98be56b41d5aae621d4df84bc543470fc2778a8d91d7534302c373da2d4cff77",
     "bytes": 334633
   },
   "backend": {
-    "jarMd5": "da4cc4cf2f14d87b106ab5d8d5cbd401",
-    "bytes": 73988571
+    "jarMd5": "7d4de589fb9c2db9362ce505d663b2ed",
+    "bytes": 73991942
   },
   "database": {
     "schemaTables": 39,
@@ -28,15 +28,16 @@
       "sql/migration_2026-10-31_user_mute.sql",
       "sql/migration_2026-10-31_mute_admin_polish.sql",
       "sql/migration_2026-11-01_cancel_cascade_repair.sql",
-      "sql/migration_2026-11-01_cancel_follow_activity_repair.sql"
+      "sql/migration_2026-11-01_cancel_follow_activity_repair.sql",
+      "sql/migration_2026-11-01_reconcile_counters.sql"
     ],
-    "notes": "本版无新增表结构；新增的注销残留修复脚本为幂等 DML，处理 1.13.10 之前注销账号遗留的活动、集市与关注关系。部署脚本会先备份数据库，再执行历史迁移与本次修复脚本。"
+    "notes": "本版无新增表结构；新增的计数重算脚本为幂等 DML，部署时先按 ReconcileJob 同口径重算群/圈/活动/加圈/关注/私信未读六类计数，再执行 sql/consistency_check.sql，violations 非 0 即停止部署并由 EXIT trap 回滚应用文件。"
   },
-  "notes": "1.13.10 完整包：并发重复取消报名/退圈/踢人/取关的计数幂等；拉人保留群消息预览、邀请容量并发守卫；封禁/解散圈禁止加入与活动报名，被封禁成员不能任命圈管理或接任圈主，公开成员列表隐藏封禁成员；注销时取消其创建的活动并通知报名者、下线集市发布、清理关注关系、停止写通知；夜间对账排除已注销账号。另含 1.13.10 前注销账号的存量残留修复 SQL。",
+  "notes": "1.13.11 完整包（含 1.13.10 全部修复）：用户引用清单测试、统一关系清理入口、夜间对账补齐群人数/报名数/加圈数/私信未读、状态可见性矩阵、发布一致性 SQL 与部署闸门、存量计数重算迁移；并发计数幂等、群消息预览、圈子封禁/活动状态守卫、注销后活动/集市/关注残留与通知收口。",
   "deployment": {
-    "package": "ys_deploy_20261101_v11310.zip",
-    "packageMd5": "53cf7292d026fb5e17a3269c68c83750",
-    "packageBytes": 68619262,
+    "package": "ys_deploy_20261101_v11311.zip",
+    "packageMd5": null,
+    "packageBytes": null,
     "deployedAt": null,
     "note": "待部署。该清单先于部署包打包生成，包内 packageMd5 为空；仓库清单在打包后回填实际 md5 与大小。",
     "verified": []

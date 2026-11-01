@@ -50,4 +50,25 @@ public interface ChatConversationMapper extends BaseMapper<ChatConversation> {
     /** 取上一次 upsertConversation 的 LAST_INSERT_ID() 作为 convId */
     @Select("SELECT LAST_INSERT_ID()")
     Long lastConvId();
+
+    /** 每日对账:按 chat_message(status=0, receiver 侧) 重算双方未读数 */
+    @Update("UPDATE chat_conversation c SET "
+            + "unread_a = (SELECT COUNT(*) FROM chat_message m "
+            + "  WHERE m.conv_id = c.id AND m.receiver_id = c.member_a "
+            + "  AND m.status = 0 AND m.is_deleted = 0), "
+            + "unread_b = (SELECT COUNT(*) FROM chat_message m "
+            + "  WHERE m.conv_id = c.id AND m.receiver_id = c.member_b "
+            + "  AND m.status = 0 AND m.is_deleted = 0), "
+            + "update_time = NOW() WHERE c.is_deleted = 0")
+    int reconcileUnread();
+
+    /** 对账前统计未读数漂移的会话数 */
+    @Select("SELECT COUNT(*) FROM chat_conversation c WHERE c.is_deleted = 0 AND ("
+            + "c.unread_a <> (SELECT COUNT(*) FROM chat_message m "
+            + "  WHERE m.conv_id = c.id AND m.receiver_id = c.member_a "
+            + "  AND m.status = 0 AND m.is_deleted = 0) OR "
+            + "c.unread_b <> (SELECT COUNT(*) FROM chat_message m "
+            + "  WHERE m.conv_id = c.id AND m.receiver_id = c.member_b "
+            + "  AND m.status = 0 AND m.is_deleted = 0))")
+    int countUnreadDrift();
 }

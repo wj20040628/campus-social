@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.campus.social.entity.Activity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
@@ -46,4 +47,26 @@ public interface ActivityMapper extends BaseMapper<Activity> {
     @Update("UPDATE activity SET status = 3, update_time = NOW() " +
             "WHERE status = 2 AND end_time <= NOW() AND is_deleted = 0")
     int markFinished();
+
+    /**
+     * 每日对账:按 activity_signup 实际行数重算 current_count。
+     * 只对 0/1 状态按容量纠正满员标记；2/3/4 是生命周期状态，不覆盖。
+     */
+    @Update("UPDATE activity a SET "
+            + "current_count = (SELECT COUNT(*) FROM activity_signup s "
+            + "  WHERE s.activity_id = a.id AND s.is_deleted = 0), "
+            + "status = CASE "
+            + "  WHEN a.status IN (0,1) AND a.capacity > 0 AND (SELECT COUNT(*) FROM activity_signup s2 "
+            + "    WHERE s2.activity_id = a.id AND s2.is_deleted = 0) >= a.capacity THEN 1 "
+            + "  WHEN a.status IN (0,1) THEN 0 "
+            + "  ELSE a.status END, "
+            + "update_time = NOW() "
+            + "WHERE a.is_deleted = 0")
+    int reconcileCurrentCount();
+
+    /** 对账前统计报名数漂移的活动数 */
+    @Select("SELECT COUNT(*) FROM activity a WHERE a.is_deleted = 0 "
+            + "AND a.current_count <> (SELECT COUNT(*) FROM activity_signup s "
+            + "WHERE s.activity_id = a.id AND s.is_deleted = 0)")
+    int countCurrentCountDrift();
 }

@@ -122,6 +122,23 @@ public interface UserMapper extends BaseMapper<User> {
             + "    u.update_time = NOW()")
     int reconcileAll();
 
+    /** 每日对账:按有效圈成员行重算用户「加入的圈子数」 */
+    @Update("UPDATE user u SET joined_circle_count = ("
+            + "  SELECT COUNT(*) FROM circle_member cm "
+            + "  JOIN circle c ON c.id = cm.circle_id AND c.status = 0 AND c.is_deleted = 0 "
+            + "  WHERE cm.user_id = u.id AND cm.is_deleted = 0"
+            + "), update_time = NOW() WHERE u.is_deleted = 0")
+    int reconcileJoinedCircleCount();
+
+    /** 对账前统计加圈数漂移的用户数 */
+    @Select("SELECT COUNT(*) FROM user u WHERE u.is_deleted = 0 "
+            + "AND u.joined_circle_count <> ("
+            + "  SELECT COUNT(*) FROM circle_member cm "
+            + "  JOIN circle c ON c.id = cm.circle_id AND c.status = 0 AND c.is_deleted = 0 "
+            + "  WHERE cm.user_id = u.id AND cm.is_deleted = 0"
+            + ")")
+    int countJoinedCircleDrift();
+
     /** 注销通知拦截：接收人不存在或已注销时不再写通知 */
     @Select("SELECT status FROM user WHERE id = #{userId} AND is_deleted = 0")
     Integer selectStatusById(@Param("userId") Long userId);

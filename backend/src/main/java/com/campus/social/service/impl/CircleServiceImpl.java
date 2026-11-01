@@ -9,6 +9,7 @@ import com.campus.social.mapper.*;
 import com.campus.social.service.CircleService;
 import com.campus.social.service.CircleAdminService;
 import com.campus.social.service.support.CampusAccessService;
+import com.campus.social.service.support.MembershipCleanupSupport;
 import com.campus.social.vo.CircleVO;
 import com.campus.social.vo.PostVO;
 import com.campus.social.vo.UserVO;
@@ -45,6 +46,7 @@ public class CircleServiceImpl implements CircleService {
     private final ReviewTrustService trustService;
     /** 行为信任门槛：账号满 24 小时 + 信誉 60（校园信息不参与） */
     private final CampusAccessService access;
+    private final MembershipCleanupSupport cleanup;
 
     @Override
     @Transactional
@@ -217,12 +219,9 @@ public class CircleServiceImpl implements CircleService {
         }
         // 物理删(绕过 @TableLogic 软删,否则残留行锁住 uk_cm,再入会撞唯一键)
         // 并发重复退圈时只有第一个请求真正删到行,后面的不能再减计数
-        if (circleMemberMapper.hardDelete(circleId, userId, 3) == 0) {
+        if (!cleanup.removeCircleMember(circleId, userId, 3)) {
             return;
         }
-        circleMapper.adjustMemberCount(circleId, -1);
-        // 冗余计数:用户「加入的圈子数」-1(加圈时 +1),与 follower_count 同口径
-        userMapper.adjustJoinedCircleCount(userId, -1);
     }
 
     @Override

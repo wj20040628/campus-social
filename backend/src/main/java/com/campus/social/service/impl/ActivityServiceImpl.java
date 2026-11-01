@@ -16,6 +16,7 @@ import com.campus.social.mapper.CircleMemberMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.ActivityService;
 import com.campus.social.service.support.CampusAccessService;
+import com.campus.social.service.support.MembershipCleanupSupport;
 import com.campus.social.vo.ActivitySignupVO;
 import com.campus.social.vo.ActivityVO;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class ActivityServiceImpl implements ActivityService {
     private final com.campus.social.service.AuditService auditService;
     private final PostNotifySupport postNotifySupport;
     private final UserMapper userMapper;
+    private final MembershipCleanupSupport cleanup;
     /** 行为信任门槛：报名线下活动需账号满 24 小时 + 信誉 60 */
     private final CampusAccessService access;
 
@@ -216,10 +218,9 @@ public class ActivityServiceImpl implements ActivityService {
         }
         // 物理删(绕过 @TableLogic 软删,否则残留行锁住 uk_as,再报名会撞唯一键)
         // 并发重复取消时只有第一个请求真正删到行,后面的不能再减 current_count
-        if (signupMapper.hardDelete(activityId, userId) == 0) {
+        if (!cleanup.cancelSignup(activityId, userId)) {
             return;
         }
-        activityMapper.cancelSignin(activityId);
         // 审计:取消报名
         auditService.record(userId, "cancel_signup", "activity", activityId, "取消报名", null);
     }

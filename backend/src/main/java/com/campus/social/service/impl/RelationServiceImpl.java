@@ -9,6 +9,7 @@ import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.RelationMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.RelationService;
+import com.campus.social.service.support.MembershipCleanupSupport;
 import com.campus.social.vo.RelationStatusVO;
 import com.campus.social.vo.UserVO;
 import com.campus.social.assembler.UserVoAssembler;
@@ -36,6 +37,7 @@ public class RelationServiceImpl implements RelationService {
     private final UserMapper userMapper;
     private final com.campus.social.service.AuditService auditService;
     private final PostNotifySupport postNotifySupport;
+    private final MembershipCleanupSupport cleanup;
 
     // ---------------------------------------------------------------- 关注
 
@@ -80,11 +82,9 @@ public class RelationServiceImpl implements RelationService {
             return;
         }
         // 并发重复取关时只有第一个请求真正删到行,后面的不能再减双方计数
-        if (relationMapper.hardDelete(me, toUserId, TYPE_FOLLOW) == 0) {
+        if (!cleanup.unfollow(me, toUserId)) {
             return;
         }
-        userMapper.adjustFollowingCount(me, -1);
-        userMapper.adjustFollowerCount(toUserId, -1);
         log.info("unfollow: {} -> {}", me, toUserId);
     }
 

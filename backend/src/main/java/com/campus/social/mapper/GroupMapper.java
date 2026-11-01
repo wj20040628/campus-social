@@ -39,4 +39,16 @@ public interface GroupMapper extends BaseMapper<Group> {
             + "WHERE group_id = #{groupId} AND is_deleted = 0), update_time = NOW() "
             + "WHERE id = #{groupId}")
     int recountMemberCount(@Param("groupId") Long groupId);
+
+    /** 每日对账:按 group_member 实际行数重算全部未删除群 */
+    @Update("UPDATE `group` g SET member_count = (SELECT COUNT(*) FROM group_member gm "
+            + "WHERE gm.group_id = g.id AND gm.is_deleted = 0), update_time = NOW() "
+            + "WHERE g.is_deleted = 0")
+    int reconcileMemberCount();
+
+    /** 对账前统计漂移群数,供日志/指标告警 */
+    @Select("SELECT COUNT(*) FROM `group` g WHERE g.is_deleted = 0 "
+            + "AND g.member_count <> (SELECT COUNT(*) FROM group_member gm "
+            + "WHERE gm.group_id = g.id AND gm.is_deleted = 0)")
+    int countMemberCountDrift();
 }

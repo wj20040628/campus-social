@@ -19,6 +19,8 @@ import com.campus.social.mapper.MktActivityMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.RelationMapper;
 import com.campus.social.mapper.UserMapper;
+import com.campus.social.mapper.UserTagMapper;
+import com.campus.social.service.support.MembershipCleanupSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,7 +61,9 @@ public class AccountCancelCascadeService {
     private final MktActivityMapper mktActivityMapper;
     private final RelationMapper relationMapper;
     private final PostNotifySupport notifySupport;
+    private final MembershipCleanupSupport cleanup;
     private final UserMapper userMapper;
+    private final UserTagMapper userTagMapper;
     private final FeedPageCacheService feedCache;
 
     /**
@@ -100,8 +104,9 @@ public class AccountCancelCascadeService {
                 }
                 continue;
             }
-            groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(userId));
-            groupReadMapper.deleteByGroupAndUser(groupId, userId);
+            if (!cleanup.removeGroupMember(groupId, userId)) {
+                continue;
+            }
             groupMapper.recountMemberCount(groupId);
             groupsLeft++;
         }
@@ -139,13 +144,16 @@ public class AccountCancelCascadeService {
                 continue;
             }
             Circle c = circleMapper.selectById(circleId);
-            circleMemberMapper.hardDelete(circleId, userId, m.getRole());
             if (c != null && Integer.valueOf(0).equals(c.getStatus())) {
+                if (!cleanup.removeCircleMember(circleId, userId, m.getRole())) {
+                    continue;
+                }
                 circleMapper.recountMemberCount(circleId);
-                userMapper.adjustJoinedCircleCount(userId, -1);
                 circlesLeft++;
+            } else {
+                // 已解散/已封禁圈子的残留成员行也删掉，但不再改活跃计数
+                circleMemberMapper.hardDelete(circleId, userId, m.getRole());
             }
-            // 已解散/已封禁圈子的残留成员行也删掉，但不再改活跃计数
         }
 
         // 注销用户创建的活动：无人能再管理，统一取消并通知仍报名的正常用户。
@@ -173,8 +181,7 @@ public class AccountCancelCascadeService {
         List<ActivitySignup> signups = signupMapper.selectList(
                 new LambdaQueryWrapper<ActivitySignup>().eq(ActivitySignup::getUserId, userId));
         for (ActivitySignup s : signups) {
-            if (signupMapper.hardDelete(s.getActivityId(), userId) > 0) {
-                activityMapper.cancelSignin(s.getActivityId());
+            if (cleanup.cancelSignup(s.getActivityId(), userId)) {
                 signupsRemoved++;
             }
         }
@@ -189,16 +196,13 @@ public class AccountCancelCascadeService {
                 .eq(Relation::getType, 1)
                 .and(w -> w.eq(Relation::getFromUserId, userId).or().eq(Relation::getToUserId, userId)));
         for (Relation r : follows) {
-            if (relationMapper.hardDelete(r.getFromUserId(), r.getToUserId(), 1) > 0) {
-                if (r.getFromUserId().equals(userId)) {
-                    userMapper.adjustFollowerCount(r.getToUserId(), -1);
-                } else {
-                    userMapper.adjustFollowingCount(r.getFromUserId(), -1);
-                }
+            if (cleanup.unfollow(r.getFromUserId(), r.getToUserId())) {
                 followsRemoved++;
             }
         }
 
+        // 兴趣标签属于个人资料，注销时一并清除；帖子/评论/私聊仍按内容留痕口径保留
+        userTagMapper.hardDeleteAllByUser(userId);
         userMapper.resetJoinedCircleCount(userId);
         Result result = new Result(groupsLeft, groupsTransferred, groupsDisbanded,
                 circlesLeft, circlesTransferred, circlesDisbanded, signupsRemoved,
@@ -226,8 +230,7 @@ public class AccountCancelCascadeService {
         long nextOwner = active.get(0);
         groupMapper.transferOwner(groupId, nextOwner);
         groupMemberMapper.updateRole(groupId, nextOwner, 1);
-        groupMemberMapper.hardDeleteByGroupAndUsers(groupId, List.of(userId));
-        groupReadMapper.deleteByGroupAndUser(groupId, userId);
+        cleanup.removeGroupMember(groupId, userId);
         groupMapper.recountMemberCount(groupId);
         log.info("cancel cascade: group {} transferred {} -> {}", groupId, userId, nextOwner);
         return true;
@@ -238,8 +241,7 @@ public class AccountCancelCascadeService {
                 .eq(CircleMember::getCircleId, c.getId())
                 .eq(CircleMember::getUserId, userId));
         if (row != null) {
-            circleMemberMapper.hardDelete(c.getId(), userId, row.getRole());
-            userMapper.adjustJoinedCircleCount(userId, -1);
+            cleanup.removeCircleMember(c.getId(), userId, row.getRole());
         }
         circleMapper.recountMemberCount(c.getId());
     }
