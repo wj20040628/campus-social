@@ -1,7 +1,7 @@
 {
   "version": "1.13.7",
   "releaseType": "full",
-  "onlineSince": null,
+  "onlineSince": "2026-11-01T14:19:03+08:00",
   "sourceState": "committed",
   "git": {
     "frontendSourceCommit": "dc6aa2c2a154adb4287fd0556313b022ea31ecd5",
@@ -30,11 +30,18 @@
     ],
     "notes": "本版无新增表结构；四段迁移均为历史幂等脚本，随包重复执行安全。部署前由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
   },
-  "notes": "1.13.7 完整包：写接口限流（用户+IP 双维度，覆盖发帖/编辑/评论/私信/群消息/举报/反馈/关注/拉黑/建圈建群）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 性能指标与 5 分钟采样脚本。无前端交互改版；1.13.4-1.13.6 的禁言/注销/回归修复代码一并首次入库。",
+  "notes": "1.13.7 完整包：写接口限流（用户+IP 双维度）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 性能指标与 5 分钟采样。1.13.4-1.13.6 的禁言/注销/回归修复代码一并首次入库。已于 2026-11-01 14:19 CST 上线。",
   "deployment": {
     "package": "ys_deploy_20261101_v1137.zip",
     "packageMd5": "af7f576b23befd849b263be37cde343f",
-    "deployedAt": null,
-    "note": "包已生成，待通过宝塔上传并执行 deploy.sh；部署成功后回填 onlineSince、deployedAt 与 verified。"
+    "deployedAt": "2026-11-01T14:19:03+08:00",
+    "note": "部署由用户通过宝塔执行成功（备份后缀 20261101_141826）；deployedAt 取应用启动时间，公网核验 2026-11-01T14:20:37+08:00。",
+    "verified": [
+      "https://yousheng8.cn/healthz 返回 {\"status\":\"UP\"}（2026-11-01T14:20:37+08:00）",
+      "线上入口 assets/index-oKhCdAAb.js 334,633 B，SHA256 7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461，与包内一致",
+      "/api/user/me 返回 401；/actuator/prometheus 返回 text/html（SPA 回退，指标未暴露公网）",
+      "部署脚本输出：版本 1.13.7、本机/公网健康均 UP、备份后缀 20261101_141826",
+      "campus-metrics.timer 已安装，首次执行 status=0/SUCCESS，采样文件 /opt/campus/logs/metrics/metrics-2026-11-01.prom"
+    ]
   }
 }
