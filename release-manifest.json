@@ -1,23 +1,23 @@
 {
-  "version": "1.13.7",
+  "version": "1.13.8",
   "releaseType": "full",
-  "onlineSince": "2026-11-01T14:19:03+08:00",
+  "onlineSince": null,
   "sourceState": "committed",
   "git": {
-    "frontendSourceCommit": "dc6aa2c2a154adb4287fd0556313b022ea31ecd5",
-    "backendTag": "v1.13.7",
-    "backendCommit": "dc6aa2c2a154adb4287fd0556313b022ea31ecd5",
-    "baseCommit": "926c775e12ac03b36679dd79c0abd13c7415a7c7",
-    "note": "1.13.4-1.13.7 源码提交 dc6aa2c，标签 v1.13.7 指向同一提交；清单提交仅更新发布元数据。"
+    "frontendSourceCommit": "500ef898ed6de3f5787459ddedb50239ae2c4bc4",
+    "backendTag": "v1.13.8",
+    "backendCommit": "500ef898ed6de3f5787459ddedb50239ae2c4bc4",
+    "baseCommit": "86a08636eb0120a6056ce010ab21cf5259af583f",
+    "note": "1.13.8 源码提交 500ef89，标签 v1.13.8 指向同一提交；清单提交仅更新发布元数据。"
   },
   "frontend": {
-    "entry": "assets/index-oKhCdAAb.js",
-    "sha256": "7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461",
+    "entry": "assets/index-B-ftqZyC.js",
+    "sha256": "de64000e10b37455119a437ea7525659df8c38768cb3a5e020392c3a0ce28ec9",
     "bytes": 334633
   },
   "backend": {
-    "jarMd5": "f6010d70cc11a9fdc3b1cd803a764691",
-    "bytes": 73976221
+    "jarMd5": "536884e3579d3c6b15fc2da2b2f57262",
+    "bytes": 73977056
   },
   "database": {
     "schemaTables": 39,
@@ -28,20 +28,15 @@
       "sql/migration_2026-10-31_user_mute.sql",
       "sql/migration_2026-10-31_mute_admin_polish.sql"
     ],
-    "notes": "本版无新增表结构；四段迁移均为历史幂等脚本，随包重复执行安全。部署前由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
+    "notes": "本版无新增表结构；四段迁移均为历史幂等脚本，随包重复执行安全。schema.sql 已按 ADR-010 方案 B 移除 fk_major_dept，生产原本 0 外键，无 DDL 变化。部署前由 backup.sh 完成数据库备份（含 OSS 异地留存）。"
   },
-  "notes": "1.13.7 完整包：写接口限流（用户+IP 双维度）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 性能指标与 5 分钟采样。1.13.4-1.13.6 的禁言/注销/回归修复代码一并首次入库。已于 2026-11-01 14:19 CST 上线。",
+  "notes": "1.13.8 完整包：昵称、个人介绍、群名称接入敏感词过滤（昵称/群名一级二级均拒，简介二级拒发、一级打码）；ADR-010 收口为方案 B，schema.sql 与生产一致为 0 外键；另含 1.13.7 已上线的写接口限流、E2E CI、MktActivity 拆分与性能指标，无前端交互改版（仅关于页更新日志新增 1.13.8 条目）。",
   "deployment": {
-    "package": "ys_deploy_20261101_v1137.zip",
-    "packageMd5": "af7f576b23befd849b263be37cde343f",
-    "deployedAt": "2026-11-01T14:19:03+08:00",
-    "note": "部署由用户通过宝塔执行成功（备份后缀 20261101_141826）；deployedAt 取应用启动时间，公网核验 2026-11-01T14:20:37+08:00。",
-    "verified": [
-      "https://yousheng8.cn/healthz 返回 {\"status\":\"UP\"}（2026-11-01T14:20:37+08:00）",
-      "线上入口 assets/index-oKhCdAAb.js 334,633 B，SHA256 7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461，与包内一致",
-      "/api/user/me 返回 401；/actuator/prometheus 返回 text/html（SPA 回退，指标未暴露公网）",
-      "部署脚本输出：版本 1.13.7、本机/公网健康均 UP、备份后缀 20261101_141826",
-      "campus-metrics.timer 已安装，首次执行 status=0/SUCCESS，采样文件 /opt/campus/logs/metrics/metrics-2026-11-01.prom"
-    ]
+    "package": "ys_deploy_20261101_v1138.zip",
+    "packageMd5": "6fbbe4e55e10a916c870317b104eaadd",
+    "packageBytes": 68572615,
+    "deployedAt": null,
+    "note": "待部署。该清单先于部署包打包生成，包内 packageMd5 为空；仓库清单在打包后回填实际 md5 与大小。",
+    "verified": []
   }
 }
