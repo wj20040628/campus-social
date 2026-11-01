@@ -1035,6 +1035,8 @@ chat_conversation (已存在，不改动结构)
 
 **逻辑删除**：MyBatis-Plus 全局配置已生效（`application.yml:60-64`，字段 `isDeleted`），新表沿用即可，无需额外配置。
 
+**物理外键**：全库不建 FK 约束（ADR-010 方案 B，2026-11-01）。表间一致性由应用层校验与迁移脚本保证；`schema.sql` 不再声明 `school_major.fk_major_dept`。
+
 ---
 
 ## 8. 安全 Checklist
@@ -1201,5 +1203,6 @@ Phase 2（详细设计 + 编码）开始前必须齐备，缺一不放行：
 | ADR-007 | 支付 | MVP 不做 |
 | ADR-008 | API 版本前缀 | 对外 /api/v1，Nginx 版本路由 |
 | ADR-009 | 设计令牌唯一准绳与 `--ys-*` 接入 | `design/design-tokens.css` 唯一，旧 `tokens.css` 待迁移；含 EP Bridge 与断点落地规则 |
+| ADR-010 | `school_major` 是否启用物理外键 | 方案 B：不启用，完整性由应用层与迁移脚本保证 |
 
 未决项见 `decisions/OPEN-DECISIONS.md`。移动端响应式方案见 §3 Q8。

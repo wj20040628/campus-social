@@ -762,7 +762,7 @@ CREATE TABLE IF NOT EXISTS `school_grade` (
 -- 学院下属专业,支撑「学院 → 专业」二级联动与学号六层校验
 -- 为什么 level 放在专业而不是学院:一个学院同时有本科和专科专业,层次是专业的属性
 -- 为什么 code 用 CHAR(6):学号专业码定长 6 位、可含前导 0
--- 本表是全项目唯一保留外键约束的表(学院被引用时不允许删)
+-- ADR-010(2026-11-01)方案 B:本项目不建物理外键,该列一致性由应用层保证
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `school_major` (
     `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '专业ID',
@@ -780,9 +780,7 @@ CREATE TABLE IF NOT EXISTS `school_major` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_school_code` (`school_id`, `code`) COMMENT '同一学校内 6 位专业码唯一;学号按码查专业的唯一入口',
     UNIQUE KEY `uk_dept_name` (`dept_id`, `name`)     COMMENT '同一学院内专业名唯一,防止重复录入',
-    KEY `idx_dept_level_enabled_sort` (`dept_id`, `level`, `enabled`, `sort`, `id`) COMMENT '学院→专业下拉:按学院+层次过滤+启用+排序',
-    CONSTRAINT `fk_major_dept` FOREIGN KEY (`dept_id`)
-        REFERENCES `school_dept` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+    KEY `idx_dept_level_enabled_sort` (`dept_id`, `level`, `enabled`, `sort`, `id`) COMMENT '学院→专业下拉:按学院+层次过滤+启用+排序'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='专业字典(学院下属专业,支撑级联下拉与学号专业码校验)';
 
 -- ------------------------------------------------------------
