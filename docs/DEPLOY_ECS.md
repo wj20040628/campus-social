@@ -720,7 +720,7 @@ backend : 1.13.7 -> jar md5 f6010d70cc11a9fdc3b1cd803a764691
           73,976,221 B
 database: 39 表；本版无新增结构，四段历史幂等迁移随包重跑
 package : ys_deploy_20261101_v1137.zip
-          md5 bb485bd72eeb0af1933c2e7631498d75（68,572,648 B，210 条目）
+          md5 af7f576b23befd849b263be37cde343f（68,572,799 B，210 条目）
 ```
 
 - 内容：写接口限流（用户 + IP 双维度）、E2E 进 CI、MktActivity Service 拆分、ADR-010 只读审计结论、Actuator Prometheus 指标；包内 `ops/` 附可选指标采样安装。
@@ -745,7 +745,7 @@ onlineSince: 2026-11-01T13:17:56+08:00（公网核验时间；包内入口 mtime
 - 部署脚本先校验版本、jar MD5、入口哈希与迁移清单，复用 `backup.sh` 完成数据库备份，再停服落位、执行四段幂等迁移、探活；失败自动回滚 jar/web/VERSION。
 - 公网验证（2026-11-01 13:17 CST）：`/healthz` UP；入口 `assets/index-D59WODR8.js` 334,633 B，SHA256 与包内一致；`Login-BOchmQSS.js`、`AdminUsers-BGkQus5K.js` 与包内逐字节一致；`Login` 含「邮箱格式不正确」且无 `you@qq.com`，`AdminUsers` 含「已注销」；`index.html` Last-Modified 为 2026-11-01 13:01:46 CST。
 - **后端版本判定**：`deploy.sh` 在同一次落位中先复制 jar 再换 web，任一步失败自动回滚；公网入口与分块全部匹配 1.13.6 包且服务 UP，用户确认脚本执行成功，判定 1.13.6 整包生效。actuator 除 health 外不对外，未做登录态接口探测。
-- **源码状态**：1.13.6 源码尚未提交/打 tag，`release-manifest.json` 如实标记 `sourceState=working-tree-dirty`；提交后需补齐清单 git 段。
+- **源码状态**：1.13.4-1.13.7 已提交为 `dc6aa2c` 并打 `v1.13.7`；`release-manifest.json` 标记 `sourceState=committed`，待部署后回填 `onlineSince` 与核验段。
 
 **上一版 1.13.5**（2026-11-01 10:22 CST，入口 `index-B8hU-Zw3.js`，jar md5 `e8f08305…`，包 `ys_deploy_20261101_v1135.zip`，已被 1.13.6 覆盖）：账号自助注销、隐私政策与用户协议重写、PII 日志与审计脱敏。
 
@@ -981,7 +981,7 @@ onlineSince: 2026-11-01T13:17:56+08:00（公网核验时间；包内入口 mtime
 
 公网验证（2026-11-01 13:17 CST）：`/healthz` 返回 `{"status":"UP"}`；`index.html` 入口为 `assets/index-D59WODR8.js`，下载后 SHA256 与大小均与包内一致；`Login-BOchmQSS.js`、`AdminUsers-BGkQus5K.js` 与包内逐字节一致；`Login` 含「邮箱格式不正确」且无 `you@qq.com`，`AdminUsers` 含「已注销」。
 
-> 1.13.4 / 1.13.5 / 1.13.6 源码尚未提交/打 tag，清单标记 `sourceState=working-tree-dirty`；提交后需补齐 `frontendSourceCommit` / `backendTag` / `backendCommit` 再跑一次清单校验。
+> 1.13.4-1.13.7 源码已提交为 `dc6aa2c` 并打 `v1.13.7`；清单标记 `sourceState=committed`。1.13.7 待宝塔部署后回填 `onlineSince`、`deployedAt` 与公网核验段。
 
 **边界规则（保持）**：从 1.13.3 起，前端、后端、SQL 迁移、部署脚本与 `release-manifest.json` 必须作为同一个版本一次发布，不再只换 `web/` 或只换 jar。
 
@@ -999,7 +999,7 @@ python scripts/verify-release-manifest.py --jar path/to/campus-social.jar
 2. 后端 `mvn test` **214/214**；`mvn -DskipTests package` 生成 jar md5 `f6010d70cc11a9fdc3b1cd803a764691`，73,976,221 B；`application-local.yml` 未进包（`unzip -l` 为 0）。
 3. 前端 11 条门禁 0 失败；生产构建入口 `assets/index-oKhCdAAb.js`（334,633 B，sha256 `7ec090f3d993003af986e9611b460a741d2ae3d25c73dd79d05200d7a04f4461`）；首屏 JS gzip 175 KB（预算 300 KB）。
 4. **本版无新增表结构**：包内仍带四段历史幂等迁移。
-5. 部署包 `ys_deploy_20261101_v1137.zip`（md5 `bb485bd72eeb0af1933c2e7631498d75`，68,572,648 B，210 条目，0 反斜杠条目）含 jar、web、四段迁移、`deploy.sh`、清单、SHA256SUMS 与可选 `ops/` 指标采样。
+5. 部署包 `ys_deploy_20261101_v1137.zip`（md5 `af7f576b23befd849b263be37cde343f`，68,572,799 B，210 条目，0 反斜杠条目）含 jar、web、四段迁移、`deploy.sh`、清单、SHA256SUMS 与可选 `ops/` 指标采样。
 6. 待通过宝塔上传后执行 `deploy.sh`；成功后回填 `onlineSince` 与公网核验记录。
 
 **1.13.6 发布记录（2026-11-01，已完成部署）**：
