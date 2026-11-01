@@ -4,11 +4,11 @@
   "onlineSince": null,
   "sourceState": "committed",
   "git": {
-    "frontendSourceCommit": "",
+    "frontendSourceCommit": "2a461ae625065ff27ef4183ac5e2a21cce9f9bf4",
     "backendTag": "v1.13.11",
-    "backendCommit": "",
-    "baseCommit": "44e4c2a",
-    "note": "1.13.11 源码提交与标签 v1.13.11 指向同一提交；清单提交仅更新发布元数据。"
+    "backendCommit": "2a461ae625065ff27ef4183ac5e2a21cce9f9bf4",
+    "baseCommit": "44e4c2acf977428f240701389c4f2d0203b5fa9e",
+    "note": "1.13.11 源码提交 2a461ae，标签 v1.13.11 指向同一提交；清单提交仅更新发布元数据。"
   },
   "frontend": {
     "entry": "assets/index-VNjZ0C6w.js",
