@@ -1,23 +1,24 @@
 {
-  "version": "1.13.11",
+  "version": "1.13.13",
   "releaseType": "full",
-  "onlineSince": null,
+  "onlineSince": "2026-11-01",
   "sourceState": "committed",
   "git": {
-    "frontendSourceCommit": "2a461ae625065ff27ef4183ac5e2a21cce9f9bf4",
-    "backendTag": "v1.13.11",
-    "backendCommit": "2a461ae625065ff27ef4183ac5e2a21cce9f9bf4",
-    "baseCommit": "44e4c2acf977428f240701389c4f2d0203b5fa9e",
-    "note": "1.13.11 源码提交 2a461ae，标签 v1.13.11 指向同一提交；清单提交仅更新发布元数据。"
+    "frontendSourceCommit": "5bdb542746f0ccf6e408526a48812e3f43ac6b7c",
+    "backendTag": "v1.13.13",
+    "backendCommit": "5bdb542746f0ccf6e408526a48812e3f43ac6b7c",
+    "baseCommit": "2a461ae625065ff27ef4183ac5e2a21cce9f9bf4",
+    "note": "1.13.13 线上部署先于源码入库（2026-11-03 回填）：release(1.13.12)=2a55ce9（标签 v1.13.12）、release(1.13.13)=5bdb542（标签 v1.13.13），基线为 1.13.11 的 2a461ae；本清单提交仅更新发布元数据。"
   },
   "frontend": {
-    "entry": "assets/index-VNjZ0C6w.js",
-    "sha256": "98be56b41d5aae621d4df84bc543470fc2778a8d91d7534302c373da2d4cff77",
+    "entry": "assets/index-YxUQ6_IS.js",
+    "sha256": "160d045eecfe3f8722b927031ae0245b956586b30cd1d01e5f9363280028b87b",
     "bytes": 334633
   },
   "backend": {
     "jarMd5": "7d4de589fb9c2db9362ce505d663b2ed",
-    "bytes": 73991942
+    "bytes": 73991942,
+    "note": "纯前端版本：后端 jar 沿用 1.13.11 构建产物，未重建。"
   },
   "database": {
     "schemaTables": 39,
@@ -31,20 +32,20 @@
       "sql/migration_2026-11-01_cancel_follow_activity_repair.sql",
       "sql/migration_2026-11-01_reconcile_counters.sql"
     ],
-    "notes": "本版无新增表结构；新增的计数重算脚本为幂等 DML，部署时先按 ReconcileJob 同口径重算群/圈/活动/加圈/关注/私信未读六类计数，再执行 sql/consistency_check.sql，violations 非 0 即停止部署并由 EXIT trap 回滚应用文件。"
+    "notes": "纯前端版本，无新增表结构与迁移；七段幂等脚本随包执行，与 1.13.11 一致。"
   },
-  "notes": "1.13.11 完整包（含 1.13.10 全部修复）：用户引用清单测试、统一关系清理入口、夜间对账补齐群人数/报名数/加圈数/私信未读、状态可见性矩阵、发布一致性 SQL 与部署闸门、存量计数重算迁移；并发计数幂等、群消息预览、圈子封禁/活动状态守卫、注销后活动/集市/关注残留与通知收口。",
+  "notes": "1.13.12/1.13.13 为纯前端修复：手机端发动态正文框高度随内容长高、与「正文」标签左对齐、长串折行；1.13.13 为同一批评复的重打包，对齐版本号与更新日志口径，无功能差异。后端与数据库沿用 1.13.11。",
   "deployment": {
-    "package": "ys_deploy_20261101_v11311.zip",
-    "packageMd5": "434c95d0c97e9575c523923feb7488a2",
-    "packageBytes": 68592184,
-    "deployedAt": null,
-    "note": "包已构建并校验，待宝塔部署。包内 release-manifest.json 的 packageMd5 为空（清单先于打包生成）；仓库清单回填实际 md5 与大小。",
+    "package": "ys_deploy_20261101_v11313.zip",
+    "packageMd5": "c6652f3e4d6b20d1f2b0982422ea78b6",
+    "packageBytes": 68590118,
+    "deployedAt": "2026-11-01",
+    "note": "1.13.12 于 20:47 部署后发现版本口径未同步，20:55 重打包 v11313 并当日重部署；包内 release-manifest.json 的 frontend.entry 未同步（仍为 1.13.11 的 index-VNjZ0C6w.js），实际校验以包内 deploy.sh 的 FRONT_ENTRY/FRONT_SHA256 为准；仓库清单回填真实值。",
     "verified": [
-      "SHA256SUMS 209 个文件全部通过",
-      "verify-release-manifest.py 全项通过",
-      "bash -n deploy.sh 与 check-consistency.sh 通过",
-      "zip testzip 无损坏，210 个条目"
+      "线上入口 index-YxUQ6_IS.js 与包内构建逐字节一致（2026-11-03 公网核验）",
+      "线上 SettingsAbout 分块与本地 dist 逐字节一致（含 1.13.13 版本号与 1.13.12 changelog 文案）",
+      "旧入口 index-DgmfDBuJ.js 已 404（正常替换）",
+      "/healthz UP"
     ]
   }
 }
