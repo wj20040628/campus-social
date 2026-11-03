@@ -124,8 +124,13 @@
 
 .pub__editor :deep(.el-textarea__inner) {
   min-height: 200px;
-  height: 100%;
-  padding: 0 var(--ys-space-4);
+  /* 2026-11-01 修：原来是 height:100%（撑满外层固定高度），
+     结果内容永远超不过框，只能内部滚动，autosize 也被这条压住不生效。
+     改成 auto，高度交给内容（配合 :autosize）。 */
+  height: auto;
+  /* 原来是 0 16px：纸卡本身已有左右留白，这里再来 16 会让正文比
+     「正文」标签更往里缩，看着像没对齐、没铺满。改成 0，与标签左对齐。 */
+  padding: 0;
   font-size: var(--ys-text-md);
   line-height: var(--ys-lh-md);
   border: 0;
@@ -529,4 +534,27 @@
   .pub__submit {
     transition: none;
   }
+}
+/* 2026-11-01 修复：手机端正文不换行，超长串把输入区撑出横向滚动条。
+   原因：textarea 的换行完全由 white-space 决定，一旦被设成 pre/nowrap，
+   连续字母数字不会被折断，只能横向滚动。这里强制回到 pre-wrap，
+   并允许在任意字符处断行（URL、连续数字这类没有空格的串）。 */
+.pub__editor :deep(.el-textarea__inner) {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: hidden;
+}
+
+
+/* 2026-11-01 修复 3：正文随内容长高，超过一屏才滚动。
+   上一次写 overflow-y:hidden 是错的 —— 内容被裁掉，用户看不到自己写了什么。
+   现在的规则：autosize 负责长高，CSS 只兜住上下限。 */
+.pub__editor :deep(.el-textarea__inner) {
+  min-height: 220px;
+  max-height: 62vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }

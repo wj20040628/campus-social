@@ -65,6 +65,7 @@
             placeholder="今天在校园里遇到什么了？"
             maxlength="5000"
             resize="none"
+            :autosize="{ minRows: 8, maxRows: 30 }"
           />
           <!-- 行 6：字数条。紧跟正文，在纸卡内 -->
           <p class="pub__count" :class="{ 'pub__count--warn': nearLimit, 'pub__count--over': atLimit }">
