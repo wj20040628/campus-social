@@ -184,6 +184,7 @@
 import { computed } from 'vue'
 import { useRemainingCountdown } from '@/composables/useRemainingCountdown'
 import { useUserStore } from '@/stores/user'
+import { MKT_STATUS_TEXT_LAMP } from '@/constants/mktStatus'
 import {
   Location, Coin, User, Timer, EditPen, VideoPause, VideoPlay, Medal, RefreshRight, Delete,
 } from '@element-plus/icons-vue'
@@ -222,7 +223,12 @@ const { remainingText: timerText, warn: timerWarn } = useRemainingCountdown(
   () => props.activity.expireTime)
 
 /* ---------------- 状态灯文案 ---------------- */
-const STATUS_TEXT = { LAUNCHING: '投放中', FULL: '满员', PAUSED: '暂停', EXPIRED: '过期' }
+/**
+ * 短版（满员/暂停/过期）：状态灯是窄列小字，完整版「已满员/已暂停/已过期」
+ * 放不下。文案来自 constants/mktStatus.js 的 MKT_STATUS_TEXT_LAMP ——
+ * 与详情页右栏那份同源派生，两套措辞的差异是刻意的，见常量文件说明。
+ */
+const STATUS_TEXT = MKT_STATUS_TEXT_LAMP
 const status = props.activity.status || 'LAUNCHING'
 const statusText = STATUS_TEXT[status] || status
 

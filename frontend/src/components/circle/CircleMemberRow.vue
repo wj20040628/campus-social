@@ -38,6 +38,7 @@
 import { computed } from 'vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { resolveThumb } from '@/utils/resolve'
+import { circleRoleLabel } from '@/constants/circleRole'
 
 const props = defineProps({
   /** CircleMemberVO：{ userId, nickname, avatarUrl, role, grade, dept } */
@@ -48,12 +49,14 @@ const props = defineProps({
 
 defineEmits(['chat'])
 
-/** 圈主与管理显示标签（说明身份）；普通成员不显示标签，改用「私信」按钮 */
-const roleText = computed(() => {
-  if (props.member.role === 1) return '圈主'
-  if (props.member.role === 2) return '管理'
-  return ''
-})
+/**
+ * 圈主与管理显示标签（说明身份）；普通成员不显示标签，改用「私信」按钮。
+ * 短版文案（「管理」而非「圈管理」）取自 constants/circleRole.js ——
+ * 与管理面板那份同源派生，窄标签用短说是刻意的，见常量文件说明。
+ */
+const roleText = computed(() => (props.member.role && props.member.role !== 3
+  ? circleRoleLabel(props.member.role, true)
+  : ''))
 
 const roleClass = computed(() => (props.member.role === 1 ? 'cmrow__role--owner' : 'cmrow__role--admin'))
 

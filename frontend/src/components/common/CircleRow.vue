@@ -66,6 +66,7 @@ import { computed } from 'vue'
 import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { resolveThumb } from '@/utils/resolve'
 import { relTime } from '@/utils/relTime'
+import { circleRoleLabel } from '@/constants/circleRole'
 
 const props = defineProps({
   circle: { type: Object, required: true },
@@ -85,10 +86,16 @@ const subText = computed(() => {
   return rel ? `${shown} 成员 · ${rel}有新帖` : `${shown} 成员 · 还没有帖子`
 })
 
-/** 我的身份小标签(myRole:1 圈主 / 2 管理 / 3 普通成员) */
+/**
+ * 我的身份小标签(myRole:1 圈主 / 2 管理 / 3 普通成员)。
+ * 文案走 constants/circleRole.js 的短版 —— 与管理面板那份同源派生，
+ * 窄标签用「管理」而非「圈管理」是刻意的，见常量文件说明。
+ */
+const ROLE_KIND = { 1: 'owner', 2: 'mgr', 3: 'member' }
 const roleTag = computed(() => {
-  const m = { 1: { text: '圈主', kind: 'owner' }, 2: { text: '管理', kind: 'mgr' }, 3: { text: '成员', kind: 'member' } }
-  return props.circle.joined ? m[props.circle.myRole] || null : null
+  if (!props.circle.joined) return null
+  const r = props.circle.myRole
+  return r ? { text: circleRoleLabel(r, true), kind: ROLE_KIND[r] } : null
 })
 </script>
 

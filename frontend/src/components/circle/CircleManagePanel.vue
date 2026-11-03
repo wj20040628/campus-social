@@ -142,6 +142,7 @@ import { ElMessage, ElMessageBox } from '@/utils/feedback'
 import { circleMembers, disband as disbandApi } from '@/api/circle'
 import { useCircleAdminActions } from '@/composables/useCircleAdminActions'
 import { useCircleReviewQueue } from '@/composables/useCircleReviewQueue'
+import { circleRoleLabel } from '@/constants/circleRole'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -216,10 +217,14 @@ watch(open, (v) => {
   }
 })
 
+/**
+ * 成员行身份文案（完整版「圈管理」—— 面板空间充裕）。
+ * 角色文案取自 constants/circleRole.js；封禁提示不是角色映射的一部分
+ * （是身份叠加状态），留在本地。
+ */
 function roleText(m) {
-  if (m.role === 1) return '圈主'
-  if (m.role === 2) return '圈管理'
-  return m.banStatus === 1 ? '被封禁' : '成员'
+  if (m.role === 1 || m.role === 2) return circleRoleLabel(m.role)
+  return m.banStatus === 1 ? '被封禁' : circleRoleLabel(3)
 }
 
 /** 封禁:选 长期 / 指定时长(小时)。until=null 长期。 */
