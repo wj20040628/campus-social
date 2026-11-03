@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * OSS 读链路（P3）：私有 bucket 不可直访，浏览器经此端点拿短期签名 URL 再 302 重定向加载。
@@ -41,6 +42,28 @@ public class MediaController {
      *  302 一旦被浏览器缓存，过期后复用同一条 URL 会 403 —— 读链路必须不缓存重定向 */
     private static final String CACHE_CONTROL_STS = "no-store";
 
+    /**
+     * 公共媒体路径形状白名单：{userId}/{yyyyMMdd}/{file} 或老格式 {yyyyMMdd}/{file}。
+     *
+     * <p><b>为什么必须卡形状（2026-11-03 实测暴露）</b>：本控制器等价于
+     * 「upload 根目录的匿名文件服务器」，原先只防了目录穿越，没防「哪些子树可读」。
+     * 结果两类东西被直接拖了出来：
+     * <ul>
+     *   <li>upload 根下的历史备份压缩包（uploads.rar / uploads.zip，共 11.6MB）
+     *       —— 匿名 HEAD 实测 200，可整包下载；</li>
+     *   <li>{@code files/} 子树 —— 这是文件库的<b>私有前缀</b>（application.yml
+     *       「文档对象存 files/ 私有前缀,不走 /uploads/ 公共读链路」）。OSS 模式下
+     *       靠 bucket 前缀隔离天然挡住；本地模式却照读磁盘，<b>未过审文档可绕过
+     *       审核、鉴权、下载限流三道防线</b>（实测 /uploads/files/** 直链 200）。</li>
+     * </ul>
+     *
+     * <p>校验放在 OSS/local 分支<b>之前</b>，两种部署形态同一口径、fail-closed。
+     * DB 里全部 11 个在用引用均已核对匹配该形状（user.avatar/cover、post.media、
+     * upload_file.url），白名单不误伤存量数据。
+     */
+    private static final Pattern PUBLIC_MEDIA_PATH =
+            Pattern.compile("^\\d+/\\d{8}/[^/]+$|^\\d{8}/[^/]+$");
+
     public MediaController(OssService ossService, UploadServiceImpl uploadService) {
         this.ossService = ossService;
         this.uploadService = uploadService;
@@ -62,6 +85,11 @@ public class MediaController {
         // 防目录穿越：相对路径不得含 .. 或反斜杠
         if (rel.isBlank() || rel.contains("..") || rel.contains("\\")) {
             return ResponseEntity.badRequest().build();
+        }
+        // 只服务公共媒体子树（形状见 PUBLIC_MEDIA_PATH 注释）。
+        // 其余子树（files/ 文件库私有前缀、根级备份包等）一律 404。
+        if (!PUBLIC_MEDIA_PATH.matcher(rel).matches()) {
+            return ResponseEntity.notFound().build();
         }
 
         if (ossService.isConfigured()) {
