@@ -63,7 +63,7 @@
           每个版本可独立折叠（2026-10-28）：版本一多整页要滑很久，
           默认只展开最新一版，其余收成一行标题按需点开。
         -->
-        <div v-for="rel in CHANGELOG" :key="rel.version" class="log__rel">
+        <div v-for="rel in ALL_CHANGELOG" :key="rel.version" class="log__rel">
           <button
             type="button"
             class="log__meta log__meta--btn"
@@ -102,8 +102,8 @@
 <script setup>
 /**
  * 关于我们(/settings/about)。
- * 纯静态信息页。版本号读 package.json,更新日志读 constants/changelog.js,
- * 两处都不在页面里手写 —— 发版只改数据,不动模板。
+ * 纯静态信息页。版本号读 package.json,更新日志读 constants/changelog.js(1.13.x 起)
+ * + constants/changelog-archive.js(历史),两处都不在页面里手写 —— 发版只改数据,不动模板。
  */
 import { ref } from 'vue'
 import { version as APP_VERSION } from '../../../package.json'
@@ -111,6 +111,7 @@ import { ArrowRight, ChatDotRound, Promotion } from '@element-plus/icons-vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import qqGroupQr from '@/assets/qq-group.jpg'
 import { CHANGELOG } from '@/constants/changelog'
+import { CHANGELOG_ARCHIVE } from '@/constants/changelog-archive'
 import { CONTACT } from '@/constants/contact'
 import { copyText } from '@/utils/clipboard'
 import { ElMessage } from '@/utils/feedback'
@@ -120,8 +121,11 @@ const groupOpen = ref(false)
 /** 复制成功态：按钮文案变「已复制群号」，比 toast 更贴近手指位置 */
 const copied = ref(false)
 
-/** 展开状态：默认只开最新一版（CHANGELOG 第一条），其余收起 */
-const openMap = ref({ [CHANGELOG[0]?.version || '']: true })
+/** 完整日志 = 主文件(1.13.x 起) + 历史归档(1.12.1 及更早)，仍按从新到旧排列 */
+const ALL_CHANGELOG = [...CHANGELOG, ...CHANGELOG_ARCHIVE]
+
+/** 展开状态：默认只开最新一版，其余收起 */
+const openMap = ref({ [ALL_CHANGELOG[0]?.version || '']: true })
 function isOpen(v) {
   return openMap.value[v] === true
 }
