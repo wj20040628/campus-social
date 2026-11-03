@@ -91,14 +91,18 @@ public class PostController {
         return Result.ok(postService.recommendFeed(me, lastScore, lastId, PageSize.clamp(size)));
     }
 
-    /** 探索页(热门) */
+    /**
+     * 探索页(热门)。复合游标:末条 hotScore(小数,勿取整)+ 末条 id 一起回传。
+     * nextCursor 恒 null —— 前端按 hasMore 取末条 (hotScore, id) 翻页。
+     */
     @GetMapping("/hot")
     public Result<CursorPage<PostVO>> hot(
             @RequestParam(value = "size", defaultValue = "20") int size,
-            @RequestParam(value = "lastHotScore", required = false) Long lastHotScore,
+            @RequestParam(value = "lastHotScore", required = false) Double lastHotScore,
+            @RequestParam(value = "lastId", required = false) Long lastId,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(postService.hot(PageSize.clamp(size), lastHotScore, me != null ? me : 0L));
+        return Result.ok(postService.hot(PageSize.clamp(size), lastHotScore, lastId, me != null ? me : 0L));
     }
 
     /** 话题落地页:某话题下所有帖子 */

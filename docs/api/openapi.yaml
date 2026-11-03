@@ -1467,8 +1467,18 @@ paths:
       tags: [post]
       summary: 探索页（热门）
       description: |
-        按 `hot_score` 倒序的游标分页，游标字段是 `lastHotScore` 而非 `lastId`
-        ——热度值可能相同，所以这里的分页天然可能重复或漏，取热榜可接受。
+        按 `hot_score` 倒序的游标分页。**复合游标**（2026-11-03 定稿）：
+        翻页时把上一页**末条的 `hotScore` 与 `id` 一起回传**。
+
+        为什么升级为复合游标：实测同分（0.0）帖子成段出现，单列
+        `hot_score < last` 会把同分段**整段跳过**，超出「热榜可接受」的
+        重复/漏范围。复合条件 `(score < s) OR (score = s AND id < i)`
+        不重不漏（倒序里 id 也是降序）。
+
+        翻页协议：响应 `nextCursor` 对本端点恒为 null（`CursorPage.nextCursor`
+        是 Long，放不下小数热度），前端按 `hasMore` 取末条 `(hotScore, id)`
+        作为下一页参数。`lastHotScore` 必须按 double 原样回传（勿取整）——
+        实际热度是 `0.018` 这类时间衰减小数，整数截断会断流。
       parameters:
         - name: size
           in: query
@@ -1476,9 +1486,14 @@ paths:
           schema: { type: integer, default: 20, minimum: 1, maximum: 50 }
         - name: lastHotScore
           in: query
-          description: 上一页最后一条的热度值。首页不传
+          description: 上一页末条的 hotScore（原样回传，勿取整）。首页不传
           required: false
           schema: { type: number, format: double, nullable: true }
+        - name: lastId
+          in: query
+          description: 上一页末条的帖子 id（与 lastHotScore 成对回传）
+          required: false
+          schema: { type: integer, format: int64, nullable: true }
       responses:
         '200':
           description: 热门帖列表

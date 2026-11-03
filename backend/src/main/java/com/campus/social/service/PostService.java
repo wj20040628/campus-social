@@ -55,8 +55,8 @@ public interface PostService {
     /** 关注的人的帖子(读 feed_item 收件箱,写扩散闭环) */
     CursorPage<PostVO> feedFollowing(long viewerId, Long lastId, int size);
 
-    /** 探索页:按 hot_score 排序(近 24h) */
-    CursorPage<PostVO> hot(int size, Long lastHotScore, long viewerId);
+    /** 探索页:按 hot_score 排序。复合游标(小数热度+id),见实现注 */
+    CursorPage<PostVO> hot(int size, Double lastHotScore, Long lastId, long viewerId);
 
     /** 点赞/取消赞(幂等) */
     void like(long postId, long userId);

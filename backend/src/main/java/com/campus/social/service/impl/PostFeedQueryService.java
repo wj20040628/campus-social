@@ -180,7 +180,14 @@ public class PostFeedQueryService {
                 .build();
     }
 
-    /** 话题落地页:该话题下所有已通过帖子,按时间倒序 + id 游标 */
+    /**
+     * 话题落地页:该话题下所有已通过帖子,按时间倒序 + id 游标。
+     *
+     * <p><b>2026-11-03 重写为 SQL 下推</b>:原先是「全量拉话题所有 id →
+     * 全量拉帖子 → 内存排序/过滤/截断」,话题热了(几千帖)每翻一页都把
+     * 整个话题搬进内存。现在 JOIN 下推排序/游标/limit,语义与综合 Feed
+     * 完全一致(status=1 未删、id 倒序、多拉一条判 hasMore)。
+     */
     public CursorPage<PostVO> feedByTopic(String topicName, Long lastId, int size, long viewerId) {
         String clean = topicName == null ? "" : topicName.trim().replaceAll("^#+", "").replaceAll("#+$", "").trim();
         if (clean.isEmpty()) {
@@ -190,21 +197,10 @@ public class PostFeedQueryService {
         if (t == null) {
             return new CursorPage<>(List.of(), null, false); // 查无此话题
         }
-        List<Long> postIds = postTopicMapper.postIdsByTopic(t.getId());
-        if (postIds.isEmpty()) {
-            return new CursorPage<>(List.of(), null, false);
-        }
-        List<Post> candidates = postMapper.selectBatchIds(postIds);
-        candidates.sort((x, y) -> y.getId().compareTo(x.getId()));
-        if (lastId != null) {
-            candidates.removeIf(p -> p.getId() >= lastId);
-        }
-        candidates = candidates.stream()
-                .filter(p -> p.getStatus() != null && p.getStatus() == 1)
-                .toList();
-        boolean hasMore = candidates.size() > size;
-        List<Post> page = candidates.stream().limit(size).toList();
-        Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
+        List<Post> rows = postTopicMapper.pagePostsByTopic(t.getId(), lastId, size + 1);
+        boolean hasMore = rows.size() > size;
+        List<Post> page = rows.stream().limit(size).toList();
+        Long nextCursor = hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null;
         return new CursorPage<>(assembler.toVoList(page, viewerId), nextCursor, hasMore);
     }
 
@@ -217,13 +213,43 @@ public class PostFeedQueryService {
         return new CursorPage<>(assembler.toVoList(page, viewerId), nextCursor, hasMore);
     }
 
-    /** 热门:按 hot_score 排序(MVP 未接 Redis ZSet,直接查库) */
-    public CursorPage<PostVO> hot(int size, Long lastHotScore, long viewerId) {
-        List<Post> posts = postMapper.selectList(new LambdaQueryWrapper<Post>()
+    /**
+     * 热门:按 hot_score 排序(MVP 未接 Redis ZSet,直接查库)。
+     *
+     * <p><b>游标 2026-11-03 从死参数改为复合游标</b>:契约(openapi §/post/hot)
+     * 早就定义了 lastHotScore,controller 也一直收着,但原查询根本没用 ——
+     * hasMore 恒 false,热门流翻页等于没实现。
+     *
+     * <p><b>为什么不沿用契约的单列游标</b>:实测第一页出现四条同分(0.0)的帖子,
+     * 单列 {@code hot_score < 0.0} 会把同分段<b>整段</b>跳过 —— 契约说
+     * 「同分可能重复或漏」,但漏掉一整段明显超出「取热榜可接受」。
+     * 所以升级为 {@code (score, id) 复合游标}:score 更小,或同分但 id 更小
+     * (倒序里 id 也是降序),不重不漏。需要前端把末条 hotScore <b>和</b> id
+     * 一起回传 —— 现有唯一封装 api/feed.js 尚无页面调用,无破坏面。
+     *
+     * <p><b>类型必须是 Double</b>:hot_score 是
+     * {@code (like + 2*comment) / 时间衰减} 的分式,实际值 0.018 这类小数;
+     * Long 会截断成 0,下一页直接断流。
+     *
+     * <p>nextCursor 对本端点恒 null(CursorPage.nextCursor 是 Long,放不下小数),
+     * hasMore 由多拉一条(size+1)判定。游标条件用 apply 原生片段:
+     * 列名/操作符全为常量,值走 {0} 参数占位,无注入面。
+     */
+    public CursorPage<PostVO> hot(int size, Double lastHotScore, Long lastId, long viewerId) {
+        LambdaQueryWrapper<Post> w = new LambdaQueryWrapper<Post>()
                 .eq(Post::getStatus, 1)
                 .orderByDesc(Post::getHotScore)
-                .last("LIMIT " + size));
-        return new CursorPage<>(assembler.toVoList(posts, viewerId), null, false);
+                .orderByDesc(Post::getId)
+                .last("LIMIT " + (size + 1));
+        if (lastHotScore != null) {
+            Long tieBreakId = lastId != null ? lastId : Long.MAX_VALUE;
+            w.apply("(hot_score < {0} OR (hot_score = {0} AND id < {1}))", lastHotScore, tieBreakId);
+        }
+        List<Post> posts = postMapper.selectList(w);
+        boolean hasMore = posts.size() > size;
+        List<Post> page = posts.stream().limit(size).toList();
+        // nextCursor=null:小数热度放不进 Long 游标,前端回传末条 (hotScore, id) 两个值
+        return new CursorPage<>(assembler.toVoList(page, viewerId), null, hasMore);
     }
 
     /**

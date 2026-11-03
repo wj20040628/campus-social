@@ -49,8 +49,16 @@ export function topicFeed(name, lastId, size = 20) {
   return request.get(`/post/topic?${q}`)
 }
 
-export function hot(size = 20) {
-  return request.get(`/post/hot?size=${size}`)
+/**
+ * 探索页(热门)。复合游标:把上一页末条的 hotScore(小数,勿取整)+ id 一起回传。
+ * 响应 nextCursor 恒 null —— hasMore 时取末条 (hotScore, id) 翻下一页。
+ * 同分帖成段出现时单列游标会整段跳过,复合条件不重不漏(见 openapi §/post/hot)。
+ */
+export function hot(lastHotScore = null, lastId = null, size = 20) {
+  const params = [`size=${size}`]
+  if (lastHotScore != null) params.push(`lastHotScore=${lastHotScore}`)
+  if (lastId != null) params.push(`lastId=${lastId}`)
+  return request.get(`/post/hot?${params.join('&')}`)
 }
 
 export function like(id) {

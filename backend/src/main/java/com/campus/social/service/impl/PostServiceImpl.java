@@ -184,8 +184,8 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public CursorPage<PostVO> hot(int size, Long lastHotScore, long viewerId) {
-        return feedQuery.hot(size, lastHotScore, viewerId);
+    public CursorPage<PostVO> hot(int size, Double lastHotScore, Long lastId, long viewerId) {
+        return feedQuery.hot(size, lastHotScore, lastId, viewerId);
     }
 
     // ---------------------------------------------------------------- 审核通过扩散
