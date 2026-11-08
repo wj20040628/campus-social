@@ -358,6 +358,22 @@ class CircleAdminServiceTest {
     }
 
     @Test
+    void myReviews_pendingTaskWithoutReviewer_doesNotThrow() {
+        ReviewTask t = new ReviewTask();
+        t.setPostId(postA);
+        t.setStatus(0);
+        reviewTaskMapper.insert(t);
+
+        List<com.campus.social.vo.MyReviewVO> list = reviewService.myReviews(creator, null, 20).getList();
+        com.campus.social.vo.MyReviewVO vo = list.stream()
+                .filter(x -> Long.valueOf(postA).equals(x.getPostId())).findFirst().orElse(null);
+        assertNotNull(vo, "待审任务也要能出现在我的审核记录里");
+        assertEquals(Integer.valueOf(0), vo.getStatus());
+        assertNull(vo.getReviewerName(), "待审任务没有处理人");
+        assertNull(vo.getReviewedAt(), "待审任务没有处理时间");
+    }
+
+    @Test
     void takedown_authorSeesReasonHandlerAndTime() {
         service.takedownPost(postA, creator, "广告/引流");
 

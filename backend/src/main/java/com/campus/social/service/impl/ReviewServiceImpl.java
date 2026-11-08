@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -132,13 +133,13 @@ public class ReviewServiceImpl implements ReviewService {
 
         Set<Long> reviewerIds = page.stream().map(ReviewTask::getReviewerId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, User> reviewerMap = reviewerIds.isEmpty() ? Map.of()
+        Map<Long, User> reviewerMap = reviewerIds.isEmpty() ? new HashMap<>()
                 : userMapper.selectBatchIds(reviewerIds).stream()
                         .collect(Collectors.toMap(User::getId, u -> u));
         // 处理人身份要区分圈主/圈管理，必须带上帖子所属圈；一次 IN 查询，不做逐条单查
         Set<Long> postIds = page.stream().map(ReviewTask::getPostId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, Post> postMap = postIds.isEmpty() ? Map.of()
+        Map<Long, Post> postMap = postIds.isEmpty() ? new HashMap<>()
                 : postMapper.selectBatchIds(postIds).stream()
                         .collect(Collectors.toMap(Post::getId, p -> p));
         // 结论文案:status=1 通过 / 2 驳回 / 0 审核中;驳回时展示可操作理由与处理人
@@ -337,7 +338,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .map(Post::getAuthorId)
                 .filter(java.util.Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
-        java.util.Map<Long, User> users = authorIds.isEmpty() ? java.util.Map.of()
+        java.util.Map<Long, User> users = authorIds.isEmpty() ? new java.util.HashMap<>()
                 : userMapper.selectBatchIds(authorIds).stream()
                         .collect(java.util.stream.Collectors.toMap(User::getId, u -> u));
         // 圈内任务标识:管理员队列要看出这条来自哪个圈;广场帖 circleId 为空
@@ -345,7 +346,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .map(Post::getCircleId)
                 .filter(java.util.Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
-        java.util.Map<Long, Circle> circles = circleIds.isEmpty() ? java.util.Map.of()
+        java.util.Map<Long, Circle> circles = circleIds.isEmpty() ? new java.util.HashMap<>()
                 : circleMapper.selectBatchIds(circleIds).stream()
                         .collect(java.util.stream.Collectors.toMap(Circle::getId, c -> c));
         return tasks.stream()
