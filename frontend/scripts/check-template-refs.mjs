@@ -190,8 +190,9 @@ function freeIdentifiers(expr) {
   let s = expr.replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""').replace(/`[^`]*`/g, '``')
   // 去掉表达式内的 JS 注释:模板属性里常有 `:class="{ // 注释 }"` 这种行内注释,
   // 不剥会把注释里的字(如 chip)误报成未声明变量。字符串已先去掉,这里 // 不会是 https://
+  // 用 [^\n\r]* 而不是 .*$:Windows 检出为 CRLF 时 $ 匹配不到行尾,注释会漏剥。
   s = s.replace(/\/\*[\s\S]*?\*\//g, ' ')
-  s = s.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n')
+  s = s.replace(/\/\/[^\n\r]*/g, '')
   // 去掉 obj.prop / obj?.prop 的 prop 部分:把 . 后面的标识符抹成 _
   s = s.replace(/\.\s*([A-Za-z_$][A-Za-z0-9_$]*)/g, '._')
   // 去掉对象字面量的键:{ k: v, 'k2': v } 与解构别名 { k: alias }
