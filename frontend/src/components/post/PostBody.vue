@@ -21,7 +21,7 @@
       </div>
       <span v-if="post.anonymous" class="author__status author__status--anon">匿名</span>
       <span v-if="post.status === 0" class="author__status author__status--pending">审核中</span>
-      <span v-else-if="post.status === 2" class="author__status author__status--rejected">已驳回</span>
+      <span v-else-if="post.status === 2" class="author__status author__status--rejected">已下架</span>
     </div>
 
     <!-- 行 3:正文。pre-wrap 保留换行,anywhere 防长 URL 撑破(AC-15) -->

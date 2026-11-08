@@ -83,6 +83,24 @@ public interface ReportMapper extends BaseMapper<Report> {
             @Param("handleNote") String handleNote);
 
     /**
+     * 某人相关的最近举报（2026-11-08，处置详情轨迹用）。
+     * 覆盖三类目标：用户本身 / 其帖子 / 其评论；同一人举报同一目标有唯一键，
+     * 不会重复。按 id 倒序取最近 N 条，供管理员判断「初犯还是惯犯」。
+     */
+    @Select("""
+            SELECT * FROM report
+            WHERE is_deleted = 0 AND (
+              (target_type = 1 AND target_id = #{userId})
+              OR (target_type = 2 AND target_id IN
+                  (SELECT id FROM post WHERE author_id = #{userId} AND is_deleted = 0))
+              OR (target_type = 3 AND target_id IN
+                  (SELECT id FROM comment WHERE user_id = #{userId} AND is_deleted = 0))
+            )
+            ORDER BY id DESC LIMIT #{limit}
+            """)
+    List<Report> selectRecentForUser(@Param("userId") long userId, @Param("limit") int limit);
+
+    /**
      * 待处理总数，供手机端审核页顶栏红点。
      *
      * <p>必须**同时**排除「已被忽略」的（2026-10-24 修）。
@@ -91,6 +109,10 @@ public interface ReportMapper extends BaseMapper<Report> {
      */
     @Select("SELECT COUNT(*) FROM report WHERE status = 0 AND handler_id IS NULL AND is_deleted = 0")
     int countPending();
+
+    /** 最久一条待处置举报的提交时间；无待办返回 null（总览积压告警用） */
+    @Select("SELECT MIN(create_time) FROM report WHERE status = 0 AND handler_id IS NULL AND is_deleted = 0")
+    LocalDateTime selectOldestPendingCreateTime();
 
     /**
      * 同一目标的独立待处置举报人数（2026-10-24 加，ReportFoldService 阈值折叠用）。
@@ -279,4 +301,34 @@ public interface ReportMapper extends BaseMapper<Report> {
     @Update("UPDATE post SET status = 2, update_time = NOW() "
             + "WHERE circle_id = #{id} AND is_deleted = 0 AND status = 1")
     int takedownCirclePosts(@Param("id") Long id);
+
+    /**
+     * 批量统计一页用户「被举报」的次数与其中判成立的次数（2026-11-07 加）。
+     *
+     * <p>被举报不一定针对人本身：实际运营里绝大多数是举报其帖子或评论。
+     * 所以三类目标都归因到作者——只数 target_type=1 会把「天天被举报内容」的人
+     * 显示成零记录。聊天消息（target_type=4）与圈子（9）不归因到个人，不计。
+     *
+     * <p>返回列：uid / total_cnt / upheld_cnt。分页与计数同一次 SQL，
+     * 避免逐行 N+1；一页最多 50 个 id，三路 UNION 各走 target_id 索引。
+     */
+    @Select("<script>" +
+            "SELECT t.uid AS uid, COUNT(*) AS total_cnt, SUM(t.upheld) AS upheld_cnt FROM (" +
+            "SELECT r.target_id AS uid, (r.status = 1) AS upheld FROM report r " +
+            "WHERE r.target_type = 1 AND r.is_deleted = 0 AND r.target_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "UNION ALL " +
+            "SELECT p.author_id AS uid, (r.status = 1) AS upheld FROM report r " +
+            "JOIN post p ON p.id = r.target_id AND p.is_deleted = 0 " +
+            "WHERE r.target_type = 2 AND r.is_deleted = 0 AND p.author_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "UNION ALL " +
+            "SELECT c.user_id AS uid, (r.status = 1) AS upheld FROM report r " +
+            "JOIN comment c ON c.id = r.target_id AND c.is_deleted = 0 " +
+            "WHERE r.target_type = 3 AND r.is_deleted = 0 AND c.user_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            ") t GROUP BY t.uid" +
+            "</script>")
+    java.util.List<java.util.Map<String, Object>> countReportsForUsers(
+            @Param("ids") java.util.Collection<Long> ids);
 }

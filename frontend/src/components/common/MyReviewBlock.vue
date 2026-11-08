@@ -19,7 +19,7 @@
             <span class="mr-status" :class="`mr-status--${r.status}`">
               {{ STATUS_TEXT[r.status] || '未知' }}
             </span>
-            <span class="mr-time">{{ r.createTime }}</span>
+            <span class="mr-time">{{ fmtTime(r.createTime) }}</span>
           </span>
         </template>
 
@@ -38,6 +38,18 @@
           <div v-if="r.reason" class="mr-row">
             <span class="mr-label">驳回理由</span>
             <span class="mr-text">{{ r.reason }}</span>
+          </div>
+
+          <div v-if="r.reviewerName" class="mr-row">
+            <span class="mr-label">处理人</span>
+            <span class="mr-text">
+              {{ r.reviewerName }}<template v-if="r.reviewerRole">（{{ r.reviewerRole }}）</template>
+            </span>
+          </div>
+
+          <div v-if="r.reviewedAt" class="mr-row">
+            <span class="mr-label">处理时间</span>
+            <span class="mr-text">{{ fmtTime(r.reviewedAt) }}</span>
           </div>
 
           <div v-if="r.aiVerdict" class="mr-row">
@@ -83,6 +95,7 @@
  * 门禁「全部通过」在这里等于没查。
  */
 import { ref } from 'vue'
+import dayjs from 'dayjs'
 import { REVIEW_STATUS_TEXT } from '@/constants/reviewStatus'
 
 /**
@@ -107,6 +120,10 @@ const active = ref([])
 
 function aiText(v) {
   return AI_TEXT[v] || v || ''
+}
+
+function fmtTime(t) {
+  return t ? dayjs(t).format('YYYY-MM-DD HH:mm') : ''
 }
 </script>
 

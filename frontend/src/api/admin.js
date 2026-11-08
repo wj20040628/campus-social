@@ -63,17 +63,20 @@ export default {
 
 /**
  * 用户处置列表。
- * @param {{keyword?: string, status?: 0|1, muted?: boolean, cursor?: number|null, size?: number}} [params]
- *   keyword:昵称/登录名/学号模糊匹配;status: 0 正常 / 1 冻结(封禁中);
- *   muted: true = 只看禁言中(mute_until 未到期);都不传 = 全部
+ * @param {{keyword?: string, status?: 0|1|2, muted?: boolean, cursor?: number|null,
+ *          sort?: 'created'|'recentPunish', size?: number}} [params]
+ *   keyword:昵称/登录名/学号模糊匹配;status: 0 正常 / 1 冻结(封禁中) / 2 已注销;
+ *   muted: true = 只看禁言中(mute_until 未到期);都不传 = 全部(已注销除外);
+ *   sort: created=注册时间（默认）; recentPunish=最近封禁/禁言
  */
 export function adminUsers(params = {}) {
-  const { keyword, status, muted, cursor, size = 20 } = params
+  const { keyword, status, muted, cursor, sort, size = 20 } = params
   const query = { size }
   if (keyword) query.keyword = keyword
   if (status !== undefined && status !== null) query.status = status
   if (muted) query.muted = true
   if (cursor) query.cursor = cursor
+  if (sort && sort !== 'created') query.sort = sort
   return request.get('/admin/users', { params: query })
 }
 
@@ -103,4 +106,25 @@ export function unmuteUser(userId) {
  */
 export function pendingSummary() {
   return request.get('/admin/pending-summary')
+}
+
+/**
+ * 管理总览(2026-11-07 新增)：待办 + 今日新增 + 站内规模 + 风控，一次拉全。
+ * 今日口径是自然日 00:00 起算，不是滚动 24 小时。
+ */
+export function adminOverview() {
+  return request.get('/admin/overview')
+}
+
+/**
+ * 用户处置详情（2026-11-08）：基础资料 + 最近举报 + 封禁/禁言轨迹 + 最近帖子。
+ * 用于管理员在封人前判断「初犯还是惯犯」，不用再逐个点主页翻。
+ */
+export function adminUserDetail(userId) {
+  return request.get(`/admin/users/${userId}/detail`)
+}
+
+/** AI 机审配置自检：是否启用、缺哪个环境变量。不含密钥。 */
+export function adminReviewAiStatus() {
+  return request.get('/admin/review/ai-status')
 }

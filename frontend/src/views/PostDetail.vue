@@ -77,6 +77,9 @@
         @pick-topic="goTopic"
       />
 
+      <!-- 作者查看被下架帖：给出处理人与原因，不能只有一个「已驳回」 -->
+      <PostTakedownNotice v-if="isAuthor && post.status === 2" :post="post" />
+
       <!--
         行 6：操作条。点赞可切换(aria-pressed)，作者本人见编辑/删除。
 
@@ -215,6 +218,7 @@ import SkeletonList from '@/components/common/SkeletonList.vue'
 import CommentComposer from '@/components/post/CommentComposer.vue'
 import GreetButton from '@/components/post/GreetButton.vue'
 import PostBody from '@/components/post/PostBody.vue'
+import PostTakedownNotice from '@/components/post/PostTakedownNotice.vue'
 import { ElMessageBox } from '@/utils/feedback'
 import PostComments from '@/components/post/PostComments.vue'
 import ThumbUp from '@/icons/ThumbUp.vue'

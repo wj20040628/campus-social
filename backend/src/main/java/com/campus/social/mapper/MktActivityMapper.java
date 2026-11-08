@@ -110,4 +110,15 @@ public interface MktActivityMapper extends BaseMapper<MktActivity> {
             + "AND soft_delete = 0 AND create_time >= #{since}")
     int countByUserSince(@Param("userId") Long userId,
             @Param("since") java.time.LocalDateTime since);
+
+    /** 批量版：一页用户近 N 天的集市产出（信誉分批量计算用） */
+    @Select("<script>" +
+            "SELECT user_id AS uid, COUNT(*) AS cnt FROM mkt_activity " +
+            "WHERE soft_delete = 0 AND create_time >= #{since} AND user_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "GROUP BY user_id" +
+            "</script>")
+    List<java.util.Map<String, Object>> countByUsersSince(
+            @Param("ids") java.util.Collection<Long> ids,
+            @Param("since") java.time.LocalDateTime since);
 }

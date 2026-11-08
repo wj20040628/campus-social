@@ -253,6 +253,16 @@
   overflow-wrap: anywhere;
 }
 
+.task-circle {
+  display: inline-block;
+  margin: var(--ys-space-3) 0 0;
+  padding: 2px var(--ys-space-2);
+  border-radius: var(--ys-radius-sm);
+  background: var(--ys-surface-2);
+  color: var(--ys-muted);
+  font-size: var(--ys-text-xs);
+}
+
 .task-hitwords {
   display: flex;
   flex-wrap: wrap;
@@ -615,3 +625,4 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+

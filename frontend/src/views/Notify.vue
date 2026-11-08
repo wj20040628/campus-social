@@ -48,8 +48,8 @@
                   {{ n.summary }}
                 </template>
               </div>
-              <!-- 反馈回复(11)/校园信息需修改(17)/处置结果(18-25)/群聊邀请(22):原文或群名,引用块展示 -->
-              <div v-if="(n.type === 11 || n.type === 17 || (n.type >= 18 && n.type <= 25)) && n.content" class="n-reply">{{ n.content }}</div>
+              <!-- 内容驳回(8)/反馈回复(11)/校园信息需修改(17)/处置结果(18-25):原文理由,引用块展示 -->
+              <div v-if="(n.type === 8 || n.type === 11 || n.type === 17 || (n.type >= 18 && n.type <= 25)) && n.content" class="n-reply">{{ n.content }}</div>
               <div class="n-time">{{ n.createTime }}</div>
             </div>
             <el-tag v-if="!n.isRead" type="danger" size="small" effect="dark" class="n-badge">新</el-tag>

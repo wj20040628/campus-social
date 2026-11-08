@@ -38,7 +38,7 @@
         <span class="pc__ctag-txt">{{ post.circleName }}</span>
       </button>
       <span v-if="post.status === 0" class="pc__tag pc__tag--warn">审核中</span>
-      <span v-else-if="post.status === 2" class="pc__tag pc__tag--danger">已驳回</span>
+      <span v-else-if="post.status === 2" class="pc__tag pc__tag--danger">已下架</span>
       <span v-if="post.isTop" class="pc__tag pc__tag--top">置顶</span>
     </header>
 

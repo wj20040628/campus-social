@@ -198,6 +198,19 @@ public interface UserMapper extends BaseMapper<User> {
     @Update("UPDATE user SET mute_until = #{muteUntil}, update_time = NOW() WHERE id = #{userId}")
     int updateMuteUntil(@Param("userId") Long userId, @Param("muteUntil") LocalDateTime muteUntil);
 
+    /**
+     * 标记注销留存清理完成（2026-11-08）。
+     * 条件带 status=2 与 purged_at IS NULL：并发/重复调用只生效一次，
+     * 定时任务据此幂等，不会每天重复扫同一批账号。
+     */
+    @Update("UPDATE user SET purged_at = NOW() WHERE id = #{userId} "
+            + "AND status = 2 AND purged_at IS NULL")
+    int markPurged(@Param("userId") Long userId);
+
+    /** 记录最近一次处置时刻（封禁/禁言共用），管理端排序用，不参与权限判定 */
+    @Update("UPDATE user SET last_punish_time = NOW() WHERE id = #{userId}")
+    int touchLastPunish(@Param("userId") Long userId);
+
     @Select("SELECT mute_until FROM user WHERE id = #{userId} AND is_deleted = 0")
     LocalDateTime selectMuteUntil(@Param("userId") Long userId);
 

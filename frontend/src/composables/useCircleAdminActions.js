@@ -32,23 +32,16 @@ export function useCircleAdminActions(circleId, onPostsChanged, onMembersChanged
     }
   }
 
-  /** 下架(软:status=2,作者可自查,不物理删)。 */
-  async function takedown(post) {
+  /** 下架(软:status=2,作者可自查,不物理删)。理由由下架弹窗收集，作者会看到。 */
+  async function takedown(post, reason) {
     try {
-      await ElMessageBox.confirm(
-        `确定下架「${post.content?.slice(0, 24) || '该帖'}」?作者会看到「已下架」。`,
-        '下架帖子',
-        { type: 'warning', confirmButtonText: '下架', cancelButtonText: '取消' },
-      )
-    } catch {
-      return
-    }
-    try {
-      await circle.takedownPost(circleId.value, post.id)
+      await circle.takedownPost(circleId.value, post.id, reason)
       ElMessage.success('已下架')
       await onPostsChanged?.()
+      return true
     } catch {
       /* request.js 已弹错 */
+      return false
     }
   }
 

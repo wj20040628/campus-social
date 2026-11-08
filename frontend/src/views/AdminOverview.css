@@ -1,0 +1,296 @@
+/* ============================================================
+   管理总览（AdminOverview.vue，2026-11-07 新增）
+   与 AdminUsers/AdminVerify 同一套骨架：自绘顶栏 + 分组卡片，
+   token 全部走 design-tokens，不写字面色值。
+   ============================================================ */
+
+.ov {
+  min-height: 100dvh;
+  background: var(--ys-bg);
+  padding-bottom: var(--ys-space-8);
+}
+
+/* ---------------- 启动骨架 ---------------- */
+
+.ov__boot {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--ys-space-3);
+  padding: var(--ys-space-8) var(--ys-space-4);
+}
+
+.ov__boot-card {
+  height: 72px;
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface-2);
+  animation: ov-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ov-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.ov__bar {
+  padding: var(--ys-space-4) var(--ys-space-4) var(--ys-space-2);
+}
+
+.ov__title {
+  margin: 0;
+}
+
+.ov__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--ys-text-lg);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  cursor: pointer;
+}
+
+.ov__back-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.ov__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+}
+
+.ov__hint {
+  margin: var(--ys-space-1) 0 0;
+  padding-left: 28px;
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+/* 手动刷新：总览数字、AI 状态与侧栏待办角标一次拉最新 */
+.ov__refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--ys-space-1) var(--ys-space-2);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  color: var(--ys-muted);
+  font-size: var(--ys-text-xs);
+  cursor: pointer;
+}
+
+.ov__refresh:hover:not(:disabled) {
+  border-color: var(--ys-accent);
+  color: var(--ys-accent);
+}
+
+.ov__refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ov__refresh-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.ov__refresh-icon--spin {
+  animation: ov-spin 0.8s linear infinite;
+}
+
+@keyframes ov-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* AI 机审状态：只在这里给管理员看，不放到用户侧 */
+.ov__ai {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-2) 0 0;
+  padding-left: 28px;
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+  color: var(--ys-danger);
+}
+
+.ov__ai[data-ready='1'] {
+  color: var(--ys-muted);
+}
+
+.ov__ai-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+/* ---------------- 分组 ---------------- */
+
+.ov__sec {
+  padding: var(--ys-space-3) var(--ys-space-4) 0;
+}
+
+.ov__sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  margin-bottom: var(--ys-space-2);
+}
+
+.ov__sec-title {
+  margin: 0;
+  font-size: var(--ys-text-base);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.ov__sec-meta {
+  font-size: var(--ys-text-sm);
+  color: var(--ys-muted);
+}
+
+.ov__grid {
+  display: grid;
+  gap: var(--ys-space-2);
+}
+
+.ov__grid--todo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ov__grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ov__grid--scale {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ov__grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* ---------------- 卡片 ---------------- */
+
+.ov__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--ys-space-3);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+  text-align: left;
+}
+
+.ov__card--link {
+  cursor: pointer;
+}
+
+.ov__card--link:hover {
+  border-color: var(--ys-accent);
+}
+
+/* 有积压才染红：全零时整屏红字等于没有重点 */
+/* 有活 ≠ 告警：普通待办只用强调色，超过时效阈值才标红 */
+.ov__card--hot {
+  border-color: var(--ys-accent);
+}
+
+.ov__card--hot .ov__num {
+  color: var(--ys-accent);
+}
+
+.ov__card[data-alert='1'] {
+  border-color: var(--ys-danger);
+  background: var(--ys-danger-soft);
+}
+
+.ov__card[data-alert='1'] .ov__num,
+.ov__card[data-alert='1'] .ov__label,
+.ov__delta[data-dir='alert'] {
+  color: var(--ys-danger);
+}
+
+.ov__delta {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+}
+
+.ov__delta[data-dir='up'] {
+  color: var(--ys-success);
+}
+
+.ov__delta[data-dir='down'] {
+  color: var(--ys-accent-2);
+}
+
+.ov__num {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov__card--dense {
+  padding: var(--ys-space-2);
+  align-items: center;
+  text-align: center;
+}
+
+.ov__card--dense .ov__num {
+  font-size: 18px;
+}
+
+.ov__label {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+}
+
+.ov__note {
+  margin: var(--ys-space-2) 0 0;
+  font-size: var(--ys-text-xs);
+  line-height: 1.6;
+  color: var(--ys-muted);
+}
+
+.ov__state {
+  padding: var(--ys-space-8) var(--ys-space-4);
+}
+
+/* ---------------- 窄屏 ---------------- */
+
+@media (max-width: 480px) {
+  .ov__grid--scale {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ov__card--dense {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: var(--ys-space-2) var(--ys-space-3);
+  }
+}

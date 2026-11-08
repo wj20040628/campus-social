@@ -77,6 +77,11 @@ public class PostNotifySupport {
      * 用户永远看不到红点；只改未读数不写 notify，点了进去是空的。
      */
     public void pushNotify(long userId, int type, long targetId, long actorId, Long postId) {
+        pushNotify(userId, type, targetId, actorId, postId, null);
+    }
+
+    /** 带正文的通知（如圈主下架理由）：actor 保留为处置人，正文由前端引用块展示。 */
+    public void pushNotify(long userId, int type, long targetId, long actorId, Long postId, String content) {
         if (!canDeliver(userId)) {
             return;
         }
@@ -92,6 +97,7 @@ public class PostNotifySupport {
         n.setTargetId(targetId);
         n.setPostId(postId);
         n.setActorId(actorId);
+        n.setContent(content);
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(userId, 1);

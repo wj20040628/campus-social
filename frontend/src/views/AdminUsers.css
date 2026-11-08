@@ -86,6 +86,19 @@
   gap: var(--ys-space-2);
 }
 
+/* 排序行（2026-11-08）：与状态筛选同款胶囊，另起一行避免 375px 挤爆 */
+.uadmin__sorts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ys-space-2);
+}
+
+.uadmin__sort-label {
+  color: var(--ys-muted);
+  font-size: var(--ys-text-xs);
+}
+
 .uadmin__seg {
   min-height: 32px;
   padding: 0 var(--ys-space-4);
@@ -165,6 +178,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 处置依据行：注册时长 / 信誉 / 举报 / 发帖 / 封禁，窄屏自动折行 */
+.uadmin__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--ys-space-3);
+  margin: 3px 0 0;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.uadmin__facts [data-warn='1'] {
+  color: var(--ys-danger);
+}
+
+.uadmin__gone {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
 }
 
 .uadmin__status {

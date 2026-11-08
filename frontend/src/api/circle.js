@@ -40,8 +40,8 @@ export function untopPost(id, postId) {
   return request.delete(`/circle/${id}/post/${postId}/top`)
 }
 
-export function takedownPost(id, postId) {
-  return request.post(`/circle/${id}/post/${postId}/takedown`)
+export function takedownPost(id, postId, reason) {
+  return request.post(`/circle/${id}/post/${postId}/takedown`, null, { params: { reason } })
 }
 
 export function movePost(id, postId, toCircleId) {

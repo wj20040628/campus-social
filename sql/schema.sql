@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS `user` (
     `onboarding_step`       TINYINT      NOT NULL DEFAULT 0      COMMENT '引导进度 0未开始 1已填归属 2已选标签 3已完成',
     `status`                TINYINT      NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',
     `mute_until`            DATETIME     NULL                    COMMENT '禁言截止时间,NULL=未禁言;到点自动解除',
+    `purged_at`             DATETIME     NULL                    COMMENT '已注销账号私信/通知清理完成时间;正常账号为NULL',
+    `last_punish_time`      DATETIME     NULL                    COMMENT '最近一次被封禁/禁言的时刻;从未处置为NULL',
     `role`                  TINYINT      NOT NULL DEFAULT 0      COMMENT '角色:0普通用户 1管理员',
     `notify_pref`           TEXT         NULL                    COMMENT '通知偏好JSON:{"disabled":[类型id]}',
     `follower_count`        INT          NOT NULL DEFAULT 0,
@@ -77,7 +79,8 @@ CREATE TABLE IF NOT EXISTS `user` (
     UNIQUE KEY `uk_student_no` (`student_no`),
     UNIQUE KEY `uk_user_email` (`email`),
     KEY `idx_dept_grade` (`dept`, `grade`),
-    KEY `idx_mute_until` (`mute_until`)
+    KEY `idx_mute_until` (`mute_until`),
+    KEY `idx_last_punish` (`last_punish_time` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户';
 
 -- ------------------------------------------------------------

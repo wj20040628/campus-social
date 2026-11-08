@@ -35,18 +35,27 @@ public class ReviewController {
         return Result.ok(reviewService.myReviews(me, lastId, PageSize.clamp(size)));
     }
 
+    /** 作者查看单条帖子的审核/下架结果：理由、处理人、处理时间。 */
+    @GetMapping("/post/{postId}")
+    public Result<MyReviewVO> reviewOfPost(@PathVariable("postId") long postId, HttpServletRequest req) {
+        Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return Result.ok(reviewService.reviewOfPost(postId, me));
+    }
+
     /**
-     * 待审队列（2026-10-24 圈主协审后按身份分流,不再一刀切管理员):
-     * 管理员 → 平台队列(非圈内任务 + 超过升级窗的圈内任务);
-     * 圈主   → 自己圈内未升级的待审任务(普通人自然为空,不泄露任何数据)。
+     * 待审队列(2026-10-24 圈主协审后按身份分流,2026-11-08 修可见性):
+     * 管理员 → 全平台待审(含圈内任务,前端按 circleId 标识);
+     * 圈主   → 自己圈内未升级的待审任务(普通人自然为空,不泄露任何数据);
+     * circleId 非空 → 该圈的完整待审队列,管理员或圈主可看,不限升级窗口。
      */
     @GetMapping("/pending")
     public Result<CursorPage<ReviewTaskVO>> pending(
             @RequestParam(value = "lastId", required = false) Long lastId,
+            @RequestParam(value = "circleId", required = false) Long circleId,
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(reviewService.pending(me, lastId, PageSize.clamp(size)));
+        return Result.ok(reviewService.pending(me, circleId, lastId, PageSize.clamp(size)));
     }
 
     @GetMapping("/processed")

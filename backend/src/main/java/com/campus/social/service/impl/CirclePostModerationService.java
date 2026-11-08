@@ -2,9 +2,11 @@ package com.campus.social.service.impl;
 
 import com.campus.social.entity.Circle;
 import com.campus.social.entity.Post;
+import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.PostMapper;
+import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.support.CirclePermissionSupport;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +30,9 @@ public class CirclePostModerationService {
     private final CirclePermissionSupport permissions;
     private final PostMapper postMapper;
     private final CircleMapper circleMapper;
+    private final UserMapper userMapper;
     private final AuditService auditService;
+    private final PostNotifySupport notifySupport;
     /** 首页首屏缓存:下架/移帖都会改变首页内容,必须失效 */
     private final FeedPageCacheService feedCache;
 
@@ -58,19 +62,37 @@ public class CirclePostModerationService {
         log.info("circle untop post: post={} admin={}", postId, me);
     }
 
-    public void takedownPost(long postId, long me) {
+    public void takedownPost(long postId, long me, String reason) {
         Post p = requirePost(postId);
         // 同 untopPost:广场帖无圈可鉴权,之前 if!=null 才鉴权等于对广场帖完全放行 —— 越权(审查 P0-2)。
         if (p.getCircleId() == null) {
             throw new BusinessException(NOT_CIRCLE_OWNER, "广场帖子不在任何圈子,无法执行下架");
         }
         permissions.requireCircleAdmin(p.getCircleId(), me);
+        String safeReason = reason == null ? "" : reason.trim();
+        if (safeReason.isEmpty()) {
+            throw new BusinessException(UNPROCESSABLE, "下架理由不能为空");
+        }
+        if (safeReason.length() > 512) {
+            safeReason = safeReason.substring(0, 512);
+        }
         // 下架=软(status=2,作者可自查),不物理删
         postMapper.takedown(postId);
         // 首页缓存失效:下架的内容不该继续出现在任何人的首页上
         feedCache.invalidate();
-        auditService.record(me, "circle_takedown_post", "post", postId, "圈管理下架", null);
-        log.info("circle takedown post: post={} circle={} admin={}", postId, p.getCircleId(), me);
+        // 理由进审计留痕：作者侧没有 review_task，靠这条记录回查「谁、为什么」
+        auditService.record(me, "circle_takedown_post", "post", postId, "圈管理下架：" + safeReason, null);
+        // 通知作者 type=20（内容下架）：署名处置人并附理由，不能只留一个「已驳回」
+        Circle circle = circleMapper.selectById(p.getCircleId());
+        String role = circle != null && Long.valueOf(me).equals(circle.getOwnerId()) ? "圈主" : "圈管理";
+        User actor = userMapper.selectById(me);
+        String name = actor != null && actor.getNickname() != null && !actor.getNickname().isBlank()
+                ? actor.getNickname() : "圈务人员";
+        String content = role + "「" + name + "」下架了你的帖子，原因：" + safeReason;
+        notifySupport.pushNotify(p.getAuthorId(), 20, postId, me, postId,
+                content.length() > 500 ? content.substring(0, 500) : content);
+        log.info("circle takedown post: post={} circle={} admin={}, reason={}",
+                postId, p.getCircleId(), me, safeReason);
     }
 
     public void movePost(long postId, Long toCircleId, long me) {

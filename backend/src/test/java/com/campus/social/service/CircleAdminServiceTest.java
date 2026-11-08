@@ -6,12 +6,14 @@ import com.campus.social.entity.Circle;
 import com.campus.social.entity.CircleMember;
 import com.campus.social.entity.Post;
 import com.campus.social.entity.ReservedCircleName;
+import com.campus.social.entity.ReviewTask;
 import com.campus.social.entity.User;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.CircleMapper;
 import com.campus.social.mapper.CircleMemberMapper;
 import com.campus.social.mapper.PostMapper;
 import com.campus.social.mapper.ReservedCircleNameMapper;
+import com.campus.social.mapper.ReviewTaskMapper;
 import com.campus.social.mapper.UserMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +47,7 @@ class CircleAdminServiceTest {
 
     @Autowired private CircleAdminService service;
     @Autowired private CircleService circleService;
+    @Autowired private ReviewService reviewService;
     /**
      * 配额依赖隔离(2026-10-25):本类关注圈管理权限,建圈配额已有
      * CreditQuotaGuardTest 专门覆盖。真实 trustService 会按测试用户
@@ -57,6 +60,7 @@ class CircleAdminServiceTest {
     @Autowired private PostMapper postMapper;
     @Autowired private ReservedCircleNameMapper reservedMapper;
     @Autowired private UserMapper userMapper;
+    @Autowired private ReviewTaskMapper reviewTaskMapper;
     /**
      * 清理用。测试要绕过 @TableLogic 做物理删除，而 Mapper 上没有对应的
      * hardDelete，为此在生产 Mapper 里加方法不值得 —— 直接走原生 SQL。
@@ -166,6 +170,10 @@ class CircleAdminServiceTest {
                 // 帖子及其衍生行：同样物理删，避免 feed_item/comment 长期堆积
                 for (long pid : new long[]{postA, postB}) {
                     if (pid <= 0) continue;
+                    // 下架用例会写审计留痕与作者通知，按帖子物理清理，避免跨次累积
+                    jdbc.update("DELETE FROM audit_log WHERE target_type = 'post' AND target_id = ?", pid);
+                    jdbc.update("DELETE FROM notify WHERE post_id = ?", pid);
+                    jdbc.update("DELETE FROM review_task WHERE post_id = ?", pid);
                     jdbc.update("DELETE FROM comment WHERE post_id = ?", pid);
                     jdbc.update("DELETE FROM post_topic WHERE post_id = ?", pid);
                     jdbc.update("DELETE FROM post_favorite WHERE post_id = ?", pid);
@@ -302,11 +310,69 @@ class CircleAdminServiceTest {
 
     @Test
     void takedown_setsStatus2SoftDelete() {
-        service.takedownPost(postA, creator);
+        service.takedownPost(postA, creator, "与圈子主题无关");
         Post p = reloadPost(postA);
         assertEquals(Integer.valueOf(2), p.getStatus(), "下架 status=2(软)");
         // 记录仍在(不物理删)
         assertNotNull(p);
+    }
+
+    @Test
+    void takedown_blankReasonRejectedAndPostStaysPublished() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.takedownPost(postA, creator, "  "));
+        assertEquals(ResultCode.UNPROCESSABLE.getCode(), ex.getCode());
+        assertEquals(Integer.valueOf(1), reloadPost(postA).getStatus(), "无理由不得下架");
+    }
+
+    @Test
+    void reviewReject_requiresReason_andAuthorSeesHandler() {
+        ReviewTask t = new ReviewTask();
+        t.setPostId(postB);
+        t.setStatus(0);
+        reviewTaskMapper.insert(t);
+
+        BusinessException blank = assertThrows(BusinessException.class,
+                () -> reviewService.reject(t.getId(), creator, "  "));
+        assertEquals(ResultCode.UNPROCESSABLE.getCode(), blank.getCode(), "驳回理由必填");
+        assertEquals(Integer.valueOf(0), reviewTaskMapper.selectById(t.getId()).getStatus(), "无理由不得驳回");
+
+        reviewService.reject(t.getId(), creator, "含敏感词");
+        ReviewTask done = reviewTaskMapper.selectById(t.getId());
+        assertEquals(Integer.valueOf(2), done.getStatus());
+        assertEquals("含敏感词", done.getReason());
+        assertEquals(Integer.valueOf(2), reloadPost(postB).getStatus(), "驳回后帖子下架");
+
+        String content = jdbc.queryForObject(
+                "SELECT content FROM notify WHERE post_id = ? AND type = 8 ORDER BY id DESC LIMIT 1",
+                String.class, postB);
+        assertEquals("含敏感词", content, "通知正文带理由");
+
+        com.campus.social.vo.MyReviewVO vo = reviewService.myReviews(creator, null, 20).getList().stream()
+                .filter(x -> Long.valueOf(postB).equals(x.getPostId())).findFirst().orElse(null);
+        assertNotNull(vo, "我的审核记录应包含这条");
+        assertEquals("含敏感词", vo.getReason());
+        assertEquals("圈主", vo.getReviewerRole());
+        assertEquals("圈测" + creator, vo.getReviewerName());
+        assertNotNull(vo.getReviewedAt());
+    }
+
+    @Test
+    void takedown_authorSeesReasonHandlerAndTime() {
+        service.takedownPost(postA, creator, "广告/引流");
+
+        com.campus.social.vo.MyReviewVO vo = reviewService.reviewOfPost(postA, creator);
+        assertNotNull(vo, "作者应能查到处理结果");
+        assertEquals("广告/引流", vo.getReason(), "理由原文回给作者");
+        assertEquals("圈主", vo.getReviewerRole(), "creator 是该圈圈主");
+        assertEquals("圈测" + creator, vo.getReviewerName(), "圈主昵称对作者可见");
+        assertNotNull(vo.getReviewedAt(), "处理时间");
+        assertEquals(Integer.valueOf(2), vo.getStatus());
+
+        // 非作者不能查别人的处理结果
+        BusinessException deny = assertThrows(BusinessException.class,
+                () -> reviewService.reviewOfPost(postA, member));
+        assertEquals(ResultCode.NOT_POST_AUTHOR.getCode(), deny.getCode());
     }
 
     @Test

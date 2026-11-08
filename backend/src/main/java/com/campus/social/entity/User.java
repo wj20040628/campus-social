@@ -102,6 +102,18 @@ public class User implements Serializable {
      */
     private LocalDateTime muteUntil;
 
+    /**
+     * 已注销账号的私信/通知清理完成时间（2026-11-08）。
+     *
+     * <p>注销当下清空资料；私信与通知按 {@code campus.account.cancelled-retention-days}
+     * 保留一段时间后由 CancelledAccountPurgeJob 清理。null = 尚未清理。
+     * 该列只对 status=2 有意义，正常账号恒为 null。
+     */
+    private LocalDateTime purgedAt;
+
+    /** 最近一次被封禁/禁言的时刻；从未处置为 null（管理端「最近处置」排序用） */
+    private LocalDateTime lastPunishTime;
+
     /** 角色:0普通用户 1管理员 */
     private Integer role;
 

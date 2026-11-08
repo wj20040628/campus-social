@@ -251,8 +251,19 @@ Environment=ALIYUN_DM_FROM_ADDRESS=system@yousheng8.cn
 Environment=CAMPUS_SCHOOL_NAME=黄河交通学院
 Environment=CAMPUS_SCHOOL_ID=1
 
-# AI 机审：生产默认关，转人工兜底（不填 LLM_API_KEY 也不崩）
+# AI 机审（可选）：默认关；关着/no key 时命中敏感词的内容照常进人工队列，不会丢
+# 开启不是「只填一个 API key」：ENABLED + KEY + MODEL 三件必填，
+# 非官方端点还要 BASE_URL（provider=openai 走 /chat/completions）。
+# 只审核「命中敏感词」的内容，不是全量内容；失败自动转人工。
 Environment=LLM_ENABLED=false
+Environment=LLM_PROVIDER=claude
+Environment=LLM_API_KEY=
+# Environment=LLM_BASE_URL=https://api.deepseek.com/v1
+# Environment=LLM_MODEL=deepseek-chat
+# Environment=LLM_TIMEOUT_SEC=30
+
+# 已注销账号留存：私信/通知保留天数，到期由每日任务清理（默认 180）
+Environment=CAMPUS_ACCOUNT_CANCELLED_RETENTION_DAYS=180
 
 # 跨域：同源部署（Nginx 同时 serve 前端+反代），可留空
 # Environment=CORS_ALLOWED_ORIGINS=https://yousheng8.cn

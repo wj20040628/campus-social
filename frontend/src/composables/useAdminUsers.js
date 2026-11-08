@@ -20,6 +20,8 @@ export const STATUS_FILTERS = [
   { v: 1, t: '封禁中' },
   // 'muted' 是独立维度：禁言中的账号 status 仍是 0，不能用 status 表达
   { v: 'muted', t: '禁言中' },
+  // 已注销默认不混进「全部」：资料已清空、无法再处置，只会把在册用户挤到后面
+  { v: 2, t: '已注销' },
 ]
 
 /** 封禁时长。0=永久放最后:最重的一档不能是顺手点的那个 */
@@ -47,6 +49,8 @@ export function useAdminUsers() {
   const failed = ref(false)
   const keyword = ref('')
   const statusFilter = ref(null)
+  /** created=注册时间（默认）;recentPunish=最近封禁/禁言 */
+  const sort = ref('created')
 
   /* 封禁面板(行内展开,不用弹窗——理由输入框在弹窗里会被键盘顶出视口) */
   const banning = ref(null)
@@ -70,6 +74,7 @@ export function useAdminUsers() {
         // 'muted' 不是状态值，走独立参数；禁言中的人 status 仍是 0
         status: typeof statusFilter.value === 'number' ? statusFilter.value : undefined,
         muted: statusFilter.value === 'muted' ? true : undefined,
+        sort: sort.value,
         cursor: cursor.value,
         size: PAGE,
       })
@@ -101,6 +106,13 @@ export function useAdminUsers() {
   function setStatus(v) {
     if (statusFilter.value === v) return
     statusFilter.value = v
+    load(true)
+  }
+
+  /** 切排序必须回第一页：两种排序的游标语义不同，续用旧游标会跳页 */
+  function setSort(v) {
+    if (sort.value === v) return
+    sort.value = v
     load(true)
   }
 
@@ -217,11 +229,11 @@ export function useAdminUsers() {
 
   return {
     list, total, hasMore, loading, failed,
-    keyword, statusFilter,
+    keyword, statusFilter, sort,
     banning, banDays, banReason,
     muting, muteDays, muteReason,
     busy, actionError,
-    load, loadMore, search, setStatus,
+    load, loadMore, search, setStatus, setSort,
     openBan, cancelBan, submitBan,
     openMute, cancelMute, submitMute,
     submitUnban, submitUnmute,

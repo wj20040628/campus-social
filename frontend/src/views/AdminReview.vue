@@ -117,6 +117,11 @@
 
             <p class="task-content">{{ t.content }}</p>
 
+            <!-- 圈内任务标识(2026-11-08):管理员队列现含圈内待审,标出来源圈子 -->
+            <p v-if="t.circleId" class="task-circle">
+              圈内 · {{ t.circleName || `圈子 #${t.circleId}` }}
+            </p>
+
             <p v-if="t.hitWords?.length" class="task-hitwords">
               <span class="task-hitwords__label">命中词</span>
               <span v-for="w in t.hitWords.slice(0, 6)" :key="w" class="task-chip">{{ w }}</span>

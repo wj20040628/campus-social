@@ -35,6 +35,17 @@ public interface FileAssetMapper extends BaseMapper<FileAsset> {
             + "AND review_time >= #{since}")
     int countApprovedSince(@Param("userId") long userId, @Param("since") LocalDateTime since);
 
+    /** 批量版：一页用户近 N 天过审文件数（信誉分批量计算用，口径同 countApprovedSince） */
+    @Select("<script>" +
+            "SELECT user_id AS uid, COUNT(*) AS cnt FROM file_asset " +
+            "WHERE status = 1 AND is_deleted = 0 AND review_time >= #{since} AND user_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "GROUP BY user_id" +
+            "</script>")
+    List<java.util.Map<String, Object>> countApprovedSinceByUsers(
+            @Param("ids") java.util.Collection<Long> ids,
+            @Param("since") LocalDateTime since);
+
     @Select("<script>"
             + "SELECT f.* FROM file_asset f "
             + "<if test='favorites'>"

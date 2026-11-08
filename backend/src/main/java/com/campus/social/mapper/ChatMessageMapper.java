@@ -34,4 +34,9 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
             + "WHERE sender_id = #{peer} AND receiver_id = #{me} "
             + "  AND is_recalled = 0 AND is_deleted = 0)")
     boolean existsReplyFromPeer(@Param("me") long me, @Param("peer") long peer);
+
+    /** 注销留存到期清理：物理删除该用户收发的全部私信（2026-11-08） */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM chat_message "
+            + "WHERE sender_id = #{userId} OR receiver_id = #{userId}")
+    int hardDeleteByUser(@Param("userId") long userId);
 }

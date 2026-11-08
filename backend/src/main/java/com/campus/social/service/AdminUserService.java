@@ -1,6 +1,7 @@
 package com.campus.social.service;
 
 import com.campus.social.vo.PendingSummaryVO;
+import com.campus.social.vo.UserAdminDetailVO;
 import com.campus.social.vo.UserAdminPageVO;
 
 /**
@@ -27,7 +28,24 @@ public interface AdminUserService {
      * @param status  0 正常 / 1 冻结（封禁中）；空 = 全部
      * @param muted   true = 只看禁言中（mute_until &gt; NOW()）；空 = 不筛
      */
-    UserAdminPageVO page(String keyword, Integer status, Boolean muted, Long cursor, int size);
+    default UserAdminPageVO page(String keyword, Integer status, Boolean muted, Long cursor, int size) {
+        return page(keyword, status, muted, cursor, size, null);
+    }
+
+    /**
+     * 带排序的列表（2026-11-08）。
+     *
+     * @param sort null/created = 按注册时间（id 倒序，游标为 id）；
+     *             recentPunish = 按最近封禁/禁言时间倒序（游标为偏移量）。
+     *             两种排序的游标语义不同，调用方只需原样回传 nextCursor。
+     */
+    UserAdminPageVO page(String keyword, Integer status, Boolean muted, Long cursor, int size, String sort);
+
+    /**
+     * 用户处置详情（2026-11-08）：列表行 + 最近举报 + 账号处置轨迹 + 最近帖子。
+     * 已注销账号额外返回留存/清理时间，供管理员解释「为什么只剩这些数据」。
+     */
+    UserAdminDetailVO detail(long userId);
 
     /** 直接封禁（不走举报流程）。禁止封自己与其他管理员。 */
     void ban(long adminId, long userId, int banDays, String reason);

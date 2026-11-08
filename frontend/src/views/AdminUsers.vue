@@ -27,7 +27,7 @@
             <span>用户处置</span>
           </button>
         </h1>
-        <p class="uadmin__hint">共 {{ total }} 人 · 封禁会同时断开登录态</p>
+        <p class="uadmin__hint">共 {{ total }} 人 · 已注销默认不显示 · 封禁会同时断开登录态</p>
       </header>
 
       <!-- 筛选:关键词 + 状态。词变回第一页 -->
@@ -52,6 +52,23 @@
           >
             {{ opt.t }}
           </button>
+        </div>
+        <div class="uadmin__sorts" role="group" aria-label="排序方式">
+          <span class="uadmin__sort-label">排序</span>
+          <button
+            type="button"
+            class="uadmin__seg"
+            :class="{ 'uadmin__seg--on': sort === 'created' }"
+            :aria-pressed="sort === 'created'"
+            @click="setSort('created')"
+          >注册时间</button>
+          <button
+            type="button"
+            class="uadmin__seg"
+            :class="{ 'uadmin__seg--on': sort === 'recentPunish' }"
+            :aria-pressed="sort === 'recentPunish'"
+            @click="setSort('recentPunish')"
+          >最近处置</button>
         </div>
       </div>
 
@@ -87,6 +104,16 @@
                 <span v-if="u.studentNo">{{ u.studentNo }}</span>
                 <span v-else>未提交学号</span>
                 <span v-if="u.dept"> · {{ u.dept }}</span>
+              </p>
+              <!-- 处置依据（2026-11-07）：注册时长 / 信誉 / 举报 / 发帖 / 封禁次数 -->
+              <p class="uadmin__facts">
+                <span>{{ ageText(u) }}</span>
+                <span :data-warn="u.creditScore < 60 ? '1' : undefined">信誉 {{ u.creditScore }}</span>
+                <span :data-warn="u.reportCount > 0 ? '1' : undefined">
+                  被举报 {{ u.reportCount }} 次<template v-if="u.upheldCount">（成立 {{ u.upheldCount }}）</template>
+                </span>
+                <span>发帖 {{ u.postCount }}</span>
+                <span v-if="u.banCount" data-warn="1">累计封禁 {{ u.banCount }} 次</span>
               </p>
             </div>
             <span class="uadmin__right">
@@ -170,7 +197,13 @@
             </div>
           </div>
 
+          <div v-else-if="u.status === 2" class="uadmin__acts">
+            <span class="uadmin__gone">账号已注销，不可再处置（数据仅供回查）</span>
+            <button type="button" class="uadmin__btn" @click="openDetail(u)">详情</button>
+          </div>
+
           <div v-else class="uadmin__acts">
+            <button type="button" class="uadmin__btn" @click="openDetail(u)">详情</button>
             <button
               v-if="u.status === 1"
               type="button"
@@ -243,31 +276,34 @@
       confirm-text="解除禁言"
       @confirm="onUnmuteConfirm"
     />
+
+    <AdminUserDetailDrawer v-model="detailOpen" :user-id="detailId" />
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import dayjs from 'dayjs'
 import { ArrowLeft, Search, WarningFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useAdminUsers, STATUS_FILTERS, BAN_DAYS, MUTE_DAYS } from '@/composables/useAdminUsers'
 import { resolveThumb } from '@/utils/resolve'
+import { ageText, isMuted, statusText, verifyText } from '@/utils/adminUserFormat'
 import AdminDenied from '@/components/common/AdminDenied.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import AdminUserDetailDrawer from '@/components/admin/AdminUserDetailDrawer.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 const {
   list, total, hasMore, loading, failed,
-  keyword, statusFilter,
+  keyword, statusFilter, sort,
   banning, banDays, banReason,
   muting, muteDays, muteReason,
   busy, actionError,
-  load, loadMore, search, setStatus,
+  load, loadMore, search, setStatus, setSort,
   openBan, cancelBan, submitBan,
   openMute, cancelMute, submitMute,
   submitUnban, submitUnmute,
@@ -279,30 +315,13 @@ load(true)
 const ready = computed(() => !!userStore.userInfo)
 const denied = computed(() => ready.value && userStore.isAdmin !== true)
 
-function isMuted(u) {
-  return u.status !== 1 && !!u.muteUntil && dayjs(u.muteUntil).isAfter(dayjs())
-}
+/* 详情抽屉（2026-11-08）：列表给处置依据，抽屉给轨迹，封人前不用再逐个点主页 */
+const detailId = ref(null)
+const detailOpen = ref(false)
 
-function statusText(u) {
-  if (u.status === 2) return '已注销'
-  if (u.status === 1) {
-    return u.bannedUntil ? `封禁中 · 至 ${dayjs(u.bannedUntil).format('MM-DD HH:mm')}` : '永久封禁'
-  }
-  if (isMuted(u)) return `禁言中 · 至 ${dayjs(u.muteUntil).format('MM-DD HH:mm')}`
-  return '正常'
-}
-
-/**
- * 校园信息状态文案。未填写(0)返回空串——新号默认就是未填写，
- * 每行都挂一条只会让「核对中 / 需修改」这两条真正要处理的淹在灰字里。
- */
-function verifyText(u) {
-  switch (u.verifyStatus) {
-    case 1: return '校园信息已登记'
-    case 2: return '校园信息核对中'
-    case 3: return '校园信息需修改'
-    default: return ''
-  }
+function openDetail(u) {
+  detailId.value = u.userId
+  detailOpen.value = true
 }
 
 /* ---------------- 解封确认框 ---------------- */

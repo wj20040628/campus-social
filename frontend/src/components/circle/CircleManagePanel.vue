@@ -38,6 +38,16 @@
               <span v-if="t.hitWords?.length" class="cm__review-hits">命中:{{ t.hitWords.slice(0, 3).join('、') }}</span>
             </p>
             <p class="cm__review-content">{{ t.content }}</p>
+            <div class="cm__review-presets">
+              <button
+                v-for="p in CIRCLE_REVIEW_REASONS"
+                :key="p"
+                type="button"
+                class="cm__preset"
+                :class="{ 'is-active': reviewQ.reasons[t.id] === p }"
+                @click="reviewQ.reasons[t.id] = p"
+              >{{ p }}</button>
+            </div>
             <input
               v-model="reviewQ.reasons[t.id]"
               type="text"
@@ -143,6 +153,7 @@ import { circleMembers, disband as disbandApi } from '@/api/circle'
 import { useCircleAdminActions } from '@/composables/useCircleAdminActions'
 import { useCircleReviewQueue } from '@/composables/useCircleReviewQueue'
 import { circleRoleLabel } from '@/constants/circleRole'
+import { CIRCLE_REVIEW_REASONS } from '@/constants/circleReviewReasons'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -210,7 +221,7 @@ async function disband() {
 const actions = useCircleAdminActions(ref(props.circleId), null, reload)
 
 // 圈主协审队列(2026-10-24):仅圈主拉,圈管理/成员不请求
-const reviewQ = useCircleReviewQueue()
+const reviewQ = useCircleReviewQueue(props.circleId)
 watch(open, (v) => {
   if (v && props.myRole === 1) {
     reviewQ.load()

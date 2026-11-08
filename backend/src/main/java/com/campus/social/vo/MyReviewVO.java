@@ -31,5 +31,17 @@ public class MyReviewVO {
     /** AI 机审理由 */
     private String aiReason;
 
+    /** 实际处理人 id；空 = AI 机审或系统 */
+    private Long reviewerId;
+
+    /** 处理人展示名：圈主/圈管理昵称；平台管理员只显示「平台管理员」 */
+    private String reviewerName;
+
+    /** 处理人角色：圈主 / 圈管理；平台管理员与 AI 机审的名称已自说明，留空 */
+    private String reviewerRole;
+
+    /** 处理完成时间；待审为空 */
+    private LocalDateTime reviewedAt;
+
     private LocalDateTime createTime;
 }

@@ -12,8 +12,13 @@ import com.campus.social.vo.ReviewTaskVO;
  */
 public interface ReviewService {
 
-    /** 待审列表(状态 0),游标分页 */
-    CursorPage<ReviewTaskVO> pending(long reviewerId, Long lastId, int size);
+    /**
+     * 待审列表(状态 0),游标分页。
+     *
+     * <p>{@code circleId} 非空 = 圈管理抽屉的圈内队列:管理员或该圈圈主可看,
+     * 不限升级窗口;为空 = 按身份分流(管理员看全平台,圈主看自己圈内未升级任务)。
+     */
+    CursorPage<ReviewTaskVO> pending(long reviewerId, Long circleId, Long lastId, int size);
 
     /** 已通过/已驳回列表 */
     CursorPage<ReviewTaskVO> processed(long reviewerId, Long lastId, int size);
@@ -29,4 +34,10 @@ public interface ReviewService {
      * 让作者知道"为什么被驳、能怎么改",闭环到可申诉/重提。
      */
     CursorPage<MyReviewVO> myReviews(long authorId, Long lastId, int size);
+
+    /**
+     * 作者查看单条帖子的审核/下架结果（理由 + 处理人）。
+     * 仅帖子作者可查；没有审核记录时返回 null。
+     */
+    MyReviewVO reviewOfPost(long postId, long viewerId);
 }

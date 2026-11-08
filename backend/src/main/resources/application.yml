@@ -402,20 +402,31 @@ campus:
     # 圈主协审升级窗口(小时):圈内待审任务超时未处理即滑入平台队列。
     # 不落列不起 Job,纯查询期按 create_time 计算
     owner-escalate-hours: ${CAMPUS_REVIEW_OWNER_ESCALATE_HOURS:24}
+  # ----------------------------------------------------------
+  # 已注销账号留存（2026-11-08）
+  # 注销当下清空资料；私信与通知再保留 N 天供对方回溯，
+  # 到期由 CancelledAccountPurgeJob 物理清理。帖子/评论与举报/审计
+  # 属于内容留痕与监管记录，按隐私政策口径长期保留（均已去标识化）。
+  # ----------------------------------------------------------
+  account:
+    cancelled-retention-days: ${CAMPUS_ACCOUNT_CANCELLED_RETENTION_DAYS:180}
 
 # ------------------------------------------------------------
 # AI 内容机审(LLM):直接接真实 LLM API
-# enabled=false(缺省)→ 不真调 LLM,机审走 manual 转人工兜底,本地无 key 也不崩
-# 真实调用:本地开发用 application-local.yml 填 LLM_API_KEY,生产用环境变量
+# enabled 缺省 true；无 key 时不发请求,机审走 manual 转人工兜底,本地无 key 也不崩
+# 真实调用:生产默认用下方 Key(环境变量可覆盖);本地开发也可用 application-local.yml
 # provider=claude → 走 {base-url}/v1/messages;x-api-key + anthropic-version
 # provider=openai → 走 {base-url}/chat/completions;Bearer key(可指本地/代理/兼容端点)
 # ------------------------------------------------------------
 llm:
-  enabled: ${LLM_ENABLED:false}
-  provider: ${LLM_PROVIDER:claude}
-  api-key: ${LLM_API_KEY:}
-  base-url: ${LLM_BASE_URL:}            # 空=用 provider 默认(claude→api.anthropic.com / openai→api.openai.com/v1)
-  model: ${LLM_MODEL:claude-sonnet-5}
+  enabled: ${LLM_ENABLED:true}
+  # agnes 是 OpenAI 兼容端点，必须走 openai 分支（Bearer + /chat/completions）；
+  # 写成 claude 会拼成 /v1/v1/messages 并用 x-api-key，调用必然失败。
+  provider: ${LLM_PROVIDER:openai}
+  # 当前部署直接使用下方 Key；如需更换，设环境变量 LLM_API_KEY 覆盖
+  api-key: ${LLM_API_KEY:sk-Sr57d0SlG85mj3p9Huh6eC6Xut6doE7gmbUtjGzOJL8YsfvF}
+  base-url: ${LLM_BASE_URL:https://apihub.agnes-ai.com/v1}            # 空=用 provider 默认(claude→api.anthropic.com / openai→api.openai.com/v1)
+  model: ${LLM_MODEL:agnes-2.5-flash}
   timeout-sec: ${LLM_TIMEOUT_SEC:30}
 
 logging:

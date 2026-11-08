@@ -128,6 +128,7 @@
 
     <!-- 管理后台弹层:复用 useSettings 的 adminSheetOpen(与设置页同源) -->
     <ActionSheet v-model="adminSheetOpen" title="管理后台">
+      <button type="button" class="asheet__item" @click="goAdmin('/admin/overview')">管理总览</button>
       <button
         type="button"
         class="asheet__item"

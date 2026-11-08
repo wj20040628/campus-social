@@ -181,6 +181,26 @@ public interface PostMapper extends BaseMapper<Post> {
     int countApprovedByAuthorSince(@Param("authorId") Long authorId,
             @Param("since") java.time.LocalDateTime since);
 
+    /** 批量版：一页用户的公开帖数（管理端用户处置列表，避免逐行 COUNT） */
+    @Select("<script>" +
+            "SELECT author_id AS uid, COUNT(*) AS cnt FROM post " +
+            "WHERE status = 1 AND is_deleted = 0 AND author_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "GROUP BY author_id" +
+            "</script>")
+    List<java.util.Map<String, Object>> countPublicByAuthors(@Param("ids") java.util.Collection<Long> ids);
+
+    /** 批量版：一页用户近 N 天的过审帖数（信誉分批量计算用） */
+    @Select("<script>" +
+            "SELECT author_id AS uid, COUNT(*) AS cnt FROM post " +
+            "WHERE status = 1 AND is_deleted = 0 AND create_time >= #{since} AND author_id IN " +
+            "<foreach collection='ids' item='i' open='(' close=')' separator=','>#{i}</foreach> " +
+            "GROUP BY author_id" +
+            "</script>")
+    List<java.util.Map<String, Object>> countApprovedByAuthorsSince(
+            @Param("ids") java.util.Collection<Long> ids,
+            @Param("since") java.time.LocalDateTime since);
+
     /**
      * 某人所有帖子的获赞总数(个人主页「获赞」指标)。
      *

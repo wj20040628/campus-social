@@ -6,6 +6,17 @@
 const adminRoutes = [
   {
     /*
+      管理总览（2026-11-07 新增）。
+      此前管理端只有各入口的待办角标，没有一屏能看全「今天有没有异常、
+      站内多大规模」。排在最前：管理员进来先看全局，再决定去哪个队列。
+    */
+    path: 'admin/overview',
+    name: 'adminOverview',
+    component: () => import('@/views/AdminOverview.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '管理总览', back: true },
+  },
+  {
+    /*
       校园信息核对（只影响资料标记，不影响功能权限）。
       独立页而不是 AdminReview 的第四个 Tab —— 理由写在 AdminVerify.vue
       头部(行数门禁 + 资料核对与内容处置语义不同 + 契约分属两个 tag)。

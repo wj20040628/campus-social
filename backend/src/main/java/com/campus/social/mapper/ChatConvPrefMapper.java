@@ -20,4 +20,8 @@ public interface ChatConvPrefMapper extends BaseMapper<ChatConvPref> {
     ChatConvPref selectOne(@Param("userId") Long userId,
                            @Param("kind") String kind,
                            @Param("targetId") Long targetId);
+
+    /** 注销留存到期清理：物理删除该用户的会话偏好（2026-11-08） */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM chat_conv_pref WHERE user_id = #{userId}")
+    int hardDeleteByUser(@Param("userId") long userId);
 }

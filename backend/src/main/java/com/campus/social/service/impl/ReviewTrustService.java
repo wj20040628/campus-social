@@ -182,15 +182,87 @@ public class ReviewTrustService {
 
     private int scoreOf(long userId, User u) {
         LocalDateTime since = LocalDateTime.now().minusDays(creditDecayDays);
-        int fileBonus = Math.min(FILE_BONUS_CAP, fileAssetMapper.countApprovedSince(userId, since));
-        int bonus = Math.min(BONUS_CAP,
-                postMapper.countApprovedByAuthorSince(userId, since)
-                        + mktActivityMapper.countByUserSince(userId, since)
-                        + fileBonus);
-        int upheld = auditLogMapper.countUserActionsSince("report_upheld", userId, since);
-        int bans = auditLogMapper.countUserActionsSince("account_ban", userId, since);
+        return score(
+                postMapper.countApprovedByAuthorSince(userId, since),
+                mktActivityMapper.countByUserSince(userId, since),
+                fileAssetMapper.countApprovedSince(userId, since),
+                auditLogMapper.countUserActionsSince("report_upheld", userId, since),
+                auditLogMapper.countUserActionsSince("account_ban", userId, since));
+    }
+
+    /**
+     * 批量信誉分（管理端用户处置列表，2026-11-07 加）。
+     *
+     * <p>与 {@link #scoreOf} 同一个公式，只是把「每人四次 COUNT」换成
+     * 按用户 id 分组的四次查询：一页 20 人的列表从 80 次往返降到 4 次。
+     * 公式只有 {@link #score} 一处，改扣分/加分规则不会出现单人与批量口径漂移。
+     */
+    public java.util.Map<Long, CreditStat> creditStats(java.util.Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        LocalDateTime since = LocalDateTime.now().minusDays(creditDecayDays);
+        java.util.Map<Long, Integer> posts = toCountMap(postMapper.countApprovedByAuthorsSince(userIds, since));
+        java.util.Map<Long, Integer> mkts = toCountMap(mktActivityMapper.countByUsersSince(userIds, since));
+        java.util.Map<Long, Integer> files = toCountMap(fileAssetMapper.countApprovedSinceByUsers(userIds, since));
+        java.util.Map<Long, int[]> violations = new java.util.HashMap<>();
+        for (java.util.Map<String, Object> row : auditLogMapper.countViolationsForUsers(userIds, since)) {
+            Long uid = asLong(row, "uid", "uid");
+            if (uid == null) {
+                continue;
+            }
+            violations.put(uid, new int[]{
+                    asInt(row, "upheld_cnt", "upheldCnt"),
+                    asInt(row, "ban_window_cnt", "banWindowCnt"),
+                    asInt(row, "ban_total_cnt", "banTotalCnt")});
+        }
+        java.util.Map<Long, CreditStat> out = new java.util.HashMap<>();
+        for (Long id : userIds) {
+            int[] v = violations.getOrDefault(id, new int[]{0, 0, 0});
+            int s = score(posts.getOrDefault(id, 0), mkts.getOrDefault(id, 0),
+                    files.getOrDefault(id, 0), v[0], v[1]);
+            out.put(id, new CreditStat(s, v[0], v[2]));
+        }
+        return out;
+    }
+
+    /**
+     * 批量信誉档案的一行。
+     *
+     * @param score      信誉分（与单人 {@link #status} 同公式）
+     * @param upheld30   近 N 天被判成立的举报数（窗口与信誉分一致）
+     * @param bansTotal  全时段累计封禁次数（列表展示用）
+     */
+    public record CreditStat(int score, int upheld30, int bansTotal) {
+    }
+
+    private static int score(int posts, int mkts, int files, int upheld, int bans) {
+        int fileBonus = Math.min(FILE_BONUS_CAP, files);
+        int bonus = Math.min(BONUS_CAP, posts + mkts + fileBonus);
         return Math.max(0, Math.min(100,
                 SCORE_BASE + bonus - upheld * DEDUCT_PER_UPHELD - bans * DEDUCT_PER_BAN));
+    }
+
+    private static java.util.Map<Long, Integer> toCountMap(
+            java.util.List<java.util.Map<String, Object>> rows) {
+        java.util.Map<Long, Integer> out = new java.util.HashMap<>();
+        for (java.util.Map<String, Object> row : rows) {
+            Long uid = asLong(row, "uid", "uid");
+            if (uid != null) {
+                out.put(uid, asInt(row, "cnt", "cnt"));
+            }
+        }
+        return out;
+    }
+
+    private static Long asLong(java.util.Map<String, Object> row, String snake, String camel) {
+        Object v = row.get(snake) != null ? row.get(snake) : row.get(camel);
+        return v instanceof Number n ? n.longValue() : null;
+    }
+
+    private static int asInt(java.util.Map<String, Object> row, String snake, String camel) {
+        Object v = row.get(snake) != null ? row.get(snake) : row.get(camel);
+        return v instanceof Number n ? n.intValue() : 0;
     }
 
     private int quotaTier(int score) {

@@ -33,7 +33,7 @@ public interface CircleAdminService {
     void untopPost(long postId, long me);
 
     /** 下架帖(status=2 软,作者可自查;非物理删)。 */
-    void takedownPost(long postId, long me);
+    void takedownPost(long postId, long me, String reason);
 
     /** 移帖:改归属圈;toCircleId=null 移回广场。 */
     void movePost(long postId, Long toCircleId, long me);

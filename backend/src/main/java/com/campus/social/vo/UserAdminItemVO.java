@@ -47,4 +47,26 @@ public class UserAdminItemVO {
     private LocalDateTime muteUntil;
 
     private LocalDateTime createTime;
+
+    /*
+     * 以下五个字段是 2026-11-07 补的处置依据（此前页面上只有状态标签，
+     * 管理员判「这是个惯犯还是初犯」只能点进主页逐个翻）：
+     * 信誉分与 ReviewTrustService 同一公式（30 天窗口），
+     * 举报数把「用户本身 + 其帖子 + 其评论」三类被举报都算进来。
+     */
+
+    /** 信誉分 0–100（动态计算，与 /user/trust-status 同源公式） */
+    private Integer creditScore;
+
+    /** 被举报总次数（用户/帖子/评论三类目标全时段累计） */
+    private Integer reportCount;
+
+    /** 其中管理员判成立的次数（report.status=1，全时段） */
+    private Integer upheldCount;
+
+    /** 已发布（status=1）且未删除的帖子数 */
+    private Integer postCount;
+
+    /** 累计被封禁次数（audit_log account_ban，全时段） */
+    private Integer banCount;
 }

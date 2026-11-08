@@ -7,6 +7,7 @@ import com.campus.social.dto.UserMuteDTO;
 import com.campus.social.interceptor.AuthInterceptor;
 import com.campus.social.interceptor.RequireAdmin;
 import com.campus.social.service.AdminUserService;
+import com.campus.social.vo.UserAdminDetailVO;
 import com.campus.social.vo.UserAdminPageVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -53,8 +54,19 @@ public class AdminUserController {
             @RequestParam(value = "status", required = false) Integer status,
             @RequestParam(value = "muted", required = false) Boolean muted,
             @RequestParam(value = "cursor", required = false) Long cursor,
+            @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(adminUserService.page(keyword, status, muted, cursor, PageSize.clamp(size)));
+        return Result.ok(adminUserService.page(keyword, status, muted, cursor,
+                PageSize.clamp(size), sort));
+    }
+
+    /**
+     * 用户处置详情（2026-11-08）：基础资料 + 最近举报 + 处置轨迹 + 最近帖子。
+     * 已注销账号额外返回留存与清理时间；404：用户不存在。
+     */
+    @GetMapping("/{userId}/detail")
+    public Result<UserAdminDetailVO> detail(@PathVariable("userId") long userId) {
+        return Result.ok(adminUserService.detail(userId));
     }
 
     /**

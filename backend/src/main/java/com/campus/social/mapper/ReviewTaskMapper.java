@@ -82,30 +82,56 @@ public interface ReviewTaskMapper extends BaseMapper<ReviewTask> {
                              @Param("cutoff") java.time.LocalDateTime cutoff);
 
     /**
-     * 平台队列(管理员):非圈内任务 + 已升级(超窗)的圈内任务。
-     * LEFT JOIN:帖子被删时 p.* 全空,circle_id IS NULL 成立,任务仍对管理员可见
-     * (处置会因帖子不存在被拒,但至少不静默消失)。
+     * 平台队列(管理员):全部待审任务,含圈内任务。
+     *
+     * <p>2026-11-08 修:旧 SQL 把「未升级(24h 内)的圈内任务」从平台队列排除,
+     * 本意是减负;但圈主账号若同时是平台管理员,或圈主恰好没进圈管理抽屉,
+     * 这批任务就两边都看不见——「我的审核记录」显示审核中,管理员却无从处置。
+     * 可见性优先于减负:圈内任务进平台队列,前端用 circleId 标「圈内」,
+     * 圈主队列仍按升级窗口工作(超窗自然滑到平台),两边都能处理,
+     * CAS 占坑保证只有一人生效。
+     */
+    @Select("""
+            <script>
+            SELECT * FROM review_task
+            WHERE status = 0 AND is_deleted = 0
+            <if test="lastId != null"> AND id &lt; #{lastId}</if>
+            ORDER BY id DESC LIMIT #{size}
+            </script>
+            """)
+    List<ReviewTask> selectPendingAll(@Param("lastId") Long lastId,
+                                      @Param("size") int size);
+
+    /** 平台待审数(与上一条同一 WHERE;待办聚合角标用它,口径必须与队列一致) */
+    @Select("SELECT COUNT(*) FROM review_task WHERE status = 0 AND is_deleted = 0")
+    int countPendingAll();
+
+    /**
+     * 指定圈子的待审队列(2026-11-08):圈管理抽屉专用。
+     * 不限升级窗口——圈主打开的就是这个圈,窗口只决定「平台是否接手」,
+     * 不该让圈主在自己的圈里看不到待审内容。权限在 service 层校验。
      */
     @Select("""
             <script>
             SELECT t.* FROM review_task t
             LEFT JOIN post p ON p.id = t.post_id
-            WHERE t.status = 0 AND t.is_deleted = 0
-              AND (p.circle_id IS NULL OR t.create_time &lt; #{cutoff})
+            WHERE t.status = 0 AND t.is_deleted = 0 AND p.circle_id = #{circleId}
             <if test="lastId != null"> AND t.id &lt; #{lastId}</if>
             ORDER BY t.id DESC LIMIT #{size}
             </script>
             """)
-    List<ReviewTask> selectPendingPlatform(@Param("cutoff") java.time.LocalDateTime cutoff,
+    List<ReviewTask> selectPendingByCircle(@Param("circleId") long circleId,
                                            @Param("lastId") Long lastId,
                                            @Param("size") int size);
 
-    /** 平台待审数(与上一条同一 WHERE;待办聚合角标用它,口径必须与队列一致) */
     @Select("""
             SELECT COUNT(*) FROM review_task t
             LEFT JOIN post p ON p.id = t.post_id
-            WHERE t.status = 0 AND t.is_deleted = 0
-              AND (p.circle_id IS NULL OR t.create_time < #{cutoff})
+            WHERE t.status = 0 AND t.is_deleted = 0 AND p.circle_id = #{circleId}
             """)
-    int countPendingPlatform(@Param("cutoff") java.time.LocalDateTime cutoff);
+    int countPendingByCircle(@Param("circleId") long circleId);
+
+    /** 最久一条待审任务的提交时间;无待审返回 null(总览积压告警用) */
+    @Select("SELECT MIN(create_time) FROM review_task WHERE status = 0 AND is_deleted = 0")
+    java.time.LocalDateTime selectOldestPendingCreateTime();
 }

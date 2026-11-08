@@ -15,9 +15,12 @@ import request from '@/utils/request'
 
 /* ---------------- 内容审核(机审队列) ---------------- */
 
-/** 待审队列。游标分页,cursor 传 null 取第一页 */
-export function pending(lastId, size = 20) {
-  return request.get('/review/pending', { params: { lastId, size } })
+/**
+ * 待审队列。游标分页,cursor 传 null 取第一页。
+ * circleId 非空 = 圈管理抽屉的圈内队列(管理员或该圈圈主可看,不限 24h 窗口)。
+ */
+export function pending(lastId, size = 20, circleId) {
+  return request.get('/review/pending', { params: { lastId, size, circleId } })
 }
 
 /** 已处理队列。同 pending 的游标语义 */
@@ -30,14 +33,19 @@ export function approve(id) {
   return request.post(`/review/${id}/approve`)
 }
 
-/** 审核驳回。reason 为空时后端按默认理由落库 */
+/** 审核驳回。理由走 JSON 请求体（后端 @RequestBody ReviewRejectDTO），必填 */
 export function reject(id, reason) {
-  return request.post(`/review/${id}/reject`, null, { params: { reason } })
+  return request.post(`/review/${id}/reject`, { reason })
 }
 
 /** 我提交过的审核历史(普通用户可见) */
 export function mine(lastId, size = 20) {
   return request.get('/review/mine', { params: { lastId, size } })
+}
+
+/** 作者查看单条帖子的审核/下架结果：理由、处理人、处理时间 */
+export function reviewOfPost(postId) {
+  return request.get(`/review/post/${postId}`)
 }
 
 /* ---------------- 举报(用户侧) ---------------- */
@@ -181,6 +189,7 @@ export default {
   approve,
   reject,
   mine,
+  reviewOfPost,
   submitReport,
   adminReports,
   handleReport,

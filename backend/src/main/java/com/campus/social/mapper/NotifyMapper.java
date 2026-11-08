@@ -42,4 +42,8 @@ public interface NotifyMapper extends BaseMapper<Notify> {
     java.util.List<java.util.Map<String, Object>> countByTypeSince(
             @Param("userId") long userId,
             @Param("since") java.time.LocalDateTime since);
+
+    /** 注销留存到期清理：物理删除该用户收到的全部通知（2026-11-08） */
+    @Delete("DELETE FROM notify WHERE user_id = #{userId}")
+    int hardDeleteByUser(@Param("userId") long userId);
 }

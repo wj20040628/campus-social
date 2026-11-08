@@ -104,7 +104,7 @@ graph LR
 | 实时 | Spring 原生 WebSocket | chat / notify 双端点，握手 JWT 鉴权，事务提交后才推送 |
 | 存储 | 阿里云 OSS | 读走短时效签名直链；写当前经服务端中转 |
 
-接口契约见 [`docs/api/openapi.yaml`](docs/api/openapi.yaml)（90 条路径 / 100 个操作），前端 43 条路由定义。
+接口契约见 [`docs/api/openapi.yaml`](docs/api/openapi.yaml)（95 条路径 / 105 个操作），前端 43 条路由定义。
 
 ## 工程质量
 
@@ -174,7 +174,7 @@ cd frontend && npm ci && npm run dev                                 # :5173
 
 线上环境：阿里云 ECS 单机直装（2 核 2G / Ubuntu 22.04 / 3Mbps），Nginx 监听 80 与 443，systemd 托管应用，MySQL 与 Redis 只监听回环，`/healthz` 对外探活。
 
-- **HTTPS**：Let's Encrypt 证书（`CN=yousheng8.cn`，有效期至 2027-01-26），80 端口 301 跳转，443 协商 HTTP/2；ICP 备案已通过（豫ICP备2026053499号）。
+- **HTTPS**：Let's Encrypt 证书（`CN=yousheng8.cn`，有效期至 2027-01-26），80 端口 301 跳转，443 协商 HTTP/2；备案已通过（豫ICP备2026053499号、豫公网安备41082302411216号）。
 - **数据备份**：线上 systemd timer 每日 04:30 全量备份，本地留 14 天并上传 OSS `logs/db/`（控制台 30 天生命周期）；2026-10-29 做过恢复演练（当时 41 张表逐表行数一致，此后下线 buddy 两张预留表，基线为 39 张）。每月 1 日另存 `logs/db-monthly/`，脚本保留最近 12 份；26 小时无成功 watchdog 已安装为 systemd timer。
 - **运维巡检**：`deploy/ops/app_monitor.py` 已安装为 `campus-monitor.timer`，每 5 分钟检查 Nginx 5xx、systemd 重启/失败与 healthz，异常推企业微信；`deploy/ops/restore-check.sh` 已完成 39 表恢复演练；根目录 `release-manifest.json` 固定线上前后端来源。
 
@@ -208,7 +208,7 @@ campus-social/
 | [PRD](docs/PRD.md) | 需求、用户故事与优先级取舍 |
 | [SPEC](docs/SPEC.md) | 详细规格与验收标准 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | 架构决策、成本估算与技术选型依据 |
-| [API 契约](docs/api/openapi.yaml) | OpenAPI 3.0，90 条路径 / 100 个操作 |
+| [API 契约](docs/api/openapi.yaml) | OpenAPI 3.0，95 条路径 / 105 个操作 |
 | [部署清单](docs/DEPLOY_ECS.md) | ECS 从零部署、发布回滚与运维核查 |
 | [测试总结](docs/测试总结-2026-10-25.md) | 四层防线与缺陷分布 |
 | [性能指标与慢查询](docs/ops/performance-metrics.md) | Actuator 指标、5 分钟采样、宝塔 MySQL 慢查询 |
@@ -225,7 +225,7 @@ campus-social/
 <sub>
 GitHub [wj20040628/campus-social](https://github.com/wj20040628/campus-social) ·
 Gitee [wj20040628/campus-social](https://gitee.com/wj20040628/campus-social) ·
-🌐 [yousheng8.cn](https://yousheng8.cn) · 豫ICP备2026053499号
+🌐 [yousheng8.cn](https://yousheng8.cn) · 豫ICP备2026053499号 · 豫公网安备41082302411216号
 </sub>
 
 </div>

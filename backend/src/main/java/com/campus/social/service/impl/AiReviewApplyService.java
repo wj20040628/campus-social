@@ -82,7 +82,7 @@ public class AiReviewApplyService {
                     .set(Post::getStatus, 1)
                     .set(Post::getUpdateTime, java.time.LocalDateTime.now()));
             postService.fanoutOnApproved(postId);
-            pushReviewNotify(post.getAuthorId(), 7, post, "AI 机审通过");
+            pushReviewNotify(post.getAuthorId(), 7, post, "AI 机审通过", null);
             auditService.recordSystem("review_ai_approve", "post", postId,
                     "AI 机审通过: " + v.getReason());
             log.info("ai review: post={} auto-APPROVED, reason={}", postId, v.getReason());
@@ -97,7 +97,7 @@ public class AiReviewApplyService {
                     .eq(Post::getId, postId)
                     .set(Post::getStatus, 2)
                     .set(Post::getUpdateTime, java.time.LocalDateTime.now()));
-            pushReviewNotify(post.getAuthorId(), 8, post, "AI 机审驳回");
+            pushReviewNotify(post.getAuthorId(), 8, post, "AI 机审驳回", v.getReason());
             auditService.recordSystem("review_ai_reject", "post", postId,
                     "AI 机审驳回: " + v.getReason());
             log.info("ai review: post={} auto-REJECTED, reason={}", postId, v.getReason());
@@ -112,13 +112,14 @@ public class AiReviewApplyService {
     }
 
     /** 审核结果通知作者:type=7 通过 / type=8 驳回(与 ReviewServiceImpl 同型) */
-    private void pushReviewNotify(long authorId, int type, Post post, String source) {
+    private void pushReviewNotify(long authorId, int type, Post post, String source, String content) {
         Notify n = new Notify();
         n.setUserId(authorId);
         n.setType(type);
         n.setTargetId(post.getId());
         n.setPostId(post.getId());
         n.setActorId(null); // AI 系统判定,无具体操作人(actor_id 列已改可空,审查 P0-5)
+        n.setContent(content != null && content.length() > 500 ? content.substring(0, 500) : content);
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(authorId, 1);

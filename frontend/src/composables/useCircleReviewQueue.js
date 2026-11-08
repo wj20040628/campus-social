@@ -15,7 +15,12 @@ import { ref, reactive } from 'vue'
 import { ElMessage } from '@/utils/feedback'
 import { pending, approve, reject } from '@/api/review'
 
-export function useCircleReviewQueue() {
+/**
+ * @param {number|string} circleId 当前圈 id;带上它服务端才走「圈内队列」,
+ *   而不是按登录身份分流 —— 圈主账号同时是平台管理员时,后者会返回全平台队列,
+ *   圈管理抽屉就会显示别的圈的任务,真正属于本圈的反而看不到(2026-11-08 修)。
+ */
+export function useCircleReviewQueue(circleId) {
   const list = ref([])
   const total = ref(0)
   const loading = ref(false)
@@ -29,7 +34,7 @@ export function useCircleReviewQueue() {
     loading.value = true
     failed.value = false
     try {
-      const data = await pending(null, 20)
+      const data = await pending(null, 20, circleId)
       list.value = data.list || []
       // total 是服务端按身份算的全量待审数(圈主口径),抽屉标题角标用
       total.value = typeof data.total === 'number' ? data.total : list.value.length

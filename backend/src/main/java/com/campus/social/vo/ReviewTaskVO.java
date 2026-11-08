@@ -14,6 +14,10 @@ import java.util.List;
 public class ReviewTaskVO {
     private Long id;
     private Long postId;
+    /** 所属圈子 id；null = 广场帖（2026-11-08 加，审核台标识来源） */
+    private Long circleId;
+    /** 所属圈子名；null = 广场帖 */
+    private String circleName;
     /** 帖子内容(审核要看) */
     private String content;
     /** 媒体 JSON(若有) */

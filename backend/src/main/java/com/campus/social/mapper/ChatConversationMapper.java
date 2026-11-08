@@ -51,6 +51,11 @@ public interface ChatConversationMapper extends BaseMapper<ChatConversation> {
     @Select("SELECT LAST_INSERT_ID()")
     Long lastConvId();
 
+    /** 注销留存到期清理：物理删除该用户参与的全部会话（2026-11-08） */
+    @org.apache.ibatis.annotations.Delete("DELETE FROM chat_conversation "
+            + "WHERE member_a = #{userId} OR member_b = #{userId}")
+    int hardDeleteByUser(@Param("userId") long userId);
+
     /** 每日对账:按 chat_message(status=0, receiver 侧) 重算双方未读数 */
     @Update("UPDATE chat_conversation c SET "
             + "unread_a = (SELECT COUNT(*) FROM chat_message m "

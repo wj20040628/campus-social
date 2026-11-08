@@ -226,22 +226,13 @@
       @submit="submitActivity"
     />
 
-    <!--
-      帖子管理操作表（2026-10-21 取代卡片下方那条常驻色带）。
-      复用全站的 ActionSheet：它自带遮罩、Esc 关闭、取消区与底部安全区，
-      与「长按消息」「举报」等所有操作表长得一样，用户不需要重新学。
-    -->
-    <ActionSheet v-model="postMenuOpen" title="管理这条帖子">
-      <button type="button" class="asheet__item" @click="runPostAction('top')">
-        {{ postMenuTarget?.isTop ? '取消置顶' : '置顶这条' }}
-      </button>
-      <button type="button" class="asheet__item" @click="runPostAction('takedown')">
-        下架这条
-      </button>
-      <button type="button" class="asheet__item asheet__item--danger" @click="runPostAction('move')">
-        移出该圈
-      </button>
-    </ActionSheet>
+    <!-- 帖子管理操作表 + 下架理由弹窗（2026-11-08 抽出独立组件，下架理由必填） -->
+    <CirclePostMenu
+      v-model="postMenuOpen"
+      :post="postMenuTarget"
+      :circle-id="circleId"
+      @changed="loadPosts"
+    />
   </div>
 </template>
 
@@ -263,12 +254,10 @@ import {
   WarningFilled, ChatLineSquare, EditPen, MoreFilled,
 } from '@element-plus/icons-vue'
 import { useCircleWrites } from '@/composables/useCircleWrites'
-import { useCircleAdminActions } from '@/composables/useCircleAdminActions'
 import { useCircleDetail } from '@/composables/useCircleDetail'
 import { useUserStore } from '@/stores/user'
 import PostCard from '@/components/PostCard.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
-import ActionSheet from '@/components/mobile/ActionSheet.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import CircleHeader from '@/components/circle/CircleHeader.vue'
 import CircleComposer from '@/components/circle/CircleComposer.vue'
@@ -276,6 +265,7 @@ import CircleDetailAside from '@/components/circle/CircleDetailAside.vue'
 import CircleActivities from '@/components/circle/CircleActivities.vue'
 import ActivityForm from '@/components/circle/ActivityForm.vue'
 import CircleManagePanel from '@/components/circle/CircleManagePanel.vue'
+import CirclePostMenu from '@/components/circle/CirclePostMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -298,22 +288,6 @@ const postMenuTarget = ref(null)
 function openPostMenu(p) {
   postMenuTarget.value = p
   postMenuOpen.value = true
-}
-
-/**
- * 执行管理动作。
- *
- * 先关表再执行：动作（置顶/下架/移出）成功后列表会重拉，
- * 如果表还开着，用户会看到「操作表浮在已经刷新的列表上」，
- * 分不清刚才那一下到底生效没有。
- */
-function runPostAction(kind) {
-  const p = postMenuTarget.value
-  postMenuOpen.value = false
-  if (!p) return
-  if (kind === 'top') act.top(p)
-  else if (kind === 'takedown') act.takedown(p)
-  else if (kind === 'move') act.move(p, null)
 }
 
 /** 点触发条打开浮层 */
@@ -344,8 +318,6 @@ const canManage = computed(() => {
 })
 /** 圈内被封禁(软封禁):保留查看,禁发帖/评论/点赞。写口后端 422 */
 const banned = computed(() => !!circle.value?.myBanned)
-/** 帖子操作:置顶/下架/移帖,成功后重载圈内帖子 */
-const act = useCircleAdminActions(circleId, loadPosts, null)
 
 const {
   postContent, postMedia, posting, uploading, postError, submitPost: rawSubmitPost,

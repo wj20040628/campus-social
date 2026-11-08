@@ -193,6 +193,30 @@
   overflow: hidden;
 }
 
+.cm__review-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ys-space-1);
+}
+
+.cm__preset {
+  min-height: 28px;
+  padding: 0 var(--ys-space-2);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-md);
+  background: var(--ys-surface);
+  color: var(--ys-fg);
+  font-size: var(--ys-text-xs);
+  cursor: pointer;
+}
+
+.cm__preset:hover,
+.cm__preset.is-active {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+}
+
 .cm__review-reason {
   min-height: 34px;
   padding: 0 var(--ys-space-2);

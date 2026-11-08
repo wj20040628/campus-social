@@ -17,7 +17,7 @@ info:
     ## 0. 范围声明（本轮实现 / 不实现）
 
     - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，
-      当前实测计数以 `scripts/verify-openapi.py` 为准（2026-10-27：**82 个方法 / 76 条路径**）。
+      当前实测计数以 `scripts/verify-openapi.py` 为准（2026-11-03：**105 个方法 / 95 条路径**）。
       计数不靠人工数——历史上手数与实际差 6 条路径却没人发现，正说明手数不可信。
       帖子域与评论域已补录；`buddy_*` 端点仍仅建表不实现（见下）。
     - **`buddy_*` 端点本轮仅建表不实现，见 SPEC §2.2**。即下列 7 个端点在本文档中
@@ -147,13 +147,16 @@ info:
     name: 内部契约，未开源
 
 servers:
-  - url: https://{host}
-    description: 生产 / 预发。Nginx 将 /api/v1/* 重写为后端内部无前缀路由（ADR-008）
+  - url: https://{host}/api
+    description: |
+      生产。当前线上 Nginx 将 `/api/*` 剥掉前缀转发到后端无前缀路由
+      （见 `deploy/nginx/production.conf`），故对外 base 是 `/api`。
+      ADR-008 规划的 `/api/v1` 版本路由尚未在 Nginx 实施，调用方不要自行加 `/v1`。
     variables:
       host:
-        default: api.yousheng.example
+        default: yousheng8.cn
   - url: http://localhost:8080
-    description: 本地直连后端。此 base 下需去掉 /api/v1 前缀，例如 /chat/send
+    description: 本地直连后端，无 `/api` 前缀，例如 `/chat/send`
 
 security:
   - bearerAuth: []
@@ -592,7 +595,10 @@ paths:
         - name: status
           in: query
           required: false
-          description: 0 正常 / 1 冻结（封禁中）；不传 = 全部
+          description: |
+            0 正常 / 1 冻结（封禁中）/ 2 已注销。
+            不传 = 全部，但 2026-11-07 起「全部」不再包含已注销账号
+            （资料已清空、无法再处置，只在传 status=2 时返回）。
           schema: { type: integer, nullable: true }
         - name: muted
           in: query
@@ -601,6 +607,13 @@ paths:
             true = 只看禁言中（`mute_until > NOW()`）。与 `status` 正交：
             禁言中的账号 status 仍为 0（可登录浏览）。2026-10-31 加。
           schema: { type: boolean }
+        - name: sort
+          in: query
+          required: false
+          description: |
+            created=注册时间（默认，游标为 id）；recentPunish=最近封禁/禁言
+            （游标为偏移量，前端原样回传 nextCursor 即可）。
+          schema: { type: string, enum: [created, recentPunish] }
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size'
       responses:
@@ -612,6 +625,32 @@ paths:
                 $ref: '#/components/schemas/UserAdminPageResponse'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/users/{userId}/detail:
+    get:
+      operationId: adminUserDetail
+      tags: [admin-users]
+      summary: 用户处置详情（含举报、处置轨迹、最近帖子）
+      description: |
+        2026-11-08 新增。列表给处置依据，详情给轨迹：最近 20 条相关举报
+        （用户本身/其帖子/其评论）、最近 20 条账号处置记录、最近 10 条帖子。
+        已注销账号额外返回留存与清理时间。404：用户不存在。
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 用户处置详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAdminDetailResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /admin/users/{userId}/ban:
@@ -734,6 +773,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PendingSummaryResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/overview:
+    get:
+      operationId: adminOverview
+      tags: [admin-summary]
+      summary: 管理总览（待办 + 今日 + 规模 + 风控）
+      description: |
+        2026-11-07 新增。管理端此前只有入口角标，没有一屏能回答
+        「今天有没有异常、站内现在多大规模」。本端点一次回齐四组计数：
+        待办（与 /admin/pending-summary 同一份口径）、今日新增（自然日 00:00 起算）、
+        站内规模、风控（封禁中 / 禁言中）。全部为实时 COUNT，不做缓存。
+      responses:
+        '200':
+          description: 管理总览四组计数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverviewResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenAdmin' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /admin/review/ai-status:
+    get:
+      operationId: adminReviewAiStatus
+      tags: [admin-review]
+      summary: AI 机审配置自检
+      description: |
+        2026-11-08 新增。只回「配没配、缺什么」，绝不回传 API Key。
+        机审未启用时任务会写「未启用 LLM 或缺 key,转人工审核」，
+        本端点让管理员在审核台直接看到缺哪个环境变量。
+      responses:
+        '200':
+          description: 机审配置状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiReviewStatusResponse'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/ForbiddenAdmin' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -5903,7 +5983,7 @@ components:
           description: 1 = 管理员（前端据此隐藏「封禁」按钮）
         status:
           type: integer
-          description: 0 正常 / 1 冻结（封禁中）
+          description: 0 正常 / 1 冻结（封禁中）/ 2 已注销
         bannedUntil:
           type: string
           format: date-time
@@ -5917,6 +5997,21 @@ components:
         createTime:
           type: string
           format: date-time
+        creditScore:
+          type: integer
+          description: 信誉分 0–100（30 天窗口，与 /user/trust-status 同公式；2026-11-07 加）
+        reportCount:
+          type: integer
+          description: 被举报总次数（用户本身 + 其帖子 + 其评论，全时段；2026-11-07 加）
+        upheldCount:
+          type: integer
+          description: 其中管理员判成立的次数（report.status=1，全时段；2026-11-07 加）
+        postCount:
+          type: integer
+          description: 已发布（status=1）且未删除的帖子数；2026-11-07 加
+        banCount:
+          type: integer
+          description: 累计被封禁次数（audit_log account_ban，全时段；2026-11-07 加）
 
     UserAdminPageVO:
       type: object
@@ -5971,6 +6066,91 @@ components:
           maxLength: 200
           description: 必填——半年后回看 audit_log 时「为什么封」只有这一句话可依赖
 
+    AdminOverviewVO:
+      type: object
+      description: 管理总览四组计数（2026-11-07 新增）
+      properties:
+        pending: { $ref: '#/components/schemas/PendingSummaryVO' }
+        activeUsers:
+          type: integer
+          format: int64
+          description: 在册用户（status != 2，含封禁中）
+        cancelledUsers:
+          type: integer
+          format: int64
+          description: 已注销账号（status = 2）
+        bannedUsers:
+          type: integer
+          format: int64
+          description: 封禁中（status = 1）
+        mutedUsers:
+          type: integer
+          format: int64
+          description: 禁言中（status = 0 且 mute_until > NOW()）
+        posts:
+          type: integer
+          format: int64
+          description: 已发布帖子（status = 1，未删除）
+        comments:
+          type: integer
+          format: int64
+          description: 正常评论（status = 1，未删除）
+        circles:
+          type: integer
+          format: int64
+          description: 正常圈子（status = 0）
+        groups:
+          type: integer
+          format: int64
+          description: 正常群组（status = 1）
+        mktActive:
+          type: integer
+          format: int64
+          description: 在投集市（未删除、开启、未过期）
+        announcements:
+          type: integer
+          format: int64
+          description: 已发布公告（status = 1）
+        todayNewUsers:
+          type: integer
+          format: int64
+          description: 今日新增在册用户（自然日 00:00 起算）
+        todayNewPosts:
+          type: integer
+          format: int64
+          description: 今日新发帖子（不含已删除）
+        todayReports:
+          type: integer
+          format: int64
+          description: 今日新增举报
+        yesterdayNewUsers:
+          type: integer
+          format: int64
+          description: 昨日新增在册用户（2026-11-08 加，今日环比用）
+        yesterdayNewPosts:
+          type: integer
+          format: int64
+          description: 昨日新发帖子
+        yesterdayReports:
+          type: integer
+          format: int64
+          description: 昨日新增举报
+        oldestPendingReviewHours:
+          type: integer
+          format: int64
+          description: 最久一条机审待审任务已等待的小时数；无待审为 0
+        oldestPendingReportHours:
+          type: integer
+          format: int64
+          description: 最久一条待处置举报已等待的小时数；无待办为 0
+
+    AdminOverviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/AdminOverviewVO' }
+
     PendingSummaryVO:
       type: object
       properties:
@@ -5996,6 +6176,93 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/PendingSummaryVO' }
+
+    UserAdminDetailVO:
+      type: object
+      description: 用户处置详情（2026-11-08）
+      properties:
+        user: { $ref: '#/components/schemas/UserAdminItemVO' }
+        reports:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserReportBriefVO' }
+        actions:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserActionBriefVO' }
+        posts:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserPostBriefVO' }
+        cancelled:
+          allOf:
+            - $ref: '#/components/schemas/AdminUserCancelledInfoVO'
+          nullable: true
+
+    AdminUserReportBriefVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        targetType: { type: integer, description: 1 用户 / 2 帖子 / 3 评论 }
+        targetId: { type: integer, format: int64 }
+        reasonType: { type: integer, description: 1 骚扰 / 2 广告 / 3 色情 / 4 诈骗 / 5 其他 }
+        reasonText: { type: string, nullable: true }
+        status: { type: integer, description: 0 待审 / 1 成立 / 2 驳回 }
+        createTime: { type: string, format: date-time }
+        handleTime: { type: string, format: date-time, nullable: true }
+        handleAction: { type: string, nullable: true, description: ban/mute/takedown/reject/ignore }
+        handleDays: { type: integer, nullable: true }
+        handleNote: { type: string, nullable: true }
+
+    AdminUserActionBriefVO:
+      type: object
+      properties:
+        action: { type: string }
+        detail: { type: string, nullable: true }
+        createTime: { type: string, format: date-time }
+        operator: { type: string, description: 操作人昵称；系统任务为「系统」 }
+
+    AdminUserPostBriefVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        excerpt: { type: string }
+        status: { type: integer, description: 0 审核中 / 1 通过 / 2 下架 / 3 删除 }
+        likeCount: { type: integer }
+        commentCount: { type: integer }
+        createTime: { type: string, format: date-time }
+
+    AdminUserCancelledInfoVO:
+      type: object
+      properties:
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        retentionDays: { type: integer, format: int64 }
+        purgeDueAt: { type: string, format: date-time, nullable: true }
+        purgedAt: { type: string, format: date-time, nullable: true }
+        policy: { type: string }
+
+    UserAdminDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/UserAdminDetailVO' }
+
+    AiReviewStatusVO:
+      type: object
+      description: AI 机审配置状态（2026-11-08；不含密钥）
+      properties:
+        enabled: { type: boolean }
+        keyConfigured: { type: boolean }
+        provider: { type: string }
+        model: { type: string }
+        baseUrlConfigured: { type: boolean }
+        ready: { type: boolean }
+        hint: { type: string }
+
+    AiReviewStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/AiReviewStatusVO' }
 
     # ---- 文件库（2026-10-27） ----------------------------------------------
 

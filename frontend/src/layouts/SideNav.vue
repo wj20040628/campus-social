@@ -83,6 +83,11 @@
           <!-- 子菜单收起时也要能看见有活：总数挂在外层，不必 hover 才发现 -->
           <AdminPendingBadge :count="pendingTotal" class="side__sub-badge" />
         </template>
+        <!-- 管理总览排最前(2026-11-07):先看全局待办与今日数据，再决定去哪个队列 -->
+        <el-menu-item index="/admin/overview">
+          <el-icon><Odometer /></el-icon>
+          <span>管理总览</span>
+        </el-menu-item>
         <!--
           校园信息核对排第一：2026-10-30 起积压不阻塞任何功能，
           但提交了资料的用户仍在等一个结果，先处理体验更好。
@@ -168,7 +173,7 @@ import { useRouter } from 'vue-router'
 import {
   House, ChatDotSquare, EditPen, ChatDotRound, Promotion,
   Bell, DocumentChecked, List, Postcard, Lock, OfficeBuilding, Collection,
-  ChatLineSquare, UserFilled, FolderOpened,
+  ChatLineSquare, UserFilled, FolderOpened, Odometer,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useAdminPending } from '@/composables/useAdminPending'

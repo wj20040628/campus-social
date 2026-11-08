@@ -38,6 +38,7 @@ public class UserMuteServiceImpl implements UserMuteService {
             until = current;
         }
         userMapper.updateMuteUntil(userId, until);
+        userMapper.touchLastPunish(userId);
         log.info("user muted until {}: user={}, days={}", until, userId, days);
         return until;
     }

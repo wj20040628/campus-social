@@ -14,18 +14,19 @@
     >{{ SITE_ICP }}</a>
     <a
       v-if="SITE_POLICE"
-      class="foot__item foot__link"
-      href="https://beian.mps.gov.cn/"
+      class="foot__item foot__link foot__police"
+      :href="policeHref"
       target="_blank"
-      rel="noopener noreferrer"
-    >{{ SITE_POLICE }}</a>
+      rel="noreferrer"
+    ><img class="foot__icon" src="/beian.png" alt="公安备案图标" width="18" height="20" />{{ SITE_POLICE }}</a>
   </footer>
 </template>
 
 <script setup>
-import { SITE_ICP, SITE_POLICE } from '@/constants/site'
+import { SITE_ICP, SITE_POLICE, SITE_POLICE_CODE } from '@/constants/site'
 
 const year = new Date().getFullYear()
+const policeHref = `https://beian.mps.gov.cn/#/query/webSearch?code=${SITE_POLICE_CODE}`
 </script>
 
 <style scoped>
@@ -49,5 +50,17 @@ const year = new Date().getFullYear()
 .foot__link:hover {
   color: var(--ys-fg);
   text-decoration: underline;
+}
+
+/* 公安备案图标必须在编号之前（备案平台明文要求），图标原始 36×40，按 18×20 等比显示。 */
+.foot__police {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.foot__icon {
+  display: block;
+  flex: none;
 }
 </style>

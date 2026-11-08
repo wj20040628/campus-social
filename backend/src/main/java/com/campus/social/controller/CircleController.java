@@ -111,12 +111,13 @@ public class CircleController {
         return Result.ok();
     }
 
-    /** 圈内帖子下架(status=2 软,作者可自查)。 */
+    /** 圈内帖子下架(status=2 软,作者可自查)。reason 必填，作者会看到处理人。 */
     @PostMapping("/circle/{id}/post/{postId}/takedown")
     public Result<Void> takedownPost(@PathVariable("id") long id, @PathVariable("postId") long postId,
+                                     @RequestParam(value = "reason", required = false) String reason,
                                      HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        circleAdminService.takedownPost(postId, me);
+        circleAdminService.takedownPost(postId, me, reason);
         return Result.ok();
     }
 

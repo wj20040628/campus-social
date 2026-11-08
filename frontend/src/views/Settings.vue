@@ -140,6 +140,7 @@
       <CancelAccountDialog ref="cancelRef" />
 
       <ActionSheet v-model="adminSheetOpen" title="管理后台">
+        <button type="button" class="asheet__item" @click="goAdmin('/admin/overview')">管理总览</button>
         <button
           type="button"
           class="asheet__item"

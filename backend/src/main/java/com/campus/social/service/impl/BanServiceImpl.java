@@ -54,6 +54,7 @@ public class BanServiceImpl implements BanService {
 
     @Override
     public LocalDateTime ban(long userId, int banDays) {
+        userMapper.touchLastPunish(userId);
         if (banDays <= 0) {
             // 永久封禁：从 ZSET 中移除可能存在的旧计划，避免上一轮限期封禁的
             // score 残留导致 job 把它错误地恢复成正常。

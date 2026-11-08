@@ -57,8 +57,8 @@ public class CircleAdminServiceImpl implements CircleAdminService {
 
     @Override
     @Transactional
-    public void takedownPost(long postId, long me) {
-        postModeration.takedownPost(postId, me);
+    public void takedownPost(long postId, long me, String reason) {
+        postModeration.takedownPost(postId, me, reason);
     }
 
     @Override
