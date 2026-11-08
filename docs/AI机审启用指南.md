@@ -45,6 +45,13 @@ Environment=LLM_PROVIDER=claude
 # Environment=LLM_TIMEOUT_SEC=30
 ```
 
+> **先检查旧覆盖项**：如果单元里原本就有 `Environment=LLM_ENABLED=false`（历史模板默认如此），
+> 只在后面追加 `LLM_ENABLED=true` 虽然能靠「后赋值覆盖前赋值」生效，但旧行会持续误导排查。
+> 同时注意模板里的 `Environment=LLM_PROVIDER=claude` 与空的 `Environment=LLM_API_KEY=`
+> 也会覆盖 `application.yml` 的默认值：只把 enabled 改成 true 会立刻提示「缺密钥」，
+> provider 不一致还会让真实调用返回 401。最省事的做法是删掉这三行覆盖项，让包内默认
+> （openai + agnes 端点 + agnes-2.5-flash）生效；或在单元里把 enabled/provider/key 三项都写对。
+
 保存后：
 
 ```bash

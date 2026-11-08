@@ -1,7 +1,7 @@
 {
   "version": "1.13.16",
   "releaseType": "full",
-  "onlineSince": null,
+  "onlineSince": "2026-11-08",
   "sourceState": "committed",
   "git": {
     "frontendSourceCommit": "82e21e34ddeed3b4d3557f94a7d24b5b6c585775",
@@ -41,15 +41,17 @@
     "package": "ys_deploy_20261108_v11316.zip",
     "packageMd5": "5f55dbdde0d77a3ef7751af56fcc8f33",
     "packageBytes": 68650078,
-    "deployedAt": null,
-    "note": "1.13.16 打包完成，待宝塔部署；包内 release-manifest.json 为打包前状态（packageMd5/packageBytes 为 null），以本仓库清单与包内 deploy.sh 的 MD5/哈希校验为准。",
+    "deployedAt": "2026-11-08",
+    "note": "2026-11-08 已由宝塔部署上线；公网入口与包内文件逐字节一致。线上管理总览显示 AI 机审「未启用」，原因是 systemd 单元仍保留 Environment=LLM_ENABLED=false（且可能有 LLM_PROVIDER=claude 与空 LLM_API_KEY 覆盖），不是包内代码或配置缺陷；开启方式见 docs/AI机审启用指南.md。包内 release-manifest.json 为打包前状态（packageMd5/packageBytes 为 null），以本仓库清单与包内 deploy.sh 的 MD5/哈希校验为准。",
     "verified": [
+      "公网 https://yousheng8.cn/ 入口 assets/index-BPbsU6-x.js，与包内 sha256 0906fef4…、336,554 B 逐字节一致（2026-11-08）",
+      "https://yousheng8.cn/healthz 返回 UP，管理后台「管理总览」正常打开",
       "干净 worktree HEAD、标签 v1.13.16 均为 82e21e3；发布提交 91968d3 不含任何 wechat/miniprogram 路径",
       "jar md5 8eece30995c56c1614f639fee03ca685，74,038,247 B；jar 内 0 个 wechat 类、不含 application-local.yml",
-      "前端入口 assets/index-BPbsU6-x.js sha256 0906fef4…，336,554 B；发布 dist 内 0 处微信登录文案（仅保留安全提示中的“微信号”字样）",
       "包内 SHA256SUMS 215 条全部通过；deploy.sh bash -n 通过；zip 216 个条目、零反斜杠",
       "九段迁移中新增两段（user.purged_at、user.last_punish_time）在本地库各连跑两次，幂等通过",
-      "发布分支后端 268/268 用例全绿；前端 11 道门禁全过、生产构建通过"
+      "发布分支后端 268/268 用例全绿；前端 11 道门禁全过、生产构建通过",
+      "本地同版本 GET /admin/review/ai-status 返回已启用（openai / agnes-3.0-flash），确认线上「未启用」由服务器环境变量覆盖导致"
     ]
   }
 }
