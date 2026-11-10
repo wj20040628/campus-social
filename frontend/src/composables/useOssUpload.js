@@ -55,7 +55,7 @@ function buildClient(OSS, sts, uploadHost) {
     stsToken: sts.securityToken,
     bucket,
     secure: true,
-    timeout: 300000, // 视频最大 25MB，弱网可能要 2 分钟以上，与兜底上传同口径
+    timeout: 300000, // 视频最大 10MB，弱网可能要 2 分钟以上，与兜底上传同口径
   })
 }
 

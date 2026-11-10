@@ -3,7 +3,7 @@
  * 浏览器普遍播不了,提前拦下比传完才失败友好(与后端 VideoCodecUtil 同判据)。
  *
  * 扫全文件字节找 HEVC 样本条目 fourcc:hvc1 / hev1 / dvh1 / hvcC。
- * 用 latin1 解码成字符串再 includes 扫描(对 ASCII fourcc 安全),25MB 内可接受。
+ * 用 latin1 解码成字符串再 includes 扫描(对 ASCII fourcc 安全),10MB 内可接受。
  *
  * @param {File} file
  * @returns {Promise<boolean>} true=疑似 HEVC(应拒)

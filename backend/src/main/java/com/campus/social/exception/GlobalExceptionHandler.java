@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -126,6 +127,18 @@ public class GlobalExceptionHandler {
         log.warn("Method not allowed: {}", e.getMethod());
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(Result.fail(ResultCode.METHOD_NOT_ALLOWED));
+    }
+
+    /**
+     * 超过容器 multipart 上限(max-file-size/max-request-size)。
+     * 它在进入 Controller 前抛出,拿不到 kind,只能回通用大小提示;
+     * 不接住会落兜底变 500「服务器内部错误」,误导排查方向。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Result<?>> maxUploadSize(MaxUploadSizeExceededException e) {
+        log.warn("Upload exceeds multipart limit: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(Result.fail(ResultCode.PAYLOAD_TOO_LARGE, "上传文件过大:图片不超过 7.5MB,视频不超过 10MB"));
     }
 
     /** 兜底:未知异常(500) */

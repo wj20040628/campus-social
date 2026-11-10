@@ -8,17 +8,17 @@ import { uploadConfig as uploadConfigApi } from '@/api/feed'
  *
  * 为什么做成模块级单例:发帖(Publish)与圈子发帖(CircleComposer)两处都会
  * 探测,各自拉一次就 2 个请求;挂到模块上缓存,谁先触发谁拉,后续复用。
- * 失败不致命 —— 拉不到就保持「允许视频、用默认 25MB」的乐观值,功能不崩。
+ * 失败不致命 —— 拉不到就保持「允许视频、用默认 10MB」的乐观值,功能不崩。
  *
  * `limits` 是响应式 ref:模板/计算属性里直接读 `limits.videoEnabled` 等,
  * 探测回来后自动更新,不用各组件再各存一份。
  */
 
-// 默认值:与 application.yml 的 upload.max-* 对齐(video 25MB / image 7.5MB)。
+// 默认值:与 application.yml 的 upload.max-* 对齐(video 10MB / image 7.5MB)。
 // 探测成功前先用这套,避免闪烁。
 const DEFAULTS = {
   videoEnabled: true,
-  maxVideoBytes: 25 * 1024 * 1024,
+  maxVideoBytes: 10 * 1024 * 1024,
   maxImageBytes: 7.5 * 1024 * 1024,
 }
 

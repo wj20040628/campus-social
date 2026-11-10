@@ -11,6 +11,7 @@ import com.campus.social.util.FileMagic;
 import com.campus.social.util.ImageCompressService;
 import com.campus.social.util.OssSignUtil;
 import com.campus.social.util.VideoCodecUtil;
+import com.campus.social.util.VideoCompressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +52,7 @@ public class UploadServiceImpl implements UploadService {
     private final UploadFileMapper uploadFileMapper;
     private final OssService ossService;
     private final ImageCompressService imageCompressService;
+    private final VideoCompressService videoCompressService;
 
     @Value("${upload.dir:./uploads}")
     private String baseDir;
@@ -141,6 +143,14 @@ public class UploadServiceImpl implements UploadService {
             }
             thumb = imageCompressService.makeThumbnail(data);
         }
+        // 视频超 720p/30fps 自动压成 720p H.264(降本③);失败/已达标保留原文件
+        if ("video".equals(kind) && videoCompressService.isEnabled()) {
+            byte[] compressed = videoCompressService.compress(data, ext);
+            if (compressed != null) {
+                storeData = compressed;
+                storeExt = "mp4";
+            }
+        }
 
         // 统一对象 key / 相对 URL:uploads/{userId}/{day}/{uuid}.ext
         // OSS 直传与本地兜底共用同一形态,读链路(MediaController P3)按 URL 直接映射回 OSS key,
@@ -177,8 +187,8 @@ public class UploadServiceImpl implements UploadService {
             insertOwnership(thumbRel, userId, "image");
         }
 
-        log.info("upload ok: kind={}, size={}, rel={}, thumb={}, owner={}, oss={}",
-                kind, file.getSize(), rel, thumbRel, userId, ossService.isConfigured());
+        log.info("upload ok: kind={}, size={}, stored={}, rel={}, thumb={}, owner={}, oss={}",
+                kind, file.getSize(), storeData.length, rel, thumbRel, userId, ossService.isConfigured());
         return new UploadResult(rel, thumbRel, kind);
     }
 

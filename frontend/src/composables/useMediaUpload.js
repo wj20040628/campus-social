@@ -9,7 +9,7 @@ import { createVideoPoster } from '@/utils/videoPoster'
 export const MAX_MEDIA = 9
 
 /** 单文件体积上限:走后端 /upload/config 探测(useUploadConfig 单例缓存)。
- *  探测没回来前用默认值(video 25MB / image 7.5MB,与 application.yml 对齐)。
+ *  探测没回来前用默认值(video 10MB / image 7.5MB,与 application.yml 对齐)。
  *  暴露为 computed,让调用方(模板 v-if / beforeUpload)能响应式读到。 */
 const MAX_IMAGE_BYTES = computed(() => limits.value.maxImageBytes)
 const MAX_VIDEO_BYTES = computed(() => limits.value.maxVideoBytes)

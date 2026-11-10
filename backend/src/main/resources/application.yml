@@ -56,16 +56,16 @@ spring:
       database: ${REDIS_DB:0}
       timeout: 3s
   # ------------------------------------------------------------
-  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 25MB)
+  # 文件上传:本地磁盘 + 大小限制(前后端同一标准:图 7.5MB / 视频 10MB)
   #
   # 上限按产品真实上限收口(2026-10-29):此前 request 放到 100MB、Nginx
   # 200MB、Tomcat 200MB,一个异常请求就能把 3Mbps 带宽和临时磁盘吃满。
-  # 30MB 覆盖 25MB 视频 + multipart 开销;文件库文档上限 3MB,不受影响。
+  # 12MB 覆盖 10MB 视频 + multipart 开销;文件库文档上限 3MB,不受影响。
   # ------------------------------------------------------------
   servlet:
     multipart:
-      max-file-size: 25MB
-      max-request-size: 30MB
+      max-file-size: 10MB
+      max-request-size: 12MB
   # 禁用默认静态资源映射(避免 /uploads/** 被拦截)
   web:
     resources:
@@ -131,7 +131,7 @@ upload:
   # 上传目录:相对路径,容器内可挂载
   dir: ${UPLOAD_DIR:./uploads}
   max-image-bytes: 7864320        # 7.5 MB
-  max-video-bytes: 26214400      # 25MB(存储止血;原 50 MB 太大,15 个视频就 169 MB)
+  max-video-bytes: 10485760      # 10MB(2026-11-10 由 25MB 再降,配合下方 720p 压缩控流量;原 50MB)
   # 视频功能总开关:true=正常收视频(受 max-video-bytes 限制);false=彻底关,
   # 拒收一切 video 上传并让前端隐藏视频入口。改这一个值 + 重启即可,零代码回滚。
   video-enabled: true
@@ -161,6 +161,13 @@ upload:
     thumb-edge: ${UPLOAD_IMAGE_THUMB_EDGE:480}
     # WebP 质量 0-100(插件缺失/编码失败自动回退 JPEG,上传永不因压缩失败)
     webp-quality: ${UPLOAD_IMAGE_WEBP_QUALITY:82}
+  # 视频压缩(2026-11-10 降本③):超 720p/30fps 的视频上传时自动重编码为 720p H.264。
+  # 与图片压缩同口径,仅作用于「后端经手字节」的 POST /upload 路径;生产实例 RAM
+  # 角色模式下前端直传自动关闭,全部上传都经此路径。依赖服务器 ffmpeg(静态二进制
+  # 放 /usr/local/bin 即可);缺失/失败自动保留原文件,上传永不因压缩失败。
+  video:
+    compress-enabled: ${UPLOAD_VIDEO_COMPRESS_ENABLED:true}
+    ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
 
 server:
   port: 8080
@@ -170,7 +177,7 @@ server:
   shutdown: graceful
   tomcat:
     # 与 multipart 的 max-request-size 保持一致,避免 Tomcat 先放进来再被 Spring 拒
-    max-http-form-post-size: 30MB
+    max-http-form-post-size: 12MB
     # ----------------------------------------------------------
     # 工作线程上限
     #

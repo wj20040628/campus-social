@@ -14,6 +14,9 @@
  * changelog-archive.js（内容一字未改）；关于页展示完整列表时两处拼接。
  */
 export const CHANGELOG = [
+  { version: '1.13.18', date: '2026-11-10', added: ['上传的视频自动压缩为 720p 高清，加载更快、播放更省流量'],
+    changed: ['单个视频上传上限由 25MB 调整为 10MB'],
+    fixed: [], removed: [] },
   { version: '1.13.17', date: '2026-11-08', added: [],
     changed: [],
     fixed: ['有「审核中」记录时打开「我的审核记录」会报服务器内部错误，现已修复'], removed: [] },

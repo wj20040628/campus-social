@@ -57,6 +57,16 @@ ufw allow 8088        # 备案前
 ufw enable
 ```
 
+**ffmpeg（1.13.18 起，视频上传自动压 720p 的依赖）**：后端默认从 PATH 找 `ffmpeg`（systemd 默认 PATH 含 `/usr/local/bin`）。不装也能跑——压缩自动降级为保留原文件，上传不会失败，但 1080p 原片会直接进 OSS 吃流量。部署包 `ops/` 目录带静态二进制与安装脚本，宝塔终端执行：
+
+```bash
+cd /opt/campus   # 部署包解压目录,以实际为准
+bash ops/install-ffmpeg.sh
+# 幂等:已有含 libx264 的 ffmpeg 会跳过;安装后自检 ffmpeg -hide_banner -encoders | grep libx264
+```
+
+装完无需改配置；`FFMPEG_PATH` 环境变量可覆盖路径，`UPLOAD_VIDEO_COMPRESS_ENABLED=false` 可整体关闭压缩（保留原文件上传）。
+
 建库（字符集与本地一致）：
 
 ```bash
@@ -311,10 +321,10 @@ grep -n "client_max_body_size\|location" /etc/nginx/sites-enabled/default
 三处改动，贴进 **443 正式站点**的 `server { }`（IP 直连块建议同步，应急入口也受同样的限制）：
 
 ```nginx
-    # 1) 上传上限收口:与后端 max-request-size=30MB 对齐,覆盖 25MB 视频 + multipart 开销。
-    #    先看 grep 结果:200m 在哪一层(server 或 /api/ location),就地把那个值改成 32m;
+    # 1) 上传上限收口:与后端 max-request-size=12MB 对齐,覆盖 10MB 视频 + multipart 开销。
+    #    先看 grep 结果:旧值在哪一层(server 或 /api/ location),就地把那个值改成 12m;
     #    若一处都没有,才把下面这行加在 server { } 里。同一层留两条同指令 nginx -t 会报错。
-    client_max_body_size 32m;
+    client_max_body_size 12m;
 
     # 2) 公网探活:外部监控打 https://yousheng8.cn/healthz。
     #    只反代 /actuator/health(show-details=never,响应只有 {"status":"UP"}),
@@ -327,7 +337,7 @@ grep -n "client_max_body_size\|location" /etc/nginx/sites-enabled/default
     }
 
     # 3) 慢连接保护:默认 60s,半开连接会长期占住 worker。
-    #    只在「连续无进展」时计时,正常弱网上传 25MB 视频不受影响。
+    #    只在「连续无进展」时计时,正常弱网上传 10MB 视频不受影响。
     client_header_timeout 15s;
     client_body_timeout 30s;
     send_timeout 60s;
