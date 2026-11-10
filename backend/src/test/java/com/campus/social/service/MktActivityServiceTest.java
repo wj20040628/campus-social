@@ -60,7 +60,7 @@ class MktActivityServiceTest {
     void stubQuota() {
         org.mockito.Mockito.when(trustService.creationQuota(org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(3);
-        // 2026-10-30:create 先过行为门槛（账号年龄+信誉分），trustService 被 mock
+        // 集市发布只校验信誉分（2026-11-10 起不再要求账龄），默认给达标分
         org.mockito.Mockito.when(trustService.creditScore(org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(60);
         ensureUser(OWNER);
@@ -70,6 +70,7 @@ class MktActivityServiceTest {
     /** 造数用的固定 user_id(清理时一起删,避免污染真实数据) */
     private final long OWNER = 9_900_001L;
     private final long OTHER = 9_900_002L;
+    private final long FRESH = 9_900_003L;
 
     private long createdId;
     private final List<Long> myCommentIds = new java.util.ArrayList<>();
@@ -99,11 +100,11 @@ class MktActivityServiceTest {
             // 清掉限流窗口键,避免下次跑测试被 24h/3 次卡住
             clearMktRedisKeys();
             /*
-             * 连测试账号一起删。OWNER/OTHER 是固定 id，下次运行会幂等重建，
-             * 所以这里删掉不会影响用例；不删的话跑完测试库里就总会多出这两个用户，
+             * 连测试账号一起删。OWNER/OTHER/FRESH 是固定 id，下次运行会幂等重建，
+             * 所以这里删掉不会影响用例；不删的话跑完测试库里就总会多出这些用户，
              * 与「只保留真实账号」的意愿相悖。
              */
-            for (long uid : new long[]{OWNER, OTHER}) {
+            for (long uid : new long[]{OWNER, OTHER, FRESH}) {
                 jdbc.update("DELETE FROM user_tag WHERE user_id = ?", uid);
                 jdbc.update("DELETE FROM upload_file WHERE user_id = ?", uid);
                 jdbc.update("DELETE FROM relation WHERE from_user_id = ? OR to_user_id = ?", uid, uid);
@@ -117,7 +118,7 @@ class MktActivityServiceTest {
 
     private void clearMktRedisKeys() {
         for (String key : List.of(
-                "mkt:publish:" + OWNER, "mkt:publish:" + OTHER,
+                "mkt:publish:" + OWNER, "mkt:publish:" + OTHER, "mkt:publish:" + FRESH,
                 "mkt:comment:" + OWNER, "mkt:comment:" + OTHER,
                 "mkt:reactivate:" + createdId)) {
             try {
@@ -159,8 +160,23 @@ class MktActivityServiceTest {
         u.setRole(0);
         u.setPasswordHash("x");
         userMapper.insert(u);
-        // 注册满 4 天：通过发布集市的行为门槛
         jdbc.update("UPDATE user SET create_time = DATE_SUB(NOW(), INTERVAL 4 DAY) WHERE id = ?", uid);
+        return u;
+    }
+
+    /** 刚注册的账号（create_time 为当前时间），用于验证发布不再要求账龄。 */
+    private void ensureFreshUser(long uid) {
+        jdbc.update("DELETE FROM user WHERE id = ?", uid);
+        userMapper.insert(freshUser(uid));
+    }
+
+    private User freshUser(long uid) {
+        User u = new User();
+        u.setId(uid);
+        u.setUsername("mkt_fresh_" + uid);
+        u.setNickname("集市新号" + uid);
+        u.setRole(0);
+        u.setPasswordHash("x");
         return u;
     }
 
@@ -229,6 +245,25 @@ class MktActivityServiceTest {
         MktActivityVO vo = service.detail(id, OTHER);
         assertEquals(MktStatus.LAUNCHING, vo.getStatus());
         assertEquals(dto.getCategory(), vo.getCategory());
+    }
+
+    /** 2026-11-10:集市发布取消 24 小时门槛，刚注册的账号信誉分达标即可发布。 */
+    @Test
+    void create_allowsFreshAccount() {
+        ensureFreshUser(FRESH);
+        Long id = service.create(FRESH, fixTitle());
+        assertNotNull(id);
+        createdId = id;
+    }
+
+    /** 2026-11-10:发布集市只保留信誉分门槛，低于 60 分仍拒绝。 */
+    @Test
+    void create_rejectsLowCreditAccount() {
+        ensureFreshUser(FRESH);
+        org.mockito.Mockito.when(trustService.creditScore(FRESH)).thenReturn(59);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.create(FRESH, fixTitle()));
+        assertEquals(ResultCode.CREDIT_TOO_LOW.getCode(), ex.getCode());
     }
 
     /* ---------------- status 优先级 ---------------- */

@@ -72,7 +72,7 @@
         视频格式说明
       </button>
       <span v-if="showHint" class="cff__hint-text">
-        支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ Math.round(limits.maxVideoBytes / 1024 / 1024) }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
+        支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ Math.round(limits.maxVideoBytes / 1024 / 1024) }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}。如果视频太大，建议上传微信并保存，这样体积会大幅减小。
       </span>
     </p>
   </div>

@@ -151,7 +151,7 @@
             视频格式说明
           </button>
           <span v-if="showVideoHint" class="pub__hint-text">
-            支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}
+            支持 {{ VIDEO_SUPPORTED_FORMATS }}，单条 ≤ {{ maxVideoMB }}MB；{{ VIDEO_UNSUPPORTED_NOTE }}。如果视频太大，建议上传微信并保存，这样体积会大幅减小。
           </span>
         </p>
 

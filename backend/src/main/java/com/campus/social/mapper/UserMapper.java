@@ -100,6 +100,26 @@ public interface UserMapper extends BaseMapper<User> {
     int recomputeUnreadNotifyCount(@Param("userId") Long userId);
 
     /**
+     * 每日对账：按 notify 未读行全量重算（2026-11-10 补）。
+     *
+     * <p>此前 ReconcileJob 的类注释声称对账未读数，但实际只重算了
+     * follower/following——物理删帖等绕开计数的路径留下的漂移永远修不掉。
+     * 只更新确实漂移的行，正常用户不产生写入。
+     */
+    @Update("UPDATE user u SET unread_notify_count = ("
+            + "  SELECT COUNT(*) FROM notify n WHERE n.user_id = u.id AND n.is_read = 0 AND n.is_deleted = 0"
+            + "), update_time = NOW() WHERE u.is_deleted = 0 AND u.unread_notify_count <> ("
+            + "  SELECT COUNT(*) FROM notify n2 WHERE n2.user_id = u.id AND n2.is_read = 0 AND n2.is_deleted = 0"
+            + ")")
+    int reconcileUnreadNotifyCount();
+
+    /** 对账前统计未读数漂移的用户数（只告警不阻断） */
+    @Select("SELECT COUNT(*) FROM user u WHERE u.is_deleted = 0 AND u.unread_notify_count <> ("
+            + "  SELECT COUNT(*) FROM notify n WHERE n.user_id = u.id AND n.is_read = 0 AND n.is_deleted = 0"
+            + ")")
+    int countUnreadNotifyDrift();
+
+    /**
      * 全量对账:一次把所有用户的 follower/following 重算(凌晨跑,简单可靠)。
      * 已注销账号不参与计数：关系行可能保留，但展示层已隐藏，计数必须同口径。
      *

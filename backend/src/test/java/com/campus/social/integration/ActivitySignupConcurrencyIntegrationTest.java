@@ -58,6 +58,18 @@ class ActivitySignupConcurrencyIntegrationTest {
         seededUserIds.clear();
     }
 
+    /** 刚注册的账号（create_time 为当前时间）。 */
+    private long seedFreshUser() {
+        String name = "act-fresh-" + System.nanoTime() + "@campus.test";
+        jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
+                        + "verify_status, stranger_msg_enabled, is_deleted, create_time) "
+                        + "VALUES (?,?,?,0,0,1,0,1,0, NOW())",
+                name, "x", name);
+        long id = jdbc.queryForObject("SELECT id FROM user WHERE username = ?", Long.class, name);
+        seededUserIds.add(id);
+        return id;
+    }
+
     /**
      * 尽力清理,失败不影响断言。两个 @Test 各自在 finally 里调本方法(传自己造的活动 id)。
      *
@@ -162,6 +174,21 @@ class ActivitySignupConcurrencyIntegrationTest {
             assertEquals(CONCURRENT, after.getCurrentCount(), "不限额应累计到并发数");
             assertEquals(CONCURRENT, signupRows);
             assertEquals(0, after.getStatus().intValue(), "不限额永不翻 1");
+        } finally {
+            cleanup(ACTIVITY);
+            cleanupUsers();
+        }
+    }
+
+    /** 2026-11-10:报名活动取消 24 小时门槛，刚注册的账号也能立即报名。 */
+    @Test
+    void freshAccount_canSignupImmediately() {
+        final long ACTIVITY = createActivity(1);
+        long uid = seedFreshUser();
+        try {
+            activityService.signup(ACTIVITY, uid);
+            Activity after = activityMapper.selectById(ACTIVITY);
+            assertEquals(1, after.getCurrentCount(), "新账号注册当天即可报名");
         } finally {
             cleanup(ACTIVITY);
             cleanupUsers();

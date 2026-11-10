@@ -54,6 +54,7 @@ public class PostServiceImpl implements PostService {
     private final LikeMapper likeMapper;
     private final PostFavoriteMapper favoriteMapper;
     private final NotifyMapper notifyMapper;
+    private final com.campus.social.mapper.UserMapper userMapper;
     private final PostNotifySupport notifySupport;
     private final com.campus.social.service.AuditService auditService;
     private final com.campus.social.mapper.PostTopicMapper postTopicMapper;
@@ -147,7 +148,13 @@ public class PostServiceImpl implements PostService {
         // 4.5 帖子-话题关联(并回退话题 post_count)
         postTopicMapper.hardDeleteByPost(postId);
         // 5. 指向该帖的所有通知(按 post_id 删,审查 P0-9:旧按 target_id 删会误删别的帖子评论的通知)
+        //    未读行被物理删除后必须重算接收人的未读计数,否则红点永远消失不了
+        //    (2026-11-10 线上实际发生:仅个别账号长期挂红点且列表里没有未读项)
+        List<Long> unreadRecipients = notifyMapper.selectUnreadUserIdsByPostId(postId);
         notifyMapper.hardDeleteByPostId(postId);
+        for (Long uid : unreadRecipients) {
+            userMapper.recomputeUnreadNotifyCount(uid);
+        }
         // 6. 主表
         postMapper.hardDelete(postId);
 

@@ -32,8 +32,8 @@ public class MktActivityController {
     /**
      * 创建一条集市活动，返回新 id。
      *
-     * <p>校园信息不参与；账号满 1 天 + 信誉 60 由
-     * {@code MktActivityServiceImpl} 的行为门槛兜底。
+     * <p>发布频率、信誉分（≥60）与在投配额由 {@code MktActivityServiceImpl} 校验；
+     * 注册时长不再作为门槛（2026-11-10）。
      */
     @PostMapping
     public Result<Long> create(@Valid @RequestBody MktActivityDTO dto, HttpServletRequest req) {

@@ -69,7 +69,24 @@ public class NotifyServiceImpl implements NotifyService {
     @Override
     public int unreadCount(long userId) {
         User u = userMapper.selectById(userId);
-        return u != null ? u.getUnreadNotifyCount() : 0;
+        if (u == null || u.getUnreadNotifyCount() == null) {
+            return 0;
+        }
+        int count = u.getUnreadNotifyCount();
+        if (count == 0) {
+            return 0;
+        }
+        /*
+         * 自愈(2026-11-10):物理删帖会把别人的未读通知行一起删掉,但历史版本不重算计数,
+         * 留下「红点点不掉、列表里又没有未读项」的幽灵红点(线上仅个别账号出现)。
+         * 计数>0 时用一次 EXISTS 核实,行已不存在就清零;有行时保持原计数不额外 COUNT。
+         */
+        if (notifyMapper.existsUnread(userId) == 0) {
+            userMapper.clearUnreadNotifyCount(userId);
+            log.info("notify unread self-heal: user={}, stale={}", userId, count);
+            return 0;
+        }
+        return count;
     }
 
     /**

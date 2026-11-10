@@ -46,4 +46,20 @@ public interface NotifyMapper extends BaseMapper<Notify> {
     /** 注销留存到期清理：物理删除该用户收到的全部通知（2026-11-08） */
     @Delete("DELETE FROM notify WHERE user_id = #{userId}")
     int hardDeleteByUser(@Param("userId") long userId);
+
+    /**
+     * 物理删除前取该帖「未读」通知的接收人（去重）。
+     * 这些行删掉后必须重算各自的 unread_notify_count，否则红点永远点不掉。
+     */
+    @Select("SELECT DISTINCT user_id FROM notify "
+            + "WHERE post_id = #{postId} AND is_read = 0 AND is_deleted = 0")
+    java.util.List<Long> selectUnreadUserIdsByPostId(@Param("postId") long postId);
+
+    /**
+     * 是否还存在未读通知行（自愈用）。
+     * 计数列 &gt;0 但行已被物理删除时返回 0，调用方据此把计数清零。
+     */
+    @Select("SELECT EXISTS(SELECT 1 FROM notify "
+            + "WHERE user_id = #{userId} AND is_read = 0 AND is_deleted = 0)")
+    int existsUnread(@Param("userId") long userId);
 }

@@ -50,15 +50,13 @@ public class CampusProperties {
     /**
      * 行为信任门槛（2026-10-30，2026-10-31 统一为 24 小时）。
      *
-     * <p>校园信息不再作为功能门槛后，陌生人搭话、建圈、建群、集市发布
-     * 改由「账号注册时间 + 信誉分」判定。阈值放配置而不是写死：
-     * 上线后按举报率调整，不必重新发版。
+     * <p>校园信息不再作为功能门槛后，陌生人搭话、建圈、建群按
+     * 「账号注册时间 + 信誉分」判定；集市发布只看信誉分（2026-11-10）。
+     * 阈值放配置而不是写死：上线后按举报率调整，不必重新发版。
      */
     private int accessStrangerChatMinHours = 24;
     private int accessCreateCircleMinDays = 1;
-    private int accessCreateMktMinDays = 1;
     private int accessCreateGroupMinDays = 1;
-    private int accessActivitySignupMinDays = 1;
     private int accessMinCredit = 60;
 
     public String getSchoolName() {
@@ -133,28 +131,12 @@ public class CampusProperties {
         this.accessCreateCircleMinDays = accessCreateCircleMinDays;
     }
 
-    public int getAccessCreateMktMinDays() {
-        return accessCreateMktMinDays;
-    }
-
-    public void setAccessCreateMktMinDays(int accessCreateMktMinDays) {
-        this.accessCreateMktMinDays = accessCreateMktMinDays;
-    }
-
     public int getAccessCreateGroupMinDays() {
         return accessCreateGroupMinDays;
     }
 
     public void setAccessCreateGroupMinDays(int accessCreateGroupMinDays) {
         this.accessCreateGroupMinDays = accessCreateGroupMinDays;
-    }
-
-    public int getAccessActivitySignupMinDays() {
-        return accessActivitySignupMinDays;
-    }
-
-    public void setAccessActivitySignupMinDays(int accessActivitySignupMinDays) {
-        this.accessActivitySignupMinDays = accessActivitySignupMinDays;
     }
 
     public int getAccessMinCredit() {

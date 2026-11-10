@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
  *
  * <p>校园信息是用户自行填写的资料，平台没有学籍库，不能把它当身份证明。
  * 高风险动作统一改看两件可验证的事：账号注册了多久、信誉分多少。
- * 这里集中判定，避免私信、建圈、建群、集市各写一套阈值。
+ * 这里集中判定，避免私信、建圈、建群各写一套阈值。
+ * 集市发布只看信誉分、不要求账龄（2026-11-10）。
  */
 @Component
 @RequiredArgsConstructor
@@ -47,6 +48,18 @@ public class CampusAccessService {
     }
 
     /**
+     * 只校验信誉分，不校验账龄（2026-11-10，集市发布用）。
+     * 注册后即可发布，但信誉分低于门槛仍拒绝。
+     */
+    public int requireCredit(long userId, String action) {
+        Decision d = evaluate(userMapper.selectById(userId), null, action);
+        if (!d.allowed()) {
+            throw new BusinessException(d.code(), d.message());
+        }
+        return d.score();
+    }
+
+    /**
      * 陌生人搭话门槛的只读探测，不抛异常。
      *
      * <p>会话页要在「发送前」告诉用户这条会话能不能发；只靠发送后报错，
@@ -59,7 +72,7 @@ public class CampusAccessService {
         return d.allowed() ? null : d.message();
     }
 
-    private Decision evaluate(User user, int minAgeHours, String action) {
+    private Decision evaluate(User user, Integer minAgeHours, String action) {
         if (user == null) {
             return new Decision(ResultCode.NOT_FOUND.getCode(), "用户不存在", 0);
         }
@@ -70,11 +83,13 @@ public class CampusAccessService {
             return new Decision(ResultCode.USER_CANCELLED.getCode(), "账号已注销，无法" + action, 0);
         }
 
-        long ageHours = ageHours(user);
-        if (ageHours < minAgeHours) {
-            return new Decision(ResultCode.ACCOUNT_TOO_NEW.getCode(),
-                    "账号注册满 " + durationText(minAgeHours) + "后才能" + action
-                            + "，当前已注册 " + durationText(ageHours), 0);
+        if (minAgeHours != null) {
+            long ageHours = ageHours(user);
+            if (ageHours < minAgeHours) {
+                return new Decision(ResultCode.ACCOUNT_TOO_NEW.getCode(),
+                        "账号注册满 " + durationText(minAgeHours) + "后才能" + action
+                                + "，当前已注册 " + durationText(ageHours), 0);
+            }
         }
 
         int score = trustService.creditScore(user.getId());
@@ -104,16 +119,8 @@ public class CampusAccessService {
         return requireHighRisk(userId, campus.getAccessCreateCircleMinDays() * 24, "创建圈子");
     }
 
-    public int requireCreateMkt(long userId) {
-        return requireHighRisk(userId, campus.getAccessCreateMktMinDays() * 24, "发布集市活动");
-    }
-
     public int requireCreateGroup(long userId, String action) {
         return requireHighRisk(userId, campus.getAccessCreateGroupMinDays() * 24, action);
-    }
-
-    public int requireActivitySignup(long userId) {
-        return requireHighRisk(userId, campus.getAccessActivitySignupMinDays() * 24, "报名活动");
     }
 
     private long ageHours(User user) {

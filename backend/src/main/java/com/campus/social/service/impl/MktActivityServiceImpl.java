@@ -44,7 +44,7 @@ public class MktActivityServiceImpl implements MktActivityService {
     private final MktRateLimiter rateLimiter;
     /** 在投配额(2026-10-25):信誉分档 1/2/3,过期/暂停/删除释放名额 */
     private final ReviewTrustService trustService;
-    /** 行为信任门槛：账号满 1 天 + 信誉 60（校园信息不参与） */
+    /** 集市发布门槛：注册即可，但信誉分需 ≥60（2026-11-10） */
     private final CampusAccessService access;
     private final MktActivityCommentService commentService;
     private final MktActivityVoAssembler assembler;
@@ -55,8 +55,8 @@ public class MktActivityServiceImpl implements MktActivityService {
     @Transactional
     public Long create(long userId, MktActivityDTO dto) {
         rateLimiter.guardPublish(userId);
-        // 行为门槛：账号满 1 天 + 信誉 60；校园信息不参与（2026-10-30）
-        access.requireCreateMkt(userId);
+        // 注册即可发布，但信誉分需 ≥60；不再校验账龄（2026-11-10）
+        access.requireCredit(userId, "发布集市活动");
         // 在投配额:与频率限流互补(429 管太快,这里管太多)
         guardActiveQuota(userId, false, null, "发布");
 
@@ -277,8 +277,8 @@ public class MktActivityServiceImpl implements MktActivityService {
         /*
          * 并发发布时「先 count 再 insert」会同时查到 0，一起越过配额。
          * 锁住 user 行把这段读-算-写串行化；与文件容量配额同一做法。
-         * 在投列表必须用锁定读（FOR UPDATE）：事务前面的行为门槛查询已经
-         * 建立了 REPEATABLE READ 快照，普通快照读看不到等锁期间刚提交的插入。
+         * 在投列表必须用锁定读（FOR UPDATE）：普通快照读可能看不到
+         * 等锁期间刚提交的插入，锁定读始终读取最新已提交数据。
          * 必须在事务内调用。
          */
         userMapper.lockById(userId);

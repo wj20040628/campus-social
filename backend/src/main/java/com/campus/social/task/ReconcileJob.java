@@ -50,12 +50,15 @@ public class ReconcileJob {
         int activityDrift = activityMapper.countCurrentCountDrift();
         int joinedDrift = userMapper.countJoinedCircleDrift();
         int chatDrift = chatConversationMapper.countUnreadDrift();
+        int notifyDrift = userMapper.countUnreadNotifyDrift();
         warnDrift("group_member_count", groupDrift);
         warnDrift("activity_current_count", activityDrift);
         warnDrift("user_joined_circle_count", joinedDrift);
         warnDrift("chat_conversation_unread", chatDrift);
+        warnDrift("user_unread_notify_count", notifyDrift);
 
         int users = userMapper.reconcileAll();
+        int unreadNotify = userMapper.reconcileUnreadNotifyCount();
         int joined = userMapper.reconcileJoinedCircleCount();
         // 顺序依赖:先重算 comment_count(hot 公式 = like + 2*comment,需要最新 comment),
         // 再重算 hot_score,否则 hot 用的是旧 comment_count。
@@ -66,9 +69,9 @@ public class ReconcileJob {
         int activities = activityMapper.reconcileCurrentCount();
         int chats = chatConversationMapper.reconcileUnread();
 
-        log.info("[对账] 完成: users={}, joinedCircles={}, comments={}, hot/like={}, circles={}, "
+        log.info("[对账] 完成: users={}, unreadNotify={}, joinedCircles={}, comments={}, hot/like={}, circles={}, "
                         + "groups={}, activities={}, chatUnread={}, 耗时={}ms",
-                users, joined, comments, hot, circles, groups, activities, chats,
+                users, unreadNotify, joined, comments, hot, circles, groups, activities, chats,
                 System.currentTimeMillis() - t0);
     }
 

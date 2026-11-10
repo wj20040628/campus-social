@@ -118,7 +118,7 @@ async function sendCode() {
   sending.value = true
   try {
     await sendSetPasswordCode()
-    ElMessage.success('验证码已发送，请查收邮箱（含垃圾箱）')
+    ElMessage.success('验证码已发送，请查收邮箱')
     startCd()
   } catch (e) {
     error.value = e?.isBusiness ? (e.message || '验证码没发出去') : '验证码没发出去，稍后再试'

@@ -4,8 +4,7 @@ import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 /**
  * 集市「发布」入口的统一守卫：只拦游客。
- * 账号年龄/信誉分由后端 CampusAccessService 判定；
- * 前端不复制阈值，避免后端调参后前端仍按旧值拦人。
+ * 发布频率、信誉分门槛与在投配额由后端判定；前端不复制阈值，避免后端调参后前端仍按旧值拦人。
  */
 export function useMktPublish() {
   const router = useRouter()

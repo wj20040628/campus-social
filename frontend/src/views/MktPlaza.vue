@@ -224,7 +224,7 @@ async function loadMyMore() {
 /* 属主操作:成功后 reloadMy 刷新「我的发布」 */
 const { edit, toggle, full, reactivate, remove } = useMktOwnerActions(loadMy)
 
-/* 发布入口的游客守卫见 useMktPublish；账号年龄/信誉分由后端判定 */
+/* 发布入口的游客守卫见 useMktPublish；发布频率、信誉分与在投配额由后端判定 */
 function goDetail(id) {
   router.push(`/mkt/${id}`)
 }
