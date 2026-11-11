@@ -56,10 +56,10 @@
     <StateBlock
       v-else-if="topList.length === 0 && normalList.length === 0"
       variant="empty"
-      :title="category === null ? '还没有官方公告' : '这个分类下还没有公告'"
+      :title="category === null ? '还没有公告' : '这个分类下还没有公告'"
       :description="
         category === null
-          ? '学校一发通知,这里就会第一时间出现'
+          ? '有需要通知大家的事情,会在这里发布'
           : '换个分类看看,或者直接看全部'
       "
       :action-label="category === null ? '回首页' : '看全部'"
