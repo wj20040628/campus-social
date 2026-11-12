@@ -12,6 +12,8 @@ import adminRoutes from './admin'
  * 断点纪律:本页禁止任何断点逻辑;EP 的 el-col 响应式属性与设计 Token 错位,禁用。
  */
 const routes = [
+  /* 游客直入入口：线下名片二维码用，守卫里写游客标记后回首页 */
+  { path: '/guest', name: 'guestEntry', component: { render: () => null }, meta: { title: '游客浏览' } },
   {
     path: '/login',
     component: AuthLayout,
@@ -336,6 +338,12 @@ import { ElMessage, ElMessageBox } from '@/utils/feedback'
 
 router.beforeEach(async (to, from, next) => {
   const user = useUserStore()
+
+  if (to.path === '/guest') {
+    if (!user.hasToken) user.enterGuest()
+    next({ path: '/', replace: true })
+    return
+  }
 
   // 未登录 -> 登录页,带 returnUrl 便于登录后跳回
   if (to.meta.requiresAuth && !user.hasToken) {
