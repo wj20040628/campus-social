@@ -32,6 +32,7 @@
           :src="ownerAvatar ? resolveThumb(ownerAvatar) : ''"
           :seed="ownerId || ''"
           :name="ownerNickname"
+          :user-id="ownerId || null"
         />
         <div class="cda__owner-txt">
           <p class="cda__owner-n">{{ ownerNickname }}</p>

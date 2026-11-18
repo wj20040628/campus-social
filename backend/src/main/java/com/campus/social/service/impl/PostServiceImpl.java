@@ -409,8 +409,8 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public void deleteComment(long postId, long commentId, long userId) {
-        commentService.deleteComment(postId, commentId, userId);
+    public int deleteComment(long postId, long commentId, long userId) {
+        return commentService.deleteComment(postId, commentId, userId);
     }
 
     @Override

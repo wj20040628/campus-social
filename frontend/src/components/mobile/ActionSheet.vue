@@ -60,6 +60,7 @@
 import { computed, watch, onBeforeUnmount } from 'vue'
 import { Close } from '@element-plus/icons-vue'
 import SafeArea from './SafeArea.vue'
+import { pauseVideosForDialog, resumeVideosAfterDialog } from '@/utils/mediaPause'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -79,16 +80,38 @@ function close() {
   emit('close')
 }
 
-// 打开时锁背景滚动,关闭时恢复。多个 ActionSheet 叠加会打架,故只锁一次。
+/*
+ * 打开时锁背景滚动,关闭时恢复。多个 ActionSheet 叠加会打架,故只锁一次。
+ * 同一时刻还要挂起页面内视频:操作表本身也是浮层,播放中的视频在部分手机
+ * 浏览器会进入独立原生层,连分享/举报面板也会被画面盖住。复用确认框那套
+ * 「挂起计数 + 卸载 video」,关闭或组件卸载时归还计数。
+ */
+let videoSuspended = false
+
+function syncVideoSuspended(open) {
+  if (open && !videoSuspended) {
+    pauseVideosForDialog()
+    videoSuspended = true
+  } else if (!open && videoSuspended) {
+    resumeVideosAfterDialog()
+    videoSuspended = false
+  }
+}
+
 watch(
   () => props.modelValue,
   (open) => {
     document.body.style.overflow = open ? 'hidden' : ''
+    syncVideoSuspended(open)
   }
 )
 
 onBeforeUnmount(() => {
   document.body.style.overflow = ''
+  if (videoSuspended) {
+    resumeVideosAfterDialog()
+    videoSuspended = false
+  }
 })
 </script>
 

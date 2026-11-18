@@ -43,8 +43,11 @@ public class OssService {
     private final OSS readClient;
     /** 内网域名客户端:ECS 后端读写 OSS 都走它,免公网流量费、不占 3Mbps 出带宽 */
     private final OSS internalClient;
-    /** 自定义域名客户端(CNAME 到桶):只用来生成下载直链;未配置时为 null */
-    private final OSS downloadClient;
+    /**
+     * 自定义域名客户端(CNAME 到桶):所有对外签名 URL(图片/视频 302、文件下载)都走它,
+     * 这样主机名是自家已备案域名,微信 downloadFile 白名单才覆盖得到;未配置时为 null。
+     */
+    private final OSS customDomainClient;
     /** 走 ECS 实例 RAM 角色凭据:读写都不需要固定 AK,由实例元数据自动发放并轮换 */
     private final boolean ecsRoleMode;
 
@@ -58,7 +61,7 @@ public class OssService {
             EcsRamRoleCredentialsProvider creds = new EcsRamRoleCredentialsProvider(props.getEcsRoleName());
             this.readClient = new OSSClientBuilder().build("https://" + props.getEndpoint(), creds);
             this.internalClient = new OSSClientBuilder().build("https://" + props.getInternalEndpoint(), creds);
-            this.downloadClient = buildDownloadClient(creds);
+            this.customDomainClient = buildCustomDomainClient(creds);
             log.info("OSS 使用 ECS 实例 RAM 角色凭据, roleName={}", props.getEcsRoleName().isBlank() ? "(自动发现)" : props.getEcsRoleName());
             if (props.isDirectUploadEnabled()) {
                 log.warn("前端直传需要固定 AK 换 STS, ecs_ram_role 模式下已自动关闭");
@@ -72,29 +75,29 @@ public class OssService {
                     "https://" + props.getInternalEndpoint(),
                     props.getReadAccessKeyId(),
                     props.getReadAccessKeySecret());
-            this.downloadClient = buildDownloadClient(null);
+            this.customDomainClient = buildCustomDomainClient(null);
         } else {
             this.readClient = null;
             this.internalClient = null;
-            this.downloadClient = null;
+            this.customDomainClient = null;
         }
     }
 
     /**
-     * 下载直链客户端：endpoint 换成自定义域名并开启 CNAME 支持，
-     * 生成出来的签名 URL 主机就是自家域名。
+     * 对外签名 URL 客户端：endpoint 换成自定义域名并开启 CNAME 支持，
+     * 生成出来的签名 URL 主机就是自家域名（图片/视频 302 与文件下载共用）。
      *
      * <p>换主机不影响签名：V1 的 canonical resource 固定是 {@code /bucket/key}
      * （见 SDK SignUtils），与 URL 主机无关；OSS 收到 CNAME 请求后按绑定的桶校验。
      */
-    private OSS buildDownloadClient(CredentialsProvider provider) {
-        String domain = props.getCustomDomain();
-        if (domain == null || domain.isBlank()) {
+    private OSS buildCustomDomainClient(CredentialsProvider provider) {
+        String domain = normalizeDomain(props.getCustomDomain());
+        if (domain.isEmpty()) {
             return null;
         }
         ClientBuilderConfiguration cfg = new ClientBuilderConfiguration();
         cfg.setSupportCname(true);
-        String endpoint = "https://" + domain.trim();
+        String endpoint = "https://" + domain;
         if (provider != null) {
             return new OSSClientBuilder().build(endpoint, provider, cfg);
         }
@@ -103,6 +106,23 @@ public class OssService {
         }
         return new OSSClientBuilder().build(endpoint,
                 props.getReadAccessKeyId(), props.getReadAccessKeySecret(), cfg);
+    }
+
+    /** 允许配置成 img.example.com 或 https://img.example.com/，统一成裸主机名。 */
+    private static String normalizeDomain(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String d = raw.trim();
+        if (d.startsWith("https://")) {
+            d = d.substring("https://".length());
+        } else if (d.startsWith("http://")) {
+            d = d.substring("http://".length());
+        }
+        while (d.endsWith("/")) {
+            d = d.substring(0, d.length() - 1);
+        }
+        return d;
     }
 
     /**
@@ -138,7 +158,8 @@ public class OssService {
     }
 
     public String presignGetUrl(String objectKey, String process, int ttlSeconds) {
-        if (readClient == null) {
+        OSS client = customDomainClient != null ? customDomainClient : readClient;
+        if (client == null) {
             throw new IllegalStateException("OSS 未配置");
         }
         Date expiration = new Date(System.currentTimeMillis() + ttlSeconds * 1000L);
@@ -155,7 +176,7 @@ public class OssService {
         if (process != null && !process.isBlank()) {
             req.setProcess(process);
         }
-        URL url = readClient.generatePresignedUrl(req);
+        URL url = client.generatePresignedUrl(req);
         return url.toString();
     }
 
@@ -172,7 +193,7 @@ public class OssService {
      * 「不允许覆盖 Content-Type」限制（2026-10-26 踩过 400）。
      */
     public String presignGetUrlWithDisposition(String objectKey, int ttlSeconds, String disposition) {
-        OSS client = downloadClient != null ? downloadClient : readClient;
+        OSS client = customDomainClient != null ? customDomainClient : readClient;
         if (client == null) {
             throw new IllegalStateException("OSS 未配置");
         }

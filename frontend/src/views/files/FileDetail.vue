@@ -120,7 +120,7 @@
         v-if="!isOwner && detail.status === 1"
         type="button"
         class="fd__report"
-        @click="reportOpen = true"
+        @click="openReport"
       >
         举报这份文件
       </button>
@@ -170,12 +170,14 @@ import {
   isPreviewable,
 } from '@/constants/fileCategories'
 import { useUserStore } from '@/stores/user'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 import { resolveThumb } from '@/utils/resolve'
 import { shareUrl } from '@/utils/shareCard'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const { ensureLogin } = useGuestPrompt()
 
 const detail = ref(null)
 const loading = ref(true)
@@ -211,6 +213,7 @@ const shareSpec = computed(() => {
 const isOwner = computed(
   () => detail.value?.canDelete === true || detail.value?.uploaderId === userStore.userInfo?.id
 )
+const isGuest = computed(() => userStore.isGuest)
 const canInteract = computed(() => detail.value?.status === 1)
 const canDownload = computed(
   () => detail.value && (detail.value.status === 1 || isOwner.value)
@@ -270,6 +273,10 @@ async function download() {
 
 async function toggleLike() {
   if (!canInteract.value) return
+  if (isGuest.value) {
+    ensureLogin('登录后才能点赞文件', toggleLike)
+    return
+  }
   const before = detail.value.myLike
   try {
     if (before) await fileApi.unlike(detail.value.id)
@@ -283,6 +290,10 @@ async function toggleLike() {
 
 async function toggleFavorite() {
   if (!canInteract.value) return
+  if (isGuest.value) {
+    ensureLogin('登录后才能收藏文件', toggleFavorite)
+    return
+  }
   const before = detail.value.myFavorite
   try {
     if (before) await fileApi.unfavorite(detail.value.id)
@@ -317,6 +328,14 @@ async function remove() {
   } finally {
     deleting.value = false
   }
+}
+
+function openReport() {
+  if (isGuest.value) {
+    ensureLogin('登录后才能举报文件')
+    return
+  }
+  reportOpen.value = true
 }
 
 function formatTime(t) {

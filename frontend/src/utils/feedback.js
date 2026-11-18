@@ -49,6 +49,36 @@ import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import 'element-plus/es/components/message/style/css.mjs'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index.mjs'
 import 'element-plus/es/components/message-box/style/css.mjs'
+import { pauseVideosForDialog, resumeVideosAfterDialog } from '@/utils/mediaPause'
+
+/*
+ * 所有确认框/输入框打开前先挂起页面内视频：
+ * 移动端浏览器会把播放中的视频提到独立原生层，弹窗会被画面盖住；
+ * 部分浏览器暂停也不收回原生层，所以同时让 PostVideo 卸载 video 元素。
+ * 就地包装单例方法，patchMessageBox 随后写 _context 仍然生效。
+ */
+function wrapBox(method) {
+  return function (...args) {
+    pauseVideosForDialog()
+    let ret
+    try {
+      ret = method.call(this, ...args)
+    } catch (e) {
+      resumeVideosAfterDialog()
+      throw e
+    }
+    if (ret && typeof ret.then === 'function') {
+      // 确认或取消都要恢复；不另建 Promise，避免未处理的 rejection
+      ret.then(resumeVideosAfterDialog, resumeVideosAfterDialog)
+    } else {
+      resumeVideosAfterDialog()
+    }
+    return ret
+  }
+}
+ElMessageBox.confirm = wrapBox(ElMessageBox.confirm)
+ElMessageBox.prompt = wrapBox(ElMessageBox.prompt)
+ElMessageBox.alert = wrapBox(ElMessageBox.alert)
 
 export { ElMessage, ElMessageBox }
 

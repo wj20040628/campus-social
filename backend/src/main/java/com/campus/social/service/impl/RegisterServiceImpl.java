@@ -11,12 +11,12 @@ import com.campus.social.service.AuditService;
 import com.campus.social.service.CampusVerifyService;
 import com.campus.social.service.RegisterService;
 import com.campus.social.service.VerifyCodeService;
+import com.campus.social.service.support.AdminRegistrationAlertService;
 import com.campus.social.service.support.TokenService;
 import com.campus.social.util.JwtUtil;
 import com.campus.social.vo.TokenPairVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +25,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import static com.campus.social.common.ResultCode.*;
 
 /**
- * 注册与自动建号。
+ * 注册建号。
  *
  * <p>2026-10-21 口径：邮箱必填且需验证码验证所有权；学号选填，填了走归属与核验流程，
- * 不填则注册为未填写状态。验证码登录遇到未注册邮箱时复用 {@link #createEmailAccount}。
+ * 不填则注册为未填写状态。验证码登录不再自动建号（2026-11-14），建号只走这里。
  */
 @Slf4j
 @Service
@@ -40,6 +40,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final AuditService auditService;
     private final CampusVerifyService campusVerifyService;
     private final TokenService tokenService;
+    private final AdminRegistrationAlertService adminRegistrationAlertService;
 
     @Override
     @Transactional
@@ -69,7 +70,9 @@ public class RegisterServiceImpl implements RegisterService {
         // username 存邮箱：学号记不住、填错改不了，且对外不得显示学号
         user.setUsername(email);
         user.setPasswordHash(JwtUtil.hashPassword(dto.getPassword()));
-        user.setNickname(dto.getNickname());
+        // 昵称选填：留空走自动生成
+        String nickname = dto.getNickname() == null ? "" : dto.getNickname().trim();
+        user.setNickname(nickname.isEmpty() ? autoNickname() : nickname);
         user.setEmail(email);
         user.setStudentNo(withStudentNo ? studentNo : null);
         user.setStatus(0);
@@ -102,36 +105,9 @@ public class RegisterServiceImpl implements RegisterService {
         log.info("register: uid={}, email={}, studentNo={}, verified={}",
                 user.getId(), UserVoAssembler.maskUsername(email),
                 withStudentNo ? UserVoAssembler.maskUsername(studentNo) : "-", withStudentNo);
+        adminRegistrationAlertService.record(user);
         // 注册默认不勾记住我（记住我是密码登录的优化项）
         return tokenService.issue(user.getId(), user.getUsername(), false);
-    }
-
-    @Override
-    public User createEmailAccount(String email) {
-        User user = new User();
-        user.setUsername(email);
-        user.setEmail(email);
-        user.setNickname(autoNickname());
-        user.setPasswordHash(JwtUtil.PASSWORD_UNSET);
-        user.setStatus(0);
-        user.setRole(0);
-        user.setVerifyStatus(0);
-        user.setOnboardingStep(0);
-        try {
-            userMapper.insert(user);
-        } catch (DuplicateKeyException e) {
-            // 并发建号失败：对方已建好就直接用那一行，不把并发变成报错
-            User existing = userMapper.selectByEmail(email);
-            if (existing != null) {
-                return existing;
-            }
-            throw new BusinessException(EMAIL_ALREADY_BOUND, "该邮箱暂时无法用于登录,请联系管理员");
-        }
-        auditService.record(user.getId(), "register", "user", user.getId(),
-                "email=" + email + ", 邮箱验证码自动建号(未设密码)", null);
-        log.info("auto register by email code: uid={}, email={}",
-                user.getId(), UserVoAssembler.maskUsername(email));
-        return user;
     }
 
     /** 「用户」+ 6 位随机，先查重；三次都撞退化到 9 位（并发极小概率） */

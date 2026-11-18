@@ -11,7 +11,7 @@
     375px 下缩进三层后正文只剩不到 200px 宽,长评论会折成五六行。
   -->
   <li :id="`comment-${node.id}`" class="c-item" :class="`c-item--d${depth}`">
-    <InitialAvatar :size="depth === 0 ? 32 : 24" :src="node.user?.avatarUrl ? resolveThumb(node.user.avatarUrl) : ''" :seed="node.user?.id" :name="node.user ? displayName(node.user) : ''" />
+    <InitialAvatar :size="depth === 0 ? 32 : 24" :src="node.user?.avatarUrl ? resolveThumb(node.user.avatarUrl) : ''" :seed="node.user?.id" :name="node.user ? displayName(node.user) : ''" :user-id="node.user?.id" />
 
     <div class="c-body">
       <p class="c-nick">
@@ -117,6 +117,7 @@
           :my-id="myId"
           :overflow-of="overflowOf"
           @reply="emit('reply', $event)"
+          @delete="emit('delete', $event)"
           @go-user="emit('go-user', $event)"
           @load-children="emit('load-children', $event)"
         />

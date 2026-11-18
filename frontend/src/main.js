@@ -3,6 +3,11 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { useUserStore } from './stores/user'
+/*
+ * 匿名访问统计（2026-11-14）。必须是静态 import：入口路径 /guest 在模块
+ * 加载时就要抓下来，晚一步路由已经把它 replace 成 / 了。
+ */
+import { startVisitTracking } from './utils/visitTrack'
 
 /* ---------------------------------------------------------------------------
  * 引入顺序即 CSS 优先级,不可调换(SPEC §11 坑 5 / ADR-009)
@@ -73,4 +78,13 @@ startTokenRenew()
 const userStore = useUserStore()
 if (userStore.hasToken) {
   userStore.fetchMe().catch(() => {})
+}
+
+/*
+ * 游客/扫码统计（2026-11-14）：只上报未登录的浏览器。游客没有账号，
+ * 服务端认不出「一次浏览」，只能靠前端匿名 ID 与心跳汇总；已登录用户
+ * 不计入游客指标，也就不上报，少收集一份数据。
+ */
+if (!userStore.hasToken) {
+  startVisitTracking({ isGuest: () => userStore.isGuest })
 }

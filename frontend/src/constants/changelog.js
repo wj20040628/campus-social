@@ -14,6 +14,9 @@
  * changelog-archive.js（内容一字未改）；关于页展示完整列表时两处拼接。
  */
 export const CHANGELOG = [
+  { version: '1.13.20', date: '2026-11-17', added: [],
+    changed: ['新注册账号无需等待，注册后即可私信、建圈、建群', '注册成功直接进入首页'],
+    fixed: [], removed: [] },
   { version: '1.13.18', date: '2026-11-10', added: ['上传的视频自动压缩为 720p 高清，加载更快、播放更省流量'],
     changed: ['单个视频上传上限由 25MB 调整为 10MB'],
     fixed: [], removed: [] },

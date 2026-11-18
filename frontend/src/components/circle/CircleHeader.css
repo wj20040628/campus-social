@@ -83,6 +83,15 @@
   cursor: not-allowed;
 }
 
+/* 封禁成员不可退圈：只作状态说明，不再呈现为可点按钮 */
+.cd__leave--banned {
+  display: inline-flex;
+  align-items: center;
+  border-color: var(--ys-warning);
+  color: var(--ys-warning);
+  cursor: default;
+}
+
 .cd__manage {
   flex: none;
   display: inline-flex;

@@ -36,6 +36,10 @@ public class WriteRateLimitInterceptor implements HandlerInterceptor {
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
     private static final String PREFIX = "rl:w:";
 
+    /**
+     * userLimit = 0 表示「只按 IP 限」：用于游客可调的匿名端点，
+     * 这类请求没有 userId，双维度限频在这里没有意义。
+     */
     private record Rule(String action, String method, String pattern,
             long windowMs, int userLimit, int ipLimit, String message) {
     }
@@ -68,7 +72,18 @@ public class WriteRateLimitInterceptor implements HandlerInterceptor {
             new Rule("group-create", "POST", "/group", 3_600_000, 5, 30,
                     "创建群聊太频繁，请稍后再试"),
             new Rule("circle-create", "POST", "/circle", 3_600_000, 5, 30,
-                    "创建圈子太频繁，请稍后再试")
+                    "创建圈子太频繁，请稍后再试"),
+            /*
+             * 匿名访问上报(2026-11-14):游客没有 userId,只能按 IP 限。
+             * 校园网常共用出口 IP，上限要容得下多标签页心跳；这里只拦
+             * 明显的脚本刷量，全站兜底仍由 Nginx 限流负责。
+             * enter 每次浏览只发一次，但线下投放时可能整班同时扫码，
+             * 上限按一次活动数百人留足余量。
+             */
+            new Rule("visit-enter", "POST", "/visit/enter", 60_000, 0, 600,
+                    "访问记录提交太频繁，请稍后再试"),
+            new Rule("visit-ping", "POST", "/visit/ping", 60_000, 0, 3000,
+                    "访问记录提交太频繁，请稍后再试")
     );
 
     private final RedisLua redisLua;
@@ -86,9 +101,10 @@ public class WriteRateLimitInterceptor implements HandlerInterceptor {
         if (rule == null) {
             return true;
         }
-        Object attr = request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        if (!(attr instanceof Long userId)) {
-            // 未登录请求由 AuthInterceptor 先行 401，这里不重复处理
+        Long userId = request.getAttribute(AuthInterceptor.ATTR_USER_ID) instanceof Long id ? id : null;
+        boolean ipOnly = rule.userLimit() <= 0;
+        if (!ipOnly && userId == null) {
+            // 需要登录态；未登录请求由 AuthInterceptor 先行 401，这里不重复处理
             return true;
         }
         String ip = RequestIp.of(request);
@@ -101,8 +117,11 @@ public class WriteRateLimitInterceptor implements HandlerInterceptor {
         String ipKey = PREFIX + rule.action() + ":ip:" + ip;
         boolean allowed;
         try {
-            allowed = redisLua.tryAcquireBoth(userKey, rule.userLimit(),
-                    ipKey, rule.ipLimit(), nowMs, rule.windowMs(), member);
+            allowed = ipOnly
+                    ? redisLua.tryAcquire(ipKey, nowMs - rule.windowMs(), rule.ipLimit(),
+                            nowMs, member, rule.windowMs())
+                    : redisLua.tryAcquireBoth(userKey, rule.userLimit(),
+                            ipKey, rule.ipLimit(), nowMs, rule.windowMs(), member);
         } catch (Exception e) {
             meterRegistry.counter("campus.rate_limit.fail_open", "action", rule.action()).increment();
             log.warn("write rate limit unavailable, fail-open: action={}, userId={}",

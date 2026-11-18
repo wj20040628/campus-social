@@ -17,12 +17,25 @@
     接 @error 把本地 broken 置真、src 置空,让它走 v-else 的首字分支。
     放在这里而不是每个调用点:任何列表都可能出现坏头像,不该由调用方逐个处理。
   -->
-  <el-avatar v-if="src && !broken" :size="size" :src="src" class="ia" @error="broken = true" />
-  <span v-else class="ia ia--ini" :style="iniStyle" aria-hidden="true">{{ initial }}</span>
+  <span class="ia-wrap" :style="{ width: size + 'px', height: size + 'px' }">
+    <el-avatar v-if="src && !broken" :size="size" :src="src" class="ia" @error="broken = true" />
+    <span v-else class="ia ia--ini" :style="iniStyle" aria-hidden="true">{{ initial }}</span>
+    <!-- 在线点：绿=在线，灰=离线/隐身。仅传了真实 userId 的头像才显示 -->
+    <span
+      v-if="hasPresence"
+      class="ia-dot"
+      :class="{ 'ia-dot--on': online }"
+      :style="dotStyle"
+      role="img"
+      :aria-label="online ? '在线' : '离线'"
+    />
+  </span>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ensurePresence, isOnline } from '@/utils/presence'
+import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
   /** 头像地址。空串 = 没有图,走首字母圆 */
@@ -32,6 +45,10 @@ const props = defineProps({
   /** 昵称,取首字。脱敏昵称(匿**)也只用第一个字,不泄露更多 */
   name: { type: String, default: '' },
   size: { type: Number, default: 40 },
+  /** 真实用户 id；传了才查在线状态并画绿点（匿名/圈子/群不传） */
+  userId: { type: [String, Number], default: null },
+  /** 某些场景不想显示在线点（如匿名头像）可显式关掉 */
+  showPresence: { type: Boolean, default: true },
 })
 
 /** 暖色系六色。浅底 + 暖墨字,对比度全部 >= 4.5(字色 --ys-fg) */
@@ -51,6 +68,32 @@ watch(
 
 const initial = computed(() => props.name.trim().charAt(0) || '友')
 
+/** 游客不画点：未登录查不到在线状态，全灰点等于误导 */
+const userStore = useUserStore()
+
+const hasPresence = computed(
+  () =>
+    props.showPresence &&
+    props.userId != null &&
+    String(props.userId) !== '' &&
+    !!userStore.accessToken,
+)
+const online = computed(() => hasPresence.value && isOnline(props.userId))
+const dotStyle = computed(() => {
+  const d = props.size >= 36 ? 8 : 6
+  return { width: d + 'px', height: d + 'px' }
+})
+
+onMounted(() => {
+  if (hasPresence.value) ensurePresence(props.userId)
+})
+watch(
+  () => props.userId,
+  (id) => {
+    if (hasPresence.value) ensurePresence(id)
+  },
+)
+
 const iniStyle = computed(() => {
   const s = String(props.seed ?? '')
   let h = 0
@@ -65,6 +108,12 @@ const iniStyle = computed(() => {
 </script>
 
 <style scoped>
+.ia-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  border-radius: var(--ys-radius-full);
+}
 .ia { flex: none; }
 .ia--ini {
   display: inline-flex;
@@ -74,5 +123,19 @@ const iniStyle = computed(() => {
   font-weight: var(--ys-weight-semibold);
   color: var(--ys-fg);
   line-height: 1;
+}
+/* 点位压在头像右下边缘，2px 底色描边把它从头像上「抠」出来 */
+.ia-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-meta);
+  border: 1.5px solid var(--ys-surface);
+  box-sizing: content-box;
+  pointer-events: none;
+}
+.ia-dot--on {
+  background: #22c55e;
 }
 </style>

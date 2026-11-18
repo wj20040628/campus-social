@@ -33,9 +33,14 @@ export function usePostDetailActions(route, router) {
 
   const { ensureLogin: promptLogin } = useGuestPrompt()
 
-  /** 详情页游客点点赞/收藏:先弹说明,愿意登录再带 returnUrl 跳转 */
-  function ensureLogin() {
-    return promptLogin('登录之后才能点赞和收藏，现在去登录吗？')
+  /**
+   * 详情页游客点点赞/收藏:先弹说明,愿意登录再带 returnUrl 跳转。
+   * action 传当前动作本身,登录成功后由 runPendingGuestAction 补做一次;
+   * 因此动作内部不能再依赖 route.params(回放时路由已在登录页),
+   * 统一改用 post.value.id。
+   */
+  function ensureLogin(action) {
+    return promptLogin('登录之后才能点赞和收藏，现在去登录吗？', action)
   }
 
   async function load() {
@@ -81,14 +86,15 @@ export function usePostDetailActions(route, router) {
 
   async function toggleLike() {
     if (!post.value) return
-    if (!(await ensureLogin())) return
+    if (!(await ensureLogin(toggleLike))) return
+    const postId = post.value.id
     const wasLiked = !!post.value.liked
     const wasCount = Number(post.value.likeCount) || 0
     post.value.liked = !wasLiked
     post.value.likeCount = Math.max(0, wasCount + (wasLiked ? -1 : 1))
     try {
-      if (wasLiked) await unlike(route.params.id)
-      else await like(route.params.id)
+      if (wasLiked) await unlike(postId)
+      else await like(postId)
     } catch {
       // 原样回滚。计数也不能用「减一」糊弄 —— 后端可能有并发别人的赞,
       // 真实值要以服务端为准,所以恢复的是我们自己改之前的那个值
@@ -148,14 +154,15 @@ export function usePostDetailActions(route, router) {
   /** 收藏/取消收藏(2026-10-24 补详情页入口):乐观更新+失败回滚,与 toggleLike 同款 */
   async function toggleFavorite() {
     if (!post.value) return
-    if (!(await ensureLogin())) return
+    if (!(await ensureLogin(toggleFavorite))) return
+    const postId = post.value.id
     const wasFav = !!post.value.favorited
     const wasCount = Number(post.value.favoriteCount) || 0
     post.value.favorited = !wasFav
     post.value.favoriteCount = Math.max(0, wasCount + (wasFav ? -1 : 1))
     try {
-      if (wasFav) await unfavoriteApi(route.params.id)
-      else await favoriteApi(route.params.id)
+      if (wasFav) await unfavoriteApi(postId)
+      else await favoriteApi(postId)
     } catch {
       post.value.favorited = wasFav
       post.value.favoriteCount = wasCount
@@ -165,10 +172,12 @@ export function usePostDetailActions(route, router) {
 
   async function removeComment(commentId) {
     try {
-      await deleteCommentApi(route.params.id, commentId)
+      const res = await deleteCommentApi(route.params.id, commentId)
       ElMessage.success('评论已删除')
       await loadComments()
-      if (post.value.commentCount > 0) post.value.commentCount -= 1
+      // 后端按整棵子树删除并返回实际行数；只减 1 会让「评论 N」在刷新前虚高
+      const removed = Number(res?.count) || 1
+      post.value.commentCount = Math.max(0, (post.value.commentCount || 0) - removed)
     } catch {
       /* request.js 已弹错,停在原地 */
     }

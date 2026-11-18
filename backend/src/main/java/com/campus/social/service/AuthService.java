@@ -89,7 +89,7 @@ public interface AuthService {
      */
     void changePassword(long userId, ChangePasswordDTO dto);
 
-    /** 无密码账号(邮箱验证码自动建号)发设置密码验证码,发到绑定邮箱 */
+    /** 无密码账号发设置密码验证码,发到绑定邮箱 */
     String sendSetPasswordCode(long userId);
 
     /** 无密码账号凭邮箱验证码首次设置密码 */

@@ -241,6 +241,9 @@ Environment=OSS_BUCKET=yousheng-uploads
 Environment=OSS_REGION=cn-hangzhou
 Environment=OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 Environment=OSS_INTERNAL_ENDPOINT=oss-cn-hangzhou-internal.aliyuncs.com
+# 媒体读链路自定义域名(CNAME 到桶)。留空=仍 302 到 OSS 默认域名；
+# 填 img.yousheng8.cn 可让媒体链接走自家域名，更可信。
+Environment=OSS_CUSTOM_DOMAIN=
 Environment=OSS_STS_ENDPOINT=sts.cn-hangzhou.aliyuncs.com
 Environment=OSS_ROLE_ARN=acs:ram::1930391355152122:role/oss-uploader-role
 Environment=OSS_CALLBACK_URL=https://yousheng8.cn/upload/oss-callback
@@ -302,12 +305,18 @@ journalctl -u campus -f    # 看启动日志，确认无 IllegalStateException�
 > `conf.d/` 是空目录），前端根目录 `/opt/campus/web`，共三个 server 块：
 > ① IP 直连 80（应急）② 域名 80（301 → https）③ 443 正式站点（Let's Encrypt 证书，
 > 含 `/healthz`、`/api/`、`/upload/`、`/uploads/`、`/ws/`、`/assets/`、`= /index.html`、`/`）。
-> 仓库镜像见 `deploy/nginx/production.conf`（2026-10-30 20:50 CST 抓取）。
+> 仓库镜像见 `deploy/nginx/production.conf`（2026-10-30 抓取，2026-11-13 补过载保护）。
 > **不要整体套用下面的备案前模板**，它只作存档；线上改动一律按 6.1 的增量补丁做。
 >
 > 2026-10-30 已补：gzip（JS/CSS/JSON）、`/upload/` OSS 回调反代、`/assets/` 一年缓存。
-> 线上仍**没有** per-IP 限流：校园网常见多人共用一个 NAT 出口，按 IP 限 20r/s 会误伤正常用户；
-> Docker 模板里的限流仅作参考，未应用到生产。
+> 2026-11-13 起增加过载保护（r7.2 包内 `nginx/production.conf` + `nginx/apply-nginx.sh`，
+> deploy.sh 最后一步自动应用，失败只回滚 Nginx、不影响 jar/web）：
+> `/api/` 全站限流 300r/s（burst 600，超限 429）、全站连接上限 1600（低于后端
+> max-connections=2000）、静态文件句柄缓存与 sendfile。
+> 仍**不做** per-IP 限流：校园网常见多人共用一个 NAT 出口，按 IP 限 20r/s 会误伤整栋楼；
+> 单 IP 恶意刷接口交给云盾/WAF，不在站点层解决。Docker 模板里的限流仅作参考。
+> 手工应用/回滚：`bash nginx/apply-nginx.sh`；脚本会先做健康检查、锚点漂移检查、
+> 备份线上文件，`nginx -t` 失败或 reload 后探活失败都会自动恢复原配置。
 
 ### 6.1 本次上线增量补丁（1.11.0，2026-10-29）
 
@@ -707,9 +716,11 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 
 - 日常稳定支撑约 **80–150 人同时在用**，长连接在线约 300–500 人，课间集中冷启动 20–40 人就会排队。
 - 容量不够时按这个顺序加，不要乱花钱：
-  1. **首页 feed 第一页进 Redis 缓存 60 秒** —— 零成本，砍掉最大热点查询。
+  1. ~~**首页 feed 第一页进 Redis 缓存 60 秒**~~ —— 已做（1.13.7）。2026-11-13 又把
+     「头像在线状态」与顶栏「用户数/在线数」加进 Redis（30 秒，隐身切换立即失效），
+     热门时段这部分轮询不再每次查库。
   2. **BCrypt cost 12 → 10** —— 登录耗时降到约 1/4（现在 2 核每秒只能处理 5–6 次登录，中午下课会排长队）。
-  3. **前端静态资源挂 CDN** —— 3Mbps 出带宽是首屏瓶颈，图片已走 OSS 签名 URL 不占带宽，JS/CSS 再上 CDN 后 ECS 只出 JSON。
+  3. **前端静态资源挂 CDN** —— 3Mbps 出带宽是首屏瓶颈，图片已走 OSS 签名 URL 不占带宽，JS/CSS 再上 CDN 后 ECS 只出 JSON。Nginx 侧的静态缓存头与句柄缓存已就绪（r7.2），差的只是 CDN/OSS 控制台配置，步骤见 13.3。
   4. **升到 2核4G** —— 真正解决问题的一步，内存翻倍后 swap 消失。
   5. **后端多实例** —— 前提是先把 `WsSessionManager` 改成 Redis pub/sub。它现在是单机内存态，直接开第二个实例会漏推消息。
 
@@ -726,6 +737,14 @@ vmstat 1 5    # si/so 两列必须是 0，非 0 就是物理内存仍不够，�
 - **不能拿首页探活**：`/` 和任何前端路径都会被 SPA 回退成 200 index.html，后端、MySQL 全挂了首页照样 200。
 - 后端日志：`journalctl -u campus -f`，或 `/opt/campus/app.log`、`/opt/campus/error.log`。
 - 前端报错：浏览器 Console + Network；`silent:true` 的请求只压 toast，Console 仍会打印（如 503 直传降级），属正常降级信号非失败。
+
+### 11.1 新用户注册提醒（2026-11-13 起）
+
+- 注册成功后按 60 秒合并成一条，推到 `ALERT_WEBHOOK_URL`（企业微信/钉钉群机器人，与备份告警同一个群）。
+- 地址优先级：`ADMIN_ALERT_WEBHOOK` → `ALERT_WEBHOOK_URL` → 直接读 `/opt/campus/.env` 的同名行（生产 systemd 不一定把 .env 注入 JVM）。
+- 消息内容：昵称、用户 ID、脱敏邮箱、是否已登记学号、本批新增人数与累计用户数；单批最多列 8 人。
+- 未配置地址时只在后端日志留一行警告，注册流程不受影响；发送失败也只记日志，不阻塞注册。
+- 群机器人有每分钟 20 条的上限，所以不做「一人一条」；60 秒合并也避免了宣传期刷屏。
 
 ---
 
@@ -969,11 +988,24 @@ mysql -uroot -e "DROP DATABASE $DB"
 
 **站点拨测（2026-10-30 决定不做）**：原计划用云监控站点监控探活 `https://yousheng8.cn/healthz`（关键词 `"status":"UP"`），按境内 PC 探测点 10 元/万次计费；用户评估探测点选择成本与收益后决定不配置。现在由 ECS 内部 `campus-monitor` 补上 healthz、Nginx 5xx 与 systemd 重启/失败告警；但整机宕机或断网时巡检自身无法外发，这类场景仍由云监控主机告警覆盖。以后要补站外拨测时可用 UptimeRobot 免费版（5 分钟间隔）配同一地址与关键词。
 
-### 13.3 CDN 预备（备案过审后做，现在只需知道）
+### 13.3 CDN 预备（备案已过审，可接入；需控制台操作）
 
-第 10.7 节已把「前端静态资源挂 CDN」列为扩容第 3 步。具体动作：前端 `dist/` 构建后不再只放 ECS Nginx，同时上传 OSS 的 `static/` 前缀 → 开 CDN 加速域名回源该桶 → `yousheng8.cn` 的静态路径 CNAME 到 CDN 域名。生效后 ECS 只出 API JSON，3Mbps 瓶颈解除（成本：几百 DAU 每月几块钱）。
+第 10.7 节已把「前端静态资源挂 CDN」列为扩容第 3 步。域名备案已过审，前提条件已具备；
+代码与 Nginx 侧也已就绪（构建产物带哈希、`/assets/` 一年 immutable、静态句柄缓存）。
+剩下三步都在阿里云控制台，不需要改代码：
 
-**备案前不要做**——CDN 加速域名同样要求已备案。这里只留位置，过审后按 10.7 的顺序接入。
+1. **OSS**：在现有桶里建 `static/` 前缀，每次发布把 `frontend/dist/assets/` 上传到
+   `static/assets/`（`index.html` 仍放 ECS，不进 CDN）。
+2. **CDN**：添加加速域名 `cdn.yousheng8.cn`，源站选该 OSS 桶的 `static/` 目录，
+   开启 HTTPS 并在 CDN 侧上传或托管 `*.yousheng8.cn` 证书，然后按控制台提示在 DNS
+   加一条 CNAME。
+3. **前端**：`vite.config.js` 的 `base` 改为 `https://cdn.yousheng8.cn/` 重新构建前端
+   （或发布时用脚本替换 index.html 里的 `/assets/` 前缀），部署 `index.html` 后生效。
+   回退只需把 `base` 改回 `/` 并重新发布前端。注意在 CDN 侧允许
+   `https://yousheng8.cn` 的跨域（CORS）：Vite 产物里的 module script 带 `crossorigin`，
+   CDN 不返回 `Access-Control-Allow-Origin` 时浏览器会拒绝执行。
+
+生效后 ECS 只出 API JSON，3Mbps 瓶颈解除（成本：几百 DAU 每月几块钱）。
 
 ### 13.4 应用层主动巡检（2026-10-31 已上线）
 

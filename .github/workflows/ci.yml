@@ -19,9 +19,11 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    # release/* 也要跑：当前版本线在发布分支上开发，
+    # 只在 master/main 触发时，发布分支的门禁只能靠本地脚本。
+    branches: [master, main, 'release/**']
   pull_request:
-    branches: [master, main]
+    branches: [master, main, 'release/**']
   workflow_dispatch:
 
 concurrency:

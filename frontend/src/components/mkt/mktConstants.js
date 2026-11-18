@@ -38,6 +38,7 @@ export const MAX_LAUNCH_HOURS = 12
 export const HOT_GAMES = [
   '王者荣耀', '和平精英', '三角洲行动', 'PUBG', '原神',
   '英雄联盟', '永劫无间', '暗区突围', '蛋仔派对', '金铲铲之战',
+  '我的世界', 'CS2', '第五人格', '崩坏星穹铁道',
 ]
 
 export default { CATEGORIES, PLAZA_FILTERS, DURATION_OPTIONS, MAX_LAUNCH_HOURS, HOT_GAMES }

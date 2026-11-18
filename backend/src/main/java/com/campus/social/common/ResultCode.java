@@ -147,7 +147,7 @@ public enum ResultCode {
     CIRCLE_LIMIT_REACHED(1064, "已达当前信誉可建的圈子数上限,信誉分提升后自动扩容"),
     MKT_ACTIVE_LIMIT_REACHED(1065, "在投的集市活动已达上限,等待到期或提升信誉分后可再发"),
 
-    // 1066 起:邮箱验证码自动建号(无密码账号)的密码状态
+    // 1066 起:无密码账号的密码状态
     PASSWORD_NOT_SET(1066, "该账号还没有设置密码,请用邮箱验证码登录后设置"),
     PASSWORD_ALREADY_SET(1067, "该账号已设置密码,请使用原密码修改"),
 

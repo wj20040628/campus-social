@@ -1,5 +1,5 @@
 <template>
-  <header class="topbar">
+  <header class="topbar" :class="{ 'topbar--guest': !userStore.hasToken }">
     <!--
       顶栏两种形态由路由 meta 决定(MainLayout.vue.md §1.1):
         无 meta.back  -> 品牌型:左「友声」+ 右 发布/铃铛/汉堡
@@ -30,6 +30,8 @@
       <span v-if="!showBack" class="topbar__brand">{{ headTitle || '友声' }}</span>
       <span v-if="!showBack" class="topbar__page">{{ pageName }}</span>
       <h1 v-if="showBack" class="topbar__title">{{ pageTitle }}</h1>
+      <!-- 人数放在顶栏（2026-11-13）：首页不再单独占一行，一二级页面都能看到 -->
+      <PresenceStats v-if="!showBack" />
     </div>
 
     <div class="topbar__right">
@@ -50,14 +52,29 @@
       >
         <el-icon :size="22"><Search /></el-icon>
       </button>
-      <button
-        v-if="!userStore.hasToken"
-        type="button"
-        class="topbar__login"
-        @click="goLogin"
-      >
-        登录
-      </button>
+      <!--
+        游客态按钮组（2026-11-14）：手机端补一个「注册」。
+        扫码来的新同学默认落到游客界面，顶栏只有「登录」时，
+        想注册的人要先在登录页里找到「去注册」——多绕一步，
+        而这一步正是分享落地页漏人的地方。手机端并排给「登录 / 注册」，
+        桌面端保持只显示「登录」（有侧栏与登录页入口，不需要额外占位）。
+      -->
+      <div v-if="!userStore.hasToken" class="topbar__auth">
+        <button
+          type="button"
+          class="topbar__login"
+          @click="goLogin"
+        >
+          登录
+        </button>
+        <button
+          type="button"
+          class="topbar__register"
+          @click="goRegister"
+        >
+          注册
+        </button>
+      </div>
 
       <template v-else>
       <!--
@@ -95,11 +112,6 @@
         <span class="topbar__pub-text">发动态</span>
       </button>
 
-      <!--
-        「找人」只留桌面:feed 内已有搜索框、/search 页是主入口,移动端
-        再塞一个找人与它们重叠。移动端右侧 = 发布/铃铛/汉堡;
-        桌面 ≥1024 空间够、侧栏已占左边,顶栏保留 发动态/找人/铃铛/头像/汉堡(隐藏)。
-      -->
       <button
         type="button"
         class="topbar__icon-btn topbar__search"
@@ -108,14 +120,17 @@
       >
         <el-icon :size="24"><Search /></el-icon>
       </button>
-
-     
+      </template>
 
       <!--
         桌面端头像:点击打开全局导航抽屉(2026-10-18 从精简下拉菜单
         改为与手机端共用的 AppDrawer,内容与设计稿一致——头像头部卡/圈子/
         审核记录/校园信息/意见反馈/深色开关/设置/退出全在抽屉里);
         手机端头像放底部 TabBar「我的」,此处不渲染(桌面才显示 .topbar__avatar-wrap)。
+
+        2026-11-12:游客也渲染这枚入口(无头像时用「友」占位)。
+        此前游客整组右侧控件被替换成「登录」,桌面端没有任何抽屉入口,
+        侧栏又只留三个浏览项 —— 游客看不到文件/公告等任何其它入口。
       -->
       <div class="topbar__avatar-wrap">
         <button
@@ -124,11 +139,19 @@
           aria-label="打开导航菜单"
           @click="$emit('menu')"
         >
-          <el-avatar :size="34" :src="resolveThumb(userStore.userInfo?.avatarUrl)">
-            <span v-if="!userStore.userInfo?.avatarUrl" class="topbar__avatar-fallback">
-              {{ avatarFallback }}
-            </span>
-          </el-avatar>
+          <span class="topbar__avatar-box">
+            <el-avatar :size="34" :src="resolveThumb(userStore.userInfo?.avatarUrl)">
+              <span v-if="!userStore.userInfo?.avatarUrl" class="topbar__avatar-fallback">
+                {{ avatarFallback }}
+              </span>
+            </el-avatar>
+            <span
+              v-if="showAvatarDot"
+              class="topbar__dot"
+              :class="{ 'topbar__dot--on': avatarOnline }"
+              aria-hidden="true"
+            />
+          </span>
           <el-icon class="topbar__caret"><CaretBottom /></el-icon>
         </button>
       </div>
@@ -139,6 +162,7 @@
         否则用户进了二级页就找不到抽屉。桌面 CSS 隐藏(有常驻 SideNav,冗余)。
         图标用内联 SVG 三横线(主流汉堡样式):EP 无纯三横线图标,
         Menu 是九宫格、Fold/Expand 带箭头,观感都不对,故自绘。
+        2026-11-12:游客同样保留汉堡,否则手机端游客打不开抽屉。
       -->
       <button
         type="button"
@@ -162,17 +186,18 @@
           />
         </svg>
       </button>
-      </template>
     </div>
   </header>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, CaretBottom, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { resolveThumb } from '@/utils/resolve'
+import { ensurePresence, isOnline } from '@/utils/presence'
+import PresenceStats from '@/components/common/PresenceStats.vue'
 
 const props = defineProps({
   showBack: { type: Boolean, default: false },
@@ -192,6 +217,18 @@ const userStore = useUserStore()
 const avatarFallback = computed(() => {
   const n = userStore.userInfo?.nickname
   return n ? String(n).slice(0, 1) : '友'
+})
+
+/** 桌面顶栏头像的在线点：与信息流头像同一套状态，游客不画点 */
+const avatarUserId = computed(() => userStore.userInfo?.id ?? null)
+const showAvatarDot = computed(() => !!userStore.accessToken && avatarUserId.value != null)
+const avatarOnline = computed(() => showAvatarDot.value && isOnline(avatarUserId.value))
+
+onMounted(() => {
+  if (showAvatarDot.value) ensurePresence(avatarUserId.value)
+})
+watch(avatarUserId, (id) => {
+  if (showAvatarDot.value) ensurePresence(id)
 })
 
 /** 未读为 0 时不加「N 条未读」后缀(避免播报一个无意义的 0) */
@@ -217,6 +254,11 @@ function goBack() {
 /** 游客登录:带 returnUrl,登录后回到当前页(分享落地页的转化闭环) */
 function goLogin() {
   router.push({ path: '/login/form', query: { returnUrl: router.currentRoute.value.fullPath } })
+}
+
+/** 游客注册:直接进注册页（手机端顶栏「注册」按钮） */
+function goRegister() {
+  router.push('/login/register')
 }
 </script>
 

@@ -41,7 +41,7 @@
           现在放最上：头像 + 昵称 + 发布时间 + 「主页 ›」入口。
         -->
         <div class="md__publisher">
-          <InitialAvatar :size="36" :src="act.avatarUrl ? resolveThumb(act.avatarUrl) : ''" :seed="act.nickname || ''" :name="act.nickname || ''" />
+          <InitialAvatar :size="36" :src="act.avatarUrl ? resolveThumb(act.avatarUrl) : ''" :seed="act.nickname || ''" :name="act.nickname || ''" :user-id="act.userId" />
           <div class="md__pub-txt">
             <p class="md__pub-name">{{ act.nickname || '匿名' }}</p>
             <p class="md__pub-sub">{{ publishedText }}</p>

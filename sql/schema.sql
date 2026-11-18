@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `onboarding_step`       TINYINT      NOT NULL DEFAULT 0      COMMENT '引导进度 0未开始 1已填归属 2已选标签 3已完成',
     `status`                TINYINT      NOT NULL DEFAULT 0      COMMENT '0正常 1冻结 2注销',
     `mute_until`            DATETIME     NULL                    COMMENT '禁言截止时间,NULL=未禁言;到点自动解除',
+    `presence_hidden`       TINYINT      NOT NULL DEFAULT 0      COMMENT '1=在线但对外显示离线(2026-11-13加)',
     `purged_at`             DATETIME     NULL                    COMMENT '已注销账号私信/通知清理完成时间;正常账号为NULL',
     `last_punish_time`      DATETIME     NULL                    COMMENT '最近一次被封禁/禁言的时刻;从未处置为NULL',
     `role`                  TINYINT      NOT NULL DEFAULT 0      COMMENT '角色:0普通用户 1管理员',
@@ -874,6 +875,31 @@ CREATE TABLE IF NOT EXISTS `file_favorite` (
     KEY `idx_fav_user_id` (`user_id`, `id`),
     KEY `idx_fav_file` (`file_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='文件收藏';
+
+-- ============================================================
+-- 访客访问记录(2026-11-14):游客没有账号,扫码人数与停留时长
+-- 只能由前端匿名上报。一个会话一行,心跳只更新同一行。
+-- 与 sql/migration_2026-11-14_visit_log.sql 保持一致。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `visit_log` (
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+    `visitor_id`     CHAR(36)     NOT NULL                COMMENT '匿名访客ID（浏览器本地生成）',
+    `session_id`     CHAR(36)     NOT NULL                COMMENT '会话ID（标签页会话）',
+    `is_guest`       TINYINT      NOT NULL DEFAULT 0      COMMENT '1游客 0其他',
+    `entry_path`     VARCHAR(64)  NOT NULL                COMMENT '入口路径',
+    `source`         VARCHAR(32)  NULL                    COMMENT '来源标签',
+    `ip`             VARCHAR(64)  NULL                    COMMENT '来源IP',
+    `ua`             VARCHAR(255) NULL                    COMMENT '浏览器标识（截断）',
+    `entered_at`     DATETIME     NOT NULL                COMMENT '进入时间',
+    `last_seen_at`   DATETIME     NOT NULL                COMMENT '最后心跳时间',
+    `active_seconds` INT          NOT NULL DEFAULT 0      COMMENT '前台累计停留秒数',
+    `ended`          TINYINT      NOT NULL DEFAULT 0      COMMENT '1已收到结束上报',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_visit_session` (`session_id`),
+    KEY `idx_visit_entered` (`entered_at`),
+    KEY `idx_visit_source` (`source`, `entered_at`),
+    KEY `idx_visit_visitor` (`visitor_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='访客访问记录';
 
 -- ============================================================
 -- 内置种子:敏感词(level 1 替换 / level 2 拒发)

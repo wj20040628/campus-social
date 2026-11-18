@@ -100,14 +100,15 @@
                 class="cm__btn"
                 @click="actions.revoke(m)"
               >取消管理</button>
+              <!-- 封禁/解禁是圈主专属：后端 requireCircleCreator，圈管理点了必 403 -->
               <button
-                v-if="m.role === 3 && m.userId !== me"
+                v-if="myRole === 1 && m.role === 3 && m.userId !== me"
                 type="button"
                 class="cm__btn cm__btn--warn"
                 @click="promptBan(m)"
               >{{ m.banStatus === 1 ? '改封禁' : '封禁' }}</button>
               <button
-                v-if="m.role === 3 && m.banStatus === 1 && m.userId !== me"
+                v-if="myRole === 1 && m.role === 3 && m.banStatus === 1 && m.userId !== me"
                 type="button"
                 class="cm__btn"
                 @click="actions.unban(m)"
@@ -252,8 +253,9 @@ async function promptBan(m) {
       inputErrorMessage: '填小时数(正整数)或留空表示长期',
     },
   ).catch(() => ({ value: undefined, canceled: true }))
-  if (value === undefined || value === '') return
-  const hours = Number(value)
+  if (value === undefined) return // 取消：value 为 undefined
+  // 留空按文案「留空或填 0 = 长期」处理；此前空串直接 return，点了确定毫无反应
+  const hours = value === '' ? 0 : Number(value)
   if (Number.isNaN(hours) || hours < 0) return
   if (hours === 0) {
     await actions.ban(m, null) // 长期

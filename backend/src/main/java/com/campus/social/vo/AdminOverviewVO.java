@@ -26,6 +26,20 @@ public class AdminOverviewVO {
     /** 在册用户（status != 2，含封禁中） */
     private long activeUsers;
 
+    /**
+     * 当前在线用户（2026-11-13）：按活跃 WS 连接去重后的 userId 数。
+     *
+     * <p>包含隐身用户 —— 管理员看到的是实际连接规模，隐身只影响对外展示。
+     */
+    private long onlineUsers;
+
+    /**
+     * 游客 / 扫码（2026-11-14）：今日扫码人数、游客会话与停留时长。
+     *
+     * <p>游客没有账号，指标由前端匿名上报汇总；口径见 GuestVisitVO。
+     */
+    private GuestVisitVO guestVisits;
+
     /** 已注销账号（status = 2） */
     private long cancelledUsers;
 

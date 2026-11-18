@@ -84,12 +84,13 @@ public final class UserVoAssembler {
                 // 安全凭证邮箱:仅「我的资料」暴露脱敏值。他人卡片( of )不含此字段,
                 // 避免邮箱(安全凭证)出现在 Feed / 评论区 / 私聊等任何公开响应里。
                 .email(user.getEmail() == null ? null : maskUsername(user.getEmail()))
-                // 无密码账号(邮箱验证码自动建号)靠它把设置页的「修改密码」
+                // 无密码账号靠它把设置页的「修改密码」
                 // 切成「设置密码」;他人卡片不暴露此字段。
                 .passwordSet(JwtUtil.isPasswordSet(user.getPasswordHash()))
                 // 禁言截止时间只给本人：用于「我的」页的禁言提示与申诉入口，
                 // 他人卡片不需要也不该看到这个账号状态。
                 .muteUntil(user.getMuteUntil())
+                .presenceHidden(user.getPresenceHidden() != null && user.getPresenceHidden() == 1)
                 .build();
     }
 

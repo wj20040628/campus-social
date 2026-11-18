@@ -23,13 +23,17 @@
           圈主(myRole=1)后端拦「创建者不可退出」;圈管理(role=2)当前后端 leave 只处理
           role=3,同样退不出——故 1/2 都不露,避免点了必 422。
         -->
+        <!-- 封禁期间后端禁止退圈（422），不露这个必失败的按钮 -->
         <button
-          v-if="circle.myRole === 3"
+          v-if="circle.myRole === 3 && !circle.myBanned"
           type="button"
           class="cd__leave"
           :disabled="leaving"
           @click="$emit('leave')"
         >{{ leaving ? '退出中' : '退出圈子' }}</button>
+        <span v-else-if="circle.myRole === 3 && circle.myBanned" class="cd__leave cd__leave--banned">
+          封禁中
+        </span>
       </template>
       <button v-else type="button" class="cd__join" :disabled="joining" @click="$emit('join')">
         {{ joining ? '加入中' : '加入圈子' }}

@@ -171,6 +171,8 @@ export function credentialMessage(e, kind) {
   const code = authErrCode(e)
   if (kind === 'code') {
     if (code === AUTH_ERR.CODE_INVALID) return '验证码不对或者过期了，重新获取一次'
+    // 2026-11-14 起验证码只登录已注册账号；注册入口就在按钮右侧
+    if (code === AUTH_ERR.EMAIL_NOT_REGISTERED) return '这个邮箱还没有账号，点「去注册」创建一个'
     return '验证码登录没成功，再试一次'
   }
   if (code === AUTH_ERR.WRONG_PASSWORD) return '学号或密码不对，再试一次'
@@ -189,14 +191,14 @@ export function credentialMessage(e, kind) {
  *   1059(EMAIL_ALREADY_BOUND) → 邮箱字段
  *   1058(STUDENT_NO_MISMATCH) / 1039(SCHOOL_PROFILE_INCOMPLETE) → 学号字段
  * 其余(网络/服务端)不适合按字段归因,交给调用方做表单级提示。
- * 注:注册已不发验证码,1020/1021/1022 的 verifyCode 分支仅历史兼容,注册流程不会触发。
+ * 注:1020/1021/1022 归到 emailCode —— 注册页的验证码字段就是它。
  *
  * [action:'appeal' 的含义 2026-10-19]
  * 1004 与 1058 都带这个出口:用户被自己的规则挡在外面(填错、字典过期、
  * 恰好被规则误伤)时,除了改一遍重试,还需要一条「我确实是本校学生」的出路,
  * 否则界面承诺了出口而出口是死的。申诉复用反馈模块,管理员人工处理。
  *
- * @returns {null | { field:'studentNo'|'email', text:string, action?:'login'|'appeal' }}
+ * @returns {null | { field:'studentNo'|'email'|'emailCode', text:string, action?:'login'|'appeal' }}
  */
 export function registerFieldError(e) {
   const code = authErrCode(e)
@@ -234,13 +236,13 @@ export function registerFieldError(e) {
     return { field: 'studentNo', text: '请完善学校归属（学院/年级/专业）后再提交学号' }
   }
   if (code === AUTH_ERR.CODE_INVALID) {
-    return { field: 'verifyCode', text: '验证码不对或者过期了，重新获取一次' }
+    return { field: 'emailCode', text: '验证码不对或者过期了，重新获取一次' }
   }
   if (code === AUTH_ERR.CODE_TOO_FREQUENT) {
-    return { field: 'verifyCode', text: '验证码发得太频繁了，等一会儿再点' }
+    return { field: 'emailCode', text: '验证码发得太频繁了，等一会儿再点' }
   }
   if (code === AUTH_ERR.CODE_LIMIT_REACHED) {
-    return { field: 'verifyCode', text: '今天的验证码次数用完了，明天再来' }
+    return { field: 'emailCode', text: '今天的验证码次数用完了，明天再来' }
   }
   return null
 }

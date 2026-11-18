@@ -242,7 +242,7 @@
  * 「我的 / 发现」结构,形态差异(单列行 / 多列卡)全部在 CircleRow 的媒体查询里。
  */
 import { computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Plus, WarningFilled } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
@@ -250,6 +250,7 @@ import CircleRow from '@/components/common/CircleRow.vue'
 import { useCircles } from '@/composables/useCircles'
 import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
+const route = useRoute()
 const router = useRouter()
 const { ensureLogin } = useGuestPrompt()
 
@@ -290,7 +291,8 @@ function setupObserver() {
 async function onCreateClick() {
   const r = openCreate()
   if (r === 'need-login') {
-    await ensureLogin('登录后才能创建圈子，现在去登录吗？')
+    // 登录后回到本页并自动拉起创建抽屉,避免用户再点一次
+    await ensureLogin('登录后才能创建圈子，现在去登录吗？', null, '/circles?create=1')
   }
 }
 
@@ -301,6 +303,11 @@ function goDetail(id) {
 onMounted(async () => {
   await load()
   setupObserver()
+  // 游客点是「创建圈子」被带去登录,登录成功回跳时自动打开创建抽屉
+  if (route.query.create === '1') {
+    openCreate()
+    router.replace({ path: '/circles' })
+  }
 })
 
 onBeforeUnmount(() => {

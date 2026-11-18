@@ -47,4 +47,37 @@ class OssServicePresignTest {
                 "https://yousheng-uploads.oss-cn-hangzhou.aliyuncs.com/" + KEY + "?"), url);
         assertTrue(url.contains("response-content-disposition="), url);
     }
+
+    /** 图片/视频的 302 也要落到自定义域名，否则微信里仍是跨域主机。 */
+    @Test
+    void customDomainAlsoUsedForMediaRead() {
+        OssService svc = new OssService(props("oss.yousheng8.cn"), null);
+
+        String plain = svc.presignGetUrl("uploads/4/20261103/a.webp");
+        assertTrue(plain.startsWith("https://oss.yousheng8.cn/uploads/4/20261103/a.webp?"), plain);
+        assertFalse(plain.contains("aliyuncs.com"), plain);
+
+        String thumb = svc.presignGetUrl("uploads/4/20261103/a.webp", "image/resize,w_480");
+        assertTrue(thumb.startsWith("https://oss.yousheng8.cn/uploads/4/20261103/a.webp?"), thumb);
+        assertTrue(thumb.contains("x-oss-process=image%2Fresize%2Cw_480")
+                        || thumb.contains("x-oss-process=image/resize,w_480"), thumb);
+    }
+
+    @Test
+    void blankCustomDomainKeepsBucketHostForMediaRead() {
+        OssService svc = new OssService(props(""), null);
+
+        String url = svc.presignGetUrl("uploads/4/20261103/a.webp");
+        assertTrue(url.startsWith(
+                "https://yousheng-uploads.oss-cn-hangzhou.aliyuncs.com/uploads/4/20261103/a.webp?"), url);
+    }
+
+    /** 环境变量容易填成带协议的形式，不能拼成 https://https://。 */
+    @Test
+    void customDomainAcceptsFullUrl() {
+        OssService svc = new OssService(props("https://oss.yousheng8.cn/"), null);
+
+        String url = svc.presignGetUrl("uploads/4/20261103/a.webp");
+        assertTrue(url.startsWith("https://oss.yousheng8.cn/uploads/4/20261103/a.webp?"), url);
+    }
 }

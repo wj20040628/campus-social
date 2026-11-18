@@ -39,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthServiceImpl implements AuthService {
 
     private final VerifyCodeService verifyCodeService;
-    /** 注册与验证码自动建号 */
+    /** 注册建号（验证码登录不再自动建号，2026-11-14） */
     private final RegisterService registerService;
     /** 密码登录与验证码登录 */
     private final LoginService loginService;

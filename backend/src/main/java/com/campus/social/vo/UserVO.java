@@ -108,7 +108,7 @@ public class UserVO {
     /**
      * 账号是否已设置密码(仅「我的资料」ofPrivate 暴露)。
      *
-     * <p>邮箱验证码自动建号不设密码;前端据此把「修改密码」切换成
+     * <p>无密码账号不设密码;前端据此把「修改密码」切换成
      * 「设置密码」,走邮箱验证码而不是原密码。他人卡片不携带此字段。
      */
     private Boolean passwordSet;
@@ -134,5 +134,12 @@ public class UserVO {
      * 他人卡片不携带——禁言是账号状态，不是公开信息。
      */
     private LocalDateTime muteUntil;
+    /**
+     * 隐身开关（2026-11-13，仅「我的资料」ofPrivate 暴露）。
+     *
+     * <p>true = 在线但对他人显示为离线；管理总览的在线人数仍包含本人。
+     * 他人卡片不携带该字段：这是隐私偏好，不是公开状态。
+     */
+    private Boolean presenceHidden;
     private LocalDateTime createTime;
 }

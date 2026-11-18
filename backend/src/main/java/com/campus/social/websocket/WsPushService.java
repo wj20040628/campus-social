@@ -151,6 +151,29 @@ public class WsPushService {
     }
 
     /**
+     * 推「当前在线人数」给所有在线用户（2026-11-14）。
+     *
+     * <p>只倒推一个数字而不是让客户端来拉：原先顶栏 60 秒轮询 + 服务端 30 秒
+     * 缓存，最坏要一分半数字才动。现在连接一进一出，下一次检测（≤1 秒）就把
+     * 新数字推到所有在线端，轮询退化为兜底。
+     *
+     * <p>帧极小（{@code {"type":"presence_stats","payload":{"online":n}}}），
+     * 且只在数字变化时发，稳态下没有流量。
+     */
+    public void pushPresenceStats(int online) {
+        try {
+            String json = om.writeValueAsString(Map.of(
+                    "type", "presence_stats",
+                    "ts", System.currentTimeMillis(),
+                    "payload", Map.of("online", online)
+            ));
+            sessionManager.broadcastAll(sessionManager.onlineUserIds(), json);
+        } catch (Exception e) {
+            log.warn("pushPresenceStats fail: online={}, err={}", online, e.getMessage());
+        }
+    }
+
+    /**
      * 推公告轻量提示给当前在线的全体用户（F5，SPEC §5.3）。
      *
      * <p>只推标题与 id，不推正文：正文可能很长，全量推给全校在线用户

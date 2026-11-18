@@ -75,7 +75,8 @@
   padding: 0 var(--ys-space-4);
   list-style: none;
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  /* 同分类条：滑到头别被浏览器当成「后退/前进」手势 */
+  overscroll-behavior-x: contain;
 }
 
 .cc__mention-cell {

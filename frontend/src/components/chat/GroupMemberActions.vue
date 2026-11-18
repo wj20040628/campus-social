@@ -22,6 +22,7 @@
           :src="target?.user?.avatarUrl ? resolveThumb(target.user.avatarUrl) : ''"
           :seed="target?.user?.id"
           :name="name"
+          :user-id="target?.user?.id"
         />
         <div class="gma__hi">
           <div class="gma__hn">{{ name }}</div>

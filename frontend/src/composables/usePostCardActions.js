@@ -15,7 +15,7 @@ export function usePostCardActions(post) {
   /** feed 内直接点赞。乐观更新 + 失败回滚，与 usePostDetailActions.toggleLike 同逻辑:
    *  回滚恢复改之前的旧值,不做「减一」推算 —— 后端可能有并发点赞,真值以服务端为准 */
   async function toggleLike() {
-    if (!(await ensureLogin('登录后才能点赞，现在去登录吗？'))) return
+    if (!(await ensureLogin('登录后才能点赞，现在去登录吗？', toggleLike))) return
     const wasLiked = !!post.liked
     const wasCount = Number(post.likeCount) || 0
     post.liked = !wasLiked
@@ -37,7 +37,7 @@ export function usePostCardActions(post) {
    * 减一推算出来的数未必等于数据库真值,回滚必须回到自己改之前看到的那个数。
    */
   async function toggleFavorite() {
-    if (!(await ensureLogin('登录后才能收藏，现在去登录吗？'))) return
+    if (!(await ensureLogin('登录后才能收藏，现在去登录吗？', toggleFavorite))) return
     const wasFav = !!post.favorited
     const wasCount = Number(post.favoriteCount) || 0
     post.favorited = !wasFav

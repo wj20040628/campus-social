@@ -28,7 +28,7 @@
             <el-avatar v-if="n.type === 11" :size="40" class="n-avatar n-avatar-anon">
               <el-icon><Service /></el-icon>
             </el-avatar>
-            <el-avatar v-else :size="40" :src="resolveThumb(n.actor?.avatarUrl)" class="n-avatar" />
+            <InitialAvatar v-else :size="40" :src="n.actor?.avatarUrl ? resolveThumb(n.actor.avatarUrl) : ''" :seed="n.actor?.id" :name="n.actor ? displayName(n.actor) : ''" :user-id="n.actor?.id" class="n-avatar" />
             <div class="n-body">
               <div class="n-text">
                 <!-- 官方回复固定署名「管理员」,不暴露具体处置人;与 summary 同一行避免中间空格 -->
@@ -65,7 +65,7 @@
             description="可能是网络断了，点一下重试"
             action-label="重试"
             :icon="WarningFilled"
-            @action="retryLoad"
+            @action="reloadFirst"
           />
           <StateBlock
             v-else-if="list.length === 0"
@@ -90,6 +90,7 @@ import { ElMessage } from '@/utils/feedback'
 import dayjs from 'dayjs'
 import { list as listApi, read as readApi, readAll as readAllApi } from '@/api/notify'
 import { getWsClient } from '@/utils/ws'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import { Bell, Service, WarningFilled } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
@@ -113,29 +114,25 @@ const list = ref([])
 const cursor = ref(null)
 const hasMore = ref(true)
 const loading = ref(false)
-/*
- * 失败态（2026-10-21 加）。
- * loadFailed —— 已放弃自动重试，模板据此渲染「没加载出来 + 重试」
- * failStreak —— 连续失败次数；2 次就停，避免 observer 无限重试
- */
+/* failStreak：连续失败 2 次就停，避免 observer 无限重试 */
 const loadFailed = ref(false)
 const failStreak = ref(0)
 let observer = null
+/** 防乱序：WS 触发重拉时，让仍在飞的旧分页请求结果作废 */
+let loadGeneration = 0
 
 function fmt(t) {
   return t ? dayjs(t).format('MM-DD HH:mm') : ''
 }
 
-/**
- * 拉一页通知。失败不抛：记录 loadFailed，连续失败 2 次停止自动加载，
- * 由模板渲染「没加载出来 + 重试」。（原实现无 catch，finally 重建 observer
- * 会形成无限重试，并把网络故障说成「没人通知你」。）
- */
+/** 拉一页通知。失败不抛，落成模板的「没加载出来 + 重试」 */
 async function load() {
   if (!hasMore.value || loading.value) return
   loading.value = true
+  const gen = loadGeneration
   try {
     const data = await listApi(cursor.value, 20)
+    if (gen !== loadGeneration) return
     const items = data.list.map((n) => ({ ...n, createTime: fmt(n.createTime) }))
     list.value = cursor.value ? [...list.value, ...items] : items
     cursor.value = data.hasMore ? data.nextCursor : null
@@ -149,19 +146,24 @@ async function load() {
       loadFailed.value = true
     }
   } finally {
-    loading.value = false
-    nextTick(setupObserver)
+    if (gen === loadGeneration) {
+      loading.value = false
+      nextTick(setupObserver)
+    }
   }
 }
 
-/** 重试：重置游标与失败态，从头拉 */
-function retryLoad() {
+/** 从第一页重拉。WS 新通知也走这里 —— load() 有游标时是把更早的一页 append 到底部 */
+async function reloadFirst() {
+  loadGeneration += 1
   list.value = []
   cursor.value = null
   hasMore.value = true
   loadFailed.value = false
   failStreak.value = 0
-  load()
+  // 旧请求会在 gen 校验处作废，但 loading 仍为 true 会挡住这一次新请求
+  loading.value = false
+  await load()
 }
 
 function setupObserver() {
@@ -183,8 +185,7 @@ async function openAndRead(n) {
   const go = (to) => router.push(to).catch(() => ElMessage.warning('内容已删除或不存在'))
 
   const jump = () => {
-    // 点赞/评论:优先用 postId(被指向的帖子 id);
-    // 旧数据无 postId 时回退 targetId(点赞的 targetId 本就是帖子 id,评论的是评论 id,跳不了就退回首页)
+    // 点赞/评论优先 postId；旧数据无 postId 时回退 targetId，取不到就回首页
     if (n.type === 2 || n.type === 3) {
       const pid = n.postId ?? (n.type === 2 ? n.targetId : null)
       if (pid) {
@@ -195,11 +196,7 @@ async function openAndRead(n) {
         go('/')
       }
     } else if (n.type === 1) {
-      // 被关注 → 关注你的人
-      // actorId 可能为空(后端 NotifyVO.actorId 是 Long 包装类型,
-      // 系统类通知没有「谁触发的」这个概念),拼出 /user/undefined 这种坏 URL
-      // 会让 vue-router 推一个不存在的路由。TopBar.onUserCommand 已修过同一类,
-      // 这里是第二个入口。拿不到 id 就落到首页,不给用户点不动的入口。
+      // 被关注 → 关注你的人；actorId 为空时落首页，不拼 /user/undefined
       if (n.actorId != null) go(`/user/${n.actorId}`)
       else go('/')
     } else if (n.type === 4) {
@@ -265,8 +262,9 @@ async function readAll() {
 
 // WS 实时通知
 function onNotify(payload) {
-  // 刷新未读计数,拉新通知
-  load()
+  // 新通知只在第一页。直接 load() 会拿旧游标追加更早的一页，
+  // 新通知反而永远不出现；已翻到底(hasMore=false)时更是直接不再拉。
+  reloadFirst()
 }
 
 onMounted(async () => {

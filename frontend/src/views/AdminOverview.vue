@@ -97,6 +97,79 @@
 
         <section class="ov__sec">
           <div class="ov__sec-head">
+            <h2 class="ov__sec-title">游客 / 扫码</h2>
+            <span class="ov__sec-meta">较昨日</span>
+          </div>
+          <div class="ov__grid ov__grid--three">
+            <div v-for="c in guestCards" :key="c.t" class="ov__card">
+              <span class="ov__num">{{ format(c.n) }}</span>
+              <span class="ov__label">{{ c.t }}</span>
+              <span class="ov__delta" :data-dir="c.dir">{{ c.delta }}</span>
+            </div>
+          </div>
+          <template v-if="trendBars.length">
+            <div class="ov__sub-head">
+              <span class="ov__sub-title">近 7 日扫码访客</span>
+              <span class="ov__sub-meta">合计 {{ trendTotal }} 人次</span>
+            </div>
+            <div class="ov__trend" role="img" :aria-label="trendSummary">
+              <div
+                v-for="(d, i) in trendBars"
+                :key="d.date"
+                class="ov__trend-col"
+                :class="{ 'ov__trend-col--today': i === trendBars.length - 1 }"
+                :title="d.tip"
+              >
+                <span class="ov__trend-num">{{ d.n }}</span>
+                <span class="ov__trend-track">
+                  <span
+                    class="ov__trend-fill"
+                    :class="{ 'ov__trend-fill--zero': !d.n }"
+                    :style="{ height: d.h }"
+                  />
+                </span>
+                <span class="ov__trend-date">{{ d.label }}</span>
+              </div>
+            </div>
+          </template>
+
+          <div v-if="sourceRows.length" class="ov__rank">
+            <div class="ov__sub-head">
+              <span class="ov__sub-title">今日来源占比</span>
+              <span class="ov__sub-meta">{{ format(guestVisit.todayGuestSessions) }} 个游客会话</span>
+            </div>
+            <div v-for="s in sourceRows" :key="s.key" class="ov__rank-row" :title="`${s.label}：${s.n} 个会话`">
+              <span class="ov__rank-name">{{ s.label }}</span>
+              <span class="ov__rank-track">
+                <span class="ov__rank-fill" :style="{ width: s.width }" />
+              </span>
+              <span class="ov__rank-val">{{ format(s.n) }} · {{ s.pct }}</span>
+            </div>
+          </div>
+
+          <div class="ov__grid ov__grid--three ov__grid--gap">
+            <div class="ov__card ov__card--dense">
+              <span class="ov__num">{{ duration(guestVisit.avgDwellSeconds) }}</span>
+              <span class="ov__label">平均停留</span>
+            </div>
+            <div class="ov__card ov__card--dense">
+              <span class="ov__num">{{ duration(guestVisit.medianDwellSeconds) }}</span>
+              <span class="ov__label">中位停留</span>
+            </div>
+            <div class="ov__card ov__card--dense">
+              <span class="ov__num">{{ shortRate }}</span>
+              <span class="ov__label">10 秒内离开</span>
+            </div>
+          </div>
+          <p class="ov__note">
+            扫码按 /guest 入口去重；停留只算页面在前台的时间，已结算
+            {{ format(guestVisit.todaySettledSessions) }} 个会话参与平均。
+            数据由访客浏览器匿名上报，关页太快可能少最后几秒，看趋势即可。
+          </p>
+        </section>
+
+        <section class="ov__sec">
+          <div class="ov__sec-head">
             <h2 class="ov__sec-title">站内规模</h2>
           </div>
           <div class="ov__grid ov__grid--scale">
@@ -145,6 +218,7 @@ import { ArrowLeft, Refresh, WarningFilled } from '@element-plus/icons-vue'
 import { adminOverview, adminReviewAiStatus } from '@/api/admin'
 import { useUserStore } from '@/stores/user'
 import { useAdminPending } from '@/composables/useAdminPending'
+import { useGuestVisitStats } from '@/composables/useGuestVisitStats'
 import { ElMessage } from '@/utils/feedback'
 import AdminDenied from '@/components/common/AdminDenied.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
@@ -212,9 +286,29 @@ function deltaCard(t, today, yesterday) {
 
 const pendingTotal = computed(() => pendingCards.value.reduce((sum, q) => sum + q.n, 0))
 
+/*
+ * 游客 / 扫码（2026-11-14）。游客没有账号，数字来自访客浏览器的匿名上报，
+ * 口径由后端 GuestVisitVO 统一给出，前端只做展示与格式化。
+ */
+const guestVisit = computed(() => data.value?.guestVisits || {})
+
+// 趋势柱高、来源占比、停留时长的换算都在 composable 里，页面只排版
+const { shortRate, trendBars, trendTotal, trendSummary, sourceRows, duration } =
+  useGuestVisitStats(guestVisit)
+
+const guestCards = computed(() => {
+  const g = guestVisit.value
+  return [
+    deltaCard('扫码访客', g.todayScanVisitors, g.yesterdayScanVisitors),
+    deltaCard('扫码打开', g.todayScanSessions, g.yesterdayScanSessions),
+    deltaCard('游客会话', g.todayGuestSessions, g.yesterdayGuestSessions),
+  ]
+})
+
 const scaleCards = computed(() => {
   const d = data.value || {}
   return [
+    { t: '在线用户（含隐身）', n: d.onlineUsers },
     { t: '注册用户', n: d.activeUsers },
     { t: '已注销', n: d.cancelledUsers },
     { t: '已发布帖子', n: d.posts },

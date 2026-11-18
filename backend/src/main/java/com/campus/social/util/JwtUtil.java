@@ -38,7 +38,7 @@ public final class JwtUtil {
     /**
      * 未设置密码的占位哈希。
      *
-     * <p>邮箱验证码自动建号不要求用户先设密码，但 {@code user.password_hash}
+     * <p>无密码账号不要求用户先设密码，但 {@code user.password_hash}
      * 是 NOT NULL。存一个不可能成为 BCrypt 哈希的哨兵值，比存随机哈希更明确：
      * {@link #isPasswordSet} 一眼能判出来，且 {@link #verifyPassword} 会直接返回 false，
      * 不会把哨兵值喂给 BCrypt 触发 {@code Invalid salt version}。

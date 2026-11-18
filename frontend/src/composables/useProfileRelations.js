@@ -51,9 +51,13 @@ export function useProfileRelations(targetId) {
    */
   async function toggleFollow() {
     if (!userStore.hasToken || followLoading.value) return null
-    const wasFollowing = !!relStatus.value?.following
+    const prev = relStatus.value
+    const wasFollowing = !!prev?.following
     followLoading.value = true
-    relStatus.value.following = !wasFollowing
+    // 关系状态还没拉到(或拉取失败)时也可以关注:先建一个最小状态，
+    // 失败时回滚成 null。直接读 relStatus.value.following 会在 null 上抛错，
+    // 且异常发生在 try 之前，followLoading 永远不复位。
+    relStatus.value = { ...(prev || {}), following: !wasFollowing }
     try {
       if (wasFollowing) {
         await unfollowApi(targetId.value)
@@ -63,7 +67,7 @@ export function useProfileRelations(targetId) {
       return 'followed'
     } catch {
       // 回滚到操作前状态。不再弹一次错:request.js 已经弹过,重复打扰
-      relStatus.value.following = wasFollowing
+      relStatus.value = prev
       return null
     } finally {
       followLoading.value = false

@@ -30,9 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>三件事各对应一条真实的绕过路径：
  * <ol>
- *   <li>建群/拉人有账号年龄门槛：2026-10-30 起校园信息退出权限判定，
- *       改为「注册满 24 小时 + 信誉分达线」。这里锁住新号不能建群，
- *       防止「注册即建群 → 批量拉陌生人 → 发广告」的骚扰链路。</li>
+ *   <li>建群/拉人看信誉分：新注册账号（基准 60 分）即可建群；
+ *       批量拉陌生人仍被下面的关系限制挡住。</li>
  *   <li>拉人必须存在关注关系：任意群成员把任意 userId 塞进群且对方
  *       毫不知情，会形成同样的骚扰链路。</li>
  *   <li>群消息举报用 {@code targetType=8}，<b>不能复用 4</b>：两张表各自自增 id，
@@ -82,7 +81,7 @@ class GroupGateAndReportIntegrationTest {
         userIds.clear();
     }
 
-    /** 注册满 4 天的老号：通过建群/拉人的账号年龄门槛 */
+    /** 老号：用于验证关系限制与举报链路 */
     private Long user(int verifyStatus) {
         String name = "gg-" + verifyStatus + "-" + userIds.size() + "-" + SUFFIX + "@campus.test";
         jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
@@ -121,17 +120,14 @@ class GroupGateAndReportIntegrationTest {
                 Integer.class, userId, type);
     }
 
-    /* ------------------------------------------------- 1. 行为门槛（账号年龄） */
+    /* ------------------------------------------------- 1. 行为门槛（信誉分） */
 
-    /** 新号建群 → 403 ACCOUNT_TOO_NEW；注册满 24 小时（1 天）后才放行 */
+    /** 新号即可建群：不再要求注册满 24 小时（2026-11-17） */
     @Test
-    void brandNewAccountCannotCreateGroup() {
+    void brandNewAccountCanCreateGroup() {
         long fresh = freshUser();
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> groupService.createGroup(fresh, "新号群-" + SUFFIX, null, List.of()));
-        assertEquals(ResultCode.ACCOUNT_TOO_NEW.getCode(), ex.getCode(),
-                "注册不足 24 小时的账号不能建群");
-        assertTrue(ex.getMessage().contains("注册满 1 天"), ex.getMessage());
+        long gid = group(fresh);
+        assertNotNull(gid);
     }
 
     /** 老号不依赖校园信息即可建群：verify_status=0 也能成功 */

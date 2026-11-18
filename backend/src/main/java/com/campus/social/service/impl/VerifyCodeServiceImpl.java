@@ -64,8 +64,8 @@ public class VerifyCodeServiceImpl implements VerifyCodeService {
         // 手机无大小写,原样。
         String norm = isEmail ? target.toLowerCase() : target;
 
-        // 2026-10-27:邮箱验证码登录不再要求邮箱已注册 —— 未注册邮箱在校验码通过后
-        // 由 AuthServiceImpl.loginByCode 自动建号(不设密码),所以这里不能再拦。
+        // 发码不按「邮箱是否已注册」拦截:注册页也要往未注册邮箱发码,
+        // 而验证码登录只登录已注册账号(2026-11-14),是否注册由各自入口校验。
         // 发送动作本身仍受 60s 限频与每日 20 封约束。
 
         // 硬约束 2(复用未过期验证码):已有一条有效码则直接复用,

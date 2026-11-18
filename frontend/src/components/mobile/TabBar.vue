@@ -7,13 +7,20 @@
           class="tabbar__link"
           :class="{ 'is-active': isActive(item.path) }"
           :aria-current="isActive(item.path) ? 'page' : undefined"
-          :aria-label="item.ariaLabel"
+          :aria-label="item.locked ? `${item.ariaLabel}（需登录）` : item.ariaLabel"
         >
           <span class="tabbar__icon">
             <NavIcon
               :name="item.icon"
               :size="22"
               :stroke-width="isActive(item.path) ? ACTIVE_STROKE : IDLE_STROKE"
+            />
+            <NavIcon
+              v-if="item.locked"
+              name="lock"
+              :size="11"
+              :stroke-width="2.2"
+              class="tabbar__lock"
             />
             <UnreadDot v-if="item.badge > 0" :count="item.badge" noun="条未读消息" />
           </span>
@@ -29,9 +36,8 @@
 /**
  * 移动端底部主导航(mobile-shell.md §2)
  *
- * 登录用户五个入口:首页 / 圈子 / 集市 / 消息 / 我的 —— **五项等权**。
- * 游客态只保留首页 / 圈子 / 集市三个公开入口,消息与我的都要求登录,
- * 留在底栏只会点了就断浏览动线(2026-10-30)。
+ * 登录用户与游客都是五个入口:首页 / 圈子 / 集市 / 消息 / 我的 —— **五项等权**。
+ * 游客的「消息」「我的」可见但锁定,点进去由路由守卫提示登录(2026-11-12)。
  * 发帖入口不在此:两端都走顶栏「+」,登录用户的 5 项固定不增减。
  *
  * [2026-10-20 改版] 去掉了中间「集市」的凸起圆钮,理由三条:
@@ -55,6 +61,7 @@ import NavIcon from './NavIcon.vue'
 import UnreadDot from './UnreadDot.vue'
 import SafeArea from './SafeArea.vue'
 import { useUserStore } from '@/stores/user'
+import { useNavAccess } from '@/composables/useNavAccess'
 
 /** 未选中 1.9 / 选中 2.05:选中态靠线宽强化,不改图标尺寸(改尺寸会横向抖动) */
 const IDLE_STROKE = 1.9
@@ -70,29 +77,39 @@ const props = defineProps({
 
 const route = useRoute()
 const userStore = useUserStore()
+const { needsLogin } = useNavAccess()
 
 const items = computed(() => {
   /*
-   * 游客只保留公开浏览入口(2026-10-30 修)。
-   * 「消息」「我的」都要求登录:游客点了会撞路由守卫,弹登录提示或跳登录页,
-   * 留一个点了就断浏览动线的按钮没有意义。登录用户仍固定 5 项。
+   * 游客与登录用户一样显示 5 项(2026-11-12 调整)。
+   * 「消息」「我的」对游客是**可见但锁定**:点了由路由守卫提示登录,
+   * 不再整块隐藏 —— 游客需要先看到平台有哪些功能,再决定是否注册。
    */
-  const publicItems = [
-    { path: '/', label: '首页', icon: 'home', ariaLabel: '首页', badge: 0 },
-    { path: '/circles', label: '圈子', icon: 'board', ariaLabel: '圈子列表', badge: 0 },
-    { path: '/mkt', label: '集市', icon: 'bag', ariaLabel: '集市活动广场', badge: 0 },
-  ]
-  if (userStore.isGuest) return publicItems
-
   // 「我的」跳转个人主页 /user/:id。userInfo 是异步 fetchMe 的,未就绪时
   // id 为空 —— 此时给兜底 /settings,避免渲染出 /user/undefined 触发白屏
   // (TopBar.vue:141-146 已踩过这个 <Transition> patch parentNode 为 null 的坑)。
-  // userInfo 就绪后 computed 自动重算,path 纠正为真实 /user/{id},无需手动刷新。
+  // 游客没有个人主页,落到 /settings,由守卫提示登录。
   const meId = userStore.userInfo?.id
   return [
-    ...publicItems,
-    { path: '/chat', label: '消息', icon: 'bubble', ariaLabel: '消息与纸条', badge: props.paperCount },
-    { path: meId ? `/user/${meId}` : '/settings', label: '我的', icon: 'user', ariaLabel: '我的主页', badge: 0 },
+    { path: '/', label: '首页', icon: 'home', ariaLabel: '首页', badge: 0, locked: false },
+    { path: '/circles', label: '圈子', icon: 'board', ariaLabel: '圈子列表', badge: 0, locked: false },
+    { path: '/mkt', label: '集市', icon: 'bag', ariaLabel: '集市活动广场', badge: 0, locked: false },
+    {
+      path: '/chat',
+      label: '消息',
+      icon: 'bubble',
+      ariaLabel: '消息与纸条',
+      badge: props.paperCount,
+      locked: needsLogin('/chat'),
+    },
+    {
+      path: userStore.isGuest ? '/settings' : (meId ? `/user/${meId}` : '/settings'),
+      label: '我的',
+      icon: 'user',
+      ariaLabel: '我的主页',
+      badge: 0,
+      locked: userStore.isGuest,
+    },
   ]
 })
 
@@ -174,6 +191,17 @@ function isActive(path) {
   line-height: 1.25;
   letter-spacing: 0.01em;
   font-weight: var(--ys-weight-regular);
+}
+
+/* 游客锁定角标:贴图标右上角,白底遮住底下的描边,和侧栏「需登录」同一语义 */
+.tabbar__lock {
+  position: absolute;
+  top: -2px;
+  right: -5px;
+  padding: 1px;
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  color: var(--ys-muted);
 }
 
 /* 选中态只改字重不改字号 —— 改尺寸会让相邻项抖动 */

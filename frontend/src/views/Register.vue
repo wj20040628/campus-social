@@ -23,7 +23,7 @@
         label-position="top"
         @submit.prevent="onSubmit"
       >
-        <!-- ================= 卡片一：账号（全部必填） ================= -->
+        <!-- ================= 账号信息 ================= -->
         <div class="reg-card">
           <!--
             邮箱（2026-10-21 改为必填 + 验证码验证所有权）。
@@ -36,7 +36,6 @@
               placeholder="用来登录和找回密码"
               autocomplete="email"
             />
-            <p class="field-hint">邮箱和学号都能登录，也能用来找回密码</p>
             <p v-if="fieldErrors.email" class="field-error" role="alert">
               {{ fieldErrors.email }}
             </p>
@@ -84,63 +83,15 @@
           </p>
         </el-form-item>
 
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <PasswordInput
+            v-model="form.confirmPassword"
+            placeholder="再输一次密码"
+            autocomplete="new-password"
+          />
+        </el-form-item>
+
         </div><!-- /.reg-card 账号 -->
-
-        <!-- ================= 卡片二：校园信息（可跳过） =================
-          把「可跳过」做成结构本身：这张卡带着「可选」角标。
-          2026-10-30 起学号只用于完善资料，不再决定任何功能权限。
-        -->
-        <div class="reg-card">
-          <p class="reg-card__h">
-            <i class="reg-card__sq reg-card__sq--muted" />校园信息
-            <span class="reg-card__tag">可选</span>
-          </p>
-
-          <!--
-            学号（选填）。
-            填了会与学校归属做一致性比对：一致直接登记，不一致转人工核对；
-            不填也不影响使用。
-          -->
-          <el-form-item label="学号" prop="studentNo">
-            <el-input
-              v-model="form.studentNo"
-             
-              maxlength="32"
-              autocomplete="username"
-              :aria-describedby="fieldErrors.studentNo ? 'studentno-err' : undefined"
-            />
-            <p class="field-hint">选填，只用于完善资料，不影响发帖、评论、私信、圈子和集市</p>
-            <!--
-              设计 §3 错误:学号已被注册。
-              除了文案还要给一个「去登录」的**内联**出口 ——
-              发现学号已注册时,最优出路是去登录而不是重新注册,
-              让用户在两页之间自己找是设计想避免的。
-            -->
-            <p v-if="fieldErrors.studentNo" id="studentno-err" class="field-error" role="alert">
-              {{ fieldErrors.studentNo }}
-              <router-link v-if="usernameTaken" to="/login/form" class="field-error__link">
-                去登录
-              </router-link>
-              <!-- 申诉出口（2026-10-19）：被自己的规则挡在外面时用户没有出路 -->
-              <button
-                v-if="appealOpen"
-                type="button"
-                class="field-error__link field-error__link--btn"
-                @click="appealRef?.open()"
-              >我确实是本校学生，提交申诉</button>
-            </p>
-          </el-form-item>
-
-          <StudentNoAppealDialog ref="appealRef" :preset-student-no="form.studentNo" />
-
-          <!--
-            学校归属:与引导第 1 步共用 SchoolFields。
-            只在用户填了 13/14 位学号时才出现（要做一致性比对）；留空则只注册。
-          -->
-          <el-form-item v-if="showSchoolFields" label="学校归属" :error="identityError">
-            <SchoolFields v-model="identity" />
-          </el-form-item>
-        </div><!-- /.reg-card 校园信息 -->
 
         <!-- 同意协议勾选框（2026-10-20）：未勾选时按钮置灰 + onSubmit 兜底拦截；协议名可点打开弹窗 -->
         <el-form-item>
@@ -181,26 +132,19 @@
 /**
  * 注册页(账号体系重构 2026-10-17)。
  *
- * 主账号是邮箱,昵称必填。学号为选填资料，只在填了合法学号时展开学校归属，
- * 用于与字典做一致性比对（一致直接登记，不一致转人工核对）。
- *
- * 学院 / 年级是字典下拉而非自由文本:自由文本会让「计算机学院」与「计科」
- * 算两个院系,同院系推荐(AC-14)漏人。
+ * 主账号是邮箱,昵称选填（不填由服务端自动生成）。
+ * 学号与学校归属不在注册页收集，用户之后可在个人资料里补。
  */
-import { reactive, ref, computed, watch, onBeforeUnmount } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { useUserStore } from '@/stores/user'
-import { IDENTITY_MODEL } from '@/constants/schoolDict'
 import { sendCode as sendVerifyCode } from '@/api/auth'
 import { useRegisterSubmit } from '@/composables/useRegisterSubmit'
-import SchoolFields from '@/components/common/SchoolFields.vue'
+import { useCodeCountdown } from '@/composables/useCodeCountdown'
 import PasswordInput from '@/components/auth/PasswordInput.vue'
 import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
-import StudentNoAppealDialog from '@/components/auth/StudentNoAppealDialog.vue'
 import LegalAgreementDialog from '@/components/auth/LegalAgreementDialog.vue'
-
-const appealRef = ref(null)
 
 // 协议弹窗 + 同意状态（2026-10-20）。未勾选时注册按钮置灰，onSubmit 再兜底拦截
 const legalRef = ref(null)
@@ -212,57 +156,25 @@ const userStore = useUserStore()
 
 const formRef = ref()
 const form = reactive({
-  email: '', emailCode: '', nickname: '', password: '', studentNo: '',
+  email: '', emailCode: '', nickname: '', password: '', confirmPassword: '',
 })
-
-/** 学校归属。与引导第 1 步同一个模型,{ schoolId, deptId, gradeId } */
-const identity = ref({ ...IDENTITY_MODEL })
-/** 后端 1040/1041 判定的无效字段 */
-const identityInvalid = ref({})
 
 const {
   loading,
   formError,
   retryable,
   fieldErrors,
-  usernameTaken,
-  appealOpen,
   submit: submitRegister,
 } = useRegisterSubmit({
   form,
-  identity,
-  identityInvalid,
   userStore,
-  onDone: () => router.push('/onboarding'),
+  onDone: () => router.replace('/'),
 })
 
 /**
- * 学校归属显隐:用户填到 13/14 位合法学号时才展开。
- * 否则归属区隐藏,注册只建账号，不带学号。
- */
-const showSchoolFields = computed(() => /^\d{13,14}$/.test(form.studentNo || ''))
-
-// 学号被清空或变短(不再满足 13/14 位)时,把已选归属清掉,
-// 避免脏数据随提交带上去(此时归属区本就隐藏,不该提交)。
-watch(
-  () => form.studentNo,
-  (val) => {
-    if (!/^\d{13,14}$/.test(val || '')) {
-      identity.value = { ...IDENTITY_MODEL }
-      identityInvalid.value = {}
-    }
-  },
-)
-
-/**
- * 校验规则（2026-10-21 调整）。
+ * 校验规则（2026-10-21 调整，2026-11-14 去掉学号）。
  *
- * 学号从必填改为选填 —— 只在填了内容时才校验格式；
- * 邮箱从选填改为必填并加验证码；验证码固定 6 位数字。
- *
- * 归属与学号的交叉比对一律交后端 1058 判定，本地不拦：
- * 本地硬拦会逐条泄露学号编码规则（与后端 2026-10-19 安全修正矛盾），
- * 而且本地一拦提交就发不出、申诉出口也出不来。
+ * 邮箱必填并加验证码；验证码固定 6 位数字；昵称选填，只限制长度。
  */
 const rules = {
   email: [
@@ -283,35 +195,26 @@ const rules = {
       trigger: 'blur',
     },
   ],
-  studentNo: [
-    {
-      // 选填：空值合法，不触发下面的格式校验
-      validator: (r, v, cb) => {
-        const s = (v || '').trim()
-        if (!s) return cb()
-        if (!/^\d+$/.test(s)) return cb(new Error('学号需为纯数字'))
-        if (s.length !== 13 && s.length !== 14) return cb(new Error('学号格式不正确'))
-        // 末两位是班内序号，取值 00~69（镜像后端 MAX_CLASS_RANK=69）
-        if (Number(s.slice(-2)) > 69) return cb(new Error('学号格式不正确'))
-        cb()
-      },
-      trigger: 'blur',
-    },
-  ],
   nickname: [
-    { required: true, message: '请输入昵称', trigger: 'blur' },
+    // 选填：空值由服务端自动生成（「用户」+6 位随机），只限制长度
     { max: 32, message: '昵称最长 32 位', trigger: 'blur' },
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, max: 64, message: '密码要 6 位以上', trigger: 'blur' },
   ],
+  confirmPassword: [
+    { required: true, message: '请再输一次密码', trigger: 'blur' },
+    {
+      validator: (r, v, cb) => ((v || '') === form.password ? cb() : cb(new Error('两次输入的密码不一致'))),
+      trigger: 'blur',
+    },
+  ],
 }
 
 /* ---------------- 邮箱验证码（2026-10-21 新增） ---------------- */
-const sendingCode = ref(false)
-const codeCountdown = ref(0)
-let countdownTimer = null
+// 倒计时复用 useCodeCountdown，与登录页同一实现（自写版漏了卸载清理）
+const { cd: codeCountdown, sending: sendingCode, start: startCodeCountdown } = useCodeCountdown()
 
 /** 邮箱格式看起来对，才允许点「获取验证码」—— 免得白发一次 */
 const emailLooksOk = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((form.email || '').trim()))
@@ -328,11 +231,7 @@ async function sendCode() {
      */
     await sendVerifyCode(form.email.trim().toLowerCase(), 'register', { silent: true })
     ElMessage.success('验证码已发到邮箱')
-    codeCountdown.value = 60
-    countdownTimer = setInterval(() => {
-      codeCountdown.value -= 1
-      if (codeCountdown.value <= 0) clearInterval(countdownTimer)
-    }, 1000)
+    startCodeCountdown()
   } catch (e) {
     formError.value = e?.message || '验证码没发出去，稍后再试'
   } finally {
@@ -340,51 +239,17 @@ async function sendCode() {
   }
 }
 
-onBeforeUnmount(() => {
-  if (countdownTimer) clearInterval(countdownTimer)
-})
-
-/**
- * 学校归属的错误提示。
- * 设计要求:所有错误贴近字段,不汇总到顶部、不只弹 toast。
- * 学校归属没填满时给出原因,而不是让用户点提交后毫无反馈。
- */
-const identityError = computed(() => {
-  // 服务端判定的无效字段优先 —— 本地五项都填了也不能盖掉它
-  if (identityInvalid.value.dept) return identityInvalid.value.dept
-  if (identityInvalid.value.grade) return identityInvalid.value.grade
-  if (identityInvalid.value.level) return identityInvalid.value.level
-  if (identityInvalid.value.major) return identityInvalid.value.major
-  const i = identity.value
-  if (!i.schoolId) return '选一个学校'
-  if (!i.deptId) return '选一个学院'
-  if (!i.level) return '选一个本专科'
-  if (!i.gradeId) return '选一个年级'
-  if (!i.majorId) return '选一个专业'
-  return ''
-})
-
 /**
  * 表单提交入口。
  *
- * 本地校验与「归属没填满」的短路留在这里,发请求之后的事全在
- * useRegisterSubmit 里 —— 这个分界与 Login.vue 一致。
+ * 本地校验留在这里,发请求之后的事全在 useRegisterSubmit 里 ——
+ * 这个分界与 Login.vue 一致。
  */
 async function onSubmit() {
   // 兜底：按钮置灰仍可能被回车绕过，这里再拦一道
   if (!agreed.value) { ElMessage.warning('请先阅读并同意《用户协议》和《隐私政策》'); return }
   const ok = await formRef.value.validate().catch(() => false)
   if (!ok) return
-  /*
-   * 归属只在「填了学号」时才必填(2026-10-24 修)。
-   * 此前无条件校验 identityError,而归属表单只在填学号后才渲染——
-   * 「学号可选」的用户看不到归属控件,却被「选一个学院」永远拦死,
-   * PRD 的主路径(先注册、以后补资料)整个走不通。
-   */
-  if (showSchoolFields.value && identityError.value) {
-    ElMessage.warning(identityError.value)
-    return
-  }
   await submitRegister()
 }
 </script>

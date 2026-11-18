@@ -18,6 +18,9 @@ public class ChatSendVO implements Serializable {
 
     private Long msgId;
 
+    /** 本次消息所属会话 id。首条消息会新建会话，前端据此把占位会话换成真 id */
+    private Long convId;
+
     /** 本次是否属于向陌生人发送（用于前端规则提示与埋点） */
     private Boolean isStranger;
 

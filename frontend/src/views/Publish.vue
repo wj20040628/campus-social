@@ -315,7 +315,10 @@ async function submit() {
   if (!canSubmit.value) return
   posting.value = true
   submitError.value = ''
-  const media = readyMedia.value.length ? JSON.stringify(readyMedia.value) : null
+  // 编辑时删光媒体要传 '[]' 才能真正清空；null 在后端是「保留原媒体」
+  const media = readyMedia.value.length
+    ? JSON.stringify(readyMedia.value)
+    : (isEdit.value ? '[]' : null)
   const topics = topicTags.value.length ? topicTags.value : null
   try {
     if (isEdit.value) {
@@ -324,17 +327,22 @@ async function submit() {
       markFeedDirty() // 编辑会改内容/话题,首页列表缓存需重拉
       router.push(`/post/${data.id}`)
     } else {
-      await createPost({
+      const created = await createPost({
         content: content.value,
         media,
         topics,
       })
-      // AC-06:命中敏感词时后端给 status=0(审核中),要明确告诉用户「发出去了但还在审」
-      ElMessage.success('发出去了，等别人来搭话吧')
+      // 创建接口会回 status：0 = 命中敏感词进审核，不能再说「发出去了」
       markFeedDirty() // 新帖必须出现在首页,keep-alive 缓存不能拦着
-      // 关注流不含自己且可能为空,回首页直接切「全部」让用户看到刚发的帖
-      requestHomeTab('all')
-      router.push('/')
+      if (created.status === 0) {
+        ElMessage.warning('已提交，命中敏感词需人工审核，通过后才会展示')
+        router.push(`/post/${created.postId}`)
+      } else {
+        ElMessage.success('发出去了，等别人来搭话吧')
+        // 关注流不含自己且可能为空,回首页直接切「全部」让用户看到刚发的帖
+        requestHomeTab('all')
+        router.push('/')
+      }
     }
   } catch {
     // 正文与图片**全部保留**,只给一句可重试的提示

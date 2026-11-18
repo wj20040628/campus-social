@@ -60,7 +60,7 @@
     <template v-else-if="list.length">
       <ul class="mkc__list">
         <li v-for="c in list" :key="c.id" class="mkc__item">
-          <el-avatar :size="30" :src="resolveThumb(c.avatarUrl)" />
+          <InitialAvatar :size="30" :src="c.avatarUrl ? resolveThumb(c.avatarUrl) : ''" :seed="c.userId" :name="displayNameOf(c)" :user-id="c.userId" />
           <div class="mkc__body">
             <p class="mkc__nick">{{ displayNameOf(c) }}</p>
             <p class="mkc__text">{{ c.content }}</p>
@@ -143,6 +143,7 @@ import { ref, nextTick } from 'vue'
 import dayjs from 'dayjs'
 import { Close } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { resolveThumb } from '@/utils/resolve'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useGuestPrompt } from '@/composables/useGuestPrompt'

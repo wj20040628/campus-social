@@ -153,7 +153,7 @@ public class PasswordServiceImpl implements PasswordService {
             throw new BusinessException(UNAUTHORIZED, "未登录");
         }
         if (!JwtUtil.isPasswordSet(user.getPasswordHash())) {
-            // 自动建号还没有密码,「原密码」这一步不存在;前端应走设置密码弹层
+            // 无密码账号还没有密码,「原密码」这一步不存在;前端应走设置密码弹层
             throw new BusinessException(PASSWORD_NOT_SET);
         }
         if (!JwtUtil.verifyPassword(dto.getOldPassword(), user.getPasswordHash())) {

@@ -247,10 +247,13 @@ async function load() {
 async function onSignup() {
   // 活动详情对游客开放（扫码落地页），但报名是写操作：先提示登录，
   // 否则 401 被 request.js 静默吞掉，按钮看起来像坏了。
-  if (!(await ensureLogin('登录后才能报名活动，现在去登录吗？'))) return
+  // 回放动作时路由已在登录页，活动 id 必须从已加载的 act 里取。
+  const activityId = act.value?.id
+  if (!activityId) return
+  if (!(await ensureLogin('登录后才能报名活动，现在去登录吗？', onSignup))) return
   signing.value = true
   try {
-    await signupApi(route.params.id)
+    await signupApi(activityId)
     ElMessage.success('报名成功')
     await load()
   } catch {

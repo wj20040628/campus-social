@@ -189,6 +189,11 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* 同一分组里第二行数字（游客/扫码的停留三卡）与上一行留出间距 */
+.ov__grid--gap {
+  margin-top: var(--ys-space-2);
+}
+
 /* ---------------- 卡片 ---------------- */
 
 .ov__card {
@@ -277,6 +282,137 @@
   color: var(--ys-muted);
 }
 
+/* ---------------- 近 7 日趋势 / 来源占比 ---------------- */
+
+.ov__sub-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  margin: var(--ys-space-3) 0 var(--ys-space-2);
+}
+
+.ov__sub-title {
+  font-size: var(--ys-text-xs);
+  font-weight: var(--ys-weight-semibold);
+  color: var(--ys-fg);
+}
+
+.ov__sub-meta {
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  white-space: nowrap;
+}
+
+.ov__trend {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ys-space-1);
+  padding: var(--ys-space-2);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-surface);
+}
+
+.ov__trend-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ov__trend-num {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ys-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov__trend-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 56px;
+}
+
+/* 柱高由 JS 按当周最大值换算成百分比；今天满色，往日半透明 */
+.ov__trend-fill {
+  width: 60%;
+  max-width: 18px;
+  border-radius: 3px 3px 0 0;
+  background: var(--ys-accent);
+  opacity: 0.35;
+}
+
+.ov__trend-fill--zero {
+  background: var(--ys-border);
+  opacity: 1;
+}
+
+.ov__trend-date {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ys-muted);
+  white-space: nowrap;
+}
+
+.ov__trend-col--today .ov__trend-num,
+.ov__trend-col--today .ov__trend-date {
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-semibold);
+}
+
+.ov__trend-col--today .ov__trend-fill {
+  opacity: 1;
+}
+
+/* 来源排名：名称 + 条形 + 「会话数 · 占比」 */
+.ov__rank-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  padding: var(--ys-space-1) 0;
+}
+
+.ov__rank-name {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-fg);
+}
+
+.ov__rank-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ys-surface-2);
+  overflow: hidden;
+}
+
+.ov__rank-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ys-accent);
+  opacity: 0.75;
+}
+
+.ov__rank-val {
+  flex: none;
+  min-width: 64px;
+  text-align: right;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .ov__state {
   padding: var(--ys-space-8) var(--ys-space-4);
 }
@@ -292,5 +428,17 @@
     flex-direction: row;
     justify-content: space-between;
     padding: var(--ys-space-2) var(--ys-space-3);
+  }
+
+  /* 游客/扫码的停留三卡仍是三列，窄卡里保持纵向并缩一号，避免数字被挤断 */
+  .ov__grid--three .ov__card--dense {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: var(--ys-space-2);
+  }
+
+  .ov__grid--three .ov__card--dense .ov__num {
+    font-size: 16px;
   }
 }

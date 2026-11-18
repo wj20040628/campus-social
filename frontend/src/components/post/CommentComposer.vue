@@ -30,7 +30,7 @@
       <ul v-if="mentionList.length" class="cc__mention-strip">
         <li v-for="u in mentionList" :key="u.id">
           <button type="button" class="cc__mention-cell" @mousedown.prevent="pick(u)">
-            <InitialAvatar :size="40" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+            <InitialAvatar :size="40" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" :user-id="u.id" />
             <span class="cc__mention-name">{{ displayName(u) }}</span>
           </button>
         </li>

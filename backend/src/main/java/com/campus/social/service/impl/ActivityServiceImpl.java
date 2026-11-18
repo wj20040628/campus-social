@@ -279,7 +279,8 @@ public class ActivityServiceImpl implements ActivityService {
          * 这不是产品放宽:signup() 只拦 3/4,trySignin 的乐观锁 SQL 本就允许
          * status IN (0,1,2)——此前读侧标志与写路径语义脱节(2026-10-25 修)。
          */
-        boolean canSignup = a.getStatus() != 3 && a.getStatus() != 4;
+        // 满员(1)也关闭报名入口：写路径 trySignin 会拒绝，读侧不能给出可点的假象
+        boolean canSignup = a.getStatus() != 1 && a.getStatus() != 3 && a.getStatus() != 4;
         return ActivityVO.builder()
                 .id(a.getId())
                 .title(a.getTitle())

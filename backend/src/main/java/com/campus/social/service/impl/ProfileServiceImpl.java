@@ -73,9 +73,14 @@ public class ProfileServiceImpl implements ProfileService {
         String oldBio = user.getBio();
         // 昵称是公开身份标识，命中一级词也不打码（`*` 昵称无法展示/搜索）；
         // 简介与评论同口径：二级词拒发，一级词打码后落库。
-        if (nickname != null
-                && (sensitive.containsBlock(nickname) || sensitive.containsReplace(nickname))) {
-            throw new BusinessException(SENSITIVE_WORD_BLOCKED, "昵称包含违规词，换一个再试");
+        if (nickname != null) {
+            nickname = nickname.trim();
+            if (nickname.isEmpty()) {
+                throw new BusinessException(BAD_REQUEST, "昵称不能为空");
+            }
+            if (sensitive.containsBlock(nickname) || sensitive.containsReplace(nickname)) {
+                throw new BusinessException(SENSITIVE_WORD_BLOCKED, "昵称包含违规词，换一个再试");
+            }
         }
         String newBio = null;
         if (bio != null) {

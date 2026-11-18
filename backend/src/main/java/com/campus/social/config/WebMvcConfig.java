@@ -77,6 +77,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 学校字典:纯只读全局参照数据,注册页(未登录)也要拉院系/年级/专业,
                         // 不放行会在打开注册页时就被 401 踢回登录页(DictController 仅 GET,无越权风险)。
                         "/dict/**",
+                        // 首页人数统计：纯聚合数字，未登录的游客首页也要显示。
+                        "/presence/stats",
+                        // 匿名访问记录(2026-11-14):游客没有 token,进入/心跳必须放行
+                        "/visit/enter",
+                        "/visit/ping",
                         "/uploads/**",
                         // OSS 上传回调:由阿里云 OSS 服务器调用,不带用户 token,必须放行
                         // (否则 auth 拦截器 401,回调失败 → 上传文件无 upload_file 记录)

@@ -115,7 +115,9 @@ public class FileQueryService {
             throw new BusinessException(FILE_NOT_AVAILABLE);
         }
         if (Integer.valueOf(1).equals(asset.getStatus())) {
-            if (countView(asset.getId(), "u" + userId)) {
+            // 游客没有 userId(0),按 IP 去重;否则所有游客共用 "u0" 只算一次浏览
+            String viewerKey = userId > 0 ? "u" + userId : "ip" + FileAssetSupport.normIp(ip);
+            if (countView(asset.getId(), viewerKey)) {
                 // 数据库已 +1，但 VO 用的还是旧快照；不回写的话首次打开永远显示少 1
                 asset.setViewCount((asset.getViewCount() == null ? 0 : asset.getViewCount()) + 1);
             }

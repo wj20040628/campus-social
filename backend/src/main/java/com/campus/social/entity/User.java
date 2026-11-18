@@ -103,6 +103,14 @@ public class User implements Serializable {
     private LocalDateTime muteUntil;
 
     /**
+     * 隐身开关（2026-11-13）：1 = 在线但对外显示离线。
+     *
+     * <p>只影响「别人看到的在线绿点」与公共在线人数；管理总览的在线人数
+     * 仍统计该用户，避免管理员误判实际连接数。
+     */
+    private Integer presenceHidden;
+
+    /**
      * 已注销账号的私信/通知清理完成时间（2026-11-08）。
      *
      * <p>注销当下清空资料；私信与通知按 {@code campus.account.cancelled-retention-days}

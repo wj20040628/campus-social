@@ -24,6 +24,30 @@
       </div>
     </el-card>
 
+    <!-- 在线状态隐身（2026-11-13）：关掉后别人看到灰点，管理总览仍计入在线 -->
+    <el-card class="sgroup">
+      <div class="srow">
+        <span class="sicon"><el-icon :size="18"><View /></el-icon></span>
+        <span class="stext">
+          <span class="slabel">向他人展示在线状态</span>
+          <span class="sdesc">
+            <template v-if="showOnline">
+              你的头像右下角对别人显示绿色在线点；关闭后显示灰色。
+            </template>
+            <template v-else>
+              别人看到的头像在线点是灰色。你仍可正常收发消息。
+            </template>
+          </span>
+        </span>
+        <el-switch
+          v-model="showOnline"
+          :loading="presenceSaving"
+          :disabled="presenceSaving"
+          @change="onPresenceChange"
+        />
+      </div>
+    </el-card>
+
     <!--
       黑名单管理。数据来自 GET /relation/blacklist(只列「我拉黑的人」),
       解除走 DELETE /relation/blacklist?uid=(2026-10-20 接真接口,替换原空壳 TODO)。
@@ -58,9 +82,10 @@
  *   解除成功后本地摘除该行,失败时请求层已弹错、列表保持原样。
  */
 import { ref, onMounted } from 'vue'
-import { ChatDotRound, UserFilled } from '@element-plus/icons-vue'
+import { ChatDotRound, UserFilled, View } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/feedback'
 import { me as meApi, setStrangerMsg } from '@/api/auth'
+import { setHidden as setPresenceHidden } from '@/api/presence'
 import { blacklistList, unblacklist } from '@/api/relation'
 
 /* ---- 陌生人消息开关(与旧设置页同逻辑) ---- */
@@ -76,6 +101,22 @@ async function onStrangerMsgChange(val) {
     strangerMsg.value = !val
   } finally {
     strangerSaving.value = false
+  }
+}
+
+/* ---- 在线状态隐身 ---- */
+const showOnline = ref(true)
+const presenceSaving = ref(false)
+
+async function onPresenceChange(val) {
+  presenceSaving.value = true
+  try {
+    await setPresenceHidden(!val)
+    ElMessage.success(val ? '已展示在线状态' : '已隐藏在线状态')
+  } catch {
+    showOnline.value = !val
+  } finally {
+    presenceSaving.value = false
   }
 }
 
@@ -110,6 +151,7 @@ onMounted(() => {
   meApi()
     .then((me) => {
       strangerMsg.value = me.strangerMsgEnabled !== false
+      showOnline.value = me.presenceHidden !== true
     })
     .catch(() => {})
 })

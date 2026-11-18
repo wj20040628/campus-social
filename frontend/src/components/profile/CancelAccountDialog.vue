@@ -56,6 +56,8 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/feedback'
 import { cancelAccount, sendCancelCode } from '@/api/auth'
+import { getWsClient } from '@/utils/ws'
+import { clearPresence } from '@/utils/presence'
 import { useIsMobile } from '@/composables/useBreakpoint'
 import { useUserStore } from '@/stores/user'
 
@@ -122,6 +124,8 @@ async function submit() {
     await cancelAccount(code.value.trim())
     ElMessage.success('账号已注销')
     visible.value = false
+    getWsClient().close()
+    clearPresence()
     userStore.clear()
     router.replace('/login')
   } catch {

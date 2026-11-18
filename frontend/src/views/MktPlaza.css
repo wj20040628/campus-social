@@ -1,0 +1,67 @@
+.mkt-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* ---------------- 工具条（2026-10-21 重做，2026-11-14 再调） ---------------- */
+/*
+ * 2026-10-21：把「发布按钮独占一行 + 三行分类」压成「发布按钮与分类同一行」，
+ * 分类单行横滑，整块约 44px。
+ *
+ * 2026-11-14：分类条保持这一排胶囊；红米自带浏览器收不到横向拖动手势，
+ * 窄屏时由分类条右端的「更多」兜底（能滑就滑，滑不动就点），
+ * 不再把整排收成一个按钮。
+ */
+.mkt__tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ys-space-2);
+  margin: 0 0 var(--ys-space-2);
+  min-width: 0;
+}
+
+.mkt__publish {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ys-space-1);
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--ys-accent);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  font-weight: var(--ys-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.mkt__publish:hover {
+  background: var(--ys-accent-hover);
+}
+
+/* Tab 头去掉下边框,和卡片网格视觉更连贯 */
+.mkt__tabs :deep(.el-tabs__item) {
+  font-size: var(--ys-text-base);
+}
+
+/* ---------------------------------------------------------------- 桌面端 */
+/*
+ * 2026-10-21 加。
+ *
+ * 实测改版前 .mkt-inner 是 max-width:1180。但 **MktList 自己已经有响应式网格**：
+ *   <768 单列 / 768–1279 两列 / ≥1280 四列（MktList.vue 内联样式）
+ * 也就是说桌面端一直是多列的，我最初设计的「改成三列」是多余的 ——
+ * 真正的问题只是 1180 这个容器宽度让每张卡偏宽、且左对齐留白不均衡。
+ *
+ * 所以这里只做一件事：把内容列收到 1000 并让 .mkt-inner 在宽屏上居中。
+ * 不覆盖 MktList 的列数，避免与它内部的三档断点打架。
+ */
+@media (min-width: 1024px) {
+  .mkt-inner {
+    max-width: 1000px;
+  }
+}

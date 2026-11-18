@@ -54,6 +54,14 @@
 
       <!-- 上传失败:格内红底 + 重传。用户能精确知道是哪一张出的问题 -->
       <template v-else>
+        <button
+          type="button"
+          class="mg__remove"
+          :aria-label="`删除第 ${i + 1} 张失败的媒体`"
+          @click="$emit('remove', i)"
+        >
+          <el-icon :size="16"><Close /></el-icon>
+        </button>
         <el-icon :size="16" class="mg__fail-icon"><WarningFilled /></el-icon>
         <span class="mg__hint mg__hint--danger">上传失败</span>
         <button

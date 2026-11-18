@@ -121,8 +121,8 @@
         </section>
 
         <div class="sp-savebar">
-          <button type="button" class="sp-save" :disabled="saving || schoolSaving" @click="saveAll">
-            {{ saving || schoolSaving ? '保存中…' : '保存' }}
+          <button type="button" class="sp-save" :disabled="!loaded || saving || schoolSaving" @click="saveAll">
+            {{ !loaded ? '资料加载中…' : (saving || schoolSaving ? '保存中…' : '保存') }}
           </button>
         </div>
       </div>
@@ -164,6 +164,8 @@ const { load: loadVerify, code: verifyCode } = useVerifyStatus()
 
 const saving = ref(false)
 const schoolSaving = ref(false)
+/** 资料回填完成前禁止保存：空表单提交会把昵称/简介/头像清空 */
+const loaded = ref(false)
 const identitySaved = ref(false)
 const identityInvalid = ref({})
 
@@ -339,6 +341,7 @@ async function saveProfile() {
  * 而用户完全看不出到底哪一半生效了。
  */
 async function saveAll() {
+  if (!loaded.value) return
   if (identityDirty.value) {
     saving.value = true
     const ok = await saveSchool()
@@ -362,7 +365,14 @@ function goBindEmail() {
 
 onMounted(async () => {
   await dict.ensureLoaded()
-  await load()
+  try {
+    await load()
+    loaded.value = true
+  } catch {
+    // 失败时保持按钮禁用：空表单 + 可保存 = 把资料清空
+    ElMessage.error('资料没加载出来，返回重试')
+    return
+  }
   await loadTags()
 })
 </script>

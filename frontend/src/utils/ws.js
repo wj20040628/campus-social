@@ -1,5 +1,6 @@
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from '@/utils/feedback'
+import { refreshPresence } from '@/utils/presence'
 
 /**
  * WebSocket 单例封装（支持同时维护多条连接，每条对应一个 endpoint）
@@ -110,6 +111,12 @@ class WsClient {
       c.lastPong = Date.now()
       this._startHeartbeat(path)
       console.log(`[ws] connected: ${path}`)
+      /*
+       * 服务端在握手完成的同一时刻才把本用户登记为在线。稍等一拍再强制
+       * 重查在线状态：否则登录/刷新后，连接前查询到的「离线」还在 30 秒
+       * 缓存里，自己的绿点会迟迟不亮、刷新时还会先暗后亮。
+       */
+      setTimeout(refreshPresence, 200)
     }
 
     socket.onmessage = (evt) => {

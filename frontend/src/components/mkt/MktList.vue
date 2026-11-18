@@ -68,7 +68,7 @@
  * 页面通过 props.list 传"当前已渲染的整份列表",通过 @load-more 触发追加,
  * 追加后由页面把新的整份列表传回来。这样本组件永远只有一份数据源。
  */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { WarningFilled, OfficeBuilding, Tickets } from '@element-plus/icons-vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import MktCard from './MktCard.vue'
@@ -112,7 +112,9 @@ async function onIntersect() {
   }
 }
 
-onMounted(() => {
+function setupObserver() {
+  observer?.disconnect()
+  observer = null
   if (!sentinel.value) return
   observer = new IntersectionObserver(
     (entries) => {
@@ -121,7 +123,15 @@ onMounted(() => {
     { threshold: 0.1, rootMargin: '200px' }
   )
   observer.observe(sentinel.value)
-})
+}
+
+// 首屏是骨架/空态时哨兵不存在；数据到达后才渲染出来。
+// 只在 onMounted 挂一次会让「第二页永远加载不出来」。
+onMounted(() => nextTick(setupObserver))
+watch(
+  () => [props.list.length, props.loading, props.failed],
+  () => nextTick(setupObserver),
+)
 
 onBeforeUnmount(() => {
   observer?.disconnect()

@@ -80,7 +80,9 @@ const groups = [
 
 /** 被关闭的类型 id 集合;空=全开 */
 const disabled = ref(new Set())
-const saving = ref(false)
+/** 串行保存：并发请求互相覆盖会让最后一次点击丢掉 */
+let saveChain = Promise.resolve()
+let lastSavedDisabled = new Set()
 
 /** 组内任一类型被关 = 整组关;全部开 = 开 */
 function isOn(g) {
@@ -95,17 +97,20 @@ async function toggle(g, on) {
   await save()
 }
 
-async function save() {
-  if (saving.value) return
-  saving.value = true
-  try {
-    const pref = disabled.value.size ? JSON.stringify({ disabled: [...disabled.value] }) : ''
-    await setNotifyPref(pref)
-  } catch {
-    ElMessage.error('保存失败,请重试')
-  } finally {
-    saving.value = false
-  }
+function save() {
+  saveChain = saveChain.then(async () => {
+    // 执行时再读 disabled：连续开关时每次保存的都是最新状态
+    const snap = new Set(disabled.value)
+    try {
+      const pref = snap.size ? JSON.stringify({ disabled: [...snap] }) : ''
+      await setNotifyPref(pref)
+      lastSavedDisabled = snap
+    } catch {
+      disabled.value = new Set(lastSavedDisabled)
+      ElMessage.error('保存失败,请重试')
+    }
+  })
+  return saveChain
 }
 
 onMounted(async () => {
@@ -115,6 +120,7 @@ onMounted(async () => {
       const arr = JSON.parse(raw).disabled
       if (Array.isArray(arr)) disabled.value = new Set(arr.map(Number))
     }
+    lastSavedDisabled = new Set(disabled.value)
   } catch {
     /* 偏好解析失败不阻塞页面,默认全开 */
   }
@@ -122,6 +128,7 @@ onMounted(async () => {
     const d = await getEmailDigest()
     digest.enabled = d?.enabled === true
     digest.types = Array.isArray(d?.types) ? d.types : []
+    lastSavedDigest = { enabled: digest.enabled, types: [...digest.types] }
   } catch {
     /* 邮件摘要拉取失败不阻塞站内通知设置 */
   }
@@ -136,18 +143,24 @@ const digestTypes = [
   { key: 'follow', label: '新粉丝', desc: '有人关注了你' },
   { key: 'system', label: '活动与审核', desc: '报名变更、审核结果' },
 ]
-let digestSaving = false
+let digestChain = Promise.resolve()
+let lastSavedDigest = null
 
-async function saveDigest() {
-  if (digestSaving) return
-  digestSaving = true
-  try {
-    await setEmailDigest({ enabled: digest.enabled, types: digest.types })
-  } catch {
-    ElMessage.error('保存失败,请重试')
-  } finally {
-    digestSaving = false
-  }
+function saveDigest() {
+  digestChain = digestChain.then(async () => {
+    const snap = { enabled: digest.enabled, types: [...digest.types] }
+    try {
+      await setEmailDigest(snap)
+      lastSavedDigest = snap
+    } catch {
+      if (lastSavedDigest) {
+        digest.enabled = lastSavedDigest.enabled
+        digest.types = [...lastSavedDigest.types]
+      }
+      ElMessage.error('保存失败,请重试')
+    }
+  })
+  return digestChain
 }
 </script>
 

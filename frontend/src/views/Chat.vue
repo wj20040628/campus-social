@@ -41,7 +41,7 @@
           ref="threadRef"
           v-model:draft="draft"
           class="chat__thread"
-          :key="currentConvId ?? currentGroup?.id ?? 'blank'"
+          :key="currentKind === 'group' ? (currentGroup?.id ?? 'blank') : (currentConv?.peer?.id ?? 'blank')"
           :messages="messages"
           :reply-to="replyToMsg"
           :kind="currentKind"

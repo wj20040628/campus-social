@@ -20,6 +20,7 @@ import com.campus.social.mapper.ReviewTaskMapper;
 import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AdminOverviewService;
 import com.campus.social.service.AdminUserService;
+import com.campus.social.service.VisitService;
 import com.campus.social.vo.AdminOverviewVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,8 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
     private final AnnouncementMapper announcementMapper;
     private final ReportMapper reportMapper;
     private final ReviewTaskMapper reviewTaskMapper;
+    private final com.campus.social.websocket.WsSessionManager wsSessionManager;
+    private final VisitService visitService;
 
     @Override
     public AdminOverviewVO overview() {
@@ -63,6 +66,11 @@ public class AdminOverviewServiceImpl implements AdminOverviewService {
 
         vo.setActiveUsers(userMapper.selectCount(
                 new LambdaQueryWrapper<User>().ne(User::getStatus, 2)));
+        // 在线数取活跃 WS 会话（按 userId 去重），含隐身用户：
+        // 管理员看的是实际连接规模，隐身只影响对外展示。
+        vo.setOnlineUsers(wsSessionManager.onlineCount());
+        // 游客/扫码(2026-11-14):游客没有账号,只能靠前端匿名上报汇总
+        vo.setGuestVisits(visitService.summary());
         vo.setCancelledUsers(userMapper.selectCount(
                 new LambdaQueryWrapper<User>().eq(User::getStatus, 2)));
         vo.setBannedUsers(userMapper.selectCount(

@@ -36,10 +36,10 @@ public class CampusProperties {
     private int onboardingMinTags = 3;
 
     /** 引导要求最多选几个标签 */
-    private int onboardingMaxTags = 5;
+    private int onboardingMaxTags = 12;
 
     /** 兴趣标签上限（PUT /user/tags 与引导共用） */
-    private int maxTags = 8;
+    private int maxTags = 12;
 
     /**
      * 单个群的最大成员数(拉人时校验)。校园场景 500 足够,
@@ -48,15 +48,11 @@ public class CampusProperties {
     private int groupMaxMembers = 500;
 
     /**
-     * 行为信任门槛（2026-10-30，2026-10-31 统一为 24 小时）。
+     * 行为信任门槛（2026-11-17）。
      *
-     * <p>校园信息不再作为功能门槛后，陌生人搭话、建圈、建群按
-     * 「账号注册时间 + 信誉分」判定；集市发布只看信誉分（2026-11-10）。
-     * 阈值放配置而不是写死：上线后按举报率调整，不必重新发版。
+     * <p>私信搭话、建圈、建群与集市发布统一只校验信誉分；
+     * 新注册账号基准 60 分，注册后即可使用。阈值放配置，按举报率调整不必发版。
      */
-    private int accessStrangerChatMinHours = 24;
-    private int accessCreateCircleMinDays = 1;
-    private int accessCreateGroupMinDays = 1;
     private int accessMinCredit = 60;
 
     public String getSchoolName() {
@@ -113,30 +109,6 @@ public class CampusProperties {
 
     public void setGroupMaxMembers(int groupMaxMembers) {
         this.groupMaxMembers = groupMaxMembers;
-    }
-
-    public int getAccessStrangerChatMinHours() {
-        return accessStrangerChatMinHours;
-    }
-
-    public void setAccessStrangerChatMinHours(int accessStrangerChatMinHours) {
-        this.accessStrangerChatMinHours = accessStrangerChatMinHours;
-    }
-
-    public int getAccessCreateCircleMinDays() {
-        return accessCreateCircleMinDays;
-    }
-
-    public void setAccessCreateCircleMinDays(int accessCreateCircleMinDays) {
-        this.accessCreateCircleMinDays = accessCreateCircleMinDays;
-    }
-
-    public int getAccessCreateGroupMinDays() {
-        return accessCreateGroupMinDays;
-    }
-
-    public void setAccessCreateGroupMinDays(int accessCreateGroupMinDays) {
-        this.accessCreateGroupMinDays = accessCreateGroupMinDays;
     }
 
     public int getAccessMinCredit() {

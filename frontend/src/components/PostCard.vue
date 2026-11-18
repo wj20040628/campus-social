@@ -13,7 +13,7 @@
         author/authorId,这里统一渲染「匿名」标签;头像/名字不挂点击(点了也没主页可去)。
       -->
       <span class="pc__ava" :class="{ 'pc__anon': isAnon }" @click.stop="goAuthor">
-        <InitialAvatar :size="38" :src="isAnon ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="isAnon ? '匿' : (post.author ? displayName(post.author) : '')" />
+        <InitialAvatar :size="38" :src="isAnon ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="isAnon ? '匿' : (post.author ? displayName(post.author) : '')" :user-id="isAnon ? null : post.author?.id" />
       </span>
       <span class="pc__who" :class="{ 'pc__anon': isAnon }">
         <span class="pc__name" @click.stop="goAuthor">{{ isAnon ? '匿名' : (post.author ? displayName(post.author) : '匿名') }}</span>

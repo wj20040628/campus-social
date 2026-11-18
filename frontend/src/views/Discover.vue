@@ -26,7 +26,7 @@
             class="disc-row"
             @click="router.push(`/user/${u.id}`)"
           >
-            <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+            <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" :user-id="u.id" />
             <div class="disc-row__info">
               <div class="disc-row__name">{{ displayName(u) }}</div>
               <div class="disc-row__sub">{{ [u.dept, u.grade].filter(Boolean).join(' · ') || '同校同学' }}</div>
@@ -61,7 +61,7 @@
             class="disc-row"
             @click="router.push(`/user/${u.id}`)"
           >
-            <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+            <InitialAvatar class="disc-row__avatar" :size="48" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" :user-id="u.id" />
             <div class="disc-row__info">
               <div class="disc-row__name">{{ displayName(u) }}</div>
               <div class="disc-row__sub">{{ [u.dept, u.grade].filter(Boolean).join(' · ') || '同校同学' }}</div>

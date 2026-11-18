@@ -97,11 +97,15 @@ export function useCircleDetail(circleId) {
   }
 
   async function join() {
-    // 游客只读:加入要账号,先弹登录提示,不直接发请求吃 401
-    if (!(await ensureLogin('登录后才能加入圈子，现在去登录吗？'))) return
+    // 游客只读:加入要账号,先弹登录提示,不直接发请求吃 401。
+    // 登录回放时路由已在登录页,circleId 是路由 computed,取不到原圈子;
+    // 用已加载的 circle.id 并在进入提示前就固定下来。
+    const id = circle.value?.id
+    if (!id) return
+    if (!(await ensureLogin('登录后才能加入圈子，现在去登录吗？', join))) return
     joining.value = true
     try {
-      await joinApi(circleId.value)
+      await joinApi(id)
       /*
        * 本地改 joined 而不是重拉整个圈子:一次加入不该让页面闪一下。
        * 但头部的「退出圈子」和举报权限看的是 myRole，只改 joined 会让

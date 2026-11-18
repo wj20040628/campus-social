@@ -8,6 +8,7 @@ import { ElMessage } from '@/utils/feedback'
  * @param {object} ctx
  * @param {import('vue').Ref} ctx.currentGroup
  * @param {import('vue').Ref} ctx.currentConv
+ * @param {import('vue').Ref} ctx.currentConvId  当前会话 id（0=占位，首条消息后才分配）
  * @param {import('vue').Ref} ctx.currentKind    'dm' | 'group'
  * @param {import('vue').Ref} ctx.messages
  * @param {import('vue').Ref} ctx.replyToMsg
@@ -23,7 +24,7 @@ import { ElMessage } from '@/utils/feedback'
  */
 export function useChatSends(ctx) {
   const {
-    currentGroup, currentConv, currentKind, messages, replyToMsg,
+    currentGroup, currentConv, currentConvId, currentKind, messages, replyToMsg,
     fmt, scrollBottom, loadConvs, loadGroups, loadHistory, loadGroupHistory, loadPeerQuota,
     myId, api,
   } = ctx
@@ -60,6 +61,12 @@ export function useChatSends(ctx) {
         const peerId = currentConv.value.peer?.id
         const res = await api.send(peerId, content, replyId)
         msgId = res?.msgId || Date.now()
+        // 从「发私信」入口进来时是 convId=0 的占位会话；后端首条消息才建会话。
+        // 不把真实 convId 写回，对方回复的 WS 推送会因 convId 不等而不进当前会话。
+        if (!currentConvId.value && res?.convId) {
+          currentConvId.value = res.convId
+          if (currentConv.value) currentConv.value = { ...currentConv.value, convId: res.convId }
+        }
         messages.value.push(baseBubble(msgId, res?.content || content, replyId, replyContent, replyName, false))
         loadConvs().catch(() => {})
         // 陌生人每天 1 条：发完刷新对这个人剩余，规则行不会停留在旧数字

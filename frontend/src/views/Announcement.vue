@@ -10,27 +10,14 @@
       </button>
     </div>
 
-    <!-- 分类筛选:横滑 chip -->
-    <div
-      ref="chipsEl"
-      class="chips"
-      :class="{ 'is-end': chipsAtEnd }"
-      role="tablist"
-      aria-label="公告分类"
-      @scroll="onChipsScroll"
-    >
-      <button
-        v-for="c in CATEGORIES"
-        :key="c.value"
-        type="button"
-        role="tab"
-        class="chip"
-        :class="{ 'is-on': category === c.value }"
-        :aria-selected="category === c.value"
-        @click="pickCategory(c.value)"
-      >
-        {{ c.label }}
-      </button>
+    <!-- 分类：单行 chip，放不下的往右滑 -->
+    <div class="ann-filter">
+      <CategoryChips
+        :model-value="category"
+        :options="categoryOptions"
+        aria-label="公告分类"
+        @change="pickCategory"
+      />
     </div>
 
     <!-- 筛选请求失败:保留上一次结果并说明,不白屏 -->
@@ -193,6 +180,7 @@ import * as api from '@/api/announcement'
 import { relTime } from '@/utils/relTime'
 import { useUserStore } from '@/stores/user'
 import AnnouncementItem from '@/components/AnnouncementItem.vue'
+import CategoryChips from '@/components/common/CategoryChips.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import SkeletonList from '@/components/common/SkeletonList.vue'
 import { CATEGORY, CATEGORY_CHIPS } from '@/constants/announcement'
@@ -208,7 +196,9 @@ const userStore = useUserStore()
  * 四处并存时改一处漏三处只是时间问题（举报理由文案就是这么漂移的）。
  */
 const CATEGORY_LABEL = CATEGORY
-const CATEGORIES = CATEGORY_CHIPS
+const categoryOptions = computed(() =>
+  CATEGORY_CHIPS.map((c) => ({ value: c.value, label: c.label }))
+)
 
 const all = ref([])
 const category = ref(null)
@@ -220,17 +210,6 @@ const loading = ref(true)
 const loadingMore = ref(false)
 const error = ref(false)
 const filterFailed = ref(false)
-
-/** chip 横滑条已滑到最右端 —— 到了就取消右侧渐隐，避免「一直暗示可滑却滑不动」 */
-const chipsEl = ref(null)
-const chipsAtEnd = ref(false)
-
-function onChipsScroll() {
-  const el = chipsEl.value
-  if (!el) return
-  // 允许 1px 误差：某些设备/缩放下列表宽度不是整数
-  chipsAtEnd.value = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1
-}
 
 const topList = computed(() => all.value.filter((a) => a.isTop === 1))
 const normalList = computed(() => all.value.filter((a) => a.isTop !== 1))

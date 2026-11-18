@@ -48,8 +48,11 @@ export function useChatHistory({
     if (!currentConv.value) return
     historyLoading.value = true
     historyError.value = false
+    // 弱网下先点 A 再点 B，A 的响应可能后到；不带会话校验会把 B 的标题配上 A 的内容
+    const peerId = currentConv.value.peer?.id
     try {
-      const data = await historyApi(currentConv.value.peer?.id, null, 50)
+      const data = await historyApi(peerId, null, 50)
+      if (currentConv.value?.peer?.id !== peerId) return
       messages.value = (data?.list || []).map((m) => ({
         ...m,
         createTime: fmt(m.createTime),
@@ -57,10 +60,10 @@ export function useChatHistory({
       }))
       scrollBottom()
     } catch {
-      // 保留已有消息,只在「一条都没有」时整区报错
-      historyError.value = true
+      // 保留已有消息,只在「一条都没有」时整区报错；切走后到的失败不污染新会话
+      if (currentConv.value?.peer?.id === peerId) historyError.value = true
     } finally {
-      historyLoading.value = false
+      if (currentConv.value?.peer?.id === peerId) historyLoading.value = false
     }
   }
 
@@ -68,10 +71,13 @@ export function useChatHistory({
     if (!currentGroup.value) return
     historyLoading.value = true
     historyError.value = false
+    const groupId = currentGroup.value.id
     try {
-      const data = await groupMsgApi(currentGroup.value.id, null, 50)
+      const data = await groupMsgApi(groupId, null, 50)
+      if (currentGroup.value?.id !== groupId) return
       const sids = [...new Set((data?.list || []).map((m) => m.senderId).filter(Boolean))]
       const nickMap = await batchNicknames(sids)
+      if (currentGroup.value?.id !== groupId) return
       messages.value = (data.list || []).map((m) => ({
         ...m,
         createTime: fmt(m.createTime),
@@ -80,9 +86,9 @@ export function useChatHistory({
       }))
       scrollBottom()
     } catch {
-      historyError.value = true
+      if (currentGroup.value?.id === groupId) historyError.value = true
     } finally {
-      historyLoading.value = false
+      if (currentGroup.value?.id === groupId) historyLoading.value = false
     }
   }
 

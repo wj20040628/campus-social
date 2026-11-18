@@ -1,4 +1,5 @@
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
+import { useRouter } from 'vue-router'
 import * as mkt from '@/api/mkt'
 import dayjs from 'dayjs'
 
@@ -12,9 +13,15 @@ import dayjs from 'dayjs'
  * 失败只弹 toast(request.js 已全局弹错,这里不再重复)。
  */
 export function useMktOwnerActions(reloadMy) {
-  /** 编辑:跳到发布页带 id,复用 MktPublish 表单(编辑模式)。 */
-  function edit(activity, router) {
-    router.push(`/mkt/publish?id=${activity.id}`)
+  const router = useRouter()
+
+  /**
+   * 编辑:跳到发布页带 id,复用 MktPublish 表单(编辑模式)。
+   * router 必须在这里取 —— 模板事件只传活动对象,此前多要求一个
+   * router 参数,导致点击后 router 为 undefined、页面无反应。
+   */
+  function edit(activity) {
+    router.push({ path: '/mkt/publish', query: { id: activity.id } })
   }
 
   /** 开/关。按当前 isEnable 反向操作。 */

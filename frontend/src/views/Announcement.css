@@ -185,72 +185,18 @@
 }
 
 /*
- * 分类 chip 横滑条。
- *
- * 2026-10-21：7 个分类（全部/教务/后勤/活动/社团/紧急/其他）在 390px 下只放得下
- * 5 个多，「紧急」「其他」完全在屏幕外，而横滑条**没有任何可滑的暗示** ——
- * 用户不知道还有两档分类。手机上「看不见 = 不存在」。
- *
- * 修法：两侧加渐隐遮罩（mask-image），让最边上那个 chip 呈现「被切了一半」的
- * 半透明效果，这是横向可滑动的通用视觉语言。不用滚动条：iOS 上滚动条本来就
- * 默认隐藏，加了也看不见。
- *
- * mask 只在「确实溢出」时才有意义，但 CSS 无法条件判断 —— 所以两侧都加，
- * 内容没溢出时遮罩落在空白区，不产生可见影响（滚动容器左右没有内容）。
+ * 分类（2026-11-14）：恢复单行 chip。
+ * 红米自带浏览器收不到横向拖动手势，窄屏时分类条右端出现「更多」，
+ * 点开即可选全部分类；能滑的浏览器仍可直接滑。
+ * 描边沿用本页原来的浅色 --ys-border（集市那边是更深的控件描边）。
  */
-.chips {
+.ann-filter {
   display: flex;
-  gap: var(--ys-space-2);
   padding: 0 var(--ys-space-4) var(--ys-space-3);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  /*
-   * 右侧渐隐：提示「还能往右滑」。12px 渐隐宽度刚好让最后一个 chip 的
-   * 描边淡出，形成被切一半的观感。
-   */
-  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 16px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 16px), transparent 100%);
 }
 
-/*
- * 滚动到最右端时取消右侧渐隐 —— 否则「到底了」也会一直显示可滑暗示，
- * 用户会反复往右滑却滑不动。
- * 用现代 CSS 的 animation-timeline 不现实（兼容性差），
- * 改由 JS 在 scroll 时打 .is-end 类（见 Announcement.vue）。
- */
-.chips.is-end {
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-
-.chips::-webkit-scrollbar {
-  display: none;
-}
-
-.chip {
-  flex: none;
-  /* 视觉 32px,靠 padding 把热区撑到 44px(AC-15) */
-  min-height: var(--ys-touch-min);
-  padding: 0 var(--ys-space-4);
-  border-radius: var(--ys-radius-full);
-  border: 1px solid var(--ys-border);
-  background: var(--ys-surface);
-  color: var(--ys-fg-2);
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background-color var(--ys-motion-fast) var(--ys-ease-out),
-    color var(--ys-motion-fast) var(--ys-ease-out),
-    border-color var(--ys-motion-fast) var(--ys-ease-out);
-}
-
-.chip.is-on {
-  background: var(--ys-accent);
-  border-color: var(--ys-accent);
-  color: var(--ys-accent-on);
+.ann-filter :deep(.cc) {
+  --cc-border: var(--ys-border);
 }
 
 .notice {

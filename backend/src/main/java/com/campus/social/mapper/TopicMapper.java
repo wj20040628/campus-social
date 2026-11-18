@@ -11,10 +11,11 @@ public interface TopicMapper extends BaseMapper<Topic> {
 
     /**
      * 幂等建话题:name 撞 uk_name 时累加 post_count。
-     * 新建:INSERT(name, post_count=0);命中:ON DUPLICATE KEY UPDATE post_count=post_count+1。
+     * 新建:INSERT(name, post_count=1) —— 首帖本身就占 1,从 0 起步会让新话题长期少计。
+     * 命中:ON DUPLICATE KEY UPDATE post_count=post_count+1。
      * 调用方可用返回值判定,但这里只关心"保证存在且计数+1",id 由调用方 selectById 兜底。
      */
-    @Insert("INSERT INTO topic (name, post_count) VALUES (#{name}, 0) " +
+    @Insert("INSERT INTO topic (name, post_count) VALUES (#{name}, 1) " +
             "ON DUPLICATE KEY UPDATE post_count = post_count + 1")
     int upsertByName(@Param("name") String name);
 

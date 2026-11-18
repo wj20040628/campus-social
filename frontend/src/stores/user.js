@@ -129,9 +129,11 @@ export const useUserStore = defineStore('user', {
        * 后端会回「请填写邮箱验证码」，而请求体看起来完全正常 —— 排查毫无线索。
        */
       const { studentNo, password, nickname, email, emailCode, identity } = payload
-      const body = { password, nickname }
+      const body = { password }
       if (email && email.trim()) body.email = email.trim()
       if (emailCode && emailCode.trim()) body.emailCode = emailCode.trim()
+      // 昵称选填：留空由服务端自动生成，不发空串
+      if (nickname && nickname.trim()) body.nickname = nickname.trim()
       // 学号选填：有值才带。空串等于「不填」，不如干脆不发。
       if (studentNo && studentNo.trim()) body.studentNo = studentNo.trim()
       if (identity) {

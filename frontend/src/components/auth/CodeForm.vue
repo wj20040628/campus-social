@@ -40,17 +40,14 @@
         <span v-if="cd > 0" class="code-cd" aria-hidden="true">{{ cd }}s 后重发</span>
       </div>
     </el-form-item>
-    <!-- 协议勾选由页面注入,位置固定在提交按钮之前 -->
-    <slot name="consent" />
     <el-form-item>
-      <!--
-        2026-10-28:新人不知道「验证码登录」等于注册。
-        相比在输入框下加一行说明，直接把动作写全更省地方 ——
-        用「/」不用「&」：中文界面约定如此，读屏也会把 & 读成 and。
-      -->
-      <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
-        验证码登录 / 注册
-      </el-button>
+      <!-- 2026-11-14：验证码只用于登录已注册账号，按钮文案与 Tab 名一致；注册走右侧链接 -->
+      <div class="auth-actions">
+        <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
+          邮箱验证码登录
+        </el-button>
+        <RegisterInlineLink />
+      </div>
     </el-form-item>
   </el-form>
 </template>
@@ -67,6 +64,7 @@
  *    EP 的 show-password 图标按钮不带 aria-label,用一个全局补丁处理
  */
 import { ref, computed } from 'vue'
+import RegisterInlineLink from './RegisterInlineLink.vue'
 
 const props = defineProps({
   model: { type: Object, required: true },
@@ -112,6 +110,19 @@ async function onSubmit() {
 </script>
 
 <style scoped>
+/* 提交行：按钮吃掉剩余宽度，注册入口靠右固定在按钮后面 */
+.auth-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  width: 100%;
+}
+
+.auth-actions .auth-submit {
+  flex: 1;
+  min-width: 0;
+}
+
 /* 倒计时文案与按钮同行,按钮宽度会跟着变 —— 用固定宽度避免布局抖动 */
 .code-cd {
   flex: 0 0 auto;

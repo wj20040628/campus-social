@@ -157,6 +157,14 @@
   background: var(--ys-surface-2);
 }
 
+/* 游客态：入口保留，右侧标「需登录」，点击由守卫或 promptLogin 提示 */
+.adrawer__lock {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--ys-meta);
+}
+
 /* 图标统一单色描边 —— 颜色继承这里的 currentColor。
    position:relative 给未读小红点做定位锚点（UnreadDot 是 absolute）。 */
 .adrawer__ic {

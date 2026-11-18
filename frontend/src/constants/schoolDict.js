@@ -202,13 +202,11 @@ export const FALLBACK_MAX_SELECT = 12
 /**
  * 设置页「管理兴趣」(复用 StepTags 的编辑态)上下限。
  * 与 `PUT /user/tags`(replaceMyTags)的存储契约对齐:openapi 该接口
- * tagIds 为 minItems: 3 / maxItems: 8 —— 这是**存储层**硬约束,
- * 不是引导首屏的「梯度裁剪」(/onboarding/tags 的 maxSelect=5)。
- * 编辑态允许到 8 个,跟后端真实能存的一致;前端只认这个契约,不另写一套。
- * 用户要求「至少保留 3 个」恰好等于存储下限,二者天然一致。
+ * tagIds 为 minItems: 3 / maxItems: 12,后端 campus.max-tags 也是 12。
+ * 编辑态允许到 12 个,跟后端真实能存的一致;前端只认这个契约,不另写一套。
  */
 export const TAG_EDIT_MIN_SELECT = 3
-export const TAG_EDIT_MAX_SELECT = 8
+export const TAG_EDIT_MAX_SELECT = 12
 
 /**
  * 年级展示名的统一算法。

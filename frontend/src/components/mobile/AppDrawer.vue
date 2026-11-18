@@ -55,6 +55,7 @@
                 />
               </span>
               {{ item.label }}
+              <span v-if="item.path ? needsLogin(item.path) : (userStore.isGuest && item.needsAuth)" class="adrawer__lock">需登录</span>
             </button>
 
             <!--
@@ -85,11 +86,12 @@
                 {{ modeLabel }}<span class="adrawer__cs" aria-hidden="true">›</span>
               </span>
             </button>
+            <button type="button" class="adrawer__item" @click="go('/settings')">
+              <span class="adrawer__ic"><NavIcon name="gear" /></span>
+              设置
+              <span v-if="needsLogin('/settings')" class="adrawer__lock">需登录</span>
+            </button>
             <template v-if="!userStore.isGuest">
-              <button type="button" class="adrawer__item" @click="go('/settings')">
-                <span class="adrawer__ic"><NavIcon name="gear" /></span>
-                设置
-              </button>
               <div class="adrawer__sep" aria-hidden="true"></div>
               <button type="button" class="adrawer__item adrawer__item--danger" @click="onLogout">
                 <span class="adrawer__ic"><NavIcon name="logout" /></span>
@@ -232,6 +234,8 @@ import UnreadDot from '@/components/mobile/UnreadDot.vue'
 import NavIcon from '@/components/mobile/NavIcon.vue'
 import AdminPendingBadge from '@/components/admin/AdminPendingBadge.vue'
 import { useAdminPending } from '@/composables/useAdminPending'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
+import { useNavAccess } from '@/composables/useNavAccess'
 import { resolveThumb } from '@/utils/resolve'
 
 defineProps({
@@ -243,6 +247,8 @@ const emit = defineEmits(['update:modelValue', 'logout'])
 
 const router = useRouter()
 const userStore = useUserStore()
+const { ensureLogin } = useGuestPrompt()
+const { needsLogin } = useNavAccess()
 const { mode, setMode } = useTheme()
 const { adminSheetOpen, goAdmin } = useSettings()
 
@@ -257,21 +263,20 @@ onMounted(() => pending.refresh())
 
 /** 导航项:有 path 的走路由,没有的走组件内动作(意见反馈是弹层不是页面) */
 const NAV_ITEMS = [
-  { icon: 'bell', label: '通知', path: '/notify', unread: true },
-  { icon: 'megaphone', label: '公告', path: '/announcement' },
+  { icon: 'bell', label: '通知', path: '/notify', unread: true, needsAuth: true },
+  { icon: 'megaphone', label: '公告', path: '/announcement', needsAuth: true },
   { icon: 'folder', label: '文件', path: '/files' },
-  { icon: 'compass', label: '发现同好', path: '/discover' },
+  { icon: 'compass', label: '发现同好', path: '/discover', needsAuth: true },
   { icon: 'users', label: '找人', path: '/search' },
-  { icon: 'message', label: '意见反馈' },
+  { icon: 'message', label: '意见反馈', needsAuth: true },
 ]
 
 /*
- * 游客只保留公开入口(2026-10-30):通知/公告/文件/发现/反馈都要登录,
- * 列出来点了也是断浏览动线;「找人」对应的 /search 对游客开放。
+ * 游客与登录用户看到同一组入口(2026-11-12)。
+ * needsAuth 的项对游客标「需登录」:有路由的交给路由守卫弹窗,
+ * 意见反馈没有路由,在 onNav 里单独询问。
  */
-const navItems = computed(() =>
-  userStore.isGuest ? NAV_ITEMS.filter((item) => item.path === '/search') : NAV_ITEMS
-)
+const navItems = computed(() => NAV_ITEMS)
 
 const THEME_OPTIONS = [
   { value: 'system', label: THEME_MODE_LABEL.system },
@@ -298,8 +303,16 @@ function go(path) {
 }
 
 function onNav(item) {
-  if (item.path) go(item.path)
-  else openFeedback()
+  if (item.path) {
+    go(item.path)
+    return
+  }
+  if (userStore.isGuest) {
+    close()
+    nextTick(() => ensureLogin('登录后才能提交意见反馈'))
+    return
+  }
+  openFeedback()
 }
 
 function goHome() {

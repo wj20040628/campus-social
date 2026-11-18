@@ -23,6 +23,7 @@
           :src="mm.user?.avatarUrl ? resolveThumb(mm.user.avatarUrl) : ''"
           :seed="mm.user?.id"
           :name="mm.user?.nickname || mm.user?.username || ''"
+          :user-id="mm.user?.id"
         />
         <span class="gtd__name">{{ mm.user?.nickname || mm.user?.username || '成员' }}</span>
         <span class="gtd__ck" aria-hidden="true">

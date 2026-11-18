@@ -30,6 +30,9 @@
   align-items: center;
   gap: var(--ys-space-3);
   width: 100%;
+  /* 全局未覆盖到本组件的行容器：content-box 会让 100% 宽再叠 32px 内边距，
+     开关/箭头会溢出卡片右缘（2026-11-13 实测 390px 下开关右侧多出 15px） */
+  box-sizing: border-box;
   min-height: var(--ys-touch-min);
   padding: var(--ys-space-3) var(--ys-space-4);
   border: 0;

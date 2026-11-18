@@ -13,6 +13,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
+import { getWsClient } from '@/utils/ws'
+import { clearPresence } from '@/utils/presence'
 import { useUserStore } from '@/stores/user'
 
 export function useSettings() {
@@ -43,6 +45,10 @@ export function useSettings() {
     } catch {
       return
     }
+    // 与顶栏退出同一语义：先断 WS。否则同标签页换号后仍用旧 token 的连接，
+    // 新账号收不到推送，旧账号的推送却继续派发进当前页面。
+    getWsClient().close()
+    clearPresence()
     try {
       await userStore.logout()
     } catch {

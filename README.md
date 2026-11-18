@@ -104,7 +104,7 @@ graph LR
 | 实时 | Spring 原生 WebSocket | chat / notify 双端点，握手 JWT 鉴权，事务提交后才推送 |
 | 存储 | 阿里云 OSS | 读走短时效签名直链；写当前经服务端中转 |
 
-接口契约见 [`docs/api/openapi.yaml`](docs/api/openapi.yaml)（95 条路径 / 105 个操作），前端 43 条路由定义。
+接口契约见 [`docs/api/openapi.yaml`](docs/api/openapi.yaml)（100 条路径 / 110 个操作），前端 43 条路由定义。
 
 ## 工程质量
 
@@ -115,7 +115,7 @@ graph LR
 - **构建日志固定 UTF-8**：`backend/.mvn/jvm.config` 固定 Maven JVM 编码，Surefire fork 通过 `argLine` 固定同一编码；中文测试日志在 Git Bash / Qoder 终端直接可读。Windows `cmd` 默认代码页 936，交互查看前先执行 `chcp 65001`。
 - **持续集成**：GitHub Actions 四作业（后端 MySQL 8.4/Redis 7 测试；MySQL 8.0/Redis 6 生产版本兼容测试；前端门禁 + 构建 + 首屏 JS gzip < 300KB 护栏；E2E 冒烟 —— 真实 MySQL/Redis + 后端 jar + Vite + Chromium）。
 - **E2E 冒烟**：`cd e2e && npm ci && npx playwright test` —— 覆盖登录→发帖→评论、举报处置下架、禁言、注销 6 条主链路；用真实数据库与接口，不 mock。
-- **性能指标**：`/actuator/prometheus` 暴露 HTTP p50/p95/p99、Hikari、JVM、Tomcat 与限流计数；`deploy/ops/metrics-snapshot.sh` 每 5 分钟留一份 8 天快照；MySQL 慢查询开启步骤见 [`docs/ops/performance-metrics.md`](docs/ops/performance-metrics.md)。
+- **性能指标**：`/actuator/prometheus` 暴露 HTTP p50/p95/p99、Hikari、JVM、Tomcat 与限流计数；`deploy/ops/metrics-snapshot.sh` 每 5 分钟留一份 8 天快照；MySQL 慢查询**已开启并已持久化（2026-11-14；`SET PERSIST` 写入 `mysqld-auto.cnf`，重启后仍为 ON）**，步骤与核对脚本见 [`docs/ops/performance-metrics.md`](docs/ops/performance-metrics.md) §3。
 - **部署后冒烟**：`python scripts/smoke.py <base_url>` —— 真实 HTTP 请求验证登录、游客只读、游客写拦截、集市配额、数据清理，退出码可直接接进发布流程。
 
 > 最近一次本机实测（2026-11-01）：门禁 11/11 通过，`mvn test` 214/214 全绿（独立测试库），E2E 4/4 全绿（真实后端 jar + Vite）。
@@ -204,14 +204,13 @@ campus-social/
 | 文档 | 内容 |
 | --- | --- |
 | [从零到上线全流程手册](docs/从零到上线-全流程手册.md) | 环境、开发、发布、运维、备案、踩坑与复用清单（新项目入口） |
-| [微信小程序开发计划](docs/小程序开发计划.md) | 路线 C：主体/类目/备案、uni-app 技术方案、阶段排期与提审清单 |
 | [PRD](docs/PRD.md) | 需求、用户故事与优先级取舍 |
 | [SPEC](docs/SPEC.md) | 详细规格与验收标准 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | 架构决策、成本估算与技术选型依据 |
-| [API 契约](docs/api/openapi.yaml) | OpenAPI 3.0，95 条路径 / 105 个操作 |
+| [API 契约](docs/api/openapi.yaml) | OpenAPI 3.0，100 条路径 / 110 个操作 |
 | [部署清单](docs/DEPLOY_ECS.md) | ECS 从零部署、发布回滚与运维核查 |
 | [测试总结](docs/测试总结-2026-10-25.md) | 四层防线与缺陷分布 |
-| [性能指标与慢查询](docs/ops/performance-metrics.md) | Actuator 指标、5 分钟采样、宝塔 MySQL 慢查询 |
+| [性能指标与慢查询](docs/ops/performance-metrics.md) | Actuator 指标、5 分钟采样、MySQL 慢查询（线上非宝塔安装，用宝塔「终端」命令行开启） |
 | [ADR](docs/decisions/) | 架构决策记录 |
 
 ## 许可证

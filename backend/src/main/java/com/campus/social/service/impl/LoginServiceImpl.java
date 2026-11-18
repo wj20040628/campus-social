@@ -9,7 +9,6 @@ import com.campus.social.mapper.UserMapper;
 import com.campus.social.service.AuditService;
 import com.campus.social.service.BanService;
 import com.campus.social.service.LoginService;
-import com.campus.social.service.RegisterService;
 import com.campus.social.service.VerifyCodeService;
 import com.campus.social.service.support.TokenService;
 import com.campus.social.service.support.LoginLockService;
@@ -18,7 +17,6 @@ import com.campus.social.vo.TokenPairVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import static com.campus.social.common.ResultCode.*;
 
@@ -26,8 +24,11 @@ import static com.campus.social.common.ResultCode.*;
  * 登录：密码登录与邮箱验证码登录。
  *
  * <p>密码登录三路 OR 匹配 username / email / student_no；失败锁定由
- * {@link LoginLockService} 负责，账号不存在时只计 IP 维度。验证码登录遇到
- * 未注册邮箱时复用 {@link RegisterService#createEmailAccount} 自动建号。
+ * {@link LoginLockService} 负责，账号不存在时只计 IP 维度。
+ *
+ * <p><b>验证码登录只做登录（2026-11-14）</b>：未注册邮箱不再自动建号，
+ * 返回 1024 让用户去注册页。原因是自动建号会跳过协议勾选与密码设置，
+ * 且新人扫卡片进来分不清「登录」与「注册」；现在注册页是唯一建号入口。
  */
 @Slf4j
 @Service
@@ -37,7 +38,6 @@ public class LoginServiceImpl implements LoginService {
     private final UserMapper userMapper;
     private final AuditService auditService;
     private final BanService banService;
-    private final RegisterService registerService;
     private final VerifyCodeService verifyCodeService;
     private final LoginLockService loginLockService;
     private final TokenService tokenService;
@@ -91,21 +91,17 @@ public class LoginServiceImpl implements LoginService {
     }
 
     @Override
-    @Transactional
     public TokenPairVO loginByCode(LoginByCodeDTO dto) {
         String email = dto.getEmail().trim().toLowerCase();
         if (email.length() > 64) {
             throw new BusinessException(BAD_REQUEST, "邮箱过长");
         }
-        // 校验邮箱验证码（登录用途，一次性消费）
+        // 先验码再查账号：否则任何人不带验证码也能探测某个邮箱是否注册过
         verifyCodeService.verify(email, dto.getCode(), "login");
 
         User user = userMapper.selectByEmail(email);
-        boolean newAccount = false;
         if (user == null) {
-            // 验证码登录兼做注册：未注册邮箱直接建号并登录
-            user = registerService.createEmailAccount(email);
-            newAccount = true;
+            throw new BusinessException(EMAIL_NOT_REGISTERED);
         }
         if (user.getStatus() == 1) {
             throw banService.frozenException(user.getId());
@@ -114,8 +110,6 @@ public class LoginServiceImpl implements LoginService {
             throw new BusinessException(USER_CANCELLED);
         }
         log.info("loginByCode: email={}", UserVoAssembler.maskUsername(email));
-        TokenPairVO pair = tokenService.issue(user.getId(), user.getUsername(), false);
-        pair.setNewAccount(newAccount);
-        return pair;
+        return tokenService.issue(user.getId(), user.getUsername(), false);
     }
 }

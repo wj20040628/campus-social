@@ -14,7 +14,7 @@
     <!-- 行 2:作者行。头像走统一的 InitialAvatar(没图时彩色首字母圆)。
          历史匿名帖:后端不下发 author,统一渲染「匿名」标签;匿名发布已下线 -->
     <div class="author">
-      <InitialAvatar :size="44" :src="post.anonymous ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="post.anonymous ? '匿' : (post.author ? displayName(post.author) : '')" />
+      <InitialAvatar :size="44" :src="post.anonymous ? '' : (post.author?.avatarUrl ? resolveThumb(post.author.avatarUrl) : '')" :seed="post.author?.id" :name="post.anonymous ? '匿' : (post.author ? displayName(post.author) : '')" :user-id="post.anonymous ? null : post.author?.id" />
       <div class="author__main">
         <p class="author__nick">{{ post.anonymous ? '匿名' : (post.author ? displayName(post.author) : '') }}</p>
         <p class="author__time">{{ post.createTime }}</p>

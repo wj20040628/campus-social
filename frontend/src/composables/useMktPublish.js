@@ -13,7 +13,8 @@ export function useMktPublish() {
 
   async function goPublish() {
     if (!userStore.hasToken) {
-      await ensureLogin('登录后才能发布集市活动，现在去登录吗？')
+      // 登录后直接进发布页:点「发布」的用户意图已经明确
+      await ensureLogin('登录后才能发布集市活动，现在去登录吗？', null, '/mkt/publish')
       return
     }
     router.push('/mkt/publish')

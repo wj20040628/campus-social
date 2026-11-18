@@ -58,8 +58,12 @@ public class RegisterDTO {
     @Size(min = 6, max = 64, message = "密码 6~64 位")
     private String password;
 
-    /** 昵称：必填。站内展示名，可后改，不做主键（会重复、会变） */
-    @NotBlank
+    /**
+     * 昵称：<b>选填</b>。站内展示名，可后改，不做主键（会重复、会变）。
+     *
+     * <p>留空时由服务端自动生成（「用户」+6 位随机数字），
+     * 用户之后可在个人资料里修改。
+     */
     @Size(max = 32, message = "昵称最长 32 字")
     private String nickname;
 

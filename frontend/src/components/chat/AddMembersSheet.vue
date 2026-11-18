@@ -53,6 +53,7 @@
               :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''"
               :seed="u.id"
               :name="u.nickname || u.username || ''"
+              :user-id="u.id"
             />
             <span class="am__member-name">{{ u.nickname || u.username }}</span>
             <span class="am__check" aria-hidden="true">

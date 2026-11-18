@@ -59,22 +59,9 @@
         :loading="loadingCode"
         :cd="cd"
         :sending="sending"
-        @submit="onSubmitCode"
+        @submit="submitCode"
         @send-code="sendCode"
-      >
-        <!-- 验证码登录兼做注册:勾选协议是这一步的必要条件,只在验证码 Tab 出现 -->
-        <template #consent>
-          <div v-if="tab === 'code'" class="auth-consent">
-            <el-checkbox v-model="codeForm.consent" class="auth-consent__box" />
-            <span class="auth-consent__text">
-              我已阅读并同意
-              <button type="button" class="legal-link" @click="openLegal('user')">《用户协议》</button>
-              和
-              <button type="button" class="legal-link" @click="openLegal('privacy')">《隐私政策》</button>
-            </span>
-          </div>
-        </template>
-      </CodeForm>
+      />
 
       <!--
         表单级错误。设计 §3 明确「不要弹 ElMessage」——
@@ -155,6 +142,7 @@ import { AUTH_ERR, blockedByCode } from '@/utils/authError'
 import { sendCode as sendCodeApi } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { useLoginSubmit, sendCodeFailMessage } from '@/composables/useLoginSubmit'
+import { runPendingGuestAction } from '@/composables/useGuestPrompt'
 import { useCodeCountdown } from '@/composables/useCodeCountdown'
 import AuthBlocked from '@/components/auth/AuthBlocked.vue'
 import AuthErrorLine from '@/components/auth/AuthErrorLine.vue'
@@ -187,10 +175,12 @@ const TABS = [
 const mode = ref('login')
 const tab = ref('password')
 const pwdForm = reactive({ username: '', password: '', rememberMe: false })
-const codeForm = reactive({ email: '', code: '', consent: false })
+const codeForm = reactive({ email: '', code: '' })
 
-function goHome() {
+async function goHome() {
   const returnUrl = route.query.returnUrl || '/'
+  // 游客点「去登录」时若有待补动作(如点赞),先执行再回跳,页面加载即是最终状态
+  await runPendingGuestAction()
   router.push(typeof returnUrl === 'string' ? returnUrl : '/')
 }
 
@@ -212,18 +202,6 @@ const {
   clearError,
   backFromBlocked,
 } = useLoginSubmit({ pwdForm, codeForm, userStore, onSuccess: goHome })
-
-/**
- * 验证码登录提交前先确认协议勾选。
- * 自动建号发生在这条路径上,勾选必须拦在发请求之前,不能只做视觉提示。
- */
-function onSubmitCode() {
-  if (!codeForm.consent) {
-    formError.value = '请先阅读并同意《用户协议》和《隐私政策》'
-    return
-  }
-  submitCode()
-}
 
 /**
  * 登录态中途被封（2026-10-26）：request.js 清掉 token 后带 blocked=业务码
@@ -291,27 +269,7 @@ async function sendCode() {
 <style scoped src="./Login.css"></style>
 
 <style scoped>
-/* 验证码 Tab 的协议勾选:一行放下,窄屏自动折行 */
-.auth-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--ys-space-1);
-  margin: calc(-1 * var(--ys-space-2)) 0 var(--ys-space-4);
-  font-size: var(--ys-text-xs);
-  line-height: var(--ys-lh-xs);
-  color: var(--ys-muted);
-}
-
-.auth-consent__box {
-  flex: none;
-  height: auto;
-}
-
-.auth-consent__text {
-  padding-top: 2px;
-}
-
-/* 「忘记密码？· 申诉」同行时的分隔符,与底部协议行的分隔符同一观感 */
+/* 「忘记密码？· 申诉」同行时的分隔符,与底部协议行的同一观感 */
 .auth-link__sep {
   margin: 0 var(--ys-space-1);
   color: var(--ys-meta);

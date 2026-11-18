@@ -11,6 +11,7 @@
       :src="member.avatarUrl ? resolveThumb(member.avatarUrl) : ''"
       :seed="member.userId"
       :name="member.nickname"
+      :user-id="member.userId"
     />
 
     <div class="cmrow__body">

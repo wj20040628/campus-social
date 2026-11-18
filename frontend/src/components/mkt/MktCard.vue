@@ -113,7 +113,7 @@
 
       <!-- 投放中 / 已满员 都能切换满员状态（两者都有意义） -->
       <button
-        v-if="status === 'LAUNCHING' || status === 'FULL'"
+        v-if="(status === 'LAUNCHING' || status === 'FULL') && !isExpired"
         type="button"
         class="mktcard__op"
         @click="$emit('full', activity)"
@@ -124,7 +124,7 @@
 
       <!-- 打开投放：暂停态 -->
       <button
-        v-if="status === 'PAUSED'"
+        v-if="status === 'PAUSED' && !isExpired"
         type="button"
         class="mktcard__op mktcard__op--primary"
         @click="$emit('toggle', activity)"
@@ -134,7 +134,7 @@
 
       <!-- 暂停：仅投放中/已满员（过期态不提供 —— 它已经不在广场了，暂停没有对象） -->
       <button
-        v-if="status === 'LAUNCHING' || status === 'FULL'"
+        v-if="(status === 'LAUNCHING' || status === 'FULL') && !isExpired"
         type="button"
         class="mktcard__op"
         @click="$emit('toggle', activity)"
@@ -144,7 +144,7 @@
 
       <!-- 重新激活：过期态（需刷新 expire_time） -->
       <button
-        v-if="status === 'EXPIRED'"
+        v-if="status === 'EXPIRED' || isExpired"
         type="button"
         class="mktcard__op mktcard__op--primary"
         @click="$emit('reactivate', activity)"
@@ -229,16 +229,24 @@ const { remainingText: timerText, warn: timerWarn } = useRemainingCountdown(
  * 与详情页右栏那份同源派生，两套措辞的差异是刻意的，见常量文件说明。
  */
 const STATUS_TEXT = MKT_STATUS_TEXT_LAMP
-const status = props.activity.status || 'LAUNCHING'
-const statusText = STATUS_TEXT[status] || status
+// 「我的发布」操作后用同 id 的新对象回填，v-for 会复用组件；
+// status / priceText 若在 setup 只算一次，页面会一直显示旧状态与旧按钮。
+const status = computed(() => props.activity.status || 'LAUNCHING')
+const statusText = computed(() => STATUS_TEXT[status.value] || status.value)
+/** 后端状态优先级是 满员 > 暂停 > 过期，暂停到过期后会显示 PAUSED；
+ *  这时「开启投放」拉不回广场，必须给「重新激活」 */
+const isExpired = computed(() => {
+  const t = props.activity.expireTime
+  return !!t && new Date(t).getTime() <= Date.now()
+})
 
 /* ---------------- 价格/人数文案 ---------------- */
 /** 0 与空都显示「免费」;有值显示「¥x」 */
-const priceText = (() => {
+const priceText = computed(() => {
   const p = props.activity.price
   if (p == null || Number(p) === 0) return '免费'
   return `¥${Number(p)}`
-})()
+})
 
 /* ---------------- 标题（2026-10-21 改读 title） ---------------- */
 /**

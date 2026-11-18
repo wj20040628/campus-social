@@ -195,9 +195,11 @@ export function useCircles() {
   }
 
   async function joinCircle(c) {
-    // 游客只读:加入圈子要账号,先弹登录提示
+    // 游客只读:加入圈子要账号,先弹登录提示。
+    // 把本次动作本身交给登录回放,登录成功回来即自动加入;
+    // 回放时路由已在登录页,所以只能依赖这里捕获的圈子对象 c。
     if (!userStore.hasToken) {
-      await ensureLogin('登录后才能加入圈子，现在去登录吗？')
+      await ensureLogin('登录后才能加入圈子，现在去登录吗？', () => joinCircle(c))
       return
     }
     try {

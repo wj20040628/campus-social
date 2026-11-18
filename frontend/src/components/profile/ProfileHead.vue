@@ -25,7 +25,7 @@
         :aria-label="avatarBusy ? '头像上传中' : '头像操作'"
         @click="onAvatarClick"
       >
-        <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
+        <InitialAvatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" :seed="user.id" :name="displayName(user)" :user-id="user.id" class="p-avatar" />
       </button>
       <!--
         他人头像（2026-10-28）：点一下看大图。此前是纯 el-avatar，
@@ -39,12 +39,15 @@
         aria-label="查看头像大图"
         @click="$emit('preview-avatar')"
       >
-        <el-avatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" class="p-avatar" />
+        <InitialAvatar :size="avatarSize" :src="resolveThumb(user.avatarUrl)" :seed="user.id" :name="displayName(user)" :user-id="user.id" class="p-avatar" />
       </button>
-      <el-avatar
+      <InitialAvatar
         v-else
         :size="avatarSize"
         :src="resolveThumb(user.avatarUrl)"
+        :seed="user.id"
+        :name="displayName(user)"
+        :user-id="user.id"
         class="p-avatar"
       />
 
@@ -134,6 +137,7 @@
 import { ChatDotRound, Plus, WarningFilled } from '@element-plus/icons-vue'
 import { computed, ref } from 'vue'
 import ActionSheet from '@/components/mobile/ActionSheet.vue'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import { displayName } from '@/utils/mask'
 import { resolveThumb } from '@/utils/resolve'
 

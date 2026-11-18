@@ -1,11 +1,10 @@
 /* ==========================================================================
    Register.vue 专属样式
    --------------------------------------------------------------------------
-   .auth-* 系列在 Auth.css(与 Login.vue 共用),这里只放注册页独有的四类:
+   .auth-* 系列在 Auth.css(与 Login.vue 共用),这里只放注册页独有的三类:
      1. .field-error  字段级错误 —— 设计 §3 要求每条错误贴到对应字段下
-     2. .field-error__link  错误文案里的内联出口「去登录」
-     3. .code-cd  倒计时文案
-     4. .sr-only  只给读屏的文本节点
+     2. .code-cd  倒计时文案
+     3. .sr-only  只给读屏的文本节点
 
    【2026-10-21 补 @import】此前这里只写了「.auth-* 系列在 Auth.css」，
    却没有真的导入它 —— 于是注册页的 .auth-page / .auth-card / .auth-brand /
@@ -25,32 +24,6 @@
   color: var(--ys-danger);
   /* 学号被占用这类长文案在窄屏要能换行 */
   overflow-wrap: anywhere;
-}
-
-/* 「去登录」内联出口。与主文案同字号,靠 underline 表明可点 */
-.field-error__link {
-  color: var(--ys-accent);
-  text-decoration: underline;
-  padding: 0 var(--ys-space-1);
-}
-
-.field-error__link:hover {
-  color: var(--ys-accent-hover);
-}
-
-/* 申诉入口是 <button>（不是 router-link），要重置浏览器默认按钮样式：
-   默认的 border/background/font 会让它在纯文字里显得像一个灰方块。
-   display:block + 独立 padding 让它换行独占一行，与上面那句错误文案分开。 */
-.field-error__link--btn {
-  display: block;
-  margin-top: var(--ys-space-2);
-  border: 0;
-  background: none;
-  font-family: var(--ys-font-body);
-  font-size: var(--ys-text-sm);
-  line-height: var(--ys-lh-sm);
-  text-align: left;
-  cursor: pointer;
 }
 
 /* 倒计时文案。独立一行而不是塞在按钮里:
@@ -137,24 +110,13 @@
   height: 44px;
 }
 
-/* 字段下方的浅色说明（如「邮箱和学号都能登录，也能用来找回密码」） */
-.field-hint {
-  margin: 4px 0 0;
-  font-size: var(--ys-text-xs);
-  line-height: 1.5;
-  color: var(--ys-meta);
-}
-
 /* ==========================================================================
-   分组卡片（2026-10-21 改版 B）
+   分组卡片
    --------------------------------------------------------------------------
-   把表单拆成两张卡：账号（必填）+ 校园信息（可选）。
-
-   【为什么用卡片而不是一条分隔线】上一版在必填区与选填区之间放了一条
-   细线 + 一行小字「以下可跳过」。实测那条线几乎看不见（--ys-border-soft
-   在米底上对比度太低），用户得读文案才知道下面可以不填。
-   卡片则把「这是另一组东西」直接画出来，再用角标说明它可以跳过 ——
-   判断成本从「读文案」降到「看结构」。
+   账号字段放在一张卡里，与下方的协议勾选、提交按钮分开。
+   桌面端 .auth-card 已经提供了白底 + 边框 + 阴影，
+   里面再套一层同色的卡会变成「卡中卡」，界限反而糊 ——
+   所以 ≥768px 去掉内层卡的白底与边框，只留间距作用。
    ========================================================================== */
 
 .reg-card {
@@ -165,11 +127,6 @@
   border-radius: var(--ys-radius-xl);
 }
 
-/*
- * 桌面端 .auth-card 已经提供了白底 + 边框 + 阴影，
- * 里面再套一层同色的卡会变成「卡中卡」，界限反而糊。
- * 所以 ≥768px 去掉内层卡的白底与边框，只留间距与标题分隔作用。
- */
 @media (min-width: 768px) {
   .reg-card {
     background: transparent;
@@ -177,44 +134,4 @@
     padding: 0;
     margin-bottom: var(--ys-space-5);
   }
-}
-
-.reg-card__h {
-  display: flex;
-  align-items: center;
-  gap: var(--ys-space-1);
-  margin: 0 0 var(--ys-space-2);
-  font-size: var(--ys-text-sm);
-  font-weight: var(--ys-weight-semibold);
-  color: var(--ys-fg-2);
-}
-
-/*
- * 卡片标题前的小方色块：主色 = 必填组，灰 = 可选组。
- * 6px 实测在米底上几乎看不见（截图里只剩一个点），改成 7px + 圆角 2px，
- * 并与标题文字基线对齐 —— 它要承担「这一组是必填还是可选」的第一眼信号，
- * 太小就完全失去作用，不如放大。
- */
-.reg-card__sq {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  background: var(--ys-accent);
-  flex: none;
-}
-
-.reg-card__sq--muted {
-  background: var(--ys-border-control);
-}
-
-/* 「可选」角标：说清这张卡可以不填 */
-.reg-card__tag {
-  margin-left: var(--ys-space-1);
-  padding: 1px 7px;
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface-2);
-  color: var(--ys-meta);
-  font-size: var(--ys-text-xs);
-  font-weight: var(--ys-weight-medium);
-  line-height: 1.6;
 }

@@ -89,4 +89,19 @@ class RegisterFlowTest {
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM user WHERE email = ?", Integer.class, email);
         assertEquals(0, count, "验证码无效时不得建号");
     }
+
+    @Test
+    void registerWithBlankNicknameGeneratesOne() {
+        email = "reg-nonick-" + System.nanoTime() + "@campus.test";
+        redis.opsForValue().set("code:register:" + email, CODE, Duration.ofMinutes(5));
+
+        authService.register(dto(email, "   "));
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT id, nickname FROM user WHERE email = ?", email);
+        userId = ((Number) row.get("id")).longValue();
+        String nickname = (String) row.get("nickname");
+        assertNotNull(nickname, "昵称留空时服务端必须自动生成，不能为 null");
+        assertTrue(nickname.startsWith("用户"), "自动昵称应为「用户」+数字，实际=" + nickname);
+        assertTrue(nickname.length() >= 8, "自动昵称至少 8 个字符，实际=" + nickname);
+    }
 }

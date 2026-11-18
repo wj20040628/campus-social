@@ -45,7 +45,13 @@ public class AuthInterceptor implements HandlerInterceptor {
             // 而注册页是未登录态 —— 不放行会在打开注册页时就被 401 踢回登录页。
             // 见 WebMvcConfig.excludePathPatterns 同步放行。
             "/dict/school",
-            "/dict/majors"
+            "/dict/majors",
+            // 首页「用户/在线」人数：纯聚合数字，不含任何个人身份，未登录也要显示。
+            "/presence/stats",
+            // 匿名访问记录(2026-11-14):游客没有 token,进入/心跳必须放行。
+            // 只写访问统计,不读任何用户数据;限流见 WriteRateLimitInterceptor。
+            "/visit/enter",
+            "/visit/ping"
     );
 
     /**
@@ -74,6 +80,14 @@ public class AuthInterceptor implements HandlerInterceptor {
             java.util.regex.Pattern.compile("^/files/\\d+/download$"),
             // 在线预览与下载同口径：已过审公开，未过审靠 Authorization 头识别上传者
             java.util.regex.Pattern.compile("^/files/\\d+/preview$"),
+            /*
+             * 文件库公开浏览(2026-11-12):游客入口放开后,文件列表与详情也要能看,
+             * 否则游客点侧栏「文件」会直接 401。只放 GET 列表/详情;上传、删除、
+             * 点赞、收藏、举报等写操作不在其中。列表 SQL 只有 status=1 对游客可见,
+             * 详情对未过审文件仍抛 FILE_NOT_AVAILABLE。
+             */
+            java.util.regex.Pattern.compile("^/files$"),
+            java.util.regex.Pattern.compile("^/files/\\d+$"),
             /*
              * 游客只读浏览(2026-10-30):登录页「游客登录」不创建账号、不发 token，
              * 直接用这些公开 GET 看首页/搜索/他人主页/话题。所有写操作仍要登录。

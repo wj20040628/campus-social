@@ -22,7 +22,7 @@ export function useCircleWrites(circleId, canCreate, reloadPosts, reloadActiviti
     posting.value = true
     postError.value = ''
     try {
-      await createPost({
+      const created = await createPost({
         content: postContent.value,
         media: postMedia.value.length ? JSON.stringify(postMedia.value) : null,
         circleId: Number(circleId.value),
@@ -30,7 +30,12 @@ export function useCircleWrites(circleId, canCreate, reloadPosts, reloadActiviti
       postContent.value = ''
       postMedia.value = []
       await reloadPosts()
-      ElMessage.success('发到圈子了')
+      // 命中敏感词的帖子 status=0，圈内列表不会出现；不能只说「发到圈子了」
+      if (created.status === 0) {
+        ElMessage.warning('已提交，命中敏感词需人工审核，通过后才会展示')
+      } else {
+        ElMessage.success('发到圈子了')
+      }
     } catch {
       // **内容保留**(§3):不清空 textarea。发失败就清,等于让用户重打一遍
       postError.value = '没发出去,再点一次发布'

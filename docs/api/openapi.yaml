@@ -17,7 +17,7 @@ info:
     ## 0. 范围声明（本轮实现 / 不实现）
 
     - 本文件覆盖 `docs/SPEC.md` §5 端点清单中**本轮实现**的全部端点，
-      当前实测计数以 `scripts/verify-openapi.py` 为准（2026-11-03：**105 个方法 / 95 条路径**）。
+      当前实测计数以 `scripts/verify-openapi.py` 为准（2026-11-18：**110 个方法 / 100 条路径**）。
       计数不靠人工数——历史上手数与实际差 6 条路径却没人发现，正说明手数不可信。
       帖子域与评论域已补录；`buddy_*` 端点仍仅建表不实现（见下）。
     - **`buddy_*` 端点本轮仅建表不实现，见 SPEC §2.2**。即下列 7 个端点在本文档中
@@ -124,8 +124,8 @@ info:
     | 新增项 | 值 | 文案 | 用到它的端点 |
     |---|---|---|---|
     | `TOO_MANY_REQUESTS` | 429 | 操作过于频繁,请稍后再试 | `POST /chat/send`（配额超限，message 会覆盖为具体规则：「给同一位同学每天最多发 1 条，明天再来；对方关注你或回复你后不再受限」） |
-    | `ACCOUNT_TOO_NEW` | 1073 | 账号注册时间不足 | 搭话 / 建圈 / 建群 / 拉人 / 集市发布 / 活动报名 |
-    | `CREDIT_TOO_LOW` | 1074 | 信誉分不足 | 同上 |
+    | `ACCOUNT_TOO_NEW` | 1073 | 账号注册时间不足 | 已停用（2026-11-17 取消账龄门槛，接口不再返回） |
+    | `CREDIT_TOO_LOW` | 1074 | 信誉分不足 | 搭话 / 建圈 / 建群 / 拉人 / 集市发布 |
     | `STRANGER_MSG_CLOSED` | 1030 | 对方已关闭陌生人消息 | `POST /chat/send` |
     | `ANNOUNCEMENT_NOT_FOUND` | 1031 | 公告不存在或已下架 | `GET /announcement/{id}`、`POST /announcement/{id}/read`、`PATCH /admin/announcement/{id}` |
 
@@ -356,10 +356,8 @@ paths:
         两处命名不一致是后端既有实现，改动会波及已上线的前端调用，
         故在此显式标注而不是统一改名。
 
-        **未注册邮箱也能登录**：验证码校验通过后若该邮箱还没有账号，
-        后端自动创建账号（`username`/`email` 均写该邮箱，昵称 `用户+6位随机数`，
-        `password_hash` 写未设置哨兵值）并直接返回 token；此时响应里的
-        `newAccount=true`，前端据此提示设置密码。登录页已没有独立注册入口。
+        **只登录已注册账号**（2026-11-14）：验证码校验通过后若该邮箱还没有账号，
+        返回业务码 `1024`（该邮箱未注册），不再自动建号；建号只走 `/auth/register`。
         账号被冻结/注销仍分别返回 1001/1002。
       requestBody:
         required: true
@@ -947,9 +945,9 @@ paths:
         2. 黑名单双向拦截（`relation.type = 3`）—— `BLACKLISTED(1013)`
         3. 接收方 `stranger_msg_enabled = 0`，**只对真正的陌生人生效**
            —— `STRANGER_MSG_CLOSED(1030)`（AC-05）
-        4. 陌生人首次搭话的行为门槛：账号注册满 24 小时且信誉分达到 60
-           —— `ACCOUNT_TOO_NEW(1073)` / `CREDIT_TOO_LOW(1074)`
-           （回复已有会话、互相关注后的对话不受此限；校园信息不再参与）
+        4. 陌生人首次搭话的行为门槛：信誉分达到 60 —— `CREDIT_TOO_LOW(1074)`
+           （2026-11-17 起注册即可用，不再要求注册满 24 小时；
+           回复已有会话、互相关注后的对话不受此限；校园信息不再参与）
         5. 敏感词过滤（复用 `SensitiveWordFilter`）—— `SENSITIVE_WORD_BLOCKED(1008)`（AC-06）
         6. 陌生人日配额（Redis ZSET 滑动窗口 Lua）—— `TOO_MANY_REQUESTS(429)`（AC-04）
 
@@ -980,7 +978,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
           description: |
-            403。取值为 `BLACKLISTED(1013)` 双向黑名单、`ACCOUNT_TOO_NEW(1073)` 账号太新、
+            403。取值为 `BLACKLISTED(1013)` 双向黑名单、
             `CREDIT_TOO_LOW(1074)` 信誉分不足、`STRANGER_MSG_CLOSED(1030)` 对方已关闭陌生人消息、
             `USER_FROZEN(1001)` 账号冻结
           content:
@@ -1063,7 +1061,7 @@ paths:
       description: |
         语义是**全量覆盖**，不是增量追加：传入的 `tagIds` 即最终集合，
         先删 `user_tag` 中本人的全部行再批量插入（同事务）。
-        上限 8 个，超出返回 422 `UNPROCESSABLE`，message 为「兴趣标签最多选择 8 个」。
+        上限 12 个，超出返回 422 `UNPROCESSABLE`，message 为「兴趣标签最多选择 12 个」。
         `tagIds` 中若含不存在的 id，返回 400 `BAD_REQUEST`。
         `interest_tag.use_count` 在事务内 `SET use_count = use_count ± 1` 增减，绝不读改写。
       requestBody:
@@ -2152,6 +2150,135 @@ paths:
                 $ref: '#/components/schemas/UserProfileResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /user/presence:
+    put:
+      operationId: setPresenceHidden
+      tags: [user]
+      summary: 设置在线状态是否隐身（2026-11-13）
+      description: |
+        隐身只影响对外展示：头像绿点不亮、`/presence/status` 不返回我、
+        首页「在线」人数不计入我。管理总览的在线人数按真实 WS 连接统计，
+        隐身用户仍然计入。需要登录。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresenceHiddenRequest'
+      responses:
+        '200':
+          description: 已保存，返回当前取值
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresenceHiddenResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /presence/status:
+    get:
+      operationId: getPresenceStatus
+      tags: [user]
+      summary: 批量查询头像在线状态（2026-11-13）
+      description: |
+        前端把当前页头像的 userId 逗号拼接后一次查询，避免每个头像各发一次请求。
+        只返回「真实在线且未隐身且未注销」的 userId；最多 100 个 id，
+        非法片段跳过而不是整体 400。需要登录。
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: 逗号分隔的 userId，最多 100 个
+          schema:
+            type: string
+          example: '12,27,33'
+      responses:
+        '200':
+          description: 在线 userId 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresenceStatusResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /presence/stats:
+    get:
+      operationId: getPresenceStats
+      tags: [user]
+      summary: 首页「用户 / 在线」人数（2026-11-13）
+      description: |
+        公共统计，**游客可访问**。`users` = 未注销账号总数；
+        `online` = 真实在线且未隐身的用户数（隐身用户不计入）。
+      security: []
+      responses:
+        '200':
+          description: 用户数与在线数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresenceStatsResponse'
+
+  /visit/enter:
+    post:
+      operationId: reportVisitEnter
+      tags: [visit]
+      summary: 匿名访客进入上报（2026-11-14）
+      description: |
+        游客没有账号和 token，服务端无法从请求里认出「一次浏览」。
+        前端在浏览器本地生成随机访客 ID 与会话 ID，进入页面时上报一次，
+        之后每 30 秒心跳续报。同一 `sessionId` 重复上报只保留第一行，
+        入口与来源以首次为准（刷新不改变入口口径）。
+
+        `entryPath` 只保留路径（服务端去掉 query / hash）；`source` 取
+        `?from=` 标签，没有标签时按入口推断（`qr` / `guest_login` / `direct`）。
+        只写访问统计，不读任何用户数据；匿名端点没有 userId，按 IP 限流。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitReportRequest'
+      responses:
+        '200':
+          description: 已记录（重复上报同样返回成功）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultMeta'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /visit/ping:
+    post:
+      operationId: reportVisitPing
+      tags: [visit]
+      summary: 匿名访客心跳 / 结束上报（2026-11-14）
+      description: |
+        `activeSeconds` 是页面在前台的累计秒数；服务端按「进入至今的墙钟时长
+        + 5 秒」封顶，客户端虚报再大也超不过真实经过的时间。
+        `ended = true` 表示页面关闭（前端用 `sendBeacon` 发出）。
+        对应会话行不存在时直接忽略，不凭心跳造行——没有入口与来源的行
+        会让「扫码人数」口径失真。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitReportRequest'
+      responses:
+        '200':
+          description: 已更新（会话行不存在时也返回成功）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultMeta'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
   /user/cover:
@@ -4123,8 +4250,8 @@ components:
           type: string
           nullable: true
           description: |
-            向指定陌生人发起搭话的行为门槛未达标原因（账号注册未满 24 小时 /
-            信誉分低于 60 / 账号状态异常）。null 表示可发起；
+            向指定陌生人发起搭话的行为门槛未达标原因（信誉分低于 60 /
+            账号状态异常）。null 表示可发起；
             不传 peerId 或对方已不是陌生人时不返回。
             前端拿到非空值时应整条替换额度提示，不要再显示「今天还剩 N 条」。
 
@@ -4195,7 +4322,7 @@ components:
       properties:
         tagIds:
           type: array
-          maxItems: 8
+          maxItems: 12
           description: 全量覆盖。空数组表示清空我的标签
           items:
             type: integer
@@ -4232,6 +4359,69 @@ components:
                   type: array
                   items:
                     $ref: '#/components/schemas/TagItem'
+
+    # ---- 在线状态（2026-11-13）---------------------------------------------
+
+    PresenceHiddenRequest:
+      type: object
+      required: [hidden]
+      properties:
+        hidden:
+          type: boolean
+          description: true = 在线但对他人显示离线；false = 正常展示
+          example: true
+
+    PresenceHiddenResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [hidden]
+              properties:
+                hidden:
+                  type: boolean
+
+    PresenceStatusVO:
+      type: object
+      required: [online]
+      properties:
+        online:
+          type: array
+          description: 真实在线且未隐身、未注销的 userId
+          items:
+            type: integer
+            format: int64
+
+    PresenceStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PresenceStatusVO'
+
+    PresenceStatsVO:
+      type: object
+      required: [users, online]
+      properties:
+        users:
+          type: integer
+          format: int64
+          description: 未注销账号总数
+        online:
+          type: integer
+          format: int64
+          description: 真实在线且未隐身的用户数
+
+    PresenceStatsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ResultMeta'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PresenceStatsVO'
 
     # ---- 公告 --------------------------------------------------------------
 
@@ -4938,6 +5128,14 @@ components:
             禁言截止时间（2026-10-31 加）。**仅「我的资料」出口有值**，
             他人卡片为 null——禁言是账号状态，不是公开信息。
             null 或已过期 = 未禁言；前端据此在本人主页显示禁言提示与申诉入口。
+        presenceHidden:
+          type: boolean
+          nullable: true
+          description: |
+            在线状态是否隐身（2026-11-13 加）。**仅「我的资料」出口有值**，
+            他人卡片为 null。true = 在线但对外显示离线：头像绿点不亮、
+            `/presence/status` 不返回该用户、首页「在线」人数不计入；
+            管理总览的在线人数仍按真实连接统计。
         createTime: { type: string, format: date-time, nullable: true }
 
     # ---- 群（群信息头 + 群管理）--------------------------------------------
@@ -5035,9 +5233,12 @@ components:
           properties:
             data:
               type: object
-              required: [postId]
+              required: [postId, status]
               properties:
                 postId: { type: integer, format: int64 }
+                status:
+                  type: integer
+                  description: 1=已发布；0=命中敏感词进入审核，暂不进入 Feed
 
     PostDetailResponse:
       allOf:
@@ -5728,11 +5929,6 @@ components:
           format: int64
           description: accessToken 过期时刻（epoch 毫秒）。由 JwtUtil 签发时算出
           example: 1791450320000
-        newAccount:
-          type: boolean
-          description: |
-            仅 `/auth/login-code` 自动建号时为 `true`。前端据此在首次进入首页时
-            提示「设置密码」；注册页注册、密码登录与已有账号验证码登录均为 `false`。
 
     AdminVerifyPendingItem:
       type: object
@@ -6143,6 +6339,146 @@ components:
           type: integer
           format: int64
           description: 最久一条待处置举报已等待的小时数；无待办为 0
+        onlineUsers:
+          type: integer
+          format: int64
+          description: |
+            当前在线用户数（2026-11-13 加）。按真实 WS 连接去重统计，
+            **包含已隐身用户**；与首页「在线」人数口径不同（后者不含隐身）。
+        guestVisits:
+          allOf:
+            - $ref: '#/components/schemas/GuestVisitVO'
+          description: 游客 / 扫码一组数字（2026-11-14 加），口径见 GuestVisitVO
+
+    GuestVisitVO:
+      type: object
+      description: |
+        管理总览的游客 / 扫码指标（2026-11-14）。游客没有账号，只能靠前端匿名上报汇总：
+        `todayScanVisitors` / `todayScanSessions` 按入口路径 `/guest` 统计；
+        `todayGuestSessions` 按 `is_guest = 1` 统计；
+        平均 / 中位停留与「10 秒内离开」只算已结算会话（收到结束上报，
+        或最后心跳超过 60 秒），仍在页面里的会话不参与。
+      properties:
+        todayScanVisitors:
+          type: integer
+          format: int64
+          description: 今日扫码访客（入口 /guest，按匿名访客 ID 去重）
+        todayScanSessions:
+          type: integer
+          format: int64
+          description: 今日扫码打开次数（入口 /guest 的会话数）
+        todayGuestSessions:
+          type: integer
+          format: int64
+          description: 今日游客会话数（is_guest = 1）
+        todaySettledSessions:
+          type: integer
+          format: int64
+          description: 今日已结算会话数（停留统计的分母）
+        todayShortSessions:
+          type: integer
+          format: int64
+          description: 已结算会话中停留不足 10 秒的数量
+        avgDwellSeconds:
+          type: integer
+          format: int64
+          description: 平均停留秒数（已结算会话，四舍五入）
+        medianDwellSeconds:
+          type: integer
+          format: int64
+          description: 中位停留秒数（已结算会话；偶数个取中间两个平均）
+        yesterdayScanVisitors:
+          type: integer
+          format: int64
+          description: 昨日扫码访客（环比用）
+        yesterdayScanSessions:
+          type: integer
+          format: int64
+          description: 昨日扫码打开次数（环比用）
+        yesterdayGuestSessions:
+          type: integer
+          format: int64
+          description: 昨日游客会话数（环比用）
+        sources:
+          type: array
+          description: |
+            今日游客会话按来源分组，按会话数倒序取前 6（防止 from 参数被刷出无限分组）；
+            未带来源的记录 `source` 为 null，前端显示为「未标注」。
+          items:
+            $ref: '#/components/schemas/VisitSourceCountVO'
+        trend:
+          type: array
+          description: |
+            近 7 日按天聚合，固定 7 项、最后一项是今天；没有数据的日子补零。
+            `scanVisitors` 为当天去重访客数，跨天不去重（用于看单日趋势）。
+          items:
+            $ref: '#/components/schemas/VisitDayStatVO'
+
+    VisitDayStatVO:
+      type: object
+      description: 访客趋势中的单日统计（2026-11-14 加）
+      properties:
+        date:
+          type: string
+          description: 日期，格式 yyyy-MM-dd
+          example: '2026-11-14'
+        scanVisitors:
+          type: integer
+          format: int64
+          description: 当天扫码访客（入口 /guest，按匿名访客 ID 去重）
+        scanSessions:
+          type: integer
+          format: int64
+          description: 当天扫码打开次数（入口 /guest 的会话数）
+        guestSessions:
+          type: integer
+          format: int64
+          description: 当天游客会话数（is_guest = 1）
+
+    VisitSourceCountVO:
+      type: object
+      properties:
+        source:
+          type: string
+          nullable: true
+          description: 来源标签（qr / guest_login / direct 或 from 参数自定义）；未带来源时为 null
+        sessions:
+          type: integer
+          format: int64
+          description: 会话数
+
+    VisitReportRequest:
+      type: object
+      description: 匿名访问上报（进入 / 心跳共用；2026-11-14）
+      required: [visitorId, sessionId]
+      properties:
+        visitorId:
+          type: string
+          maxLength: 36
+          description: 浏览器本地生成的匿名访客 ID（同浏览器跨会话不变）
+        sessionId:
+          type: string
+          maxLength: 36
+          description: 标签页会话 ID（sessionStorage，刷新不变）
+        guest:
+          type: boolean
+          description: 是否从游客入口进入（决定是否计入游客指标）
+        entryPath:
+          type: string
+          maxLength: 64
+          description: 入口路径；服务端只保留 path，去掉 query / hash
+        source:
+          type: string
+          maxLength: 32
+          description: 来源标签，取 ?from= 参数，缺省按入口推断
+        activeSeconds:
+          type: integer
+          minimum: 0
+          maximum: 86400
+          description: 页面在前台的累计秒数（服务端按墙钟封顶）
+        ended:
+          type: boolean
+          description: 是否页面关闭的结束上报
 
     AdminOverviewResponse:
       allOf:

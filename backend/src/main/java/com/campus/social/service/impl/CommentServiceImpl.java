@@ -157,7 +157,7 @@ public class CommentServiceImpl {
      * 通知里的链接点开会因评论已删而失效,属可接受行为。
      */
     @Transactional
-    public void deleteComment(long postId, long commentId, long userId) {
+    public int deleteComment(long postId, long commentId, long userId) {
         Comment c = commentMapper.selectById(commentId);
         if (c == null || !c.getPostId().equals(postId)
                 || !Integer.valueOf(1).equals(c.getStatus())) {
@@ -193,6 +193,7 @@ public class CommentServiceImpl {
                 "删除评论及 " + (toDelete.size() - 1) + " 条回复,帖子 #" + postId, null);
         log.info("comment deleted: comment={}, post={}, rows={}, user={}",
                 commentId, postId, toDelete.size(), userId);
+        return toDelete.size();
     }
 
     /**

@@ -1,0 +1,95 @@
+.cc {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  --cc-border: var(--ys-border-control);
+}
+
+.cc__scroll {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  min-width: 0;
+  /* 单行横滑，不折行 */
+  flex-wrap: nowrap;
+  padding: 2px var(--ys-space-2) 2px 0;
+  overflow-x: auto;
+  /* 横滑走浏览器原生滚动，不要加 touch-action: pan-y：
+     那会把原生横向滚动也关掉，红米自带浏览器就彻底滑不动。
+     页面里的 JS 接管同样不要加——它的 touchmove 会被浏览器手势层吃掉。 */
+  /* 只保留这一条：滑到头不交棒给浏览器，手机上否则会被当成「后退/前进」 */
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* 不再写 -webkit-overflow-scrolling: touch：现在默认就有惯性滚动，
+     旧属性反而会盖掉 overscroll-behavior，从前进/后退回来还可能丢滚动层。 */
+  /* 右侧渐隐提示「还能往右滑」，滑到最右由 JS 打 .is-end 取消 */
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 8px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 8px), transparent 100%);
+}
+
+.cc__scroll.is-end {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.cc__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.cc__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--ys-touch-min);
+  padding: 0 var(--ys-space-3);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--ys-radius-full);
+  background: var(--ys-surface);
+  color: var(--ys-fg-2);
+  font-family: var(--ys-font-body);
+  font-size: var(--ys-text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--ys-motion-fast) var(--ys-ease-out),
+    border-color var(--ys-motion-fast) var(--ys-ease-out),
+    color var(--ys-motion-fast) var(--ys-ease-out);
+}
+
+.cc__chip:hover {
+  background: var(--ys-surface-2);
+}
+
+.cc__chip.is-on {
+  border-color: var(--ys-accent);
+  background: var(--ys-accent);
+  color: var(--ys-accent-on);
+  font-weight: var(--ys-weight-semibold);
+}
+
+/* chip 内的计数：激活态白字上也要看得清，用透明度弱化而不换色 */
+.cc__n {
+  font-size: var(--ys-text-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+/* 文件页沿用它原来的小号柔和样式 */
+.cc--soft {
+  --cc-border: var(--ys-border);
+}
+
+.cc--soft .cc__chip {
+  min-height: 34px;
+  font-size: var(--ys-text-xs);
+  color: var(--ys-muted);
+}
+
+.cc--soft .cc__chip.is-on {
+  background: var(--ys-accent-soft);
+  color: var(--ys-accent);
+  font-weight: var(--ys-weight-medium);
+}

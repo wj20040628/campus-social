@@ -33,33 +33,35 @@
         <el-icon><OfficeBuilding /></el-icon>
         <span>集市</span>
       </el-menu-item>
-      <el-menu-item v-if="!userStore.isGuest" index="/files">
+      <el-menu-item index="/files">
         <el-icon><FolderOpened /></el-icon>
         <span>文件</span>
       </el-menu-item>
 
       <!--
-        游客态(2026-10-30):「我的」整组(消息/通知/公告)全部要求登录,
-        留着只会让游客点一次被踢一次。登录用户照旧显示。
+        游客态(2026-11-12):「我的」整组也对游客展示。
+        入口可见、点进才提示登录 —— 与底栏/TabBar 口径一致,
+        不再把文件、消息、通知、公告整块藏起来。
       -->
-      <template v-if="!userStore.isGuest">
-        <el-menu-item index="__grp_mine__" disabled class="side__grp">我的</el-menu-item>
-        <el-menu-item index="/chat">
-          <el-icon><ChatDotRound /></el-icon>
-          <span>消息</span>
-          <!-- 未读角标：桌面端此前完全没有这个数字，必须点进去才知道有几条 -->
-          <span v-if="chatUnread > 0" class="side__badge ys-num">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
-        </el-menu-item>
-        <el-menu-item index="/notify">
-          <el-icon><Bell /></el-icon>
-          <span>通知</span>
-          <span v-if="notifyUnread > 0" class="side__badge ys-num">{{ notifyUnread > 99 ? '99+' : notifyUnread }}</span>
-        </el-menu-item>
-        <el-menu-item index="/announcement">
-          <el-icon><Promotion /></el-icon>
-          <span>公告</span>
-        </el-menu-item>
-      </template>
+      <el-menu-item index="__grp_mine__" disabled class="side__grp">我的</el-menu-item>
+      <el-menu-item index="/chat">
+        <el-icon><ChatDotRound /></el-icon>
+        <span>消息</span>
+        <span v-if="needsLogin('/chat')" class="side__lock">需登录</span>
+        <!-- 未读角标：桌面端此前完全没有这个数字，必须点进去才知道有几条 -->
+        <span v-if="chatUnread > 0" class="side__badge ys-num">{{ chatUnread > 99 ? '99+' : chatUnread }}</span>
+      </el-menu-item>
+      <el-menu-item index="/notify">
+        <el-icon><Bell /></el-icon>
+        <span>通知</span>
+        <span v-if="needsLogin('/notify')" class="side__lock">需登录</span>
+        <span v-if="notifyUnread > 0" class="side__badge ys-num">{{ notifyUnread > 99 ? '99+' : notifyUnread }}</span>
+      </el-menu-item>
+      <el-menu-item index="/announcement">
+        <el-icon><Promotion /></el-icon>
+        <span>公告</span>
+        <span v-if="needsLogin('/announcement')" class="side__lock">需登录</span>
+      </el-menu-item>
 
       <!--
         「发现」已从桌面左栏移除(2026-10-19):顶栏已有「找人」入口(/search),
@@ -155,9 +157,8 @@
     </el-menu>
 
     <!--
-      游客侧栏底部卡片（2026-10-31）：游客只剩三个浏览入口时，
-      左下角整片留白，登录入口只有顶栏一个小按钮。这里补一条明确的加入路径。
-      只对游客渲染，登录用户不受影响。
+      游客侧栏底部卡片（2026-10-31）：给游客一条明确的加入路径。
+      2026-11-12 起入口已与登录用户对齐，这张卡只承担登录引导，不再补留白。
     -->
     <div v-if="userStore.isGuest" class="side__guest">
       <p class="side__guest-title">加入友声</p>
@@ -176,6 +177,7 @@ import {
   ChatLineSquare, UserFilled, FolderOpened, Odometer,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useNavAccess } from '@/composables/useNavAccess'
 import { useAdminPending } from '@/composables/useAdminPending'
 import AdminPendingBadge from '@/components/admin/AdminPendingBadge.vue'
 
@@ -193,6 +195,7 @@ const props = defineProps({
 
 const userStore = useUserStore()
 const router = useRouter()
+const { needsLogin } = useNavAccess()
 
 function goLogin() {
   router.push({ path: '/login/form', query: { returnUrl: props.routePath || '/' } })
@@ -319,6 +322,15 @@ const activeMenu = computed(() => {
   line-height: 17px;
   font-weight: var(--ys-weight-semibold);
   text-align: center;
+}
+
+/* 游客态「需登录」标记：入口保留，点进去由路由守卫提示登录 */
+.side__lock {
+  margin-left: auto;
+  padding-left: var(--ys-space-2);
+  font-size: 10.5px;
+  color: var(--ys-meta);
+  font-weight: normal;
 }
 
 /* 菜单项本身要 relative，角标才能绝对定位 */

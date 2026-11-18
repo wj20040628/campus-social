@@ -2,7 +2,6 @@ package com.campus.social.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campus.social.common.ResultCode;
-import com.campus.social.entity.PostTopic;
 import com.campus.social.entity.Topic;
 import com.campus.social.exception.BusinessException;
 import com.campus.social.mapper.PostTopicMapper;
@@ -53,41 +52,42 @@ public class PostTopicBinder {
      * <p>超长话题名直接丢弃而不是报错：话题是附属信息，
      * 因为一个超长话题让整篇帖子发不出去不划算。
      */
-    public void bind(long postId, List<String> topicNames) {
+    /** 去空、去两侧 #、去重,并按 15 字上限过滤。编辑判重与绑定必须共用这一份口径 */
+    public List<String> normalize(List<String> topicNames) {
         if (topicNames == null || topicNames.isEmpty()) {
-            return;
+            return List.of();
         }
-        // 去重 + 去空 + 去两侧 # 与空白
-        List<String> clean = topicNames.stream()
+        return topicNames.stream()
                 .filter(n -> n != null && !n.isBlank())
                 .map(n -> n.trim().replaceAll("^#+", "").replaceAll("#+$", "").trim())
-                .filter(n -> !n.isBlank())
+                .filter(n -> !n.isBlank() && n.length() <= TOPIC_NAME_MAX)
                 .distinct()
                 .toList();
+    }
+
+    public void bind(long postId, List<String> topicNames) {
+        List<String> clean = normalize(topicNames);
+        if (clean.isEmpty()) {
+            return;
+        }
         for (String name : clean) {
-            if (name.length() > TOPIC_NAME_MAX) {
-                continue; // 话题名超长丢弃,防脏
-            }
             topicMapper.upsertByName(name);
             Topic t = topicMapper.selectOne(new LambdaQueryWrapper<Topic>().eq(Topic::getName, name));
             if (t == null) {
                 continue;
             }
-            long cnt = postTopicMapper.selectCount(new LambdaQueryWrapper<PostTopic>()
-                    .eq(PostTopic::getPostId, postId)
-                    .eq(PostTopic::getTopicId, t.getId()));
-            if (cnt == 0) {
-                PostTopic pt = new PostTopic();
-                pt.setPostId(postId);
-                pt.setTopicId(t.getId());
-                postTopicMapper.insert(pt);
-            }
+            postTopicMapper.upsert(postId, t.getId());
         }
         log.info("post topics bound: post={}, topics={}", postId, clean);
     }
 
     public List<Long> topicIdsOf(long postId) {
         return postTopicMapper.topicIdsByPost(postId);
+    }
+
+    /** 帖子当前话题名(编辑判重口径与 {@link #normalize} 一致) */
+    public List<String> topicNamesOf(long postId) {
+        return postTopicMapper.topicNamesByPost(postId);
     }
 
     /** 软删该帖的全部话题关联。调用方必须紧接 {@link #decrementCounts} 减计数 */

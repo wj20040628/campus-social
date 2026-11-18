@@ -114,16 +114,16 @@
  * 本项目没有 postcss-custom-media,`@media (--ys-bp-lg)` 会被浏览器
  * 静默丢弃(SPEC §11 的「沉默故障」之一)。
  */
-import { ref, computed, watch, onMounted, onBeforeUnmount, provide, h } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/feedback'
-import { consumePasswordHintPending } from '@/utils/passwordHint'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 import TabBar from '@/components/mobile/TabBar.vue'
 import AppDrawer from '@/components/mobile/AppDrawer.vue'
 import { useUserStore } from '@/stores/user'
 import { getWsClient } from '@/utils/ws'
+import { clearPresence } from '@/utils/presence'
 import * as notifyApi from '@/api/notify'
 
 const route = useRoute()
@@ -208,6 +208,16 @@ async function loadUnread() {
 /** WS 收到 notify 事件即重拉未读数,顶栏铃铛红点实时亮起(不再依赖整页刷新) */
 function onNotifyPush() {
   loadUnread()
+}
+
+/**
+ * 私信/群消息实时角标（2026-11-12）。
+ * 原先只有聊天页连 /ws/chat，人在首页时收到私信，消息 Tab 的红点不亮，
+ * 必须进一次消息页再退出才刷新。布局层常连这条通道，只更新角标，不碰会话内容。
+ */
+function onChatPush() {
+  if (String(route.name || '').startsWith('chat')) return
+  loadPaperCount()
 }
 
 /**
@@ -302,32 +312,12 @@ watch(
   },
 )
 
-/** 验证码自动建号后的首次提示：4 秒自动消失，点击直达「账号与安全」设置密码 */
-function showPasswordHint() {
-  const hint = ElMessage({
-    duration: 4000,
-    showClose: true,
-    message: h('span', [
-      '建议设置密码，之后可用学号/邮箱 + 密码登录。',
-      h('button', {
-        type: 'button',
-        style: 'margin-left:6px;padding:0;border:0;background:none;color:var(--ys-accent);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer',
-        onClick: () => {
-          hint.close()
-          router.push('/settings/security')
-        },
-      }, '去设置'),
-    ]),
-  })
-}
-
 onMounted(() => {
   // 兜底:进布局时若 userInfo 还没加载(token 有效但没拉过),拉一次,
   // 保证顶栏头像 / 个人主页 / 退出都能用。
   if (userStore.hasToken && !userStore.userInfo) {
     userStore.fetchMe().catch(() => {})
   }
-  if (consumePasswordHintPending()) showPasswordHint()
   if (userStore.hasToken) {
     /*
      * 首屏就落在聊天/通知页时不要拉数（2026-10-21）。
@@ -344,11 +334,17 @@ onMounted(() => {
     // 与 Notify.vue 各自订阅同一事件、互不干扰。
     ws.connect('/ws/notify')
     ws.on('notify', onNotifyPush)
+    // 聊天通道与聊天页共用同一条连接（ws.js 幂等），这里只订阅「有新消息」
+    ws.connect('/ws/chat')
+    ws.on('chat', onChatPush)
+    ws.on('group_msg', onChatPush)
   }
 })
 
 onBeforeUnmount(() => {
   ws.off('notify', onNotifyPush)
+  ws.off('chat', onChatPush)
+  ws.off('group_msg', onChatPush)
 })
 
 async function logout() {
@@ -358,6 +354,7 @@ async function logout() {
     return // 点了取消
   }
   getWsClient().close() // 断开 WS,避免收到已注销账号的推送
+  clearPresence() // 在线状态缓存随会话失效,避免下个账号看到上一个人的绿点
   try {
     await userStore.logout() // 吊销 refresh token + 清本地
     ElMessage.success('已退出登录')

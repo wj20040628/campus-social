@@ -13,6 +13,17 @@
   gap: var(--ys-space-3);
 }
 
+/* 游客态提示：说明哪些能用、哪些要登录，避免点了才发现被锁 */
+.files__guest {
+  margin: 0;
+  padding: var(--ys-space-2) var(--ys-space-4);
+  border-radius: var(--ys-radius-lg);
+  background: var(--ys-accent-soft);
+  color: var(--ys-fg-2);
+  font-size: var(--ys-text-xs);
+  line-height: var(--ys-lh-xs);
+}
+
 .files__tabs {
   display: flex;
   gap: 2px;
@@ -120,34 +131,13 @@
   color: var(--ys-fg);
 }
 
-.files__cats {
+/*
+ * 分类（2026-11-14）：恢复单行 chip。
+ * 红米自带浏览器收不到横向拖动手势，窄屏时分类条右端出现「更多」，
+ * 点开即可选全部分类；能滑的浏览器仍可直接滑。
+ */
+.files__filter {
   display: flex;
-  gap: var(--ys-space-2);
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-.files__cats::-webkit-scrollbar {
-  display: none;
-}
-
-.files__cat {
-  flex: none;
-  min-height: 34px;
-  padding: 0 var(--ys-space-3);
-  border: 1px solid var(--ys-border);
-  border-radius: var(--ys-radius-full);
-  background: var(--ys-surface);
-  color: var(--ys-muted);
-  font-size: var(--ys-text-xs);
-  cursor: pointer;
-}
-
-.files__cat.is-active {
-  border-color: var(--ys-accent);
-  background: var(--ys-accent-soft);
-  color: var(--ys-accent);
 }
 
 .files__sub {

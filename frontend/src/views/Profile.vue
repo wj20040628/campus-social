@@ -53,7 +53,7 @@
           @chat="onChatClick"
           @edit="goEditProfile"
           @report="onReportClick"
-          @change-avatar="changeAvatar"
+          @change-avatar="onAvatarChange"
           @preview-avatar="previewAvatar"
         />
 
@@ -233,6 +233,12 @@ const {
  */
 const { avatarBusy, coverBusy, hasCover, coverStyle, changeAvatar, changeCover, resetCover }
   = useProfileMedia(user)
+
+/** 换完头像重拉动态：卡片作者头像是帖子数据里的快照，不重拉会一直显示旧图 */
+async function onAvatarChange() {
+  await changeAvatar()
+  loadPosts()
+}
 
 /*
   关注关系 + 粉丝/关注列表:状态与副作用都在 composable 里,

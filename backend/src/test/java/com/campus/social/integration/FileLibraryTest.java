@@ -14,18 +14,23 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * 文件库回归（2026-10-27）。
@@ -35,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 自播种自清理；上传对象写本地 upload.dir/files，经过服务删除。
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles({"local", "test"})
 class FileLibraryTest {
 
@@ -53,6 +59,8 @@ class FileLibraryTest {
     private JdbcTemplate jdbc;
     @Autowired
     private StringRedisTemplate redis;
+    @Autowired
+    private MockMvc mockMvc;
 
     private Long userId;
     private Long unverifiedId;
@@ -187,6 +195,35 @@ class FileLibraryTest {
         FileVO afterCancel = fileService.detail(userId, fileId, "127.0.0.1");
         assertEquals(0, afterCancel.getLikeCount());
         assertEquals(0, afterCancel.getFavoriteCount());
+    }
+
+    @Test
+    void guestCanBrowseApprovedFilesButStillNeedsLoginForWrites() throws Exception {
+        long approvedId = upload("游客可见的复习资料", "guide");
+        adminFileService.review(1L, approvedId, "approve", null);
+        long pendingId = upload("游客不可见的待审资料", "guide");
+
+        // 游客（userId=0）只看得到已过审文件
+        FilePageVO page = fileService.list(0L, "all", null, null, null, "latest", 1, 20);
+        assertTrue(page.getList().stream().anyMatch(f -> f.getId().equals(approvedId)));
+        assertFalse(page.getList().stream().anyMatch(f -> f.getId().equals(pendingId)),
+                "待审文件不能出现在游客列表");
+
+        FileVO guestView = fileService.detail(0L, approvedId, "10.8.8.8");
+        assertEquals(1, guestView.getStatus());
+        assertFalse(guestView.getMyLike(), "游客视角没有点赞态");
+        assertFalse(guestView.getCanDelete(), "游客不能删除");
+
+        BusinessException hidden = assertThrows(BusinessException.class,
+                () -> fileService.detail(0L, pendingId, "10.8.8.8"));
+        assertEquals(1072, hidden.getCode(), "待审文件对游客不可见");
+
+        // 鉴权层：无 token 的列表/详情放行，配额仍需登录
+        mockMvc.perform(get("/files")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(get("/files/" + approvedId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(get("/files/quota")).andExpect(status().isUnauthorized());
     }
 
     @Test

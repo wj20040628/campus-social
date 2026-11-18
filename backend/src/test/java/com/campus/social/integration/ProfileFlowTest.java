@@ -14,6 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -74,6 +75,14 @@ class ProfileFlowTest {
                 "SELECT COUNT(*) FROM audit_log WHERE user_id = ? AND action = 'update_profile'",
                 Integer.class, uid);
         assertTrue(audit != null && audit >= 1, "改资料应写审计");
+    }
+
+    @Test
+    void blankNicknameRejectedInsteadOfWipingIdentity() {
+        assertThrows(RuntimeException.class,
+                () -> authService.updateProfile(uid, "   ", null, null, null));
+        assertEquals("原昵称", userMapper.selectById(uid).getNickname(),
+                "空白昵称必须拒绝，不能把公开身份清空");
     }
 
     @Test

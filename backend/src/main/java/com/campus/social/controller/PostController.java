@@ -5,7 +5,9 @@ import com.campus.social.common.PageSize;
 import com.campus.social.common.Result;
 import com.campus.social.dto.CreateCommentDTO;
 import com.campus.social.dto.CreatePostDTO;
+import com.campus.social.entity.Post;
 import com.campus.social.interceptor.AuthInterceptor;
+import com.campus.social.mapper.PostMapper;
 import com.campus.social.service.PostService;
 import com.campus.social.vo.CommentChildrenPageVO;
 import com.campus.social.vo.CommentVO;
@@ -21,9 +23,11 @@ import java.util.Map;
 public class PostController {
 
     private final PostService postService;
+    private final PostMapper postMapper;
 
-    public PostController(PostService postService) {
+    public PostController(PostService postService, PostMapper postMapper) {
         this.postService = postService;
+        this.postMapper = postMapper;
     }
 
     /**
@@ -36,7 +40,10 @@ public class PostController {
     public Result<Map<String, Long>> create(@Valid @RequestBody CreatePostDTO dto, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
         long id = postService.create(me, dto);
-        return Result.ok(Map.of("postId", id));
+        // 命中敏感词的帖子 status=0，只回 postId 会让前端误报「已发出」并跳首页
+        Post created = postMapper.selectById(id);
+        long status = created == null ? 1 : created.getStatus();
+        return Result.ok(Map.of("postId", id, "status", status));
     }
 
     /** 编辑动态(仅作者)。与发帖同权，不再检查校园信息。 */
@@ -222,12 +229,12 @@ public class PostController {
      * 403 FORBIDDEN 删他人的;404 COMMENT_NOT_FOUND 不存在或已删。
      */
     @DeleteMapping("/{id}/comment/{commentId}")
-    public Result<Map<String, String>> deleteComment(@PathVariable("id") long id,
+    public Result<Map<String, Object>> deleteComment(@PathVariable("id") long id,
                                                      @PathVariable("commentId") long commentId,
                                                      HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        postService.deleteComment(id, commentId, me);
-        return Result.ok(Map.of("message", "评论已删除"));
+        int deleted = postService.deleteComment(id, commentId, me);
+        return Result.ok(Map.of("message", "评论已删除", "count", deleted));
     }
 
     /** 评论列表（一级评论 + 各条的 children 树） */

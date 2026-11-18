@@ -30,9 +30,13 @@
       </label>
     </el-form-item>
     <el-form-item>
-      <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
-        登录
-      </el-button>
+      <!-- 注册入口（2026-11-14）：跟提交按钮同一行，不再单独占一行 -->
+      <div class="auth-actions">
+        <el-button type="primary" native-type="submit" class="auth-submit" :loading="loading">
+          登录
+        </el-button>
+        <RegisterInlineLink />
+      </div>
     </el-form-item>
   </el-form>
 </template>
@@ -55,6 +59,7 @@
  */
 import { ref } from 'vue'
 import PasswordInput from './PasswordInput.vue'
+import RegisterInlineLink from './RegisterInlineLink.vue'
 
 defineProps({
   /** 表单模型。由父级创建并持有 */
@@ -97,6 +102,19 @@ defineExpose({ clearValidate: () => formRef.value?.clearValidate() })
 </script>
 
 <style scoped>
+/* 提交行：按钮吃掉剩余宽度，注册入口靠右固定在按钮后面 */
+.auth-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ys-space-2);
+  width: 100%;
+}
+
+.auth-actions .auth-submit {
+  flex: 1;
+  min-width: 0;
+}
+
 /* 记住我:checkbox 与文字同一行,文字用 muted 色,贴近「这次登录」这一组 */
 .remember {
   display: inline-flex;

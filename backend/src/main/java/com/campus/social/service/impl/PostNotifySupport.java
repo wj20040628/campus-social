@@ -102,7 +102,7 @@ public class PostNotifySupport {
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(userId, 1);
         // WS 实时推（离线落表，上线后 REST 拉）
-        wsPush.pushNotify(userId, n.getId(), type, targetId, actorId);
+        pushAfterCommit(userId, n.getId(), type, targetId, actorId);
     }
 
     /**
@@ -133,7 +133,7 @@ public class PostNotifySupport {
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(userId, 1);
-        wsPush.pushNotify(userId, n.getId(), type, n.getTargetId(), 0L);
+        pushAfterCommit(userId, n.getId(), type, n.getTargetId(), 0L);
     }
 
     /**
@@ -165,7 +165,7 @@ public class PostNotifySupport {
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(userId, 1);
-        wsPush.pushNotify(userId, n.getId(), type, 0L, 0L);
+        pushAfterCommit(userId, n.getId(), type, 0L, 0L);
     }
 
     /** 接收人不存在或已注销时不再写通知、不再累加未读；冻结账号仍可收到，恢复后可看 */
@@ -223,6 +223,26 @@ public class PostNotifySupport {
         n.setIsRead(0);
         notifyMapper.insert(n);
         userMapper.adjustUnreadNotifyCount(toUserId, 1);
-        wsPush.pushNotify(toUserId, n.getId(), 11, feedbackId, adminId);
+        pushAfterCommit(toUserId, n.getId(), 11, feedbackId, adminId);
+    }
+
+    /**
+     * WS 推送必须等事务提交后再发。
+     *
+     * <p>通知页收到推送会立刻重拉 /notify；若在事务提交前推送，重拉可能读不到
+     * 这条刚插入的通知（未提交对其他连接不可见），页面就再也等不到它。
+     * 写库与未读数仍留在事务内，只把「推」挪到 afterCommit。
+     */
+    private void pushAfterCommit(long userId, long notifyId, int type, long targetId, long actorId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    wsPush.pushNotify(userId, notifyId, type, targetId, actorId);
+                }
+            });
+        } else {
+            wsPush.pushNotify(userId, notifyId, type, targetId, actorId);
+        }
     }
 }

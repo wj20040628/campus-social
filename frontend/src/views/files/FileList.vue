@@ -21,6 +21,10 @@
       </button>
     </div>
 
+    <p v-if="isGuest" class="files__guest">
+      游客可以浏览、预览和下载；上传、收藏需要登录。
+    </p>
+
     <div class="files__tools">
       <div class="files__searchbox">
         <input
@@ -60,25 +64,15 @@
       </div>
     </div>
 
-    <div class="files__cats" role="group" aria-label="分类">
-      <button
-        type="button"
-        class="files__cat"
-        :class="{ 'is-active': !category }"
-        @click="pickCategory('')"
-      >
-        全部
-      </button>
-      <button
-        v-for="c in FILE_CATEGORIES"
-        :key="c.value"
-        type="button"
-        class="files__cat"
-        :class="{ 'is-active': category === c.value }"
-        @click="pickCategory(c.value)"
-      >
-        {{ c.label }}
-      </button>
+    <!-- 分类：单行 chip，放不下的往右滑 -->
+    <div class="files__filter">
+      <CategoryChips
+        :model-value="category"
+        :options="categoryOptions"
+        soft-active
+        aria-label="文件分类"
+        @change="pickCategory"
+      />
     </div>
 
     <template v-if="tab === 'mine'">
@@ -154,12 +148,18 @@ import { useRoute, useRouter } from 'vue-router'
 import { Plus, WarningFilled, FolderOpened, Search, Star } from '@element-plus/icons-vue'
 import FileCard from '@/components/files/FileCard.vue'
 import FileQuotaBar from '@/components/files/FileQuotaBar.vue'
+import CategoryChips from '@/components/common/CategoryChips.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 import * as fileApi from '@/api/files'
 import { FILE_CATEGORIES } from '@/constants/fileCategories'
+import { useUserStore } from '@/stores/user'
+import { useGuestPrompt } from '@/composables/useGuestPrompt'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+const isGuest = computed(() => userStore.isGuest)
+const { ensureLogin } = useGuestPrompt()
 
 const TABS = [
   { value: 'all', label: '全部' },
@@ -170,7 +170,7 @@ const SUB_TABS = [
   { value: 'favorites', label: '我收藏的' },
 ]
 
-const tab = ref(route.query.tab === 'mine' ? 'mine' : 'all')
+const tab = ref(route.query.tab === 'mine' && !isGuest.value ? 'mine' : 'all')
 const sub = ref('uploads')
 const category = ref('')
 const keyword = ref('')
@@ -187,6 +187,11 @@ const quotaInfo = ref(null)
 let requestSeq = 0
 
 const searching = computed(() => Boolean(keyword.value.trim() || category.value))
+
+const categoryOptions = computed(() => [
+  { value: '', label: '全部' },
+  ...FILE_CATEGORIES.map((c) => ({ value: c.value, label: c.label })),
+])
 
 const emptyCopy = computed(() => {
   if (searching.value) {
@@ -286,6 +291,10 @@ function refreshRoute() {
 
 function switchTab(value) {
   if (tab.value === value) return
+  if (value === 'mine' && isGuest.value) {
+    ensureLogin('登录后才能查看自己上传和收藏的文件', null, '/files?tab=mine')
+    return
+  }
   tab.value = value
   sub.value = 'uploads'
   page.value = 1
@@ -335,6 +344,10 @@ function onEmptyAction() {
 }
 
 function goUpload() {
+  if (isGuest.value) {
+    ensureLogin('登录后才能上传文件', null, '/files/upload')
+    return
+  }
   router.push('/files/upload')
 }
 
@@ -353,7 +366,7 @@ onMounted(() => {
 watch(
   () => route.query.tab,
   (value) => {
-    const next = value === 'mine' ? 'mine' : 'all'
+    const next = value === 'mine' && !isGuest.value ? 'mine' : 'all'
     if (next === tab.value) return
     tab.value = next
     sub.value = 'uploads'

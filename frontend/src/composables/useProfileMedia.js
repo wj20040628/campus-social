@@ -1,9 +1,10 @@
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/feedback'
 import { uploadToOss } from '@/composables/useOssUpload'
 import { updateMe, setCover } from '@/api/auth'
 import { useUserStore } from '@/stores/user'
 import { resolveUrl } from '@/utils/resolve'
+import { markFeedDirty } from '@/composables/useFeedRefresh'
 
 /**
  * 个人主页的「点头像换头像 / 点封面换封面」（2026-10-20）。
@@ -64,6 +65,8 @@ export function useProfileMedia(user) {
     if (user.value) user.value = { ...user.value, ...patch }
     // 只合并到已有 userInfo 上：登录态里还有 role 等 /me 之外的判据字段
     userStore.setUserInfo({ ...(userStore.userInfo || {}), ...patch })
+    // 卡片里的作者头像是发帖时的快照，首页 keep-alive 不重拉就没有变化
+    markFeedDirty()
   }
 
   /** 造一个一次性文件选择器，resolve 出用户选的文件（取消则 resolve null） */

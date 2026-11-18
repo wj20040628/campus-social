@@ -244,8 +244,8 @@ public class PostWriteService {
         // topics: dto 为 null 视为「不变」,空数组视为「删全部」(与 create 口径一致)
         boolean topicsChanged = dto.getTopics() != null
                 && !Objects.equals(
-                        topicBinder.topicIdsOf(postId).stream().map(String::valueOf).toList(),
-                        dto.getTopics().stream().map(String::valueOf).toList());
+                        topicBinder.topicNamesOf(postId),
+                        topicBinder.normalize(dto.getTopics()));
         if (!contentChanged && !mediaChanged && !topicsChanged) {
             // null = 无需变更,调用方按 postId 回读详情即可(与下面的正常落库返回同一含义)
             return null;

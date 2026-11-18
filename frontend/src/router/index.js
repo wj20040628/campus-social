@@ -12,8 +12,7 @@ import adminRoutes from './admin'
  * 断点纪律:本页禁止任何断点逻辑;EP 的 el-col 响应式属性与设计 Token 错位,禁用。
  */
 const routes = [
-  /* 游客直入入口：线下名片二维码用，守卫里写游客标记后回首页 */
-  { path: '/guest', name: 'guestEntry', component: { render: () => null }, meta: { title: '游客浏览' } },
+  { path: '/guest', name: 'guestEntry', component: () => import('@/views/GuestWelcome.vue'), meta: { title: '欢迎' } },
   {
     path: '/login',
     component: AuthLayout,
@@ -202,12 +201,12 @@ const routes = [
         meta: { title: '活动详情', back: true, hideTabBar: true },
       },
 
-      /* ---- 文件库(2026-10-27):全部/我的、上传、详情、公开分享 ---- */
+      /* ---- 文件库(2026-10-27):游客可浏览/下载已过审文件；我的/上传需登录(2026-11-12) ---- */
       {
         path: 'files',
         name: 'files',
         component: () => import('@/views/files/FileList.vue'),
-        meta: { requiresAuth: true, title: '文件', headTitle: '文件' },
+        meta: { requiresAuth: true, guest: true, title: '文件', headTitle: '文件' },
       },
       {
         path: 'files/upload',
@@ -219,7 +218,7 @@ const routes = [
         path: 'files/:id',
         name: 'fileDetail',
         component: () => import('@/views/files/FileDetail.vue'),
-        meta: { requiresAuth: true, title: '文件详情', back: true, hideTabBar: true },
+        meta: { requiresAuth: true, guest: true, title: '文件详情', back: true, hideTabBar: true },
       },
       {
         // 公开分享页:未注册同学扫码/点链接也要能看
@@ -340,8 +339,9 @@ router.beforeEach(async (to, from, next) => {
   const user = useUserStore()
 
   if (to.path === '/guest') {
-    if (!user.hasToken) user.enterGuest()
-    next({ path: '/', replace: true })
+    // 只有 /guest 展示欢迎页：已登录回首页；未登录留在欢迎页，点跳过/进入首页时才写游客标记
+    if (user.hasToken) next({ path: '/', replace: true })
+    else next()
     return
   }
 

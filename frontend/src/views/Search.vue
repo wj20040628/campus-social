@@ -44,7 +44,7 @@
 
           <div v-else-if="tab === 'users'" class="res-list">
             <div v-for="u in results.users || []" :key="u.id" class="user-item" @click="router.push(`/user/${u.id}`)">
-              <InitialAvatar class="u-avatar" :size="44" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" />
+              <InitialAvatar class="u-avatar" :size="44" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="displayName(u)" :user-id="u.id" />
               <div class="u-info">
                 <div class="u-name">{{ displayName(u) }}</div>
                 <!--
@@ -124,7 +124,8 @@ async function doSearch() {
 
 /** 「去发一条」:游客先弹登录提示,避免直接撞上路由守卫的静默跳转 */
 async function goPublish() {
-  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？'))) return
+  // 登录后直接落到发布页,不用回到搜索页再点一次
+  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？', null, '/publish'))) return
   router.push('/publish')
 }
 

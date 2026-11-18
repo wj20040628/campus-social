@@ -171,7 +171,8 @@ function goCircles() {
 }
 /** 空态「发一条」:游客先弹登录提示,再进发布页 */
 async function goPublish() {
-  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？'))) return
+  // 登录后直接落到发布页:用户点的是「发一条」,回首页再点一次是多余的一步
+  if (!(await ensureLogin('登录后才能发帖，现在去登录吗？', null, '/publish'))) return
   router.push('/publish')
 }
 </script>

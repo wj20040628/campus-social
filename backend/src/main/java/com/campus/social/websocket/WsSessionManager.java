@@ -79,6 +79,11 @@ public class WsSessionManager {
         return set.stream().anyMatch(WebSocketSession::isOpen);
     }
 
+    /** 在线用户数（按 userId 去重，含隐身用户）。 */
+    public int onlineCount() {
+        return onlineUserIds().size();
+    }
+
     /**
      * 群多播:给一批 userId 各自的所有 session 广播同一条文本消息。
      * 循环现有单用户 broadcast(幂等去重:重复 userId 只发一次),离线用户直接丢弃。

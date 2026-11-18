@@ -67,7 +67,7 @@ public class AuthController {
         return Result.ok(authService.login(dto, RequestIp.of(req)));
     }
 
-    /** 邮箱验证码登录(免密码) */
+    /** 邮箱验证码登录(免密码)。只登录已注册账号，未注册返回 1024。 */
     @PostMapping("/login-code")
     public Result<TokenPairVO> loginByCode(@Valid @RequestBody LoginByCodeDTO dto) {
         return Result.ok(authService.loginByCode(dto));

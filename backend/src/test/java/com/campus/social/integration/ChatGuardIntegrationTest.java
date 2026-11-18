@@ -96,7 +96,7 @@ class ChatGuardIntegrationTest {
 
     /* ------------------------------------------------------------------ 播种 */
 
-    /** 注册满 4 天的老号：通过搭话的账号年龄门槛 */
+    /** 老号：用于验证关系与开关相关用例 */
     private Long user(int verifyStatus, int strangerMsgEnabled) {
         String name = "cg-" + verifyStatus + "-" + userIds.size() + "-" + SUFFIX + "@campus.test";
         jdbc.update("INSERT INTO user (username, password_hash, nickname, status, role, school_id, "
@@ -220,13 +220,14 @@ class ChatGuardIntegrationTest {
         assertEquals(Boolean.FALSE, vo.getIsStranger());
     }
 
-    /** 新注册账号给陌生人发第一条：403 ACCOUNT_TOO_NEW，与关系无关 */
+    /** 新注册账号也能给陌生人发第一条：不再要求注册满 24 小时（2026-11-17） */
     @Test
-    void brandNewSenderIsRejected() {
+    void brandNewSenderCanStartChat() {
         long me = freshUser(1);
         long peer = user(1, 1);
 
-        assertCode(ResultCode.ACCOUNT_TOO_NEW, () -> guard.check(me, peer, "你好"));
+        ChatSendVO vo = guard.check(me, peer, "你好");
+        assertEquals(Boolean.TRUE, vo.getIsStranger());
     }
 
     /** 校园信息未填写但账号已满 24 小时：可以给陌生人发第一条（2026-10-30 起） */

@@ -35,13 +35,8 @@ import { useGroupAdminOps } from './useGroupAdminOps'
  *   - ChatThread.vue    = 消息窗 UI
  *   - Chat.vue          = 路由分支与编排
  *
- * ## 单一状态源
- *
- * `currentKind`('dm' | 'group')决定读哪套 API。原实现靠
- * `if (currentKind === 'group')` 在每个函数里分叉,共 6 处。
- * 这里保留同样的结构而不是抽象成 adapter —— 6 处分叉的 adapter
- * 会引入一层「假装统一」的间接,群消息的 senderNickname 聚合、
- * 已读语义(群=至少一人读到)都与单聊不同,强行统一反而更容易错。
+ * `currentKind`('dm' | 'group')决定读哪套 API，不抽象 adapter：
+ * 群消息的昵称聚合与已读语义都与单聊不同，强行统一更容易错。
  *
  * @param {{ onNeedScrollBottom: () => void }} hooks
  */
@@ -207,6 +202,13 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
     currentConvId.value = 0
     currentKind.value = 'group'
     replyToMsg.value = null
+    // 换群先清旧群的消息/公告/禁言态：三个请求是串行的，不清的话新群窗口
+    // 会先显示上一个群的记录与群主操作入口，甚至沿用上一个群的禁言状态
+    messages.value = []
+    groupInfo.value = null
+    mutedMe.value = false
+    historyError.value = false
+    historyLoading.value = true
     groups.value = groups.value.map((x) => (x.id === g.id ? { ...x, myUnread: 0 } : x))
     groupMarkReadApi(g.id).catch(() => {})
     await loadGroupMembers()
@@ -247,7 +249,7 @@ export function useChatCore({ onNeedScrollBottom } = {}) {
   /* ---------------- 发送 / 撤回 ---------------- */
 
   const { doSend, canRecall, doRecall } = useChatSends({
-    currentGroup, currentConv, currentKind, messages, replyToMsg,
+    currentGroup, currentConv, currentConvId, currentKind, messages, replyToMsg,
     fmt, scrollBottom, loadConvs, loadGroups, loadHistory, loadGroupHistory, loadPeerQuota,
     myId: userStore.userInfo?.id,
     api: { send: sendApi, groupSend: groupSendApi, recall: recallApi, groupRecall: groupRecallApi },

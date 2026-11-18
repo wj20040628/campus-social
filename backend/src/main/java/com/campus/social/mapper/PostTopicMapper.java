@@ -18,6 +18,20 @@ public interface PostTopicMapper extends BaseMapper<PostTopic> {
     @Select("SELECT topic_id FROM post_topic WHERE post_id = #{postId} AND is_deleted = 0")
     List<Long> topicIdsByPost(@Param("postId") long postId);
 
+    /** 查某帖子关联的话题名列表(编辑时判断话题是否真的变了) */
+    @Select("SELECT t.name FROM topic t JOIN post_topic pt ON pt.topic_id = t.id " +
+            "WHERE pt.post_id = #{postId} AND pt.is_deleted = 0 ORDER BY pt.id")
+    List<String> topicNamesByPost(@Param("postId") long postId);
+
+    /**
+     * 幂等绑定:uk_pt 撞唯一键时把软删行复活。
+     * 不能先查 is_deleted=0 再 insert —— 软删行仍占唯一键,编辑同一话题会 500。
+     */
+    @org.apache.ibatis.annotations.Insert(
+            "INSERT INTO post_topic (post_id, topic_id, is_deleted) VALUES (#{postId}, #{topicId}, 0) " +
+            "ON DUPLICATE KEY UPDATE is_deleted = 0, update_time = NOW()")
+    int upsert(@Param("postId") long postId, @Param("topicId") long topicId);
+
     /** 软删某帖子的全部话题关联(编辑帖"删旧"用,保留审计;is_deleted 统一逻辑删) */
     @Update("UPDATE post_topic SET is_deleted = 1, update_time = NOW() WHERE post_id = #{postId} AND is_deleted = 0")
     int softDeleteByPost(@Param("postId") long postId);

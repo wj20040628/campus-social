@@ -41,6 +41,7 @@
             :src="mm.user?.avatarUrl ? resolveThumb(mm.user.avatarUrl) : ''"
             :seed="mm.user?.id"
             :name="nickOf(mm)"
+            :user-id="mm.user?.id"
           />
           <div class="gms__i">
             <div class="gms__n">

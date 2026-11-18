@@ -17,10 +17,9 @@ import java.util.Map;
 /**
  * 文件库（2026-10-27）。
  *
- * <p>列表/上传/详情/点赞收藏都要求登录；只有
- * {@code GET /files/{id}/download} 与 {@code GET /public/files/{id}}
- * 在 AuthInterceptor 的游客白名单里——分享给未注册同学时，
- * 落地页和下载不能 401。
+ * <p>上传与所有写操作要求登录；列表/详情/下载/预览对游客开放只读
+ * （AuthInterceptor 游客白名单），游客只能看到已过审文件。
+ * 分享落地页 {@code /public/files/{id}} 同样免登录。
  */
 @RestController
 @RequestMapping("/files")
@@ -43,7 +42,7 @@ public class FileController {
             @RequestParam(value = "size", defaultValue = "20") int size,
             HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(fileService.list(me, tab, sub, category, keyword, sort, page, size));
+        return Result.ok(fileService.list(me == null ? 0L : me, tab, sub, category, keyword, sort, page, size));
     }
 
     @GetMapping("/quota")
@@ -67,7 +66,7 @@ public class FileController {
     @GetMapping("/{id}")
     public Result<FileVO> detail(@PathVariable("id") long id, HttpServletRequest req) {
         Long me = (Long) req.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return Result.ok(fileService.detail(me, id, RequestIp.of(req)));
+        return Result.ok(fileService.detail(me == null ? 0L : me, id, RequestIp.of(req)));
     }
 
     @DeleteMapping("/{id}")

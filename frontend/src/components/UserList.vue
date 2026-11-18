@@ -1,7 +1,7 @@
 <template>
   <div class="user-list">
     <div v-for="u in list" :key="u.id" class="user-row" @click.stop="go(u)">
-      <el-avatar :size="40" :src="resolveThumb(u.avatarUrl)" />
+      <InitialAvatar :size="40" :src="u.avatarUrl ? resolveThumb(u.avatarUrl) : ''" :seed="u.id" :name="nick(u)" :user-id="u.id" />
       <div class="u-info">
         <div class="u-name">{{ nick(u) }}</div>
         <!--
@@ -41,6 +41,7 @@ import { useRouter } from 'vue-router'
 import { User } from '@element-plus/icons-vue'
 import { displayName } from '@/utils/mask'
 import { resolveThumb } from '@/utils/resolve'
+import InitialAvatar from '@/components/common/InitialAvatar.vue'
 import StateBlock from '@/components/common/StateBlock.vue'
 
 const router = useRouter()
